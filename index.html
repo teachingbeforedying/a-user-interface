@@ -193,6 +193,13 @@
         };
         this.didAddPureObjectListeners = [];
 
+
+        this.represented = {};
+        this.didAddRepresentedListeners = [];
+        this.representations = {};
+        this.didAddRepresentationListeners = [];
+
+
         this.didUpdateListenersDict = {
           // "objectAdded": [],
           "scaleChanged": [],
@@ -200,6 +207,7 @@
 
         this.requestSyncWithIcObjListeners = [];
 
+        this.icObjListeners = [];
 
 
         this.redrawCanvasListeners = [];
@@ -282,15 +290,38 @@
         const id = this.generateIcObjectId();
 
         const icObj = new IcObject(id, type, position, size, homeScale);
-
         return icObj;
+
+        // return this.createRepresentedIcObject(icObj);
       }
 
-      tetherIcObject(icObj) {
+      createRepresentedIcObject(icObj) {
+        const icObj_represented = RepresentedFactory.initial(icObj);
+        const rep_free = icObj_represented.createNewRepresentationWithName("free");
+
+        return icObj_represented;
+      }
+
+      tetherIcObject(represented) {
         const infiniteCanvas = this;
-        icObj.didUpdateListeners.push((icObj, requestCanvasRedraw) => {
-          infiniteCanvas.manageIcObjUpdate(icObj, requestCanvasRedraw);
+
+        // icObj.didUpdateListeners.push((icObj, requestCanvasRedraw) => {
+        //   infiniteCanvas.manageIcObjUpdate(icObj, requestCanvasRedraw);
+        // });
+
+        const rep_official = represented.r_official();
+        rep_official.onOuterUpdate((rep_official, updateDict) => {
+          console.log("rep_official", "onOuterUpdate", rep_official);
+          infiniteCanvas.icObjDidUpdate(rep_official, updateDict);
         });
+
+        const rep_free     = represented.r_free();
+        rep_official.follow(rep_free);
+
+      }
+
+      getRepresented(id) {
+        return this.represented[id];
       }
 
       createIcRect_withLTWH(left, top, width, height) {
@@ -545,38 +576,488 @@
 
 
 
+      createIcSnapSlot(trueRect, canSnapFunc_param = null) {
+        console.log("createIcSnapSlot");
+
+        const infiniteCanvas = this;
+
+        const type      = "snapSlot";
+        const position  = Geometry.createPoint(trueRect.x, trueRect.y);
+        const size      = Geometry.createSize(trueRect.width, trueRect.height);
+        const homeScale = Object.assign({}, this.scale);
+
+        const icObj = this.createIcObject(type, position, size, homeScale);
+
+        //debug for icText snapping
+        const icTextSize = {
+          width:  248.4375,
+          height: 113,
+          // width:  268.4375,
+          // height: 130,
+        };
+        icObj.size = icTextSize;
+
+
+        const icSnapSlot_spec = {
+          // canSnapFunc:      canSnapFunc.bind(icObj),
+          // attemptSnapping:  attemptSnapping.bind(icObj),
+          // checkCanSnap:     checkCanSnap.bind(icObj),
+          // snap:             snap.bind(icObj),
+          //
+          // listener:         listener.bind(icObj),
+
+          stroke: "black",
+          strokeWidth: 3,
+        };
+
+        const icSnapSlot = Object.assign(icObj, icSnapSlot_spec);
+
+
+
+        // const canSnapFunc__default = (icObj_piece) => {
+        //   return true;
+        // };
+        //
+        // var canSnapFunc;
+        // if(canSnapFunc_param != null) {
+        //   canSnapFunc = canSnapFunc_param;
+        // } else {
+        //   canSnapFunc = canSnapFunc__default;
+        // }
+
+        const attemptSnapping = function(icObj_slot, icObj_piece) {
+          console.log("attemptSnapping", icObj_slot, icObj_piece);
+
+          const canSnap = checkCanSnap(icObj_slot, icObj_piece);
+
+          const rep_official = icObj_piece;
+          console.log("attempting to snap with snapState: " + rep_official.snapState);
+
+          // const isValidPieceSnapState = (rep_official.snapState == SnapState.Unsnapped);
+          //
+          // if(isValidPieceSnapState) {
+          //
+          // } else {
+          //   console.log("can't snap while snapState == " + rep_official.snapState)
+          //   // throw new Error("attempting to snap with snapState: " + rep_official.snapState);
+          //   return;
+          // }
+
+          if(canSnap) {
+            console.log("can snap");
+
+            const rep_official = icObj_piece;
+            const represented  = icObj_piece.represented;
+            const rep_free     = represented.getRepresentation("free");
+
+            console.log("rep_free.isHeld", rep_free.isHeld);
+            if(rep_free.isHeld) {
+              presnap(icObj_slot, icObj_piece);
+            } else {
+              presnap(icObj_slot, icObj_piece);
+              snap(icObj_slot, icObj_piece);
+            }
+
+          } else {
+            console.log("can't snap");
+          }
+
+        };
+
+        const checkCanSnap = function(icObj_slot, icObj_piece) {
+          console.log("checkCanSnap", icObj_piece);
+          var outBool;
+
+          outBool = Snap.canSnap(icObj_piece, icObj_slot);
+
+          return outBool;
+        };
+
+        var rep_free_onRelease__triggerSnap          = null;
+        var rep_free_afterPresnap__attemptUnsnapping = null;
+        // var rep_free_afterSnap__attemptUnsnapping    = null;
+        var rep_free_callbacks = {
+          onRelease__triggerSnap:          null,
+          afterPresnap__attemptUnsnapping: null,
+        };
+
+        const presnap = function(icObj_slot, icObj_piece) {
+          console.log("presnap", icObj_piece);
+
+          const rep_official = icObj_piece;
+          const represented  = icObj_piece.represented;
+          const rep_free     = represented.getRepresentation("free");
+          const rep_snapped  = represented.createNewRepresentationWithName("snapped");
+
+          rep_official.snapState = SnapState.Presnapped;
+          // presnapped[rep_official.id_rep] = rep_official;
+          rep_official.unfollow(rep_free);
+
+
+          rep_snapped.position     = Object.assign({}, icObj_slot.position);
+          rep_snapped.homeScale    = Object.assign({}, icObj_slot.homeScale);
+          rep_snapped.scale        = Object.assign({}, icObj_slot.scale);
+          rep_snapped.orientation  = icObj_slot.orientation;
+
+          infiniteCanvas.addRepresentation(represented, rep_snapped);
+
+
+          rep_official.syncWith(rep_snapped);
+          rep_official.follow(rep_snapped);
+
+
+          rep_free.opacity = 0.0;
+            //debug
+          rep_free.opacity = 1.0;
+          rep_free.fill = "blue";
+
+          //add release listener
+          // icObj_fRep.onHold((icObj) => {
+          //
+          // });
+
+          //add release listener for rep_free
+          rep_free_onRelease__triggerSnap = (rep_free) => {
+            console.log("rep_free_onRelease__triggerSnap");
+
+            snap(icObj_slot, icObj_piece);
+          };
+          rep_free.onRelease(rep_free_onRelease__triggerSnap);
+
+
+          //add unsnap listener for rep_free
+          rep_free_afterPresnap__attemptUnsnapping = (rep_free, propName, oldValue, newValue) => {
+            console.log("rep_free_afterPresnap__attemptUnsnapping", rep_free);
+
+            attemptUnsnapping(icObj_slot, rep_free);
+          };
+          rep_free.onInnerUpdate(rep_free_afterPresnap__attemptUnsnapping);
+
+        };
+
+
+        const snap = function(icObj_slot, icObj_piece) {
+          console.log("snap", icObj_piece);
+
+          const rep_official = icObj_piece;
+          const represented  = icObj_piece.represented;
+          const rep_free     = represented.getRepresentation("free");
+          const rep_snapped  = represented.getRepresentation("snapped");
+
+          console.log("**snap", "rep_free.isHeld", rep_free.isHeld);
+
+          console.log("rep_free_afterPresnap__attemptUnsnapping != null", (rep_free_afterPresnap__attemptUnsnapping != null));
+          if(rep_free_afterPresnap__attemptUnsnapping != null) {
+            rep_free.offInnerUpdate(rep_free_afterPresnap__attemptUnsnapping);
+          }
+          rep_free_afterPresnap__attemptUnsnapping = null;
+
+
+          rep_free.offRelease(rep_free_onRelease__triggerSnap);
+          rep_free_onRelease__triggerSnap = null;
+
+
+
+          // rep_free.syncWith(rep_snapped);
+          // rep_free.syncWith(rep_official);
+
+          //SHU TODO: MYSTERE ET BOULE DE GOMME: il y a un truc avec syncWith qui casse rep_free ... ???
+
+          rep_free.syncWithObj({
+            position:   rep_snapped.position,
+            size:       rep_snapped.size,
+            homeScale:  rep_snapped.homeScale,
+            scale:      rep_snapped.scale,
+
+            // didUpdateListeners : rep_snapped.didUpdateListeners,
+            // holdListeners      : rep_snapped.holdListeners,
+            // releaseListeners   : rep_snapped.releaseListeners,
+          });
+
+
+
+          rep_free.opacity = 1.0;
+            //debug
+          rep_free.opacity = 1.0;
+          rep_free.fill = "red";
+
+          rep_official.unfollow(rep_snapped);
+          rep_official.follow(rep_free);
+          rep_official.snapState = SnapState.Snapped;
+
+
+          console.log("remove rep_snapped", rep_snapped.id_rep);
+          rep_snapped.im_dead_now = true;
+          infiniteCanvas.removeRepresentation(represented, rep_snapped);
+          represented.removeRepresentation(rep_snapped);
+
+          //add unsnap listener for rep_free
+          // rep_free_afterSnap__attemptUnsnapping = (rep_free, propName, oldValue, newValue) => {
+          //   console.log("rep_free_afterSnap__attemptUnsnapping", rep_free);
+          //
+          //   attemptUnsnapping(icObj_slot, rep_free);
+          // };
+          // rep_free.onInnerUpdate(rep_free_afterSnap__attemptUnsnapping);
+
+
+            //debug
+          // rep_free.onHold((rep_free) => {
+          //   console.log("###rep_free.id_rep", rep_free.id_rep);
+          //   console.log("###rep_free.onHold", "rep_free.isHeld", rep_free.isHeld);
+          // });
+
+        };
+
+
+
+
+
+        const attemptUnsnapping = function(icObj_slot, icObj_piece) {
+          console.log("attemptUnsnapping", icObj_slot, icObj_piece);
+
+          const canUnsnap = checkCanUnsnap(icObj_slot, icObj_piece);
+          console.log("canUnsnap", canUnsnap);
+
+          const rep_official = icObj_piece;
+          console.log("attempting to unsnap with snapState: " + rep_official.snapState);
+
+          // const isValidPieceSnapState = (rep_official.snapState == SnapState.Presnapped);
+          //
+          // if(isValidPieceSnapState) {
+          //
+          // } else {
+          //   console.log("can't unsnap while snapState == " + rep_official.snapState)
+          //   // throw new Error("attempting to unsnap with snapState: " + rep_official.snapState);
+          //   return;
+          // }
+
+          if(canUnsnap) {
+            // console.log("can unsnap");
+            unsnap(icObj_slot, icObj_piece);     //presnap already sets up an unsnap listener
+
+          } else {
+            // console.log("can't unsnap");
+
+            //SHU TODO: hasLeftSlot
+            // const hasLeftSlot = Snap.hasLeftSlot()
+            const hasLeftSlot = true;
+
+            if(hasLeftSlot) {
+
+
+              // const rep_official = icObj_piece;
+              const represented  = icObj_piece.represented;
+              const rep_free     = represented.getRepresentation("free");
+
+              console.log("#rep_free.id_rep", rep_free.id_rep);
+              console.log("#rep_free.isHeld", rep_free.isHeld);
+
+              if(rep_free.isHeld) {
+                if(icObj_piece.snapState == SnapState.Snapped) {
+                  presnap(icObj_slot, icObj_piece);
+                }
+              } else {
+                //do nothing
+                // snap(icObj_slot, icObj_piece);
+              }
+
+            } else {
+              //do nothing
+              // snap(icObj_slot, icObj_piece);
+            }
+
+
+
+          }
+
+        };
+
+        const checkCanUnsnap = function(icObj_slot, icObj_piece) {
+          console.log("checkCanUnsnap", icObj_piece);
+          var outBool;
+
+          outBool = Snap.canUnsnap(icObj_piece, icObj_slot);
+
+          return outBool;
+        };
+
+        const unsnap = function(icObj_slot, icObj_piece) {
+          console.log("unsnap", icObj_piece);
+
+          const rep_free     = icObj_piece;
+
+          console.log("rep_free_afterPresnap__attemptUnsnapping != null", (rep_free_afterPresnap__attemptUnsnapping != null));
+          if(rep_free_afterPresnap__attemptUnsnapping != null) {
+            rep_free.offInnerUpdate(rep_free_afterPresnap__attemptUnsnapping);
+          }
+          rep_free_afterPresnap__attemptUnsnapping = null;
+
+          // if(rep_free_afterSnap__attemptUnsnapping != null) {
+          //   rep_free.offInnerUpdate(rep_free_afterSnap__attemptUnsnapping);
+          // }
+          // rep_free_afterSnap__attemptUnsnapping = null;
+
+          rep_free.offRelease(rep_free_onRelease__triggerSnap);
+          rep_free_onRelease__triggerSnap = null;
+
+
+
+          const represented  = icObj_piece.represented;
+          const rep_official = represented.getRepresentation("official");
+
+          rep_official.syncWith(rep_free);
+          rep_official.follow(rep_free);
+
+          const rep_snapped  = represented.getRepresentation("snapped");
+          if(rep_snapped != null) {
+            console.log("remove rep_snapped", rep_snapped.id_rep);
+            rep_snapped.im_dead_now = true;
+            infiniteCanvas.removeRepresentation(represented, rep_snapped);
+            represented.removeRepresentation(rep_snapped);
+          } else {
+            console.log("rep_snapped already destroyed somewhere else");
+          }
+
+
+          // rep_free.im_dead_now = true; //SHU: this is interesting
+
+          rep_free.opacity = 1.0;
+            //debug
+          rep_free.fill = "lime";
+
+          rep_official.snapState = SnapState.Unsnapped;
+        };
+
+
+
+
+
+
+
+        const r_official_update_handler = (icObj_slot, icObj_piece, outerUpdatesDict) => {
+          console.log("r_official_update_handler", icObj_piece);
+
+          console.log("icObj_piece.snapState", icObj_piece.snapState);
+
+          // if(outerUpdatesDict["snapState"] == SnapState.Snapped) {
+          //   //official just changed snapState to .Snapped
+          //   //ignore
+          //   return;
+          // }
+
+          if(icObj_piece.snapState == SnapState.Unsnapped) {
+            attemptSnapping(icObj_slot, icObj_piece);
+          } else if(icObj_piece.snapState == SnapState.Snapped) {
+            attemptUnsnapping(icObj_slot, icObj_piece);               //SHU666666 : this is the key line to understand what is wrong
+          } else if(icObj_piece.snapState == SnapState.Presnapped) {
+
+          }
+
+        };
+
+        const r_official_update_handler2 = (rep_official_incoming, outerUpdatesDict) => {
+          console.log("r_official_update_handler2", rep_official_incoming);
+
+          const represented  = infiniteCanvas.getRepresented(icSnapSlot.id);
+          console.log("represented", represented);
+          const rep_official = represented.r_official();
+
+          const snapSlot    = rep_official;
+          const incomingObj = rep_official_incoming;
+
+          if(incomingObj != snapSlot) { //don't snap oneself
+            r_official_update_handler(snapSlot, incomingObj, outerUpdatesDict);
+          } else {
+            console.log("I won't snap myself");
+          }
+
+        };
+
+        infiniteCanvas.onIcObjUpdate(r_official_update_handler2);
+
+        //SHU TODO: infiniteCanvas.offIcObjUpdate when snap slot is destroyed
+
+        return icSnapSlot;
+      }
+
+
 
 
         //add
       addIcObject(icObj) {
         console.log("addIcObject", icObj);
 
-        this.icObjects["any"].push(icObj);
+        const represented = this.createRepresentedIcObject(icObj);
 
-        this.tetherIcObject(icObj);   //== track icObj updates
+        this.addRepresented(represented);
 
-
-        if(this.icObjects[icObj.type] == null) {
-          this.icObjects[icObj.type] = [];
-        }
-        this.icObjects[icObj.type].push(icObj);
-
-
-        console.log("this.icObjects['any'].length",      this.icObjects['any'].length);
-        console.log("this.icObjects[icObj.type].length", this.icObjects[icObj.type].length);
-
-
-        this.didAddObject(icObj);
+        // this.didAddIcObject();
       }
 
-      didAddObject(icObj) {
+      didAddIcObject(icObj) {
+
+      }
+
+      addRepresented(represented) {
+        console.log("addRepresented", represented);
+
+        this.tetherIcObject(represented);   //== track icObj updates
+
+        //store
+        const rep_official = represented.r_official();
+        this.represented[rep_official.id] = represented;
+
+        //add free representation
+        const rep_free = represented.r_free();
+        this.addRepresentation(represented, rep_free);
+
+        this.didAddRepresented(represented);
+      }
+
+      didAddRepresented(represented) {
         this.setChanged(true);
 
-        this.didAddObjectListeners.forEach((listener, i) => {
-          listener(icObj);
+        this.didAddRepresentedListeners.forEach((listener, i) => {
+          listener(represented);
+        });
+      }
+
+      addRepresentation(represented, representation) {
+
+        if(this.representations[representation.id_rep] == null) {
+          this.representations[representation.id_rep] = representation;
+        } else {
+          throw new Error("oh, no, id collision for id: " + representation.id_rep);
+        }
+
+        this.didAddRepresentation(represented, representation);
+      }
+
+      didAddRepresentation(represented, representation) {
+        this.setChanged(true);
+
+        this.didAddRepresentationListeners.forEach((listener, i) => {
+          listener(represented, representation);
         });
 
         this.redrawCanvas(RedrawOccasion.objectAdded);
+      }
+
+      removeRepresentation(represented, representation) {
+
+        delete this.representations[representation.id_rep];
+
+        this.didRemoveRepresentation(represented, representation);
+      }
+
+      didRemoveRepresentation(represented, representation) {
+        this.setChanged(true);
+
+        // this.didAddObjectListeners.forEach((listener, i) => {
+        //   listener(icObj);
+        // });
+
+        this.redrawCanvas(RedrawOccasion.objectRemoved);
       }
 
       addPureIcObject(icObj) {
@@ -637,7 +1118,20 @@
           this.removeIcObject(icObj);
         }
 
+        this.icObjDidUpdate(icObj);
+
         this.setChanged(true);
+      }
+
+      icObjDidUpdate(icObj, outerUpdatesDict) {
+        console.log("icObjDidUpdate", icObj, outerUpdatesDict);
+        this.icObjListeners.forEach((listener, i) => {
+          listener(icObj, outerUpdatesDict);
+        });
+      }
+
+      onIcObjUpdate(listener) {
+        this.icObjListeners.push(listener);
       }
 
 
@@ -684,6 +1178,13 @@
         const top  = true_cursor.y;
 
         const icText = this.createIcText(left, top, text);
+
+        // //debug
+        // const width  = 100;   //"information" size
+        // const height = 100;
+        // icText.width  = width;
+        // icText.height = height;
+
         this.addNewIcObject(icText);
       }
 
@@ -761,6 +1262,27 @@
       // }
 
 
+      addNewSnapSlot() {
+        const true_cursor = this.getTrueCursor();
+
+        const left = true_cursor.x;
+        const top  = true_cursor.y;
+
+        const width  = 100;   //"information" size
+        const height = 100;
+
+        const trueRect = {
+          x: left,
+          y: top,
+          width: width,
+          height: height,
+        };
+
+        const icSnapSlot = this.createIcSnapSlot(trueRect);
+        this.addNewIcObject(icSnapSlot);
+      }
+
+
 
 
       configureInitialIcObjects() {
@@ -798,7 +1320,19 @@
 
         debug.setScale(this.scale);
         debug.setOffset(this.offset);
-        debug.setNbObjects(Object.values(this.icObjects.any).length);
+
+        // console.log("this.icObjects", this.icObjects);
+        // debug.setNbObjects(Object.values(this.icObjects.any).length);
+
+        console.log("**reps[[[[[");
+        Object.values(this.representations).forEach((rep, i) => {
+          console.log("**rep", rep.type, rep.id_rep);
+        });
+        console.log("**reps]]]]]");
+
+
+        const nbDisplayedRepresentations = Object.values(this.representations).length;
+        debug.setNbObjects(nbDisplayedRepresentations);
 
         this.redrawCanvasListeners.forEach((listener, i) => {
           listener(redrawOccasion);
@@ -1233,15 +1767,17 @@
         const scale   = this.scale;
         const orientation = this.orientation;
 
-        const arr_icObjects_serial_p = this.icObjects.any.map(icObj => icObj.toSerial_p());
-        console.log("this.icObjects['any'].length", this.icObjects['any'].length);
-        console.log("this.icObjects.any.length",    this.icObjects.any.length);
+        // const arr_icObjects_serial_p = this.icObjects.any.map(icObj => icObj.toSerial_p());
+        // console.log("this.icObjects['any'].length", this.icObjects['any'].length);
+        // console.log("this.icObjects.any.length",    this.icObjects.any.length);
 
+        const arr_official_serial_p = Object.values(this.represented).map(represented => represented.officialSerial_p());
+        const all_official_serial_p = Promise.all(arr_official_serial_p);
 
+        // const arr_rep_serial_p = Object.values(this.representations).map(rep => rep.toSerial_p());
+        // const all_rep_serial_p = Promise.all(arr_rep_serial_p);
 
-        const all_icObjects_serial_p = Promise.all(arr_icObjects_serial_p);
-
-        const infinishute_p = all_icObjects_serial_p.then((arr_icObject_serial) => {
+        const infinishute_p = all_official_serial_p.then((arr_official_serial) => {
           const infinishute = {};
 
           infinishute.offset      = offset;
@@ -1250,9 +1786,16 @@
 
           infinishute.counter     = counter;
 
-          infinishute.icObjects = {
-            any: arr_icObject_serial,
-          };
+          infinishute.official = arr_official_serial.reduce((acc, official) => {
+            console.log("official", )
+            acc[official.id] = official;
+            return acc;
+          }, {});
+
+          // infinishute.representations = arr_rep_serial.reduce((acc, rep) => {
+          //   acc[rep.id_rep] = rep;
+          //   return acc;
+          // }, {});
 
           return infinishute;
         });
@@ -1300,9 +1843,9 @@
 
         const infiniteCanvas = this;
 
-        const arr_icObj_p = json.icObjects.any.map((json_icObject, i) => {
-          const icObj_p = IcObject.fromJson_p(json_icObject);
-          return icObj_p;
+        const arr_rep_p = json.icObjects.any.map((json_icObject, i) => {
+          const rep_p = IcObject.fromJson_p(json_icObject);
+          return rep_p;
         });
 
         Promise.all(arr_icObj_p)
@@ -1522,6 +2065,13 @@
         this.canBeRotated  = true;
         this.canBeResized  = true;
         this.canBeSelected = true;
+
+        this.canBeHeld     = true;
+
+        // this.isSnapped     = false;
+        this.snapState     = SnapState.Unsnapped;
+
+        this.isHeld        = false;
 
         this.didUpdateListeners = [];
       }
@@ -1942,9 +2492,9 @@
         // this.counter = 0;
         this.representations = {};
 
-        // this.inner = new repClass();                                                 //}
-        //this.inner = {};                                                              //} SHU: ça se discute
-        this.innerRep = createRepresentation(obj, "id_inner_rep" + "__" + this.id, []);    //}
+        // this.inner = new repClass();                                                     //}
+        //this.inner = {};                                                                  //} SHU: ça se discute
+        this.innerRep = createRepresentation(obj, "id_inner_rep" + "__" + this.id, []);     //}
         this.addRepresentation(this.innerRep);
       }
 
@@ -2006,167 +2556,573 @@
         // console.log("arr_affected", arr_affected.map(rep => rep.id_rep));
 
         arr_affected.forEach((rep, i) => {
-          rep.updateFromOuter(propName, setValue);
+          rep.updateFromOuter(propName, setValue, rep__update);
         });
 
       }
 
       addRepresentation(representation) {
         this.representations[representation.id_rep] = representation;
+        // this.innerRep.follow(representation);  //SHU: innerRep now useless ?
+      }
+
+      removeRepresentation(rep) {
+        //rep should no longer get any update from any other rep
+        rep.unfollowAll();
+
+        //all following reps must unfollow
+        const arr_followers = Object.values(rep.followers);
+        arr_followers.forEach((rep_follower) => {
+          rep_follower.unfollow(rep);
+        });
+
+        //remove reference in dict
+        delete this.representations[rep.id_rep];
       }
 
     }
 
-    function createRepresentation(target, id_rep, arr_backingObj) {
-        // console.log("createRepresentation", "target", target);
-        // console.log("createRepresentation", JSON.stringify(target));
+      //original representation
+    // function createRepresentation(target, id_rep, arr_backingObj) {
+    //     // console.log("createRepresentation", "target", target);
+    //     // console.log("createRepresentation", JSON.stringify(target));
+    //
+    //     // const targetClass = target.constructor;
+    //
+    //     const broadcaster = {}; //--> push to backingObject(s)
+    //     broadcaster.id_rep = id_rep;
+    //     broadcaster.arr_backingObj = arr_backingObj;
+    //     broadcaster.addBackingObject = function(backingObj) {
+    //       broadcaster.arr_backingObj.push(backingObj);
+    //       backingObj.addRepresentation(broadcaster.representation);
+    //     };
+    //
+    //     broadcaster.createSisterRepresentation = function(backingObj = null) {
+    //       var targetBackingObj = backingObj;
+    //       if(targetBackingObj == null) {
+    //         const backingObj_first = broadcaster.arr_backingObj.find(e => true);
+    //         targetBackingObj = backingObj_first;
+    //       }
+    //       return targetBackingObj.getNewRepresentation();
+    //     };
+    //
+    //     const receiver  = {}; //<-- receive updates from backingObject(s)
+    //     receiver.id_rep = id_rep;
+    //
+    //
+    //     const inner = target.clone();
+    //     // console.log("inner", inner);
+    //
+    //     const representation = new Proxy({}, {
+    //         get: function (obj, propName) {
+    //           // console.log("representation.get", propName);
+    //           var outProp;
+    //
+    //           if(propName in broadcaster) {
+    //             outProp = broadcaster[propName];//.bind(broadcaster);
+    //           } else if(propName in receiver) {
+    //             outProp = receiver[propName];//.bind(receiver);
+    //           }
+    //
+    //           else if(propName in inner) {
+    //             outProp = inner[propName];//.bind(inner);
+    //           }
+    //
+    //           // else {
+    //           //   console.log("representation", obj);
+    //           //   throw new Error("unknown propName" + "(" + propName + ")" + " for representation: " + obj);
+    //           // }
+    //
+    //           return outProp;
+    //         },
+    //         set: function (obj, propName, setValue) {
+    //           // console.log("representation.set", propName, setValue);
+    //
+    //           updateInternals(propName,setValue);
+    //           broadcaster.arr_backingObj.forEach((backingObj, i) => {
+    //             console.log("representation", broadcaster.representation, "has updated");
+    //             // console.log("broadcasting to", backingObj);
+    //             backingObj.updateWithPropFromRepresentation(propName, setValue, broadcaster.representation);
+    //           });
+    //
+    //           return true;
+    //         },
+    //     });
+    //
+    //     function updateInternals(propName, value) {
+    //       // console.log("updateInternals", propName, value);
+    //
+    //       inner[propName] = value;
+    //     }
+    //
+    //
+    //
+    //
+    //
+    //
+    //     receiver.updateFromOuter = (propName,value) => {
+    //       // console.log("updateFromOuter", propName, value);
+    //
+    //       updateInternals(propName,value);
+    //
+    //       // receiver.didUpdateProp(prop,value);
+    //
+    //       //timeout to avoid calling didUpdate for every updated prop
+    //       if(receiver.didUpdateTimeout == null) {
+    //         const timeout_delayInMs = 17;
+    //         receiver.didUpdateTimeout = setTimeout(() => {
+    //           // console.log("didUpdateTimeout", "triggering");
+    //           receiver.didUpdate();
+    //           receiver.didUpdateTimeout = null;
+    //         }, timeout_delayInMs);
+    //       }
+    //     };
+    //
+    //     // receiver.didUpdatePropListeners = [];
+    //     // receiver.didUpdateProp = (prop,value) => {
+    //     //   receiver.didUpdatePropListeners.forEach((listener, i) => {
+    //     //     listener(prop,value);
+    //     //   });
+    //     // }
+    //
+    //     receiver.didUpdateTimeout   = null;
+    //     receiver.didUpdateListeners = [];
+    //     receiver.didUpdate = () => {
+    //       // console.log("receiver", "didUpdate");
+    //       receiver.didUpdateListeners.forEach((listener, i) => {
+    //         listener(receiver.representation);
+    //       });
+    //     };
+    //
+    //     receiver.addOnOuterUpdate = (listener) => {
+    //       receiver.didUpdateListeners.push(listener);
+    //     };
+    //
+    //
+    //
+    //
+    //     const glassFacade = new Proxy(inner, {
+    //       get: function (obj, propName) {
+    //         // console.log("glassFacade.get", propName);
+    //         var outProp;
+    //
+    //         if (propName === 'toJSON') {
+		// 		      return function() { return obj; }
+    //         }
+    //
+    //         if(propName in inner)	{	//Be careful! The in operator matches all object keys, including those in the object's prototype chain.
+    //           outProp = inner[propName];
+    //         } else {
+    //           outProp = representation[propName];
+    //         }
+    //
+    //         return outProp;
+    //       },
+    //       set: function (obj, propName, setValue) {
+    //           //console.log("glassFacade.set", propName /*,setValue*/ );
+    //           representation[propName] = setValue;
+    //           return true;
+    //       },
+    //     });
+    //
+    //     broadcaster.representation = glassFacade;
+    //     receiver.representation    = glassFacade;
+    //
+    //
+    //     return glassFacade;
+    //   }
+    //
 
-        // const targetClass = target.constructor;
-
-        const broadcaster = {}; //--> push to backingObject(s)
-        broadcaster.id_rep = id_rep;
-        broadcaster.arr_backingObj = arr_backingObj;
-        broadcaster.addBackingObject = function(backingObj) {
-          broadcaster.arr_backingObj.push(backingObj);
-          backingObj.addRepresentation(broadcaster.representation);
-        };
-
-        broadcaster.createSisterRepresentation = function(backingObj = null) {
-          var targetBackingObj = backingObj;
-          if(targetBackingObj == null) {
-            const backingObj_first = broadcaster.arr_backingObj.find(e => true);
-            targetBackingObj = backingObj_first;
-          }
-          return targetBackingObj.getNewRepresentation();
-        };
-
-        const receiver  = {}; //<-- receive updates from backingObject(s)
-        receiver.id_rep = id_rep;
-
-
-        const inner = target.clone();
-        // console.log("inner", inner);
-
-        const representation = new Proxy({}, {
-            get: function (obj, propName) {
-              // console.log("representation.get", propName);
-              var outProp;
-
-              if(propName in broadcaster) {
-                outProp = broadcaster[propName];//.bind(broadcaster);
-              } else if(propName in receiver) {
-                outProp = receiver[propName];//.bind(receiver);
-              }
-
-              else if(propName in inner) {
-                outProp = inner[propName];//.bind(inner);
-              }
-
-              // else {
-              //   console.log("representation", obj);
-              //   throw new Error("unknown propName" + "(" + propName + ")" + " for representation: " + obj);
-              // }
-
-              return outProp;
-            },
-            set: function (obj, propName, setValue) {
-              // console.log("representation.set", propName, setValue);
-
-              updateInternals(propName,setValue);
-              broadcaster.arr_backingObj.forEach((backingObj, i) => {
-                // console.log("broadcasting to", backingObj);
-                backingObj.updateWithPropFromRepresentation(propName, setValue, broadcaster.representation);
-              });
-              return true;
-            },
-        });
-
-        function updateInternals(propName, value) {
-          // console.log("updateInternals", propName, value);
-
-          inner[propName] = value;
-        }
-
-
-
-
-
-
-        receiver.updateFromOuter = (propName,value) => {
-          // console.log("updateFromOuter", propName, value);
-
-          updateInternals(propName,value);
-
-          // receiver.didUpdateProp(prop,value);
-
-          //timeout to avoid calling didUpdate for every updated prop
-          if(receiver.didUpdateTimeout == null) {
-            const timeout_delayInMs = 17;
-            receiver.didUpdateTimeout = setTimeout(() => {
-              // console.log("didUpdateTimeout", "triggering");
-              receiver.didUpdate();
-              receiver.didUpdateTimeout = null;
-            }, timeout_delayInMs);
-          }
-        };
-
-        // receiver.didUpdatePropListeners = [];
-        // receiver.didUpdateProp = (prop,value) => {
-        //   receiver.didUpdatePropListeners.forEach((listener, i) => {
-        //     listener(prop,value);
-        //   });
-        // }
-
-        receiver.didUpdateTimeout   = null;
-        receiver.didUpdateListeners = [];
-        receiver.didUpdate = () => {
-          // console.log("receiver", "didUpdate");
-          receiver.didUpdateListeners.forEach((listener, i) => {
-            listener(receiver);
-          });
-        };
-
-        receiver.addOnOuterUpdate = (listener) => {
-          receiver.didUpdateListeners.push(listener);
-        };
-
-
-
-
-        const glassFacade = new Proxy(inner, {
-          get: function (obj, propName) {
-            // console.log("glassFacade.get", propName);
-            var outProp;
-
-            if (propName === 'toJSON') {
-				      return function() { return obj; }
-            }
-
-            if(propName in inner)	{	//Be careful! The in operator matches all object keys, including those in the object's prototype chain.
-              outProp = inner[propName];
-            } else {
-              outProp = representation[propName];
-            }
-
-            return outProp;
-          },
-          set: function (obj, propName, setValue) {
-              //console.log("glassFacade.set", propName /*,setValue*/ );
-              representation[propName] = setValue;
-              return true;
-          },
-        });
-
-        broadcaster.representation = glassFacade;
-
-        return glassFacade;
-      }
-
-      class Representation {
+      class RepresentationFactory {
         static initial(obj) {
             return BackingObject.fromObject(obj).getNewRepresentation();
         }
       }
+
+      class RepresentedFactory {
+        static initial(obj) {
+            const backingObj = BackingObject.fromObject(obj);
+            const rep_official = backingObj.getNewRepresentation();
+            const represented = new Represented(backingObj, rep_official);
+            rep_official.represented = represented;
+            return represented;
+        }
+      }
+
+      class Represented {
+
+        constructor(backingObj, rep_official) {
+          this.backingObj = backingObj;
+
+          this.reps = {};
+          this.reps["official"] = rep_official;
+        }
+
+        r_official() {
+          return this.reps["official"];
+        }
+
+        createNewRepresentationWithName(repName) {
+          const rep_new = this.backingObj.getNewRepresentation();
+          rep_new.represented = this;
+
+          this.reps[repName] = rep_new;
+
+          return rep_new;
+        }
+
+        getRepresentation(repName) {
+          return this.reps[repName];
+        }
+
+        // removeRepresentation(repName) {
+        //   if(repName == "official") {
+        //     throw new Error("Represented::removeRepresentation, can't remove official rep");
+        //   }
+        //   const rep = this.reps[repName];
+        //   this.backingObj.removeRepresentation(rep);
+        //   delete this.reps[repName];
+        // }
+
+        removeRepresentation(rep) {
+          if(rep == this.r_official()) {
+            throw new Error("Represented::removeRepresentation, can't remove official rep");
+          }
+          this.backingObj.removeRepresentation(rep);
+
+          const repName = this.getRepNameForRep(rep);
+          delete this.reps[repName];
+        }
+
+        getRepNameForRep(rep_unknown) {
+          var outString;
+
+          const entry_found = Object.entries(this.reps).find(([repName, rep]) => rep == rep_unknown);
+          if(entry_found != null) {
+            outString = entry_found[0];
+          } else {
+            console.log("rep not found in represented");
+            outString = null;
+          }
+
+          return outString;
+        }
+
+
+
+        //convenience
+        r_free() {
+          return this.reps["free"];
+        }
+
+        r_snapped() {
+          return this.reps["snapped"];
+        }
+
+
+
+
+
+
+        officialSerial_p() {
+          const rep      = this.r_official();
+          const serial_p = rep.toSerial_p();
+          return serial_p;
+        }
+
+
+
+
+
+      }
+
+      // class RepresentationNetwork {
+      //
+      //
+      // }
+      //
+      // class RepresentationNetworkNode {
+      //
+      //
+      // }
+
+
+        //representation "plus"
+      function createRepresentation(target, id_rep, arr_backingObj) {
+          // console.log("createRepresentation", "target", target);
+          // console.log("createRepresentation", JSON.stringify(target));
+
+          // const targetClass = target.constructor;
+
+          const broadcaster = {}; //--> push to backingObject(s)
+          broadcaster.id_rep = id_rep;
+          broadcaster.arr_backingObj = arr_backingObj;
+          broadcaster.addBackingObject = function(backingObj) {
+            broadcaster.arr_backingObj.push(backingObj);
+            backingObj.addRepresentation(broadcaster.representation);
+          };
+
+          // broadcaster.createSisterRepresentation = function(backingObj = null) {  //~ "gemini rep"
+          //   var targetBackingObj = backingObj;
+          //   if(targetBackingObj == null) {
+          //     const backingObj_first = broadcaster.arr_backingObj.find(e => true);
+          //     targetBackingObj = backingObj_first;
+          //   }
+          //
+          //   const rep_elder  = broadcaster.representation;
+          //   const rep_sister = targetBackingObj.getNewRepresentation();
+          //
+          //   rep_sister.follow(rep_elder);
+          //   rep_elder.follow(rep_sister);
+          //
+          //   return rep_sister;
+          // };
+          //
+          // broadcaster.removeSisterRepresentation = (rep) => {
+          //   //SHU: TODO
+          // };
+
+          broadcaster.followers = {};
+          broadcaster.addFollower = function(rep) {
+            broadcaster.followers[rep.id_rep] = rep;
+          }
+
+          broadcaster.removeFollower = function(rep) {
+            delete broadcaster.followers[rep.id_rep];
+          }
+
+
+          broadcaster.didUpdateFromInner = (representation, propName, oldValue, newValue) => {
+            broadcaster.didUpdateFromInnerListeners.forEach((listener, i) => {
+              listener(representation, propName, oldValue, newValue);
+            });
+          };
+
+          // var innerUpdates = {};
+          broadcaster.didUpdateFromInnerListeners = [];
+          broadcaster.onInnerUpdate = (listener) => {
+            broadcaster.didUpdateFromInnerListeners.push(listener);
+          };
+          broadcaster.offInnerUpdate = (listener) => {
+            broadcaster.didUpdateFromInnerListeners = Utils.arrayByRemovingElement(broadcaster.didUpdateFromInnerListeners, listener);
+          };
+
+
+          const receiver  = {}; //<-- receive updates from backingObject(s)
+          receiver.id_rep = id_rep;
+
+
+          const inner = target.clone();
+          // console.log("inner", inner);
+
+          const representation = new Proxy({}, {
+              get: function (obj, propName) {
+                // console.log("representation.get", propName);
+                var outProp;
+
+                if(propName in broadcaster) {
+                  outProp = broadcaster[propName];//.bind(broadcaster);
+                } else if(propName in receiver) {
+                  outProp = receiver[propName];//.bind(receiver);
+                }
+
+                else if(propName in inner) {
+                  outProp = inner[propName];//.bind(inner);
+                }
+
+                // else {
+                //   console.log("representation", obj);
+                //   throw new Error("unknown propName" + "(" + propName + ")" + " for representation: " + obj);
+                // }
+
+                return outProp;
+              },
+              set: function (obj, propName, setValue) {
+                // console.log("representation.set", propName, setValue);
+
+                const oldValue = inner[propName];
+                const newValue = setValue;
+
+                updateInternals(propName,setValue);
+                broadcaster.arr_backingObj.forEach((backingObj, i) => {
+                  console.log("representation has updated", broadcaster.representation);
+                  // console.log("broadcasting to", backingObj);
+                  backingObj.updateWithPropFromRepresentation(propName, setValue, broadcaster.representation);
+                });
+
+                broadcaster.didUpdateFromInner(broadcaster.representation, propName, oldValue, newValue);
+
+                return true;
+              },
+          });
+
+          function updateInternals(propName, value) {
+            // console.log("updateInternals", propName, value);
+
+            inner[propName] = value;
+          }
+
+          //follow system
+
+          receiver.followed = {};
+
+          receiver.follow = function(rep) {
+            const follower = receiver.representation;
+            const followed = rep;
+
+            if(followed == follower) {
+              //can't follow self
+              //ignore
+              return;
+            }
+
+            followed.followers[follower.id_rep] = follower;
+            follower.followed[followed.id_rep]  = followed;
+          }
+
+          receiver.unfollow = function(rep) {
+            const follower = receiver.representation;
+            const followed = rep;
+
+            if(followed.followers[follower.id_rep] != null) {
+              delete followed.followers[follower.id_rep];
+            }
+            if(follower.followed[followed.id_rep] != null) {
+              delete follower.followed[followed.id_rep];
+            }
+          }
+
+          receiver.followAll = function() {
+            const arr_repDicts = arr_backingObj.map((backingObj) => backingObj.representations);
+            const arr_allreps  = arr_repDicts.reduce((acc, repDict) => {
+              const arr = acc;
+              arr.push(...Object.values(repDict));
+              return arr;
+            }, []);
+            arr_allreps.forEach((rep, i) => {
+              receiver.follow(rep);
+            });
+          }
+
+          receiver.unfollowAll = function() {
+            const followed = Object.assign({}, receiver.followed);
+            Object.values(followed).forEach((rep, i) => {
+              receiver.unfollow(rep);
+            });
+          }
+
+          // receiver.inner = inner;
+          receiver.syncWith = function(rep) {
+            // Object.entries(rep.inner).forEach(([propName,value], i) => {
+            //   updateInternals(propName, value);
+            // });
+            Object.keys(inner).forEach((propName, i) => {
+              const value = rep[propName];
+              console.log("+++syncWith", propName, value);
+              updateInternals(propName, value);
+            });
+          }
+
+          receiver.syncWithObj = function(obj) {
+            Object.keys(obj).forEach((propName, i) => {
+              const value = obj[propName];
+              updateInternals(propName, value);
+            });
+          }
+
+
+          var outerUpdates = {};
+          receiver.updateFromOuter = (propName,value, rep) => {
+            // console.log("updateFromOuter", propName, value);
+
+            const isRepFollowed = (receiver.followed[rep.id_rep] == rep);
+            if(!isRepFollowed) {
+              console.log("rep not followed", "ignore");
+              return;
+            }
+
+            outerUpdates[propName] = value;
+
+            updateInternals(propName,value);
+
+            // receiver.didUpdateProp(prop,value);
+
+            //timeout to avoid calling didUpdate for every updated prop
+            if(receiver.didUpdateFromOuterTimeout == null) {
+              const timeout_delayInMs = 17;
+              receiver.didUpdateFromOuterTimeout = setTimeout(() => {
+                // console.log("didUpdateTimeout", "triggering");
+                receiver.didUpdateFromOuter(outerUpdates);
+                receiver.didUpdateFromOuterTimeout = null;
+                outerUpdates = {};
+              }, timeout_delayInMs);
+            }
+          };
+
+          // receiver.didUpdatePropListeners = [];
+          // receiver.didUpdateProp = (prop,value) => {
+          //   receiver.didUpdatePropListeners.forEach((listener, i) => {
+          //     listener(prop,value);
+          //   });
+          // }
+
+          receiver.didUpdateFromOuterTimeout   = null;
+          receiver.didUpdateFromOuterListeners = [];
+          receiver.didUpdateFromOuter = (updateDict) => {
+            // console.log("receiver", "didUpdate");
+            receiver.didUpdateFromOuterListeners.forEach((listener, i) => {
+              listener(receiver.representation, updateDict);
+            });
+          };
+
+          receiver.onOuterUpdate = (listener) => {
+            receiver.didUpdateFromOuterListeners.push(listener);
+          };
+
+          receiver.offOuterUpdate = (listener) => {
+            receiver.didUpdateFromOuterListeners = Utils.arrayByRemovingElement(receiver.didUpdateFromOuterListeners, listener);
+          };
+
+          receiver.represented = null;
+
+
+          receiver.toSerial_p = () => {
+            return inner.toSerial_p();
+          }
+
+
+          const glassFacade = new Proxy(inner, {
+            get: function (obj, propName) {
+              // console.log("glassFacade.get", propName);
+              var outProp;
+
+              if (propName === 'toJSON') {
+  				      return function() { return obj; }
+              }
+
+              if(propName in inner)	{	//Be careful! The in operator matches all object keys, including those in the object's prototype chain.
+                outProp = inner[propName];
+              } else {
+                outProp = representation[propName];
+              }
+
+              return outProp;
+            },
+            set: function (obj, propName, setValue) {
+                //console.log("glassFacade.set", propName /*,setValue*/ );
+                representation[propName] = setValue;
+                return true;
+            },
+          });
+
+          broadcaster.representation = glassFacade;
+          receiver.representation    = glassFacade;
+
+
+          return glassFacade;
+        }
+
+
 
       /*//////
       *********/
@@ -2408,25 +3364,83 @@
         }
 
 
-        addFabricObjectWithIcObj(icObj) {
-          console.log("addFabricObjectWithIcObj", "icObj", icObj);
+        addFabricObjectWithIcObj(icObj__r_free) {
+          const fabricIntegration = this;
+          const fabricCanvas      = this.fabricCanvas;
 
+          console.log("addFabricObjectWithIcObj", "icObj", icObj__r_free);
           // const fObj = this.createFabricObjectWithIcObj(icObj);
 
-          var icObj_fRep;
-          if(icObj.createSisterRepresentation != null) {
-            icObj_fRep = icObj.createSisterRepresentation();
+          // var icObj_fRep = icObj__r_free.createSisterRepresentation();
+          var icObj_fRep = icObj__r_free;
+          const fObj = fabricIntegration.createFabricObjectWithIcObj(icObj_fRep);
 
-            icObj_fRep.addOnOuterUpdate((icObj_fRep) => {
-              console.log("icObj_fRep","onOuterUpdate");
-
+          function standardRedraw(fObj) {
+            const icObj = fObj.icObj;
+            fObj.set({
+              opacity: icObj.opacity,
+              fill:    icObj.fill,
             });
 
-          } else {
-            icObj_fRep = icObj;
+            fabricIntegration.updateFabricObject_size_default(fObj);
+            fabricIntegration.updateFabricObject_position_default(fObj);
+
+            fabricCanvas.renderAll();
           }
 
-          const fObj = this.createFabricObjectWithIcObj(icObj_fRep);
+          const innerUpdateListener = (icObj_fRep, propName, oldValue, newValue) => {
+            console.log("innerUpdateListener", icObj_fRep.id_rep, propName);
+
+            if(propName == "im_dead_now") {
+              console.log("im_dead_now");
+              if(icObj_fRep.im_dead_now) {
+                fabricIntegration.removeFabricObject(fObj);
+              }
+            }
+            // else if(propName == "isHeld") {
+            //   console.log("innerUpdate", "isHeld");
+            // }
+            else {
+              console.log("icObj_fRep","onInnerUpdate", icObj_fRep);
+              standardRedraw(fObj);
+            }
+
+          };
+          icObj_fRep.onInnerUpdate(innerUpdateListener);
+
+          const outerUpdateListener = (icObj_fRep) => {
+            console.log("outerUpdateListener", icObj_fRep.id_rep, propName);
+
+            if(propName == "im_dead_now") {
+              console.log("im_dead_now");
+              if(icObj_fRep.im_dead_now) {
+                fabricIntegration.removeFabricObject(fObj);
+              }
+            }
+            // else if(propName == "isHeld") {
+            //   console.log("outerUpdate", "isHeld");
+            // }
+            else {
+              console.log("icObj_fRep","onOuterUpdate", icObj_fRep);
+              standardRedraw(fObj);
+            }
+
+          };
+          icObj_fRep.onOuterUpdate(outerUpdateListener);
+
+
+          // if(icObj_fRep.onHold != null) {
+          //   icObj_fRep.onHold((icObj) => {
+          //
+          //   });
+          // }
+          //
+          // if(icObj_fRep.onRelease != null) {
+          //   icObj_fRep.onRelease((icObj) => {
+          //
+          //   });
+          // }
+
 
           if(fObj) {
             this.addOuterFabricObject(fObj);
@@ -2486,7 +3500,9 @@
               fObj = this.createFabricToggleRectWithIcObj(icObj);
               break;
 
-
+            case "snapSlot":
+              fObj = this.createFabricSnapSlotWithIcObj(icObj);
+              break;
 
             default:
               throw new Error("addFabricObjectWithIcObj " + "unsupported type: " + icObj.type);
@@ -2549,6 +3565,10 @@
           // console.log("----", "fObj", fObj);
 
           //event listeners
+          if(icObj.canBeHeld) {
+            this.addInteraction_hold(fObj);
+          }
+
           if(icObj.canBeMoved) {
             this.addInteraction_move(fObj);
           }
@@ -2562,6 +3582,8 @@
 
           this.addInteraction_select(fObj);
           // this.addListeners(fObj);
+
+
 
 
           //debug
@@ -2627,7 +3649,16 @@
 
           });
 
+          //initial size poll
+          icObj.size = {
+            width:  fObj.width,
+            height: fObj.height,
+          };
+
           //event listeners
+          if(icObj.canBeHeld) {
+            this.addInteraction_hold(fObj);
+          }
           if(icObj.canBeMoved) {
             this.addInteraction_move(fObj);
           }
@@ -2673,6 +3704,9 @@
 
 
           //event listeners
+          if(icObj.canBeHeld) {
+            this.addInteraction_hold(fObj);
+          }
           if(icObj.canBeMoved) {
             this.addInteraction_move(fObj);
           }
@@ -2742,6 +3776,9 @@
           });
 
           //event listeners
+          if(icObj.canBeHeld) {
+            this.addInteraction_hold(fObj);
+          }
           if(icObj.canBeMoved) {
             this.addInteraction_move(fObj);
           }
@@ -2814,6 +3851,9 @@
           // console.log("----", "fObj", fObj);
 
           //event listeners
+          if(icObj.canBeHeld) {
+            this.addInteraction_hold(fObj);
+          }
           if(icObj.canBeMoved) {
             this.addInteraction_move(fObj);
           }
@@ -2877,6 +3917,9 @@
           // console.log("----", "fObj", fObj);
 
           //event listeners
+          if(icObj.canBeHeld) {
+            this.addInteraction_hold(fObj);
+          }
           if(icObj.canBeMoved) {
             this.addInteraction_move(fObj);
           }
@@ -2944,6 +3987,9 @@
 
 
           //event listeners
+          if(icObj.canBeHeld) {
+            this.addInteraction_hold(fObj);
+          }
           if(icObj.canBeMoved) {
             this.addInteraction_move(fObj);
           }
@@ -3063,6 +4109,10 @@
 
             this.addInteraction_select(fObj);
 
+            if(icObj.canBeHeld) {
+              this.addInteraction_hold(fObj);
+            }
+
             if(icObj.canBeMoved) {
               this.addInteraction_move(fObj);
             }
@@ -3108,7 +4158,52 @@
         }
 
 
+        createFabricSnapSlotWithIcObj(icObj) {
+          console.log("createFabricSnapSlotWithIcObj", icObj);
 
+          const infiniteCanvas = this.infiniteCanvas;
+
+          var fObj = new fabric.Rect();
+
+          const position_screen = icObj.getScreenPositionWithoutOffset();
+          // console.log("position_screen", position_screen);
+          const homeSize_screen = icObj.getHomeScreenSize();
+          // console.log("homeSize_screen", homeSize_screen);
+
+
+          fObj.set({
+            left:   position_screen.x,    //SHU: ??? where is infiniteCanvas.offset taking part ???
+            top:    position_screen.y,
+
+            width:  homeSize_screen.width,
+            height: homeSize_screen.height,
+
+            scaleX:  icObj.scale.X,
+            scaleY:  icObj.scale.Y,
+
+            flipX:   icObj.flip.X,
+            flipY:   icObj.flip.Y,
+
+
+            angle :  icObj.orientation,
+
+            //to avoid overlapping when clicking
+            padding:     0,
+            stroke:      icObj.stroke,
+            strokeWidth: icObj.strokeWidth,
+            fill: "",
+
+            icObj : icObj,
+          });
+
+
+          if(icObj.canBeHeld) {
+            this.addInteraction_hold(fObj);
+          }
+
+
+          return fObj;
+        }
 
 
 
@@ -3619,6 +4714,59 @@
             }
             */
 
+          });
+
+        }
+
+        addInteraction_hold(fObj) {
+          console.log("addInteraction_hold", fObj);
+
+          const infiniteCanvas = this.infiniteCanvas;
+          const fabricCanvas   = this.fabricCanvas;
+
+          const icObj = fObj.icObj;
+          icObj.holdListeners     = [];
+          icObj.nowHeld = () => {
+            icObj.isHeld = true;
+            icObj.holdListeners.forEach((listener, i) => {
+              listener(icObj);
+            });
+          }
+          icObj.onHold  = (listener) => {
+            icObj.holdListeners.push(listener);
+          };
+          icObj.offHold = (listener) => {
+            icObj.holdListeners = Utils.arrayByRemovingElement(icObj.holdListeners, listener);
+          };
+
+          icObj.releaseListeners = [];
+          icObj.nowReleased = () => {
+            icObj.isHeld = false;
+            icObj.releaseListeners.forEach((listener, i) => {
+              listener(icObj);
+            });
+          }
+          icObj.onRelease  = (listener) => {
+            icObj.releaseListeners.push(listener);
+          };
+          icObj.offRelease = (listener) => {
+            icObj.releaseListeners = Utils.arrayByRemovingElement(icObj.releaseListeners, listener);
+          };
+
+
+          var isHeld = false;
+          //hold
+          fObj.on('mousedown', function(options) {
+            isHeld = true;
+            console.log("isHeld", isHeld);
+            icObj.nowHeld();
+          });
+
+          //release
+          fObj.on('mouseup', function(options) {
+            isHeld = false;
+            console.log("isHeld", isHeld);
+            icObj.nowReleased();
           });
 
         }
@@ -5755,6 +6903,258 @@
       }
 
 
+      const SnapState = {
+        "Unsnapped"  : "Unsnapped",
+        "Presnapped" : "Presnapped",
+        "Snapped"    : "Snapped",
+      };
+
+      class Snap { //GeometryWise snapping
+
+        static canSnap(icObj_over, icObj_below) { //SHU: what would be nice would be to use the norm of a transformation matrix to settle threshold
+          // const ratio__position        = {
+          //   x:  (icObj_over.position.x - icObj_below.position.x) / icObj_below.position.x,
+          //   y:  (icObj_over.position.y - icObj_below.position.y) / icObj_below.position.y,
+          // };
+          // console.log("ratio__position", ratio__position);
+          // if(!(Math.abs(ratio__position.x) < 0.10)) {
+          //   return false;
+          // }
+          // if(!(Math.abs(ratio__position.y) < 0.10)) {
+          //   return false;
+          // }
+          //
+          // const ratio__size        = {
+          //   width:  (icObj_over.size.width  - icObj_below.size.width)  / icObj_below.size.width,
+          //   height: (icObj_over.size.height - icObj_below.size.height) / icObj_below.size.height,
+          // };
+          // console.log("ratio__size", ratio__size);
+          // if(!(Math.abs(ratio__size.width) < 0.10)) {
+          //   return false;
+          // }
+          // if(!(Math.abs(ratio__size.height) < 0.10)) {
+          //   return false;
+          // }
+          //
+          // const ratio__orientation = (icObj_over.orientation - icObj_below.orientation) / icObj_below.orientation;
+          // console.log("ratio__orientation", ratio__orientation);
+          // if(!(Math.abs(ratio__orientation) < 0.10)) {
+          //   return false;
+          // }
+
+
+          //snapping params:
+          // const snapping_params = {
+          //   // position: {
+          //   //   x: 0.10,
+          //   //   y: 0.10,
+          //   // },
+          //   position: {
+          //     x: 0.05,
+          //     y: 0.05,
+          //   },
+          //   size: {
+          //     width:  0.05,
+          //     height: 0.05,
+          //   },
+          //   homeScale: {
+          //
+          //   },
+          //   orientation: {
+          //     orientation: 0.05,
+          //   },
+          // };
+
+          const snapping_params = {
+            // position: {
+            //   x: 0.10,
+            //   y: 0.10,
+            // },
+            position: {
+              x: 0.50,
+              y: 0.50,
+            },
+            size: {
+              width:  0.05,
+              height: 0.05,
+            },
+            homeScale: {
+
+            },
+            orientation: {
+              orientation: 0.05,
+            },
+          };
+
+
+          //SHU TODO: a nice and complex canSnapFunc
+          const canSnapFunc = (icObj_over, icObj_below) => {
+
+          };
+
+
+          const unsamenessRatio__position = {
+            x:  Snap.unsamenessRatio(icObj_over.position.x, icObj_below.position.x),
+            y:  Snap.unsamenessRatio(icObj_over.position.y, icObj_below.position.y),
+          };
+          if(unsamenessRatio__position.x > snapping_params.position.x) {
+            return false;
+          }
+          if(unsamenessRatio__position.y > snapping_params.position.y) {
+            return false;
+          }
+
+          const unsamenessRatio__size = {
+            width:  Snap.unsamenessRatio(icObj_over.size.width,  icObj_below.size.width),
+            height: Snap.unsamenessRatio(icObj_over.size.height, icObj_below.size.height),
+          };
+          console.log("°°unsamenessRatio__size.width",  unsamenessRatio__size.width);
+          console.log("°°icObj_over.size.width",  icObj_over.size.width);
+          console.log("°°icObj_below.size.width",  icObj_below.size.width);
+
+          console.log("°°unsamenessRatio__size.height", unsamenessRatio__size.height);
+          console.log("°°icObj_over.size.height",  icObj_over.size.height);
+          console.log("°°icObj_below.size.height",  icObj_below.size.height);
+
+          if(unsamenessRatio__size.width > snapping_params.size.width) {
+            return false;
+          }
+          if(unsamenessRatio__size.height > snapping_params.size.height) {
+            return false;
+          }
+
+          const icObj_over__zero_centered_orientation  = (icObj_over.orientation > 180 ? icObj_over.orientation - 180 : icObj_over.orientation);
+          const icObj_below__zero_centered_orientation = (icObj_below.orientation > 180 ? icObj_below.orientation - 180 : icObj_below.orientation);
+
+          const unsamenessRatio__orientation = {
+            // orientation: Snap.unsamenessRatio(icObj_over.orientation,  icObj_below.orientation),
+            // orientation: Math.abs((icObj_over.orientation - icObj_below.orientation) / 360.0),
+            orientation: Snap.unsamenessRatio(icObj_over__zero_centered_orientation,  icObj_below__zero_centered_orientation),
+          };
+          console.log("unsamenessRatio__orientation.orientation", unsamenessRatio__orientation.orientation);
+          if(unsamenessRatio__orientation.orientation > snapping_params.orientation.orientation) {
+            return false;
+          }
+
+          return true;
+        }
+
+
+        static canUnsnap(icObj_over, icObj_below) {
+          return !this.canSnap(icObj_over, icObj_below);
+        }
+
+        /*
+        static canUnsnap(icObj_over, icObj_below) { //SHU: what would be nice would be to use the norm of a transformation matrix to settle threshold
+          // const ratio__position        = {
+          //   x:  (icObj_over.position.x - icObj_below.position.x) / icObj_below.position.x,
+          //   y:  (icObj_over.position.y - icObj_below.position.y) / icObj_below.position.y,
+          // };
+          // console.log("ratio__position", ratio__position);
+          // if(!(Math.abs(ratio__position.x) < 0.10)) {
+          //   return false;
+          // }
+          // if(!(Math.abs(ratio__position.y) < 0.10)) {
+          //   return false;
+          // }
+          //
+          // const ratio__size        = {
+          //   width:  (icObj_over.size.width  - icObj_below.size.width)  / icObj_below.size.width,
+          //   height: (icObj_over.size.height - icObj_below.size.height) / icObj_below.size.height,
+          // };
+          // console.log("ratio__size", ratio__size);
+          // if(!(Math.abs(ratio__size.width) < 0.10)) {
+          //   return false;
+          // }
+          // if(!(Math.abs(ratio__size.height) < 0.10)) {
+          //   return false;
+          // }
+          //
+          // const ratio__orientation = (icObj_over.orientation - icObj_below.orientation) / icObj_below.orientation;
+          // console.log("ratio__orientation", ratio__orientation);
+          // if(!(Math.abs(ratio__orientation) < 0.10)) {
+          //   return false;
+          // }
+
+
+          //snapping params:
+          const unsnapping_params = {
+            // position: {
+            //   x: 0.10,
+            //   y: 0.10,
+            // },
+            position: {
+              x: 0.10,
+              y: 0.10,
+            },
+            size: {
+              width:  0.10,
+              height: 0.10,
+            },
+            orientation: {
+              orientation: 0.10,
+            },
+          };
+
+          // //SHU TODO: a nice and complex canUnsnapFunc
+          // const canUnsnapFunc = (icObj_over, icObj_below) => {
+          //
+          // };
+
+
+          const unsamenessRatio__position = {
+            x:  Snap.unsamenessRatio(icObj_over.position.x, icObj_below.position.x),
+            y:  Snap.unsamenessRatio(icObj_over.position.y, icObj_below.position.y),
+          };
+          if(unsamenessRatio__position.x < unsnapping_params.position.x) {
+            return false;
+          }
+          if(unsamenessRatio__position.y < unsnapping_params.position.y) {
+            return false;
+          }
+
+          const unsamenessRatio__size = {
+            width:  Snap.unsamenessRatio(icObj_over.size.width,  icObj_below.size.width),
+            height: Snap.unsamenessRatio(icObj_over.size.height, icObj_below.size.height),
+          };
+          if(unsamenessRatio__size.width < unsnapping_params.size.width) {
+            return false;
+          }
+          if(unsamenessRatio__size.height < unsnapping_params.size.height) {
+            return false;
+          }
+
+          const unsamenessRatio__orientation = {
+            orientation: Snap.unsamenessRatio(icObj_over.orientation,  icObj_below.orientation),
+          };
+          if(unsamenessRatio__orientation.orientation < unsnapping_params.orientation.orientation) {
+            return false;
+          }
+
+          return true;
+        }
+        */
+
+
+
+        static unsamenessRatio(nb1, nb2) {
+          var outNumber;
+          outNumber = (nb1 - nb2);
+          // if(outNumber != 0) {
+          if(nb2 != 0) {
+            outNumber = outNumber / nb2;
+          }
+          outNumber = Math.abs(outNumber);
+          return outNumber;
+        }
+
+        static snapAnimation(icObj_over, icObj2_below) {
+
+        }
+
+      }
+
+
 
 
 
@@ -6719,7 +8119,8 @@
 
               case "KeyD":
                 {
-                  keyboardIntegration.infiniteCanvas.addNewPoint();
+                  // keyboardIntegration.infiniteCanvas.addNewPoint();
+                  keyboardIntegration.infiniteCanvas.addNewSnapSlot();
                 }
                 break;
 
@@ -7291,9 +8692,14 @@
       infiniteCanvas.redrawCanvasListeners.push((redrawOccasion) => {
         fabricIntegration.redrawCanvas(redrawOccasion);
       });
-      infiniteCanvas.didAddObjectListeners.push((icObj) => {
-        fabricIntegration.addFabricObjectWithIcObj(icObj);
+      // infiniteCanvas.didAddObjectListeners.push((icObj) => {
+      //   const icObj_free = icObj.r_free();
+      //   fabricIntegration.addFabricObjectWithIcObj(icObj_free);
+      // });
+      infiniteCanvas.didAddRepresentationListeners.push((icObj_represented, icObj_representation) => {
+        fabricIntegration.addFabricObjectWithIcObj(icObj_representation);
       });
+
       infiniteCanvas.didAddPureObjectListeners.push((icObj) => {
         fabricIntegration.addFabricObjectWithPureIcObj(icObj);
       });
@@ -7986,9 +9392,9 @@
 
 
 
-      const xylophone = new Xylophone(infiniteCanvas, 10);
+      // const xylophone = new Xylophone(infiniteCanvas, 10);
+      const xylophone = null;
       // const xylophone = new Xylophone(infiniteCanvas, 2);    //always a bit confusing
-
 
     </script>
 
@@ -8091,7 +9497,9 @@
 
     }
 
-    const xyloWrite = new XylophoneGame1_xyloWrite(xylophone, xyloGameHUD);
+    if(xylophone != null) {
+      const xyloWrite = new XylophoneGame1_xyloWrite(xylophone, xyloGameHUD);
+    }
 
     </script>
 
@@ -8439,9 +9847,14 @@
 
           bindSlotAndPiece(slot, piece) {
             piece.didUpdateListeners.push((piece) => {
+              console.log("piece, didUpdate");
+
+              console.log("piece.isSnapped:", piece.isSnapped);
 
               if(!piece.isSnapped) {
                 slot.attemptSnapping(piece);
+              } else {
+                // slot.attemptUnsnapping(piece);
               }
 
             });
@@ -8455,7 +9868,7 @@
             // const icObj_slot = backingObj.inner;
             // const backingObj = BackingObject.fromObject(icObj);
             // const icObj_slot = backingObj.getNewRepresentation();
-            const icObj_slot = Representation.initial(icObj);
+            const icObj_slot = RepresentationFactory.initial(icObj);
             icObj_slot.addOnOuterUpdate((icObj_slot) => {
               console.log("icObj_slot","onOuterUpdate", icObj_slot);
 
@@ -8466,26 +9879,36 @@
 
             // const icObj_piece = icObj.clone();
             // const icObj_piece = backingObj.getNewRepresentation();
-            const icObj_piece = Representation.initial(icObj);
+            const icObj_piece = RepresentationFactory.initial(icObj);
             icObj_piece.addOnOuterUpdate((icObj_piece) => {
               console.log("icObj_piece","onOuterUpdate", icObj_piece);
 
             });
 
+
             //debug
-            icObj_piece.createSisterRepresentation().addOnOuterUpdate((icObj_piece) => {
-              console.log("icObj_piece sister rep","onOuterUpdate", icObj_piece);
-
-            });
-
-            setTimeout(() => {
-              console.log("setTimeout", "update icObj_piece.position");
-              icObj_piece.position = {
-                x: icObj_piece.position.x + 100,
-                y: icObj_piece.position.y + 100,
-              };
-            }, 3000);
-
+            ///////////////////////
+            // icObj_piece.createSisterRepresentation().addOnOuterUpdate((icObj_piece) => {
+            //   console.log("icObj_piece sister rep","onOuterUpdate", icObj_piece);
+            //
+            // });
+            //
+            // setTimeout(() => {
+            //   console.log("setTimeout", "update icObj_piece.position");
+            //   icObj_piece.position = {
+            //     x: icObj_piece.position.x + 100,
+            //     y: icObj_piece.position.y + 100,
+            //   };
+            // }, 3000);
+            //
+            // setTimeout(() => {
+            //   console.log("setTimeout", "update icObj_piece.position");
+            //   icObj_piece.position = {
+            //     x: icObj_piece.position.x + 100,
+            //     y: icObj_piece.position.y + 100,
+            //   };
+            // }, 8000);
+            ////////////////////////
 
 
             const piece = new ZPuzzlePiece(spid, icObj_piece);
@@ -8545,6 +9968,8 @@
           constructor(id, icObj) {
             this.id = id;
 
+            // this.type = "typeA";
+
             this.icObj = icObj;
 
             // this.didUpdateListeners = [];
@@ -8556,7 +9981,10 @@
             const canSnap = this.checkCanSnap(piece);
 
             if(canSnap) {
+              console.log("can snap");
               this.snap(piece);
+            } else {
+              console.log("can't snap");
             }
 
           }
@@ -8564,15 +9992,28 @@
           checkCanSnap(piece) {
             var outBool;
 
-            const icObj_slot  = this.icObj;
+            const slot = this;
+
+            // const isSameType = (piece.type == slot.type);
+            // if(!isSameType) {
+            //   return false;
+            // }
+
+            const isSlotAllowedForPiece = piece.isAllowedSlot(slot);
+            if(!isSlotAllowedForPiece) {
+              return false;
+            }
+
+            const icObj_slot  = slot.icObj;
             const icObj_piece = piece.icObj;
 
-            outBool = true;
+            outBool = Snap.canSnap(icObj_piece, icObj_slot);
 
             return outBool;
           }
 
           snap(piece) {
+            console.log("Zslot", "snap", piece);
 
             piece.isSnapped = true;
 
@@ -8603,6 +10044,7 @@
             this.didUpdateListeners = [];
 
             icObj.didUpdateListeners.push((icObj) => {
+              console.log("ZPuzzlePiece", "icObj didUpdate", icObj);
               this.didUpdate();
             })
           }
@@ -8613,10 +10055,25 @@
             });
           }
 
+          isAllowedSlot(slot) {
+            var outBool;
+            const piece = this;
+
+            const isSameId = (slot.id == piece.id);
+            outBool = isSameId;
+
+            return outBool;
+          }
+
         }
 
+
+
+
+
+
         // const zPuzzle_4pieces = ZPuzzle.default_4pieces(infiniteCanvas);
-        const zPuzzle_4pieces = new ZPuzzle(infiniteCanvas);
+        // const zPuzzle_4pieces = new ZPuzzle(infiniteCanvas);
 
     </script>
 

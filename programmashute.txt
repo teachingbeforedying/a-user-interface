@@ -1990,6 +1990,413 @@ var ID = () => {
 	0 manageIcObjUpdate
 
 29 décembre 2020:
+	"ça se fait pas comme ça, tu comprends. ça tombe pas du ciel."
+
+	0 onOuterUpdate:
+		0 fObj.syncWithIcObj(icObj)
+*		0 ignore or apply wrt representation owner property locks			("official representation")
+			0 property locks
+				example: if model's representation wants to update color: ok, update color in view's representation
+								 if model's representation wants to update color: nok, ignore update
+
+				this way the slot could mutate a piece in a blink of a eye:
+			    0 repaint a piece
+			    0 change its background texture pattern
+			    0 change its size
+			    0 rotate the piece 90° clockwise
+			    0 its nature
+			    0 its behavior (activate or deactivate eventListener code)
+
+			  0 more complex: change underlying fObj while held: fImage becomes fGroup for example
+			0 "but I only wanted to have it snapped"
+			 	=> representation.sendUpdate(, reason)
+					 representation.requestUpdate(, reason)
+					 	onUpdateRequestAccepted()
+						onUpdateRequestRejected()
+
+
+	0 (z)Snap
+		(0 object log: change color on snap
+			0 nextColor(color)
+		0   coller la pièce
+		0 décoller la pièce
+
+		(index):2072 Uncaught RangeError: Maximum call stack size exceeded
+		    at Object.set ((index):2072)
+		    at Object.set ((index):2155)
+		    at Proxy.update ((index):1698)
+		    at ZPuzzleSlot.snap ((index):8629)
+
+		0 temporary representation for snapping
+			0 "official representation"
+**		0 deux objets fabric: celui qui représente le "snapped" et celui qui représente le "free"
+					une bascule se fait au niveau de l'affichage sur les évènements onSnapped et onUnsnapped
+					"sous la souris", on continue d'avoir l'exemplaire "free", qui est invisible quand la pièce est snapped
+
+			0 removeSnappedRepresentation on unSnap
+			0 piece.didTryUpdating()
+			0 ? c'est quoi l'objet représenté, icObj ou piece ?
+			0 hierarchie des objets:
+				0? icObj.zObj
+					=> fObj.icObj.zObj (quitte à mouiller le haut du corps, autant plonger)
+					0 ? shouldn't be serialized ?
+				OU
+				(0 infiniteCanvas.addObject(anything)  avec anything.icObj != null
+					 	et du coup fabricIntegration.addObject(anything)
+					 		fObj.onUpdate((fobj) => {
+
+					 		});
+
+			0 fObj est une représentation de icObj,
+				icObj est une représentation de zObj ?
+
+			piece.snappedObj =
+			piece.freeObj    =
+**		? every object starts with a free representation ?
+			or
+			piece.fabricRepresentation
+			piece.snappedfabricRepresentation
+			piece.modelRepresentation
+			or
+			piece.fabricRepresentations["snapped"]
+			piece.fabricRepresentations["free"]
+			piece.modelRepresentations["model1"]
+			or
+			piece.representations["view"]["snapped"]
+			piece.representations["view"]["free"]
+			piece.representations["model"]["model1"]
+
+			et là je parle même pas des objects qui "vivent" dans plusieurs canvas à la fois
+
+
+			0 rep.dismissOwnership()
+			0 gain ownership:
+				if(representation.owner == null) {
+					backingObject.grantOwnership(rep)
+			  }
+
+			0 representation.onOuterUpdate((piece) => {
+					if()
+			  })
+
+* onRelease() VS onDrop() release.type == "drop"
+
+30 décembre 2020:
+	un peu fâché contre mon développement qui va pas vite, mais bon, faut y'aller tranquillement, faut pousser, encore et encore
+
+	1 icObj.isSnapped
+	1 icObj.type = "snapSlot"
+	0 snap anything
+			1 createSnapSlot {
+
+				snapSlot.listener = (icObj) => {
+
+				};
+				infiniteCanvas.onIcObjUpdate(snapSlot.listener);
+			}
+			1 icObj.onOuterUpdate((icObj) => {
+					infiniteCanvas.onIcObjUpdate(icObj);
+				})
+				=> receiver.representation = glassFacade;
+			0 fRep.onOuterUpdate((icObj_fRep) => {
+				if(icObj_fRep.isSnapped) {
+					//create snapped representation
+					//create fabricObject: snapped
+					store fObj_snapped somewhere
+				} else {
+					if(fObj_snapped != null) {
+						destroy fObj_snapped
+					} else {
+						//standard redraw
+					}
+				}
+			})
+				|-> 0 fObj_snapped must be linked to an icObj in order for infiniteCanvas to work
+				=> 0 icObj		icObj_snapped
+						  fObj     fObj_snapped
+					 0? snappable icObj == icObj.icOb_snapped
+
+* cinquante nuances d'icObj:
+			0 icObj_official 	(this is the object that will be saved/serialized)
+			0 icObj_free			(this is the object that can move freely on the canvas)
+			0 icObj_snapped   (this is the object that is snapped on the canvas)
+
+			official.follow(rep_free)
+			official.follow(rep_snapped)
+
+			rep_free.follow(official)
+			rep_free.unfollow(official)
+							.followAll()
+							.followNone()					(== disconnect)
+
+**[
+			observation throttle : toutes les 1 secondes
+														 toutes les 0.1 secondes
+														 toutes les 10 secondes
+			on croit connaître l'objet observé mais on voit qu'une partie
+
+*			tout ça c'est des subscriptions => Rx
+**]
+
+
+
+			0 removeSnapSlot {
+
+				infiniteCanvas.offIcObjUpdate(snapSlot.listener);
+			}
+
+		 (0 ??? func.bind(obj)
+
+*[
+https://www.codingame.com/playgrounds/9799/learn-solve-call-apply-and-bind-methods-in-javascript
+
+function checkFun(a, b, c){
+    console.log(this);
+    console.log(a);
+    console.log(b);
+    console.log(c);
+}
+checkFun.call(1,2,3,4);
+checkFun.apply(1,[2,3,4]);
+
+function sumOfNumbers() {
+    var total = 0;
+    for(var i = 0; i < arguments.length; i++){
+        total += arguments[i];
+    }
+    return total;
+}
+var sum = sumOfNumbers(1,2,3);
+console.log(sum);
+
+"use strict";
+var person = {
+    name : "Jack",
+    prop : {
+        name : "Daniel",
+        getName : function() {
+            return this.name;
+        }
+    }
+}
+
+var name = person.prop.getName.bind(person);
+console.log(name());
+
+var  name = person.prop.getName();
+console.log(name);
+
+*]
+
+	0? create class
+
+	0 httpServer crash
+			server is listening on 3000                                                                                          _http_server.js:246                                                                                                      throw new ERR_HTTP_INVALID_STATUS_CODE(originalStatusCode);                                                          ^                                                                                                                                                                                                                                     RangeError [ERR_HTTP_INVALID_STATUS_CODE]: Invalid status code: undefined                                                at ServerResponse.writeHead (_http_server.js:246:11)                                                                 at ServerResponse._implicitHeader (_http_server.js:237:8)                                                            at ServerResponse.end (_http_outgoing.js:779:10)                                                                     at J:\content\PROF\ARIANE\4e\séquencePuissances\INFINISHU\nodeapp\index.js:21:34                                     at J:\content\PROF\ARIANE\4e\séquencePuissances\INFINISHU\nodeapp\node_modules\express\lib\response.js:434:22        at onaborted (J:\content\PROF\ARIANE\4e\séquencePuissances\INFINISHU\nodeapp\node_modules\express\lib\response.js:1027:5)                                                                                                                 at Immediate._onImmediate (J:\content\PROF\ARIANE\4e\séquencePuissances\INFINISHU\nodeapp\node_modules\express\lib\response.js:1067:9)                                                                                                    at processImmediate (internal/timers.js:456:21) {                                                                  code: 'ERR_HTTP_INVALID_STATUS_CODE'                                                                               }                                                                                                                    npm ERR! code ELIFECYCLE                                                                                             npm ERR! errno 1                                                                                                     npm ERR! infinishu@1.0.0 start: `node index.js`                                                                      npm ERR! Exit status 1                                                                                               npm ERR!                                                                                                             npm ERR! Failed at the infinishu@1.0.0 start script.                                                                 npm ERR! This is probably not a problem with npm. There is likely additional logging output above.                                                                                                                                        npm ERR! A complete log of this run can be found in:                                                                 npm ERR!     C:\Users\argile\AppData\Roaming\npm-cache\_logs\2020-12-30T18_20_01_501Z-debug.log
+
+
+	1 infiniteCanvas.createIcObj() {
+			const icObj = new IcObject();
+			const rep = createRepresentation(icObj);
+			return rep;
+		}
+
+	0 unsnap
+		0 z-index:
+			https://stackoverflow.com/questions/14131206/control-z-index-in-fabric-js
+			fabric.Object.prototype.getZIndex = function() {
+				return this.canvas.getObjects().indexOf(this);
+			}
+
+			fabric.Canvas.prototype.moveToLayer = function(object,position) {
+				while(object.getZIndex() > position) {
+						this.sendBackwards(object);
+				}
+			}
+		0
+
+31 décembre 2020:
+	:) réussi un début de snap
+	0 unsnap
+		0 follow/unfollow
+		0 observables...
+
+			icObj.rep_official =          (official)			pure follower
+			icObj.rep_free     =					(control)				follower and pusher
+			icObj.rep_snapped  =													pure pusher
+
+		0? representation.represented ?
+
+		0 .addIcObject(icObj) VS .addIcObject(rep_snapped)
+		0 removeIcObject(rep_snapped)
+				const represented = rep_snapped.represented;
+				const icObjs_for_represented =
+				const icObj_snapped = icObjs_for_represented["snapped"];
+				removeIcObject(icObj_snapped);
+
+01 janvier 2021:
+	0 infiniteCanvas.icObjRepresentations
+		un jour ou l'autre il faudra faire quelquechose de propre à ce niveau là, surtout quand il faudra sérialiser
+	18:57: j'ai un snap qui a l'air de fonctionner mais il faut que je gère mieux les objets (ajoutés/supprimés)
+	0 infiniteCanvas.removeRepresentation(represented, representation)
+
+	0 orientation does not snap well	//SHU: 360 - x, ...
+	  	bounded angle ...
+	0 homeScale/scale snap
+		0 comparer les screenCoords
+
+
+	0 serialization:
+		Uncaught (in promise) TypeError: Converting circular structure to JSON
+    --> starting at object with constructor 'Represented'
+
+	0 fix unsnap bugs (creates multiple rects)
+		0 multiple rects are created because snapped representation is the one that is selected and then, because snapped.isSnapped = null, then snapped is snapped, etc.
+			=>
+				0? snapped.isSnapped = true
+				0? mettre la version free à la place de la version snapped quand on déselectionne
+				0? tuer la version free
+
+	0 manage snapSlot move (fabric and consequences)
+
+02 janvier 2021:
+	0 onRelease:
+		snapped: destroy
+		free: move to official representation
+	0 fObj.onRelease? NON icObj__r_free.onRelease? OUI
+	 	le fObj il a rien demandé, il a pas demandé à être chargé comme une mule
+
+	0 onHold / onRelease
+		1 icObj.canBeHeld
+		0 mouseup / mousedown
+			0 ABToggle("", , )
+
+		0 mouseRelease: release but keep active
+
+	0 icSnapSlot spawn counts as two objects ???
+		0 ? snapslot creating snapped version of itself ?
+
+	0 onRelease: icObj.zScrollOff
+
+	0 pseudoSnap/trueSnap, shallowSnap/deepSnap, attracted/snapped
+		=> preSnapped VS snapped
+		unsnapped <---> presnapped <---> snapped
+
+
+	0	if(rep_free.isHeld) {
+			presnap()
+		} else {
+			snap()
+		}
+
+	0 fObj.onHold --> icObj.isHeld --> icObj.onInnerUpdate --> fObj.update -->
+
+	0 icObj_free.silentUpdate()
+
+	0 (index):2874 Uncaught TypeError: Cannot read property 'id' of undefined
+    at (index):2874
+    at Array.forEach (<anonymous>)
+    at Proxy.receiver.syncWith ((index):2873)
+    at snap ((index):722)
+    at attemptUnsnapping ((index):771)
+    at snapSlot_listener ((index):843)
+    at (index):866
+    at (index):1023
+    at Array.forEach (<anonymous>)
+    at InfiniteCanvas.icObjDidUpdate ((index):1022)
+
+
+	0 don't listen to the following rep_official update: rep_official.snapState(SnapState.presnapped) -> rep_official.snapState(SnapState.Snapped)
+		because then it triggers attemptUnsnapping
+
+	0 can't unsnap while snapState == Unsnapped
+		0 log snapState
+
+		0 ? preSnap unsnapp listener and standard attemptUnsnapping happen at the same time so one of the two throws errors since rep_snapped is already destroyed
+
+			(index):848 Uncaught TypeError: Cannot read property 'id_rep' of undefined
+	    at unsnap ((index):848)
+	    at attemptUnsnapping ((index):783)
+	    at rep_free_afterPresnap__attemptUnsnapping ((index):721)
+	    at (index):2822
+	    at Array.forEach (<anonymous>)
+	    at Object.broadcaster.didUpdateFromInner ((index):2821)
+	    at Object.set ((index):2877)
+	    at Object.set ((index):3019)
+	    at unsnap ((index):855)
+	    at attemptUnsnapping ((index):783)
+
+* ça bugue, ça fait chier
+		0 update rep_official with setTimeout and see what happens
+			0 far enough 			==> unsnap
+			0 not far enough  ==> snap/do nothing
+
+	(official: snapped or unsnapped
+	(free: unsnapped, presnapped, snapped
+
+**1 use colors to debug states:
+			unsnapped : green
+			presnapped: blue
+			snapped   : red
+
+	1 bug when spawning rect exactly over snapSlot
+	0 bug .isHeld == false when Snapped -> preSnapped
+			 rep_free.onHold rep_free.isHeld true		 (index):778
+		19 rep_free.isHeld false			 						 (index):824
+>>>	|-> name is the same but object is different
+
+
+
+	0 essayer rep_free_callbacks = {}
+
+	0 ? use syncWith({
+
+		}) to perform batch inner update ?
+
+03 janvier 2021:
+* trop de logs peut empêcher les callbacks de s'activer correctement
+
+	1 snap icText
+			width:  248.4375
+			height: 113
+
+			°°unsamenessRatio__size.width 1
+			°°icObj_over.size.width 0
+			°°icObj_below.size.width 268.4375
+
+			°°unsamenessRatio__size.height 1
+			°°icObj_over.size.height 0
+			°°icObj_below.size.height 130
+
+			=> 0 update icObj.size using fObj's size
+					1 after fObj's creation
+					0 afterTextUpdate
+
+	0 icText fObj's size is a bit different from apparent container rect size
+
+	0 Snap.unsamenessRatio__position is buggy
+
+	0 serialization
+		0 serialize represented and representations
+			0 commencer par quelque chose de simple
+				=> on sérialise uniquement official
+
+				0 Uncaught TypeError: this.r_official.toSerial_p is not a function
+				  at Represented.officialSerial_p ((index):2827)
+
+					0 toSerial_p() {
+							return inner.toSerial_p();
+					  }
+
+			0 represented.toSerial_p()
+			0 ? save only rep_official ?
+			0 representation.toSerial_p()
+
+
+		réfléchir aux implications ?
+* serialized == version lyophilisée
+
+* the fear: est-ce que tout ça verra le jour ?
+
 
 
 
