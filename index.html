@@ -35,6 +35,45 @@
 
 <body>
 
+    <!-- utils -->
+    <script>
+
+        class Utils {
+
+          static arrayByRemovingElement(src_arr, elt) {
+
+            const index = src_arr.indexOf(elt);
+
+            return this.arrayByRemovingElementAtIndex(src_arr, index);
+          }
+
+          static arrayByRemovingElementAtIndex(src_arr, index) {
+
+            const arr = [...src_arr]; //create shallow copy of src_arr
+
+            const arr_removed = arr.splice(index, 1);   //starting at index, remove 1 element
+            const arr_new     = arr;                    //array is mutated in place
+
+            return arr;
+          }
+
+          static randomElementInArray(arr) {
+            const elt = arr[Math.floor(Math.random() * arr.length)];
+
+            // "~~" for a closest "int"
+            // const elt = arr[~~(arr.length * Math.random())];
+
+            // "|" for a kinda "int div"
+            // const elt = arr[arr.length * Math.random() | 0];
+
+            return elt;
+          }
+        }
+
+    </script>
+
+
+
     <!-- <script src='lib/base64.js' type='text/javascript'></script> -->
 
     <!-- UI -->
@@ -195,6 +234,408 @@
       */
 
     </script> -->
+    <script>
+
+      const dict_ops = {
+        1: {
+          minus: {
+            op: "-",
+            name: "unaryMinus",
+          },
+          inverse: {
+            op: "/",
+            name: "inverse",
+          },
+        },
+        2: {
+          plus: {
+            op: "+",
+            // name: "plus",
+            name: "add",
+          },
+          minus: {
+            op: "-",
+            // name: "minus",
+            name: "subtract",
+          },
+          multiply: {
+            op: "x",
+            name: "multiply",
+          },
+          divide: {
+            op: "/",
+            name: "divide",
+          },
+          // pow: {
+          //   op: "^",
+          //   name: "pow",
+          // },
+        },
+        n : {
+          plus: {
+            op: "+",
+            // name: "plus",
+            name: "add",
+          },
+          multiply: {
+            op: "x",
+            name: "multiply",
+          },
+        },
+      };
+
+
+
+      function random_op(arity) {
+        const arr_ops = Object.values(dict_ops[arity]);
+        const op = Utils.randomElementInArray(arr_ops);
+        return op;
+      }
+      // console.log("random_op", random_op(2));
+
+      function random_number(min = 0, max = 100, step = 1) {
+        const span   = max - min;
+        const number = Math.floor(Math.random() * span);
+        return number;
+      }
+
+      const arr_symbols = ["x", "y"];
+      // const arr_symbols = ["x", "y", "z", "t", "a", "b"];
+
+      function random_symbol() {
+        const symbol = Utils.randomElementInArray(arr_symbols);
+        return symbol;
+      }
+
+      function arityForArr(arr) {
+        var outArity;
+
+        switch(arr.length) {
+          // case 0:
+          //   outArity = 0;     //everything or nothing
+          // break;
+          case 1:
+            outArity = 1;
+          break;
+          case 2:
+            outArity = 2;
+          break;
+          default:
+            outArity = "n";
+            break;
+        }
+
+        return outArity;
+      }
+
+      //////////////////////
+
+      function random_constantNode() {
+        const number = random_number();
+        const constantNode = new math.ConstantNode(number);
+        return constantNode;
+      }
+
+      function random_symbolNode() {
+        const symbol = random_symbol();
+        const symbolNode = new math.SymbolNode(symbol);
+        return symbolNode;
+      }
+
+      function random_terminal_mathNode_withType(type) {
+        var outMathNode;
+
+        switch(type) {
+          case "ConstantNode":
+          outMathNode = random_constantNode();
+          break;
+          case "SymbolNode":
+          outMathNode = random_symbolNode();
+          break;
+          // case "operator":
+          // break;
+        }
+
+        return outMathNode;
+      }
+
+      function random_terminal_mathNode_withType_inArr(arr_type) {
+        const type = Utils.randomElementInArray(arr_type);
+        const mathNode = random_terminal_mathNode_withType(type);
+        return mathNode;
+      }
+
+      function random_operatorNode(/*arity,*/ arr_node) {
+        const arity = arityForArr(arr_node);
+        const op = random_op(arity);
+        const operatorNode = new math.OperatorNode(op.op, op.name, arr_node);
+        return operatorNode;
+      }
+
+      function random_operatorNode_debug() {
+        const arr_nodes = [
+          random_symbolNode(),
+          random_constantNode(),
+        ];
+        const operatorNode = random_operatorNode(arr_nodes);
+        return operatorNode;
+      }
+      console.log("random_operatorNode_debug", random_operatorNode_debug());
+
+
+
+      function random_operatorNode_binary_withDepth(depth) {
+        if(depth < 2) {
+          throw new Error("operatorNode is has min depth: 2");
+        } else if (depth == 2) {
+          const arr_node = [0,1].map(index => random_terminal_mathNode_withType_inArr(["ConstantNode", "SymbolNode"]));
+          const operatorNode = random_operatorNode(arr_node);
+          return operatorNode;
+        } else {
+          const arr_node = [0,1].map(index => random_operatorNode_binary_withDepth(depth-1));
+          const operatorNode = random_operatorNode(arr_node);
+          return operatorNode;
+        }
+      }
+
+      function random_mathNode_withDepth(depth) {
+        var outMathNode;
+
+        if (depth < 1) {
+          throw new Error("mathNode is has min depth: 1");
+        } else if (depth == 1) {
+          const terminalNode = random_terminal_mathNode_withType_inArr(["ConstantNode", "SymbolNode"]);
+          outMathNode = terminalNode;
+        } else {
+          const operatorNode = random_operatorNode_binary_withDepth(depth);
+          outMathNode = operatorNode;
+        }
+
+        return outMathNode;
+      }
+      console.log("random_mathNode_withDepth", random_mathNode_withDepth(4));
+
+
+
+
+
+      //only n symbols
+
+      function getNbSymbolNodes(mathNode) {
+        var outInt = 0;
+
+        switch(mathNode.type) {
+          case "SymbolNode":
+            outInt = 1;
+            break;
+          case "OperatorNode":
+            outInt = operator.params.reduce((acc, x) => acc + getNbSymbolNodes(x), 0);
+        }
+
+        return outInt;
+      }
+
+      function arr_terminalTypes_for_nbSymbols(nb_symbols) {
+        const arr_terminalTypes = ["ConstantNode"];
+        if(nb_symbols > 0) {
+          arr_terminalTypes.push("SymbolNode");
+        }
+        return arr_terminalTypes;
+      }
+
+      function random_reduceObj__operatorNode_binary_withDepth_and_nbSymbols(depth, nb_symbols) {   //SHU: it's nb_symbols_remaining
+        var outObj;
+        var outNode;
+        var outNbSymbols;
+
+        const depth_min = 2;
+
+        if(depth < depth_min) {
+          throw new Error("operatorNode is has min depth: 2");
+        };
+
+        var nb_symbols_curr = nb_symbols;
+        if (depth == 2) {
+
+          const arity = 2;
+          const arr_nodeIndex = [...new Array(arity).keys()];
+
+          const reducedObj2 = arr_nodeIndex.reduce((acc2, nodeIndex) => {
+            const arr_terminalTypes = arr_terminalTypes_for_nbSymbols(acc2.nb_symbols);
+            const mathNode = random_terminal_mathNode_withType_inArr(arr_terminalTypes);
+
+            if(mathNode.type == "SymbolNode") {
+              acc2.nb_symbols -= 1;
+            }
+
+            acc2.arr_mathNode.push(mathNode);
+
+            return acc2;
+          }, {
+            nb_symbols: nb_symbols_curr,
+            arr_mathNode: [],
+          });
+
+          outNbSymbols       = reducedObj2.nb_symbols;
+
+          const operatorNode = random_operatorNode(reducedObj2.arr_mathNode);
+          outNode            = operatorNode;
+        } else {
+
+          const arity = 2;
+          const arr_nodeIndex = [...new Array(arity).keys()];
+
+          const reducedObj2 = arr_nodeIndex.reduce((acc2, nodeIndex) => {
+            const reducedObj_ = random_reduceObj__operatorNode_binary_withDepth_and_nbSymbols(depth-1, acc2.nb_symbols);
+
+            acc2.nb_symbols = reducedObj_.nb_symbols;
+
+            const mathNode = reducedObj_.mathNode;
+            acc2.arr_mathNode.push(mathNode);
+
+            return acc2;
+          }, {
+            nb_symbols: nb_symbols_curr,
+            arr_mathNode: [],
+          });
+
+          outNbSymbols       = reducedObj2.nb_symbols;
+
+          const operatorNode = random_operatorNode(reducedObj2.arr_mathNode);
+          outNode            = operatorNode;
+        }
+
+        outObj = {
+          nb_symbols: outNbSymbols,
+          mathNode:   outNode,
+        };
+        console.log("depth", depth, "outNbSymbols", outNbSymbols);
+
+        return outObj;
+      }
+
+      function random_operatorNode_binary_withDepth_and_nbSymbols(depth, nb_symbols = 1) {
+        const reduceObj = random_reduceObj__operatorNode_binary_withDepth_and_nbSymbols(depth, nb_symbols);
+        return reduceObj.mathNode;
+      }
+
+      function random_mathNode_withDepth_and_nbSymbols(depth, nb_symbols = 1) {
+        var outMathNode;
+
+        if (depth < 1) {
+          throw new Error("mathNode is has min depth: 1");
+        } else if (depth == 1) {
+          const terminalNode = random_terminal_mathNode_withType_inArr(["ConstantNode", "SymbolNode"]);
+          outMathNode = terminalNode;
+        } else {
+          const operatorNode = random_operatorNode_binary_withDepth_and_nbSymbols(depth, nb_symbols);
+          outMathNode = operatorNode;
+        }
+
+        return outMathNode;
+      }
+
+      // //debug
+      // {
+      //   const debugNode = random_mathNode_withDepth_and_nbSymbols(4, 2);
+      //   console.log("debugNode(4,2)", debugNode);
+      //   console.log("getDepth(debugNode)", getDepth(debugNode));
+      // }
+
+
+
+
+
+      function random_operatorNode_consumePool(pool) {
+
+      }
+
+
+
+
+
+      /*UTILS*/
+      function getArr_deep_first(mathNode) {
+        var outArray;
+
+        switch(mathNode.type) {
+          case "OperatorNode":
+            {
+              const depth = getDepth(mathNode);
+              if(depth == 2) {
+                const arr_child = mathNode.args;
+                outArray = arr_child;
+              } else {
+                outArray = mathNode.args.reduce((acc, child) => {
+                  const arr_grandChild = child.args;
+
+                  var arr_grandChild_sorted_by_decreasing_depth = arr_grandChild.slice();
+                  arr_grandChild_sorted_by_decreasing_depth.sort(function(a, b) {
+                    const depth_a = getDepth(a);
+                    const depth_b = getDepth(b);
+
+                    if (depth_a > depth_b) {
+                      return 1;
+                    }
+                    if (depth_a < depth_b) {
+                      return -1;
+                    }
+                    return 0;
+                  });
+
+                  arr_grandChild_sorted_by_decreasing_depth.forEach((grandChild, i) => {
+                    const arr_sub = getArr_deep_first(grandChild);
+                    console.log("arr_sub", arr_sub);
+                    acc.push(...arr_sub);
+                  });
+
+                  return acc;
+
+                }, []);
+              }
+            }
+            break;
+          default:
+            outArray = [mathNode];
+            break;
+        }
+
+        return outArray;
+      }
+
+      // //debug
+      // {
+      //   const debugNode = random_mathNode_withDepth_and_nbSymbols(4, 2);
+      //   console.log("debugNode(4,2)", debugNode);
+      //   console.log("getDepth(debugNode)", getDepth(debugNode));
+      //   console.log("getArr_deep_first(debugNode)", getArr_deep_first(debugNode));
+      // }
+
+
+
+      function getDepth(mathNode) {
+        var outInt;
+
+        switch(mathNode.type) {
+          case "OperatorNode":
+            {
+              const arr_child_node       = mathNode.args;
+              const arr_child_node_depth = arr_child_node.map(node => getDepth(node));
+              const max_child_depth = Math.max(...arr_child_node_depth);
+              outInt = 1 + max_child_depth;
+            }
+            break;
+          default:
+            outInt = 1;
+            break;
+        }
+
+        console.log("outInt", outInt);
+        return outInt;
+      }
+
+
+    </script>
 
 
     <script src='lib/ngraph.graph.min.js' type='text/javascript'></script>
@@ -430,7 +871,9 @@
 
 
         this.represented = {};
-        this.didAddRepresentedListeners = [];
+        this.didAddRepresentedListeners    = [];
+        this.didRemoveRepresentedListeners = [];
+
         this.representations = {};
         this.didAddRepresentationListeners = [];
 
@@ -453,7 +896,7 @@
 
         this.configureInitialIcObjects();
 
-
+        this.isZIndexEditing = false;
 
 
           //--track changes
@@ -618,6 +1061,18 @@
 
       }
 
+      untetherIcObject(represented) {
+        const infiniteCanvas = this;
+
+        const rep_official = represented.r_official();
+        rep_official.offAllOuterUpdates();
+
+        const rep_free = represented.r_free();
+        rep_official.unfollow(rep_free);
+      }
+
+
+
       introduceToExistingObjects(represented) {
 
         this.introduceToExistingType_touchSlot(represented);
@@ -641,6 +1096,14 @@
         });
 
       }
+
+      extroduceFromExistingObjects(represented) {
+        console.log("extroduceFromExistingObjects", represented);
+
+      }
+
+
+
 
       getRepresented(id) {
         return this.represented[id];
@@ -1604,6 +2067,30 @@
       }
 
 
+      createIcTag(left, top, text) {
+
+        const type      = "tag";
+        const position  = Geometry.createPoint(left, top);
+        const size      = Geometry.createSize(0, 0);
+        const homeScale = Object.assign({}, this.scale);
+
+        const icObj = this.createIcObject(type, position, size, homeScale);
+
+
+        // const text     = "icText";
+        const fontSize = 100;
+
+        const icTag_spec = {
+          text:      text,
+          textColor: "black",
+          fontSize:  fontSize,
+        };
+
+        const icTag = Object.assign(icObj, icTag_spec);
+
+        return icTag;
+      }
+
 
 
 
@@ -1755,6 +2242,138 @@
         // var operator = new Operator("+1");
         const rank            = this.getNextTouchSlotRank();
         const operatorConfig  = GMOperatorMama.operatorConfigForRank(rank);
+
+        const touchSlotConfig = {
+          transformationFunc: operatorConfig.transformationFunc,
+        };
+
+        const touchSlot    = infiniteCanvas.createIcTouchSlot(trueRect, touchSlotConfig);
+        touchSlot.fill     = "";
+        touchSlot.isMobile = false;
+
+        const text         = operatorConfig.name;
+        const facade       = infiniteCanvas.createIcText(trueRect.x, trueRect.y, text);
+        facade.backgroundColor = "blanchedalmond";
+        facade.isMobile    = false;
+        facade.isTouchable = false;
+
+        const parts = {
+          "touchSlot": touchSlot,
+          "facade":    facade,
+        };
+
+        const engineFunc = (icObj, parts) => Compositer.defaultCompositeEngine(icObj, parts);
+
+        const icComposite = this.createIcComposite(trueRect, parts, engineFunc);
+        icComposite.cType = "gm_operator";
+
+        icComposite.isTouchable = false;
+
+        return icComposite;
+      }
+
+      createIcGMOperator_withType(trueRect, gmOperatorType) {
+        console.log("createIcGMOperator_withType", trueRect, gmOperatorType);
+
+        function operatorConfigForType(gmOperatorType) {
+
+          var operatorConfig = {
+            name: "",
+            transformationFunc: null,
+          };
+
+          switch(gmOperatorType) {
+            case "simplify":
+            {
+              operatorConfig.name = "s";
+              const transformationFunc = (node_a) => {
+                var outNode;
+
+                function standardOperation(node_in) {
+                  var outNode;
+
+                  const node_unsimplified = node_in;
+
+                  const node_simplified = math.simplify(node_unsimplified);
+                  outNode = node_simplified;
+
+                  outNode.autoSimplify = node_in.autoSimplify;
+
+                  return outNode;
+                }
+
+                if(node_a.isEquation) {
+                  console.log("node_a", node_a);
+                  const node_left     = standardOperation(node_a.params[0]);
+                  const node_right    = standardOperation(node_a.params[1]);
+                  const node_equation = new math.RelationalNode(["equal"], [node_left, node_right]);
+                  node_equation.isEquation = true;
+
+                  outNode = node_equation;
+                } else {
+                  outNode = standardOperation(node_a);
+                }
+
+                return outNode;
+              };
+              operatorConfig.transformationFunc = transformationFunc;
+            }
+            break;
+            case "simplify__step_by_step":
+            {
+              operatorConfig.name = "st";
+              const transformationFunc = (node_a) => {
+                var outNode;
+
+                function standardOperation(node_in) {
+                  var outNode;
+
+                  // const node_unsimplified = node_in;
+                  //
+                  // const node_simplified = math.simplify(node_unsimplified);
+                  // outNode = node_simplified;
+                  //
+                  // outNode.autoSimplify = node_in.autoSimplify;
+                  const arr_deep_first = getArr_deep_first(node_in);
+                  // arr_deep_first.reduce((acc, node) => {
+                  //   if(node.simplified) {
+                  //     //ignore
+                  //   } else {
+                  //
+                  //   }
+                  // }, null);
+
+                  //debug
+                  const deep_node = arr_deep_first[0];
+                  
+
+                  return outNode;
+                }
+
+                if(node_a.isEquation) {
+                  console.log("node_a", node_a);
+                  const node_left     = standardOperation(node_a.params[0]);
+                  const node_right    = standardOperation(node_a.params[1]);
+                  const node_equation = new math.RelationalNode(["equal"], [node_left, node_right]);
+                  node_equation.isEquation = true;
+
+                  outNode = node_equation;
+                } else {
+                  outNode = standardOperation(node_a);
+                }
+
+                return outNode;
+              };
+              operatorConfig.transformationFunc = transformationFunc;
+            }
+            break;
+          }
+
+          return operatorConfig;
+        }
+
+
+        const operatorConfig = operatorConfigForType(gmOperatorType);
 
         const touchSlotConfig = {
           transformationFunc: operatorConfig.transformationFunc,
@@ -2032,7 +2651,7 @@
         const icEngined = Object.assign(icObj, icEngined_spec);
 
         //add reactive part
-        this.mutateEngined__addReactivePart(icEngined);
+        // this.mutateEngined__addReactivePart(icEngined);
 
         return icEngined;
       }
@@ -2044,6 +2663,51 @@
 
         // icEngined.engine.start();
         // infiniteCanvas.onIcObjUpdate(icSnapSlot.snapEngine.r_official_update_handler2);
+      }
+
+
+      createIcEngined_debug(trueRect) {
+        console.log("createIcCountdown", trueRect);
+
+        const engineCarrier   = infiniteCanvas.createIcText(trueRect.x, trueRect.y, "icEngined_debug");
+        engineCarrier.backgroundColor = "gold";
+
+        engineCarrier.getContextObj = function(engineCarrier) {
+          const contextObj = {
+            engineCarrier: engineCarrier,
+          };
+          return contextObj;
+        };
+
+        class DebugEngine {
+          constructor() {
+
+            this.initialized = false;
+
+            this.initialize = function(contextObj) {
+              this.initialized = true;
+              this.contextObj = contextObj;
+            }
+
+            this.start = function() {   //SHU: attention, il y a peut-être une drôlerie de closure ici
+              console.log("this.contextObj.engineCarrier", this.contextObj.engineCarrier);
+              this.contextObj.engineCarrier.text += "[]";
+            };
+
+            this.stop = function() {
+              // delete this.contextObj;
+            };
+
+          }
+        }
+
+        const engine = new DebugEngine();
+        console.log("fresh engine", engine);
+        const eType = "debug";
+
+        const icEngined = infiniteCanvas.createIcEngined(engineCarrier, eType, engine);
+
+        return icEngined;
       }
 
 
@@ -2280,6 +2944,55 @@
 
 
 
+      createIcInteractor(trueRect, interactorConfig_in = null) {
+        console.log("createIcCountdown", trueRect);
+        const infiniteCanvas = this;
+
+        // const mathNode = new math.ConstantNode("");
+        // const facade   = infiniteCanvas.createIcMathNode(trueRect.x, trueRect.y, mathNode);
+        const facade   = infiniteCanvas.createIcText(trueRect.x, trueRect.y, "interactor");
+        facade.backgroundColor = "gold";
+        facade.isMobile    = true;
+        facade.isTouchable = true;  //:)
+
+        class InteractorEngine {
+          constructor() {
+
+            this.initialized = false;
+
+            this.initialize = function(contextObj) {
+              this.initialized = true;
+              this.contextObj = contextObj;
+            }
+
+            this.start = function() {
+              console.log("this.contextObj.facade", this.contextObj.facade);
+            };
+
+            this.stop = function() {
+
+            };
+
+            this.interact = function() {
+              console.log("interact");
+
+              this.contextObj.facade.text += "+";
+            };
+
+          }
+        }
+
+        const engine = new InteractorEngine();
+        console.log("fresh engine", engine);
+        const eType = "interactor";
+
+        const icEngined = infiniteCanvas.createIcEngined(facade, eType, engine);
+
+        return icEngined;
+      }
+
+
+
 
 
         //add
@@ -2359,6 +3072,75 @@
         this.onAddRepresented(autoUnsub);
       }
 
+      removeRepresented(represented) {
+        console.log("removeRepresented", represented);
+
+        const id_icObj = represented.r_official().id;
+        const represented_check = this.getRepresented(id_icObj);
+        if(represented_check == null) {
+          //ignore
+          console.log("represented already removed => ignore");
+          return;
+        }
+
+
+
+        // if(rep_official.type == "composite") {
+        //   Object.values(represented.parts).forEach((part__represented, i) => {
+        //     this.removeRepresented(part__represented);
+        //   });
+        // }
+
+
+        this.untetherIcObject(represented);   //== stop tracking icObj updates
+
+        this.extroduceFromExistingObjects(represented);
+
+        //unstore
+          //representations
+        Object.values(represented.reps).forEach((rep, i) => {
+          this.removeRepresentation(represented, rep);
+        });
+
+
+          //represented
+        const rep_official   = represented.r_official();
+        const id_represented = rep_official.id;
+        // this.represented[id_represented] = null;
+        delete this.represented[id_represented];
+
+
+        //deconstruct
+        represented.deconstruct();
+
+        this.didRemoveRepresented(represented);
+      }
+
+      didRemoveRepresented(represented) {
+        this.setChanged(true);
+
+        this.didRemoveRepresentedListeners.forEach((listener, i) => {
+          listener(represented);
+        });
+      }
+
+      onRemoveRepresented(listener) {
+        this.didRemoveRepresentedListeners.push(listener);
+      }
+
+      offRemoveRepresented(listener) {
+        this.didRemoveRepresentedListeners = Utils.arrayByRemovingElement(this.didRemoveRepresentedListeners, listener);
+      }
+
+
+
+
+
+
+
+
+
+
       addRepresentation(represented, representation) {
 
         if(this.representations[representation.id_rep] == null) {
@@ -2382,7 +3164,9 @@
 
       removeRepresentation(represented, representation) {
 
-        delete this.representations[representation.id_rep];
+        // if(this.representations[representation.id_rep] != null) {
+          delete this.representations[representation.id_rep];
+        // }
 
         this.didRemoveRepresentation(represented, representation);
       }
@@ -2552,6 +3336,8 @@
 
         icObj.opacity = inputProperties.getActiveOpacity();
 
+        icObj.zIndex = this.getFreshZIndex();
+
         this.addIcObject(icObj);
       }
 
@@ -2585,6 +3371,18 @@
         // icText.height = height;
 
         this.addNewIcObject(icText);
+      }
+
+      addNewTag(text = "icTag") {
+
+        const true_cursor = this.getTrueCursor();
+
+        const left = true_cursor.x;
+        const top  = true_cursor.y;
+
+        const icTag = this.createIcTag(left, top, text);
+
+        this.addNewIcObject(icTag);
       }
 
 
@@ -2797,16 +3595,6 @@
         console.log("compose", arr_icObj);
         const infiniteCanvas = this;
 
-        //get tag object (if any)
-        const tag = arr_icObj.find(icObj => icObj.type == "tag");
-
-        var cType;
-        if(tag != null) {
-          cType = tag.text;
-        } else {
-          cType = "anonymous";
-        }
-
         function debugTrueRect(infiniteCanvas) {
           const true_cursor = infiniteCanvas.getTrueCursor();
 
@@ -2841,6 +3629,26 @@
         });
 
 
+        //get tag object (if any)
+        const tag = arr_icObj.find(icObj => icObj.type == "tag");
+
+        var cType;
+        if(tag != null) {
+          cType = tag.text;
+        } else {
+          cType = "anonymous";
+        }
+
+        if(tag != null) {
+          //stick tag next to handle
+          tag.isMobile = false;
+          tag.position = {
+            x: icComposite.position.x + icComposite.size.width,
+            y: icComposite.position.y,
+          };
+        }
+
+
 
         this.addNewIcObject(icComposite);
       }
@@ -2848,7 +3656,21 @@
       decompose(icComposite) {
         console.log("decompose", icComposite);
 
+        const arr_parts = Object.values(icComposite.parts);
 
+        arr_parts.forEach((part, i) => {
+          part.compositeId     = -1;
+          part.isCompositePart = false;
+          part.isMobile        = false;
+        });
+
+        icComposite.engine.stop();
+
+        const represented = this.getRepresented(icComposite.id);
+        const rep_free = represented.r_free();
+        rep_free.im_dead_now = true;
+
+        this.removeRepresented(represented);
       }
 
 
@@ -2872,6 +3694,27 @@
         const icGMOperator = this.createIcGMOperator(trueRect);
         this.addNewIcObject(icGMOperator);
       }
+
+      addNewGMOperator_withType(type) {
+        const true_cursor = this.getTrueCursor();
+
+        const left = true_cursor.x;
+        const top  = true_cursor.y;
+
+        const width  = 100;   //"information" size
+        const height = 100;
+
+        const trueRect = {
+          x: left,
+          y: top,
+          width: width,
+          height: height,
+        };
+
+        const icGMOperator = this.createIcGMOperator_withType(trueRect, type);
+        this.addNewIcObject(icGMOperator);
+      }
+
 
       addNewGMTargetSlot() {
         const true_cursor = this.getTrueCursor();
@@ -3036,6 +3879,26 @@
         this.addNewIcObject(icFacet_mathNode);
       }
 
+      addNewIcEngined_debug() {
+        const true_cursor = this.getTrueCursor();
+
+        const left = true_cursor.x;
+        const top  = true_cursor.y;
+
+        const width  = 100;   //"information" size
+        const height = 100;
+
+        const trueRect = {
+          x: left,
+          y: top,
+          width: width,
+          height: height,
+        };
+
+        const icEngined_debug = this.createIcEngined_debug(trueRect);
+        this.addNewIcObject(icEngined_debug);
+      }
+
       addNewCountdown() {
         const true_cursor = this.getTrueCursor();
 
@@ -3055,6 +3918,9 @@
         const icCountdown = this.createIcCountdown(trueRect);
         this.addNewIcObject(icCountdown);
       }
+
+
+
 
 
 
@@ -3526,6 +4392,71 @@
       }
 
 
+      // zIndex
+
+      enterZIndexEditing() {
+        this.isZIndexEditing = true;
+
+
+      }
+
+      leaveZIndexEditing() {
+        this.isZIndexEditing = false;
+
+
+      }
+
+      manageZIndexEditingScrement(screment) {
+        console.log("manageZIndexEditingScrement", screment);
+
+        //get selected objects
+        const arr_rep_free = Object.values(this.represented).map(represented => represented.r_free());
+        const arr_rep_free_selected = arr_rep_free
+                                      .filter(rep_free => {
+                                        return rep_free.isSelected;
+                                      });
+
+        //update zIndex
+        arr_rep_free_selected.forEach((rep_free, i) => {
+          rep_free.zIndex += screment;
+        });
+
+        // if(icObj_active.type == "composite") {
+        //
+        // } else {
+        //   icObj_active.zIndex += screment;
+        // }
+
+      }
+
+      getArrZIndex() {
+        const arr_represented  = Object.values(this.represented);
+        // const arr_rep_official = arr_represented.map(represented => represented.r_official());
+        const arr_rep_free     = arr_represented.map(represented => represented.r_free());
+
+        const arr_zIndex = arr_rep_free.map(rep_free => rep_free.zIndex);
+        return arr_zIndex;
+      }
+
+      getFreshZIndex() {
+        var outIndex;
+
+        const arr_zIndex = this.getArrZIndex();
+        if(arr_zIndex.length == 0) {
+          outIndex = 0;
+        } else {
+          const zIndex_max = math.max(arr_zIndex);
+
+          outIndex = zIndex_max + 1;
+        }
+
+        return outIndex;
+      }
+
+
+
+
+
 
 
 
@@ -3827,6 +4758,8 @@
           Y:false,
         };
 
+        this.zIndex = 0;
+
 
         this.fill   = "";
         this.stroke = "";
@@ -3873,6 +4806,8 @@
 
         this.isUsingCenterPosition = false;
 
+        this.isSelected      = false;
+
         // this.exoObject     = null;
 
         this.didUpdateListeners = [];
@@ -3901,6 +4836,9 @@
 
         const flip = json_icObject.flip;
         icObj.flip = flip;
+
+        const zIndex = json_icObject.zIndex;
+        icObj.zIndex = zIndex;
 
 
         const fill   = json_icObject.fill;
@@ -3946,7 +4884,11 @@
           const engine_serial   = json_icObject.engine_serial;
           const engine          = deserialize(engine_serial);
           console.log("rehydrated engine", engine);
+          // engine.initialize()
           icObj.engine          = engine;
+
+          const getContextObj = deserialize(json_icObject.getContextObj);
+          icObj.getContextObj = getContextObj;
         }
 
         const isUsingCenterPosition = json_icObject.isUsingCenterPosition;
@@ -3957,6 +4899,7 @@
 
         switch(icObj.type) {
           case "text":
+          case "tag":
             const text      = json_icObject.text;
             icObj.text      = text;
             const textColor = json_icObject.textColor;
@@ -4048,9 +4991,15 @@
             icObj.mathNode  = mathNode;
             break;
 
+
+          // case "engined":
+          //
+          //   break;
+
           default:
             break;
         }
+
 
         return icObj_p;
       }
@@ -4063,8 +5012,20 @@
         const icObj_serial = Object.assign({}, icObj);
 
         if(icObj.engine != null) {
-          const engine_serial = serialize(icObj.engine);
+          const engine = icObj.engine;
+
+          //don't serialize engine directly
+          delete icObj_serial.engine;
+
+          //serialize a prepared version of engine (== a context-free version)
+          const engine_cloned = Object.assign({}, icObj.engine);
+          delete engine_cloned.contextObj;
+          console.log("engine_cloned", engine_cloned);
+
+          const engine_serial = serialize(engine_cloned);
           icObj_serial.engine_serial = engine_serial;
+
+          icObj_serial.getContextObj = serialize(icObj.getContextObj);
         }
 
         var icObj_serial_p = Promise.resolve(icObj_serial);
@@ -4934,6 +5895,12 @@
           delete this.reps[repName];
         }
 
+        deconstruct() {
+          //warning: this is only to be used when destroying represented
+          // this.backingObj = null;
+          this.reps = {};
+        }
+
         getRepNameForRep(rep_unknown) {
           var outString;
 
@@ -5045,6 +6012,10 @@
           };
           broadcaster.offInnerUpdate = (listener) => {
             broadcaster.didUpdateFromInnerListeners = Utils.arrayByRemovingElement(broadcaster.didUpdateFromInnerListeners, listener);
+          };
+
+          broadcaster.offAllInnerUpdates = () => {
+            receiver.didUpdateFromInnerListeners = [];
           };
 
 
@@ -5248,6 +6219,10 @@
 
           receiver.offOuterUpdate = (listener) => {
             receiver.didUpdateFromOuterListeners = Utils.arrayByRemovingElement(receiver.didUpdateFromOuterListeners, listener);
+          };
+
+          receiver.offAllOuterUpdates = () => {
+            receiver.didUpdateFromOuterListeners = [];
           };
 
           receiver.represented = null;
@@ -5602,19 +6577,39 @@
               transformationFunc = (node_a) => {
                 var outNode;
 
-                const node_b        = new math.ConstantNode(1);
-                const node_operator = new math.OperatorNode('+', 'add', [node_a, node_b]);
+                function standardOperation(node_in) {
+                  var outNode;
 
-                const node_unsimplified = node_operator;
+                  const node_b        = new math.ConstantNode(1);
+                  const node_operator = new math.OperatorNode('+', 'add', [node_in, node_b]);
 
-                if(node_a.autoSimplify) {
-                  const node_simplified = math.simplify(node_unsimplified);
-                  outNode = node_simplified;
-                } else {
-                  outNode = node_unsimplified;
+                  const node_unsimplified = node_operator;
+
+                  if(node_in.autoSimplify) {
+                    const node_simplified = math.simplify(node_unsimplified);
+                    outNode = node_simplified;
+                  } else {
+                    outNode = node_unsimplified;
+                  }
+
+                  outNode.autoSimplify = node_in.autoSimplify;
+
+                  return outNode;
                 }
 
-                outNode.autoSimplify = node_a.autoSimplify;
+                if(node_a.isEquation) {
+                  console.log("node_a", node_a);
+                  const node_left     = standardOperation(node_a.params[0]);
+                  const node_right    = standardOperation(node_a.params[1]);
+                  const node_equation = new math.RelationalNode(["equal"], [node_left, node_right]);
+                  node_equation.isEquation = true;
+
+                  outNode = node_equation;
+                } else {
+                  outNode = standardOperation(node_a);
+                }
+
+                // outNode.autoSimplify = node_a.autoSimplify;
 
                 return outNode;
               };
@@ -5794,6 +6789,11 @@
           fabric.Rect.prototype.ry = 5;
 
 
+          fabric.Object.prototype.getFObjZIndex = function() {
+              return this.canvas.getObjects().indexOf(this);
+          }
+
+
           // // fabricjs group - always show border
           // fabric.Group.prototype.initialize = (function (initialize) {
           //     return function () {
@@ -5845,6 +6845,7 @@
 
 
             imageSmoothingEnabled: true,
+            preserveObjectStacking: true,
           });
 
           this.fabricCanvas = fabricCanvas;
@@ -5870,11 +6871,13 @@
 
           // this.debugOriginalAxes();
 
+          this.initializeSelectionMgmt();
+
           this.initializeFreeDrawing();
 
           this.initializeFabricObjectCopyCut();
 
-          this.configureActiveSelectionListeners();
+          // this.configureActiveSelectionListeners();
         }
 
         setFabricObjects(fabric_objects__new) {
@@ -5883,6 +6886,69 @@
 
         getFabricObjects() {
           return this.fabric_objects;
+        }
+
+        initializeSelectionMgmt() {
+          const fabricIntegration = this;
+
+          const fabricCanvas      = fabricIntegration.fabricCanvas;
+
+          // fabricCanvas.on('selection:cleared', function(options) {
+          //   // console.log("selection:cleared", options);
+          //   const selectionMgmtObj = getSelectionMgmtObject(options);
+          //   processSelectionMgmtObject(selectionObj);
+          // });
+          // fabricCanvas.on('selection:created', function(options) {
+          //   // console.log("selection:created", options);
+          //   const selectionMgmtObj = getSelectionMgmtObject(options);
+          //   processSelectionMgmtObject(selectionObj);
+          // });
+          // fabricCanvas.on('selection:updated', function(options) {
+          //   // console.log("selection:updated", options);
+          //   const selectionMgmtObj = getSelectionMgmtObject(options);
+          //   processSelectionMgmtObject(selectionObj);
+          // });
+
+          function selectionHandler__default(options) {
+            const selectionMgmtObj = getSelectionMgmtObject(options);
+            processSelectionMgmtObject(selectionMgmtObj);
+          }
+
+          fabricCanvas.on('selection:cleared', selectionHandler__default);
+          fabricCanvas.on('selection:created', selectionHandler__default);
+          fabricCanvas.on('selection:updated', selectionHandler__default);
+
+          function getSelectionMgmtObject(options) {
+            var outObj;
+
+            const arr_fObj     = Object.values(fabricIntegration.fabric_objects);
+
+            const arr_selected = (options.selected != null) ? options.selected : [];
+
+            const difference = arr_fObj.filter(x => !arr_selected.includes(x));
+            const arr_unselected = difference;
+
+            outObj = {
+              arr_selected:   arr_selected,
+              arr_unselected: arr_unselected,
+            };
+
+            return outObj;
+          }
+
+          function processSelectionMgmtObject(selectionMgmtObj) {
+
+            selectionMgmtObj.arr_selected.forEach((fObj, i) => {
+              const icObj = fObj.icObj;
+              icObj.isSelected = true;
+            });
+            selectionMgmtObj.arr_unselected.forEach((fObj, i) => {
+              const icObj = fObj.icObj;
+              icObj.isSelected = false;
+            });
+
+          }
+
         }
 
 
@@ -6045,6 +7111,50 @@
               fabricCanvas.renderAll();
             }
 
+            function fObjZIndexForIcObj(icObj) {
+              var outIndex;
+
+              //get zIndex-ordered icObj array
+              const arr_icObj = Object.values(fabricIntegration.fabric_objects).map(fObj => fObj.icObj);
+
+
+              //create order dict
+              var mapped = arr_icObj.map(function(icObj_elt, i) {
+                const mapped_obj = {
+                  index: i,
+                  object: icObj_elt,
+                  sortingValue: icObj_elt.zIndex,
+                };
+
+                return mapped_obj;
+              })
+
+              mapped.sort(function(a, b) {
+                if (a.sortingValue > b.sortingValue) {
+                  return 1;
+                }
+                if (a.sortingValue < b.sortingValue) {
+                  return -1;
+                }
+                return 0;
+              });
+              // console.log("mapped", mapped);
+
+              const dict_indexForObjectId = mapped.reduce((acc, mappedObj, index) => {
+                // console.log("mappedObj", mappedObj, "index", index);
+                const id_object = mappedObj.object.id;
+                acc[id_object] = index;
+                return acc;
+              }, {});
+              // console.log("dict_indexForObjectId", dict_indexForObjectId);
+
+
+              //get index in order dict
+              outIndex = dict_indexForObjectId[icObj.id];
+
+              return outIndex;
+            }
+
             const innerUpdateListener = (icObj_fRep, propName, oldValue, newValue) => {
               console.log("innerUpdateListener", icObj_fRep.id_rep, propName);
 
@@ -6057,6 +7167,21 @@
               // else if(propName == "isHeld") {
               //   console.log("innerUpdate", "isHeld");
               // }
+              else if(propName == "zIndex") {
+                const zIndex_icObj = icObj_fRep.zIndex;
+                console.log("zIndex_icObj", zIndex_icObj);
+
+                // fObj.moveTo(zIndex_icObj);
+                const zIndex_fObj__target = fObjZIndexForIcObj(icObj_fRep);
+                fObj.moveTo(zIndex_fObj__target);
+
+                //debug
+                const zIndex_fObj__actual = fObj.getFObjZIndex();
+                console.log("zIndex_fObj__actual", zIndex_fObj__actual);
+              }
+
+
+
               else if(propName == "tex") {
                 fObj.refreshTex_p()
                 .then((fObj) => {
@@ -6175,6 +7300,7 @@
               }
               break;
             case "text":
+            case "tag":
               {
               const fObj = this.createFabricITextWithIcObj(icObj);
               fObj_p = Promise.resolve(fObj);
@@ -8274,37 +9400,44 @@
           const infiniteCanvas = this.infiniteCanvas;
           const fabricCanvas   = this.fabricCanvas;
 
-          fObj.on('selected', function(options) {
-            console.log("selected", "options", options);
 
-            // const activeGroup = fabricCanvas.getActiveGroup();
+          // fObj.on('selected', function(options) {
+          //   console.log("selected", "options", options);
+          //
+          //   // const activeGroup = fabricCanvas.getActiveGroup();
+          //
+          //   /*
+          //   const activeObject   = fabricCanvas.getActiveObject();
+          //
+          //   // console.log("activeObject", activeObject);
+          //
+          //   const icObj = activeObject.icObj;
+          //
+          //   console.log("icObj.size.width",  icObj.size.width);
+          //   console.log("icObj.homeScale.X", icObj.homeScale.X);
+          //   console.log("icObj.scale.X",     icObj.scale.X);
+          //
+          //   console.log("icObj.getTrueSize()", activeObject.icObj.getTrueSize());
+          //
+          //   console.log("activeObject.scaleX", activeObject.scaleX);
+          //   console.log("activeObject.scaleY", activeObject.scaleY);
+          //
+          //   console.log("infiniteCanvas.scale.X", infiniteCanvas.scale.X);
+          //
+          //   if(fObj instanceof fabric.Text) {
+          //     console.log("icObj.fontSize", icObj.fontSize);
+          //     console.log(" fObj.fontSize",  fObj.fontSize);
+          //   }
+          //   */
+          //
+          //   const icObj = fObj.icObj;
+          //   icObj.isSelected = true;
+          //
+          // });
 
-
-            /*
-            const activeObject   = fabricCanvas.getActiveObject();
-
-            // console.log("activeObject", activeObject);
-
-            const icObj = activeObject.icObj;
-
-            console.log("icObj.size.width",  icObj.size.width);
-            console.log("icObj.homeScale.X", icObj.homeScale.X);
-            console.log("icObj.scale.X",     icObj.scale.X);
-
-            console.log("icObj.getTrueSize()", activeObject.icObj.getTrueSize());
-
-            console.log("activeObject.scaleX", activeObject.scaleX);
-            console.log("activeObject.scaleY", activeObject.scaleY);
-
-            console.log("infiniteCanvas.scale.X", infiniteCanvas.scale.X);
-
-            if(fObj instanceof fabric.Text) {
-              console.log("icObj.fontSize", icObj.fontSize);
-              console.log(" fObj.fontSize",  fObj.fontSize);
-            }
-            */
-
-          });
+          // fObj.on('deselected', function(options) {
+          //   console.log("selected", "options", options);
+          // });
 
         }
 
@@ -8349,15 +9482,19 @@
 
             const icObj = fObj.icObj;
 
+
+            //old way
+            /*
             const icObj_update = {
               text: text_new,
             };
-
             const icObj_new = Object.assign({}, icObj);
             Object.assign(icObj_new, icObj_update);
-
             icObj.update(icObj_new, false);
+            */
 
+            //new way
+            icObj.text = text_new;
           });
 
         }
@@ -8393,6 +9530,16 @@
             }
 
           });
+
+          //update
+          this.fabricCanvas.on("selection:updated", (options) => {
+            //SHU TODO
+          });
+
+
+
+
+
 
 
           //move
@@ -10136,18 +11283,23 @@
           //get selected objects
           const canvas = this.fabricCanvas;
 
-          if (!canvas.getActiveObject()) {
+          const activeObject = canvas.getActiveObject();
+          if (activeObject == null) {
             return;
           }
-          if (canvas.getActiveObject().type != 'activeSelection') {
+          if(activeObject.type != 'activeSelection') {
             console.log("can only compose objects from an activeSelection");
             return;
           }
 
-          const activeSelection = canvas.getActiveObject();
+          const activeSelection = activeObject;
           console.log("activeSelection", activeSelection);
 
           const arr_fObj = activeSelection.getObjects();
+
+          this.deselectAll();
+
+
 
           const arr_topLevelFObj = arr_fObj.filter(fObj => {
             const isTopLevelObj = !fObj.icObj.isCompositePart;
@@ -10159,6 +11311,11 @@
           });
 
           infiniteCanvas.compose(arr_topLevelIcObj);
+
+
+          // this.deselectAll();
+          // canvas.renderAll();
+
         }
 
         decomposeSelectedObject() {
@@ -10167,20 +11324,31 @@
 
           const canvas = this.fabricCanvas;
 
-          if (!canvas.getActiveObject()) {
-            return;
-          }
-          const fObj  = canvas.getActiveObject();
-          const icObj = fObj.icObj;
-          if (icObj.type != 'composite') {
-            console.log("can only decompose a composite");
-            return;
+          var icObj_composite;
+
+          const activeObject = canvas.getActiveObject();
+          if (activeObject.type == 'activeSelection') {
+            const activeSelection = activeObject;
+            const arr_fObj = activeSelection.getObjects();
+            const arr_icObj = arr_fObj.map((fObj, i) => {
+              return fObj.icObj;
+            });
+            icObj_composite = arr_icObj.find(icObj => (icObj.type == "composite"));
+
+          } else if (activeObject != null) {
+            const fObj  = activeObject;
+            const icObj = fObj.icObj;
+            if(icObj.type == "composite") {
+              icObj_composite = icObj;
+            }
           }
 
-          infiniteCanvas.decompose(icObj);
+          if(icObj_composite != null) {
+            this.deselectAll();
+            infiniteCanvas.decompose(icObj_composite);
+          }
+
         }
-
-
 
 
 
@@ -10250,28 +11418,7 @@
 
 
 /*******************/
-/** utils  **/
 
-
-      class Utils {
-
-        static arrayByRemovingElement(src_arr, elt) {
-
-          const index = src_arr.indexOf(elt);
-
-          return this.arrayByRemovingElementAtIndex(src_arr, index);
-        }
-
-        static arrayByRemovingElementAtIndex(src_arr, index) {
-
-          const arr = [...src_arr]; //create shallow copy of src_arr
-
-          const arr_removed = arr.splice(index, 1);   //starting at index, remove 1 element
-          const arr_new     = arr;                    //array is mutated in place
-
-          return arr;
-        }
-      }
 
       class Geometry {
 
@@ -11937,9 +13084,11 @@
 
               if(timestamp_inner < timestamp_outer) {
                 const icObj = innerCopyEvent.clipboardObject.content;
+                icObj.id += 1000;
 
                 //clone newly created, shift it, and copy it {
                 const cloned = icObj.deepClone();
+                cloned.id += 1000;
 
                 cloned.position.x += 10;
                 cloned.position.y += 10;
@@ -12499,6 +13648,14 @@
                 */
               }),
 
+              zIndexEditing: new KeyDownToggle("zIndexEditing", KeyDownToggle.defaultKeyDownFunc(["Digit2"]), (isActive) => {
+                if(isActive) {
+                  infiniteCanvas.enterZIndexEditing();
+                } else {
+                  infiniteCanvas.leaveZIndexEditing();
+                }
+              }),
+
             };
 
           }
@@ -12679,9 +13836,16 @@
               //   break;
               case "KeyT":
                 {
-                  const debug_text = "1";
-                  // const debug_text = "-103";
-                  keyboardIntegration.infiniteCanvas.addNewText(debug_text);
+                  if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+                    //tag
+                    const debug_text = "challenge.";
+                    keyboardIntegration.infiniteCanvas.addNewTag(debug_text);
+                  } else {
+                    //text
+                    const debug_text = "icText";
+                    keyboardIntegration.infiniteCanvas.addNewText(debug_text);
+                  }
+
                 }
                 break;
 
@@ -12713,6 +13877,13 @@
                   keyboardIntegration.infiniteCanvas.addNewGMOperator();
                 }
                 break;
+
+              case "Digit7":
+                {
+                  // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify");
+                  keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__step_by_step");
+                }
+              break;
 
               case "Digit8":
                 {
@@ -12750,12 +13921,19 @@
                   // keyboardIntegration.infiniteCanvas.addNewExpr(equation);
 
 
+                  /*
                   // const mathNode = math.parse("1");
                   const mathNode = new math.ConstantNode(1);
                   // const mathNode = new math.SymbolNode("x");
-                  // mathNode.autoSimplify = true;
-                  mathNode.autoSimplify = false;
+                  mathNode.autoSimplify = true;
+                  // mathNode.autoSimplify = false;
                   keyboardIntegration.infiniteCanvas.addNewMathNode(mathNode);
+                  */
+
+                  // const mathNode = random_mathNode_withDepth(4);
+                  const mathNode = random_mathNode_withDepth_and_nbSymbols(4,1);
+                  keyboardIntegration.infiniteCanvas.addNewMathNode(mathNode);
+
                 }
                 break;
 
@@ -12767,7 +13945,8 @@
 
               case "Digit9":
                 {
-                  keyboardIntegration.infiniteCanvas.addNewCountdown();
+                  // keyboardIntegration.infiniteCanvas.addNewCountdown();
+                  keyboardIntegration.infiniteCanvas.addNewIcEngined_debug();
                 }
                 break;
 
@@ -12786,7 +13965,19 @@
 
               case "Backslash":
                 {
-                  keyboardIntegration.infiniteCanvas.addNewEventEmitter();
+                  // keyboardIntegration.infiniteCanvas.addNewEventEmitter();
+
+                  const mathNode_left     = new math.SymbolNode("x");
+                  mathNode_left.autoSimplify = false;
+                  const mathNode_right    = new math.ConstantNode(1);
+                  mathNode_right.autoSimplify = true;
+                  const mathNode_equation = new math.RelationalNode(["equal"], [mathNode_left, mathNode_right]);
+                  // mathNode_equation.params[0].autoSimplify = false;
+                  // mathNode_equation.params[1].autoSimplify = true;
+                  mathNode_equation.isEquation = true;
+
+                  const mathNode = mathNode_equation;
+                  keyboardIntegration.infiniteCanvas.addNewMathNode(mathNode);
                 }
                 break;
 
@@ -13058,6 +14249,8 @@
           const keyboardIntegration = this.keyboardIntegration;
           const inputProperties     = this.inputProperties;
 
+          const infiniteCanvas      = this.infiniteCanvas;
+
 
           canvasContainer.addEventListener('mousedown', onMouseDown);
           canvasContainer.addEventListener('mouseup',   onMouseUp, false);
@@ -13134,7 +14327,10 @@
               colorScroll();
             } else if(keyboardIntegration.keyDownToggles.v.isActive) {
               opacityScroll();
-            } else {
+            } else if(infiniteCanvas.isZIndexEditing) {
+              zIndexEditingScroll();
+            }
+            else {
               zoomScroll();
             }
 
@@ -13148,6 +14344,12 @@
               const deltaY   = event.deltaY;
               const screment = deltaY > 0 ? 1 : -1;
               inputProperties.setNextOpacity(screment);
+            }
+
+            function zIndexEditingScroll() {
+              const deltaY   = event.deltaY;
+              const screment = deltaY > 0 ? 1 : -1;
+              infiniteCanvas.manageZIndexEditingScrement(screment);
             }
 
             function zoomScroll() {
@@ -13382,6 +14584,7 @@
       const infiniteCanvas      = new InfiniteCanvas(canvas, inputProperties);
       clipboardIntegration.rx_mixedPaste.subscribe({
         next: (icObj) => {
+          console.log("rx_mixedPaste, next:", icObj);
           infiniteCanvas.addPastedIcObject(icObj);
         },
       });
@@ -13693,7 +14896,12 @@
           // console.log("---here---");
 
           const icEngined = represented.r_official();
-          // icEngined.engine.initialize();
+
+          //initialize
+          const contextObj = icEngined.getContextObj(icEngined);
+          icEngined.engine.initialize(contextObj);
+
+          //start
           icEngined.engine.start();
         }
 
