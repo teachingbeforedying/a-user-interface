@@ -77,8 +77,8 @@
     <!-- <script src='lib/base64.js' type='text/javascript'></script> -->
 
     <!-- UI -->
-    <script src='lib/fabric.min.js' type='text/javascript'></script>
-    <script src='lib/anime.min.js'  type='text/javascript'></script>
+    <script src='lib/fabric.min.js'      type='text/javascript'></script>
+    <script src='lib/anime.min.js'       type='text/javascript'></script>
     <!-- <script src='lib/mathjax.tex-mml-chtml.js' type='text/javascript'></script> -->
     <script src='lib/mathjax.tex-svg.js' type='text/javascript'></script>
     <script>
@@ -144,6 +144,68 @@
       function stop() {
         clearInterval(timerId);
       }
+    </script> -->
+    <script src='lib/html2canvas.min.js' type='text/javascript'></script>
+    <!-- <div id="lolilol" style="width: 100px; height: 100px; background-color:yellow">123456789</div>
+    <script>
+      //discovery
+      html2canvas(document.getElementById("lolilol")).then(function(canvas) {
+        // document.body.appendChild(canvas);
+        console.log("html2canvas, canvas", canvas);
+      });
+    </script> -->
+    <link rel="stylesheet" href="lib/mathquill/mathquill.css"/>
+    <script src='lib/mathquill/jquery-3.5.1.min.js' type='text/javascript'></script>
+    <script src='lib/mathquill/mathquill.min.js' type='text/javascript'></script>
+    <script>
+      const MQ = MathQuill.getInterface(2);
+      console.log("MQ", MQ);
+
+      function createMathField() {
+        var outMathField;
+
+        const span = document.createElement("span");
+
+        if(span.style == null) {span.style = {};}
+        span.style.backgroundColor = "yellow";
+        // span.style.width  = "100px";
+        // span.style.height = "100px";
+        span.style.color = "purple";
+
+
+        span.style.textAlign     = "center";
+        span.style.verticalAlign = "middle";
+
+        const mathField = MQ.MathField(span, {
+          handlers: {
+            edit: function() {
+              var tex = mathField.latex(); // Get entered math in LaTeX format
+              console.log("tex", tex);
+            }
+          }
+        });
+        console.log("mathField", mathField);
+
+        outMathField = mathField;
+
+        return outMathField;
+      }
+
+    </script>
+
+
+    <!-- <p><span id="answer">x=</span></p>
+    <script>
+      var answerSpan = document.getElementById('answer');
+      var answerMathField = MQ.MathField(answerSpan, {
+        handlers: {
+          edit: function() {
+            var enteredMath = answerMathField.latex(); // Get entered math in LaTeX format
+            // checkAnswer(enteredMath);
+            console.log("enteredMath", enteredMath);
+          }
+        }
+      });
     </script> -->
 
 
@@ -555,7 +617,29 @@
 
 
       /*UTILS*/
-      function getArr_deep_first(mathNode) {
+
+      function getDepth(mathNode) {
+        var outInt;
+
+        switch(mathNode.type) {
+          case "OperatorNode":
+            {
+              const arr_child_node       = mathNode.args;
+              const arr_child_node_depth = arr_child_node.map(node => getDepth(node));
+              const max_child_depth = Math.max(...arr_child_node_depth);
+              outInt = 1 + max_child_depth;
+            }
+            break;
+          default:
+            outInt = 1;
+            break;
+        }
+
+        console.log("outInt", outInt);
+        return outInt;
+      }
+
+      function getArr_all_leaves__node(mathNode) {
         var outArray;
 
         switch(mathNode.type) {
@@ -584,7 +668,7 @@
                   });
 
                   arr_grandChild_sorted_by_decreasing_depth.forEach((grandChild, i) => {
-                    const arr_sub = getArr_deep_first(grandChild);
+                    const arr_sub = getArr_all_leaves__node(grandChild);
                     console.log("arr_sub", arr_sub);
                     acc.push(...arr_sub);
                   });
@@ -603,39 +687,213 @@
         return outArray;
       }
 
+      function getArr_all_leaves__treeObj(mathNode, parentPath = []) {
+        var outArray;
+
+        switch(mathNode.type) {
+          case "OperatorNode":
+            {
+              const depth = getDepth(mathNode);
+              if(depth == 2) {
+                const arr_child = mathNode.args;
+                outArray = arr_child.map((child, childIndex) => {
+                  const treeObj = {
+                    node: child,
+                    path: parentPath.concat([childIndex]),
+                  };
+                  return treeObj;
+                });
+              } else {
+                outArray = mathNode.args.reduce((acc, child, childIndex) => {
+                  const arr_grandChild = child.args;
+
+                  var arr_grandChild_sorted_by_decreasing_depth = arr_grandChild.slice();
+                  arr_grandChild_sorted_by_decreasing_depth.sort(function(a, b) {
+                    const depth_a = getDepth(a);
+                    const depth_b = getDepth(b);
+
+                    if (depth_a > depth_b) {
+                      return 1;
+                    }
+                    if (depth_a < depth_b) {
+                      return -1;
+                    }
+                    return 0;
+                  });
+
+                  arr_grandChild_sorted_by_decreasing_depth.forEach((grandChild, grandChildIndex) => {
+                    const path = parentPath.concat([childIndex, grandChildIndex]);
+                    const arr_sub = getArr_all_leaves__treeObj(grandChild, path);
+                    console.log("arr_sub", arr_sub);
+                    acc.push(...arr_sub);
+                  });
+
+                  return acc;
+
+                }, []);
+              }
+            }
+            break;
+          default:
+            const treeObj = {
+              node: mathNode,
+              path: parentPath/*.concat([0])*/,
+            };
+            outArray = [treeObj];
+            break;
+        }
+
+        return outArray;
+      }
+
+      function getArr_all_nodes_at_depth(mathNode, depth) {
+        var outArray;
+
+        if(depth < 1) {
+          throw new Error("depth must be > 1");
+        } else if(depth == 1) {
+          outArray = [mathNode];
+        } else {
+          const arr_child = mathNode.args;
+
+          outArray = arr_child.reduce((acc, child) => {
+            const arr_nodes__one_deeper = getArr_all_nodes_at_depth(child, depth - 1);
+
+            acc.push(...arr_nodes__one_deeper);
+
+            return acc;
+          }, []);
+        }
+
+        return outArray;
+      }
+
+      function getArr_deep_first__treeObj(mathNode, parentPath = []) {
+        var outArray;
+
+        const depth = getDepth(mathNode);
+        const arr_depth__increasing = [...new Array(depth).keys()].map(i => i + 1);
+        const arr_depth__decreasing = arr_depth__increasing.slice().reverse();
+
+        outArray = arr_depth__decreasing.reduce((acc, depth) => {
+
+          const arr_all_treeObj_at_depth = getArr_all_treeObj_at_depth(mathNode, depth, parentPath);
+          acc.push(...arr_all_treeObj_at_depth);
+
+          return acc;
+        }, []);
+
+        return outArray;
+      }
+
+      function getArr_all_treeObj_at_depth(mathNode, depth, parentPath = []) {
+        var outArray;
+
+        if(depth < 1) {
+          throw new Error("depth must be > 1");
+        } else if(depth == 1) {
+          const treeObj = {
+            node: mathNode,
+            path: parentPath,
+          };
+          outArray = [treeObj];
+        } else {
+          var arr_child = mathNode.args;
+
+          if(arr_child == null) {
+            arr_child = [];
+          }
+
+          outArray = arr_child.reduce((acc, child, childIndex) => {
+            const child_path = parentPath.concat(childIndex);
+            const arr_treeObj__one_deeper = getArr_all_treeObj_at_depth(child, depth - 1, child_path);
+
+            acc.push(...arr_treeObj__one_deeper);
+
+            return acc;
+          }, []);
+
+        }
+
+        return outArray;
+      }
+
+
+      function getArr_deep_first__treeObj(mathNode, parentPath = []) {
+        var outArray;
+
+        const depth = getDepth(mathNode);
+        const arr_depth__increasing = [...new Array(depth).keys()].map(i => i + 1);
+        const arr_depth__decreasing = arr_depth__increasing.slice().reverse();
+
+        outArray = arr_depth__decreasing.reduce((acc, depth) => {
+
+          const arr_all_treeObj_at_depth = getArr_all_treeObj_at_depth(mathNode, depth);
+          acc.push(...arr_all_treeObj_at_depth);
+
+          return acc;
+        }, []);
+
+        return outArray;
+      }
+
+
+
+
+
+      function operatorNodeBySettingNodeAtPath(operatorNode_in, node_l, path) {
+        var outOperatorNode;
+
+        const operatorNode_cloned = operatorNode_in.clone();
+        // const operatorNode_cloned = operatorNode_in.cloneDeep();
+
+        //get target inner parentNode
+        const path__all_but_last = path.slice(0, -1);
+        const targetParentNode = path__all_but_last.reduce((acc, x) => {
+          return acc.args[x];
+        }, operatorNode_cloned);
+
+        //mutate target inner parentNode
+        const path__last = path[path.length -1];
+        targetParentNode.args[path__last] = node_l;
+
+        outOperatorNode = operatorNode_cloned;
+
+        return outOperatorNode;
+      }
+
       // //debug
       // {
       //   const debugNode = random_mathNode_withDepth_and_nbSymbols(4, 2);
       //   console.log("debugNode(4,2)", debugNode);
       //   console.log("getDepth(debugNode)", getDepth(debugNode));
-      //   console.log("getArr_deep_first(debugNode)", getArr_deep_first(debugNode));
+      //   console.log("getArr_all_leaves__node(debugNode)", getArr_all_leaves__node(debugNode));
       // }
 
 
 
-      function getDepth(mathNode) {
-        var outInt;
 
-        switch(mathNode.type) {
-          case "OperatorNode":
-            {
-              const arr_child_node       = mathNode.args;
-              const arr_child_node_depth = arr_child_node.map(node => getDepth(node));
-              const max_child_depth = Math.max(...arr_child_node_depth);
-              outInt = 1 + max_child_depth;
-            }
-            break;
-          default:
-            outInt = 1;
-            break;
-        }
-
-        console.log("outInt", outInt);
-        return outInt;
-      }
 
 
     </script>
+
+    <!-- <script src='lib/math-expressions.js' type='text/javascript'></script> -->
+    <!-- <script src='lib/math-expressions_umd.js' type='text/javascript'></script> -->
+    <script src='lib/math-expressions.browserified.bundle.js' type='text/javascript'></script>
+    <script>
+      const MathExpression = Bundle_ME.MathExpression;
+    </script>
+    <script>
+      //discovery
+      const mathExpression1      = MathExpression.fromText("sin^2 (x^3)");
+      const tex__mathExpression1 = mathExpression1.tex();
+      console.log("MathExpression, tex__mathExpression1", tex__mathExpression1);
+
+      const mathExpression2       = MathExpression.fromTex("5 \\times 3");
+      const text__mathExpression2 = mathExpression2.toString();
+      console.log("MathExpression, text__mathExpression2", text__mathExpression2);
+    </script>
+
 
 
     <script src='lib/ngraph.graph.min.js' type='text/javascript'></script>
@@ -682,6 +940,79 @@
       rx_debug__subject.next(100);
       rx_debug__subject.next(1000);
     </script> -->
+    <script>//for easy html element observation
+
+      function mutationCallback__debug(mutationsList, observer) {
+          console.log(mutationsList);
+          console.log(observer);
+          for (const mutation of mutationsList) {
+              if (mutation.type === 'childList') {
+                  console.log('A child node has been added or removed.');
+              } else if (mutation.type === 'attributes') {
+                  console.log('The ' + mutation.attributeName + ' attribute was modified.');
+              } else {
+                  console.log('mutation.type: ' + mutation.type);
+                  console.log('New value ' + JSON.stringify(mutation.target.data));
+              }
+          }
+      }
+
+      function createHtmlEltObserver(htmlElt) {
+
+        // Observation medium
+        const rx_subject__mutation = new Subject();
+
+        function mutationCallback(mutationsList, observer) {
+            console.log(mutationsList);
+            console.log(observer);
+
+            const mutation     = mutationsList.find(e => true);
+
+            switch(mutation.type) {
+              case "childList":
+                rx_subject__mutation.next(htmlElt);
+                break;
+              case "attributes":
+                // /!\ .attr() != .prop()
+                break;
+              default:
+                console.log('mutation.type: ' + mutation.type);
+                console.log('New value ' + JSON.stringify(mutation.target.data));
+                break;
+            }
+
+            // rx_subject__mutation.next(htmlElt);
+        }
+
+        // Create an observer instance linked to the callback function
+        const observer = new MutationObserver(mutationCallback);
+        observer.rx_observable__mutation = rx_subject__mutation.asObservable();
+
+        // What to observe
+        const mutationConfig = { attributes: true, childList: true, subtree: true, characterData: true };
+
+        // Start observation
+        observer.observe(htmlElt, mutationConfig);
+
+        return observer;
+      }
+
+    </script>
+    <!-- <script>
+      //discovery
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const htmlElt = document.getElementById("debug_nbObjects");
+        const observer = createObserver(htmlElt);
+
+        setTimeout(() => {
+          htmlElt.innerHTML = 123456;
+        }, 5000);
+
+      });
+
+    </script> -->
+
 
 
     <!-- information -->
@@ -1239,6 +1570,8 @@
 
         const icText = Object.assign(icObj, icText_spec);
 
+        icText.addInteraction_edit();
+
         return icText;
       }
 
@@ -1358,6 +1691,9 @@
       }
 
       createIcMathNode(left, top, mathNode) {
+        console.log("createIcMathNode", left, top, mathNode);
+
+
         const type      = "mathNode";
         const position  = Geometry.createPoint(left, top);
 
@@ -1374,8 +1710,274 @@
 
         const icMathNode = Object.assign(icObj, icMathNode_spec);
 
+
+
+        //edition
+        const infiniteCanvas = this;
+
+        icMathNode.edit = {};
+        icMathNode.edit.start = function() {
+          console.log("icMathNode.edit.start");
+
+          //mathQuill
+          {
+            //create mathField
+            const mathField = createMathField();
+
+            //add mathField root HTML element to canvasContainer
+            const elt = mathField.el();
+            console.log("elt", elt);
+
+            if(elt.style == null) {elt.style = {};}
+            elt.style.position = "absolute";
+
+            const canvasContainer = infiniteCanvas.canvas.parentElement;
+            canvasContainer.appendChild(elt);    //SHU: move this to fabricIntegration
+
+            mathField.reflow();
+
+
+            // //update position
+            // function updatePosition() {
+            //   const represented = infiniteCanvas.getRepresented(icMathNode.id);
+            //   // console.log("represented", represented);
+            //   const rep_free = represented.r_free();
+            //
+            //   const position_screen = rep_free.getScreenPositionWithoutOffset();
+            //   console.log("position_screen", position_screen);
+            //
+            //   const style = {
+            //     left: position_screen.x + 'px',
+            //     top:  position_screen.y + 'px',
+            //   };
+            //
+            //   const elt = mathField.el();
+            //   // elt.style = Object.assign(elt.style, style);
+            //   elt.style.left = style.left;
+            //   elt.style.top  = style.top;
+            //
+            //   mathField.reflow();
+            // }
+            //
+            // updatePosition();
+
+
+            //update rect
+            function updateRect() {
+              const represented = infiniteCanvas.getRepresented(icMathNode.id);
+              const rep_free    = represented.r_free();
+
+              const screenRect = rep_free.getScreenRect();
+              console.log("screenRect", screenRect);
+
+              const style = {
+                left:   screenRect.left   + 'px',
+                top:    screenRect.top    + 'px',
+                width:  screenRect.width  + 'px',
+                height: screenRect.height + 'px',
+              };
+
+              const elt = mathField.el();
+              // elt.style = Object.assign(elt.style, style);
+              elt.style.left   = style.left;
+              elt.style.top    = style.top;
+              elt.style.width  = style.width;
+              elt.style.height = style.height;
+
+              mathField.reflow();
+            }
+
+            updateRect();
+
+
+            //update tex
+            function updateTex() {
+              const represented = infiniteCanvas.getRepresented(icMathNode.id);
+              const rep_free    = represented.r_free();
+
+              const tex = rep_free.mathNode.toTex();
+              mathField.latex(tex);
+            }
+
+            updateTex();
+
+            //bind position
+            {
+
+            }
+
+
+
+            //track end of mathField edition
+            // mathField.upOutOf({
+            //   const represented = infiniteCanvas.getRepresented(icMathNode.id);
+            //   const rep_free    = represented.r_free();
+            //
+            //   rep_free.edit.stop(mathField);
+            // })
+            // mathField.el().onfocusout(() => {
+            //   stopEditing(mathField);
+            // });
+            const eventListener = () => {
+              stopEditing(mathField);
+            };
+            mathField.el().addEventListener("focusout", eventListener);
+
+            function stopEditing(mathField) {
+                const represented = infiniteCanvas.getRepresented(icMathNode.id);
+                const rep_free    = represented.r_free();
+
+                rep_free.edit.stop(mathField);
+            }
+
+
+            //focus mathField
+            mathField.focus();
+
+          }
+
+
+        };
+
+        icMathNode.edit.stop = function(mathField) {
+          console.log("icMathNode.edit.stop", mathField);
+
+          //mathQuill
+          {
+
+            //transfer tex
+            {
+              const tex = mathField.latex();
+              console.log("tex", tex);
+
+              const represented = infiniteCanvas.getRepresented(icMathNode.id);
+              const rep_free    = represented.r_free();
+
+              //this is where fun starts
+              function mathFieldTex_to_mathNode(tex) {
+                var outMathNode;
+
+                // outMathNode = math.parse(tex);
+                const mathExpression = MathExpression.fromLatex(tex);
+                const text           = mathExpression.toString();
+                console.log("text", text);
+                outMathNode = math.parse(text);
+
+                //don't parse "=" into ":="
+
+                //upgrade to gmOperator when writing "x50"
+
+                return outMathNode;
+              }
+
+              rep_free.mathNode = mathFieldTex_to_mathNode(tex);
+            }
+
+            //remove all listeners
+            // mathField.el().removeEventListener("focusout", eventListener);
+            $(mathField.el()).off();
+
+            //remove mathField elt from canvasContainer
+            mathField.el().remove();
+
+            //destroy mathField
+            mathField.revert();
+          }
+
+
+        };
+
+
+
         return icMathNode;
       }
+
+      createIcAsText_mathNode(left, top, text, ) {
+
+        const type      = "as_text__mathNode";
+        const position  = Geometry.createPoint(left, top);
+        const size      = Geometry.createSize(0, 0);
+        const homeScale = Object.assign({}, this.scale);
+
+        const icObj = this.createIcObject(type, position, size, homeScale);
+
+
+        // const text     = "icText";
+        const fontSize = 100;
+
+        const icText_spec = {
+          text:      text,
+          textColor: "black",
+          fontSize:  fontSize,
+        };
+
+        const icText = Object.assign(icObj, icText_spec);
+
+        return icText;
+      }
+
+      createIcAsY(left, top, type_y, type_x, func_YtoX) {
+
+      }
+
+      createIcEditingAsY(left, top, type_y, type_x, func_YtoX) {
+
+      }
+
+
+      createIcHtmlElt(left, top, html_elt) {
+        console.log("createIcHtmlElt", left, top, html_elt);
+        const infiniteCanvas = this;
+
+        const type      = "htmlElt";
+        const position  = Geometry.createPoint(left, top);
+
+        // const size      = Geometry.createSize(img.width, img.height);
+        const size      = Geometry.createSize(100, 100);
+
+        const homeScale = Object.assign({}, this.scale);
+
+        const icObj = this.createIcObject(type, position, size, homeScale);
+
+        const icHtmlElt_spec = {
+          htmlElt: html_elt,
+        };
+
+        const icHtmlElt = Object.assign(icObj, icHtmlElt_spec);
+
+
+
+        const htmlEltObserver = createHtmlEltObserver(html_elt);
+        htmlEltObserver.rx_observable__mutation.subscribe({
+          next: (html_elt_mutated) => {
+
+            const represented  = infiniteCanvas.getRepresented(icHtmlElt.id);
+            const rep_free     = represented.getRepresentation("free");
+
+            rep_free.htmlElt = html_elt_mutated;
+
+          },
+        });
+
+        html_elt.innerHTML = "1";
+        // html_elt.text = "1";
+
+
+        //debug
+        setTimeout(() => {
+          html_elt.innerHTML += "[]";
+          // html_elt.text += "[]";
+        }, 5000);
+
+        // setInterval(() => {
+        //   html_elt.innerHTML += "[]";
+        //   // html_elt.text += "[]";
+        // }, 2000);
+
+
+        return icHtmlElt;
+      }
+
 
 
 
@@ -2328,24 +2930,63 @@
                 function standardOperation(node_in) {
                   var outNode;
 
-                  // const node_unsimplified = node_in;
-                  //
-                  // const node_simplified = math.simplify(node_unsimplified);
-                  // outNode = node_simplified;
-                  //
-                  // outNode.autoSimplify = node_in.autoSimplify;
-                  const arr_deep_first = getArr_deep_first(node_in);
-                  // arr_deep_first.reduce((acc, node) => {
-                  //   if(node.simplified) {
-                  //     //ignore
-                  //   } else {
-                  //
-                  //   }
-                  // }, null);
+                  if(node_in.type == "OperatorNode") {
 
-                  //debug
-                  const deep_node = arr_deep_first[0];
-                  
+                    const depth = getDepth(node_in);
+
+                    if(depth > 2) {
+                      console.log("___st A");
+
+                      //'innermost first' simplify
+
+                      const arr_deep_first__treeObj  = getArr_deep_first__treeObj(node_in);
+                      console.log("arr_deep_first__treeObj", arr_deep_first__treeObj);
+
+                      const arr_deep_first__treeObj__operatorNode  = arr_deep_first__treeObj.filter(treeObj => (treeObj.node.type == "OperatorNode"));
+
+                      const treeObj_operatorNode__first_unsimplified = arr_deep_first__treeObj__operatorNode.find(treeObj => !treeObj.node.isSimplified);
+
+                      const node_unsimplified       = treeObj_operatorNode__first_unsimplified.node;
+                      console.log("node_unsimplified", node_unsimplified);
+                      const path__node_unsimplified = treeObj_operatorNode__first_unsimplified.path;
+
+                      const node_simplified = math.simplify(node_unsimplified);
+                      node_simplified.isSimplified = true;
+                      console.log("node_simplified", node_simplified);
+
+                      const node_mutated = operatorNodeBySettingNodeAtPath(node_in, node_simplified, path__node_unsimplified);
+
+                      outNode = node_mutated;
+
+                    } else {
+                      console.log("___st B");
+
+                      //simple simplify
+
+                      const node_unsimplified = node_in;
+
+                      const node_simplified = math.simplify(node_unsimplified);
+                      node_simplified.isSimplified = true;
+
+                      outNode = node_simplified;
+
+                    }
+
+                  } else {
+                    console.log("___st C");
+
+                    //simple simplify
+
+                    const node_unsimplified = node_in;
+
+                    const node_simplified = math.simplify(node_unsimplified);
+                    node_simplified.isSimplified = true;
+
+                    outNode = node_simplified;
+
+                  }
+
+                  outNode.autoSimplify = node_in.autoSimplify;
 
                   return outNode;
                 }
@@ -2403,6 +3044,172 @@
 
         return icComposite;
       }
+
+      createIcGMOperator_editable(trueRect, text_in) {
+        console.log("createIcGMOperator", trueRect, text_in);
+
+        const transformationFunc = transformationFuncForText(text_in);
+
+        const operatorConfig = {
+          name: text_in,
+          transformationFunc: transformationFunc,
+        };
+
+        const touchSlotConfig = {
+          transformationFunc: operatorConfig.transformationFunc,
+        };
+
+        const touchSlot    = infiniteCanvas.createIcTouchSlot(trueRect, touchSlotConfig);
+        touchSlot.fill     = "";
+        touchSlot.isMobile = false;
+
+        const text         = operatorConfig.name;
+        const facade       = infiniteCanvas.createIcText(trueRect.x, trueRect.y, text);
+        facade.backgroundColor = "blanchedalmond";
+        facade.isMobile    = false;
+        facade.isTouchable = false;
+
+        const parts = {
+          "touchSlot": touchSlot,
+          "facade":    facade,
+        };
+
+        const engineFunc = (icObj, parts) => Compositer.defaultCompositeEngine(icObj, parts);
+
+        const icComposite = this.createIcComposite(trueRect, parts, engineFunc);
+        icComposite.cType = "gm_operator";
+
+        icComposite.isTouchable = false;
+
+
+
+        //listen to icText
+
+        function transformationFuncForText(text) {
+
+          const components   = text.split(" ");
+          const mathOperatorSymbol = components[0];
+          const mathValueString    = components[1];
+
+          // const mathValue          = Number(mathValueString);
+
+          // const mathValueTex       = MathExpression.fromText(mathValueString).toLatex();
+          // console.log("mathValueTex", mathValueTex);
+
+          // const node_b             = math.parse(mathValueTex);   //SHU: math only parses expressions written in math.js DSL
+          const node_b             = math.parse(mathValueString);
+          console.log("node_b", node_b);
+
+          function mathOperatorFuncNameForSymbol(mathOperatorSymbol) {
+            var outMathOperatorFuncName;
+
+            switch(mathOperatorSymbol) {
+              case "+":
+              case "plus":
+              case "add":
+                outMathOperatorFuncName = 'add';
+                break;
+              case "-":
+              case "minus":
+              case "subtract":
+                outMathOperatorFuncName = 'subtract';
+                break;
+              case "x":
+              case "×":
+              case "times":
+              case "multiplyBy":
+                outMathOperatorFuncName = 'multiply';
+                break;
+              case "/":
+              case "divideBy":
+              case "add":
+                outMathOperatorFuncName = 'divide';
+                break;
+              default:
+                outMathOperatorFuncName = 'unknown';
+                break;
+            }
+
+            return outMathOperatorFuncName;
+          }
+          const mathOperatorFuncName = mathOperatorFuncNameForSymbol(mathOperatorSymbol);
+
+          const transformationFunc = (node_a) => {
+            var outNode;
+
+            function standardOperation(node_in) {
+              var outNode;
+
+              // const node_b        = new math.ConstantNode(mathValue);
+              const node_operator = new math.OperatorNode(mathOperatorSymbol, mathOperatorFuncName, [node_in, node_b]);
+
+              const node_unsimplified = node_operator;
+
+              if(node_in.autoSimplify) {
+                const node_simplified = math.simplify(node_unsimplified);
+                outNode = node_simplified;
+              } else {
+                outNode = node_unsimplified;
+              }
+
+              outNode.autoSimplify = node_in.autoSimplify;
+
+              return outNode;
+            }
+
+            if(node_a.isEquation) {
+              console.log("node_a", node_a);
+              const node_left     = standardOperation(node_a.params[0]);
+              const node_right    = standardOperation(node_a.params[1]);
+              const node_equation = new math.RelationalNode(["equal"], [node_left, node_right]);
+              node_equation.isEquation = true;
+
+              outNode = node_equation;
+            } else {
+              outNode = standardOperation(node_a);
+            }
+
+            // outNode.autoSimplify = node_a.autoSimplify;
+
+            return outNode;
+          };
+
+          return transformationFunc;
+        }
+
+        function updateTouchSlotWithText(text) {
+          const transformationFunc = transformationFuncForText(text);
+          const touchSlotConfig = {
+            transformationFunc: transformationFunc,
+          };
+          touchSlot.touchSlotConfig = touchSlotConfig;
+        }
+
+
+        // facade.onEditExit(() => {
+        //   const text = facade.text;
+        //   updateTouchSlotWithText(text);
+        // });
+        infiniteCanvas.onceOnAddRepresentedForIcObject(facade, (facade) => {
+
+          const id_facade = facade.id;
+
+          const represented = infiniteCanvas.getRepresented(id_facade);
+          const rep_free    = represented.r_free();
+
+          rep_free.onEditExit(() => {
+            console.log("rep_free.onEditExit");
+
+            const text = rep_free.text;
+            updateTouchSlotWithText(text);    //SHU: edit rep_free__touchSlot instead of original toucSlot icObj
+          });
+
+        });
+
+        return icComposite;
+      }
+
+
 
 
       createIcGMTargetSlot(trueRect) {
@@ -3491,6 +4298,17 @@
         this.addNewIcObject(icMathNode);
       }
 
+      addNewHtmlElt(html_elt) {
+
+        const true_cursor = this.getTrueCursor();
+
+        const left = true_cursor.x;
+        const top  = true_cursor.y;
+
+        const icHtmlElt = this.createIcHtmlElt(left, top, html_elt);
+        this.addNewIcObject(icHtmlElt);
+      }
+
 
       addNewSnapSlot() {
         const true_cursor = this.getTrueCursor();
@@ -3694,6 +4512,27 @@
         const icGMOperator = this.createIcGMOperator(trueRect);
         this.addNewIcObject(icGMOperator);
       }
+
+      addNewGMOperator_editable(text) {
+        const true_cursor = this.getTrueCursor();
+
+        const left = true_cursor.x;
+        const top  = true_cursor.y;
+
+        const width  = 100;   //"information" size
+        const height = 100;
+
+        const trueRect = {
+          x: left,
+          y: top,
+          width: width,
+          height: height,
+        };
+
+        const icGMOperator = this.createIcGMOperator_editable(trueRect, text);
+        this.addNewIcObject(icGMOperator);
+      }
+
 
       addNewGMOperator_withType(type) {
         const true_cursor = this.getTrueCursor();
@@ -5171,6 +6010,39 @@
 
       }
 
+      addInteraction_edit() {
+        const icObj = this;
+
+        icObj.editEnterListeners     = [];
+        icObj.nowEditEnter = () => {
+          icObj.isEditing = true;
+          icObj.editEnterListeners.forEach((listener, i) => {
+            listener(icObj);
+          });
+        }
+        icObj.onEditEnter  = (listener) => {
+          icObj.editEnterListeners.push(listener);
+        };
+        icObj.offEditEnter = (listener) => {
+          icObj.editEnterListeners = Utils.arrayByRemovingElement(icObj.editEnterListeners, listener);
+        };
+
+        icObj.editExitListeners = [];
+        icObj.nowEditExit = () => {
+          icObj.isEditing = false;
+          icObj.editExitListeners.forEach((listener, i) => {
+            listener(icObj);
+          });
+        }
+        icObj.onEditExit  = (listener) => {
+          icObj.editExitListeners.push(listener);
+        };
+        icObj.offEditExit = (listener) => {
+          icObj.editExitListeners = Utils.arrayByRemovingElement(icObj.editExitListeners, listener);
+        };
+
+      }
+
 
 
 
@@ -5179,6 +6051,25 @@
         const screenY = this.position.y * this.homeScale.Y;
         return Geometry.createPoint(screenX, screenY);
       }
+
+      getScreenPointBRWithoutOffset() {       //SHU TODO: take orientation into account
+        const screenX = (this.position.x + this.size.width)  * this.homeScale.X;
+        const screenY = (this.position.y + this.size.height) * this.homeScale.Y;
+        return Geometry.createPoint(screenX, screenY);
+      }
+
+      getScreenRect() {
+        const screenPointTL = this.getScreenPositionWithoutOffset();
+        const screenPointBR = this.getScreenPointBRWithoutOffset();
+
+        const left   = screenPointTL.x;
+        const top    = screenPointTL.y;
+        const width  = screenPointBR.x - screenPointTL.x;
+        const height = screenPointBR.y - screenPointTL.y;
+        return Geometry.createRect(left, top, width, height);
+      }
+
+
 
       getHomeScreenSize() {
         return this.size;
@@ -7194,6 +8085,12 @@
                   standardRedraw(fObj);
                 });
               }
+              else if(propName == "htmlElt") {
+                fObj.refreshScreenshot_p()
+                .then((fObj) => {
+                  standardRedraw(fObj);
+                });
+              }
               else {
                 console.log("icObj_fRep","onInnerUpdate", icObj_fRep);
                 standardRedraw(fObj);
@@ -7228,6 +8125,12 @@
               }
               else if(propName == "mathNode") {
                 fObj.refreshTex_p()
+                .then((fObj) => {
+                  standardRedraw(fObj);
+                });
+              }
+              else if(propName == "htmlElt") {
+                fObj.refreshScreenshot_p()
                 .then((fObj) => {
                   standardRedraw(fObj);
                 });
@@ -7269,6 +8172,12 @@
             }
             else if(icObj.type == "mathNode") {
               fObj.refreshTex_p()
+              .then((fObj) => {
+                fabricCanvas.renderAll();
+              });
+            }
+            else if(icObj.type == "htmlElt") {
+              fObj.refreshScreenshot_p()
               .then((fObj) => {
                 fabricCanvas.renderAll();
               });
@@ -7353,6 +8262,13 @@
             case "mathNode":
               {
               const fObj = this.createFabricMathNodeWithIcObj(icObj);
+              fObj_p = Promise.resolve(fObj);
+              }
+              break;
+
+            case "htmlElt":
+              {
+              const fObj = this.createFabricHtmlEltWithIcObj(icObj);
               fObj_p = Promise.resolve(fObj);
               }
               break;
@@ -8186,8 +9102,8 @@
                   // left: 0,
 	                // top: 0,
                   //SHU: that smell of Scotch Tape
-                  left: -fObj.width/2,
-	                top:  -fObj.height/2,
+                  left: -group.width/2,
+	                top:  -group.height/2,
 
                   //debug
                   // stroke: "yellow",
@@ -8239,9 +9155,125 @@
           this.addInteraction_select(fObj);
           // this.addListeners(fObj);
 
+          this.addInteraction_doubleClick(fObj);
+
+
 
           return fObj;
         }
+
+
+        createFabricHtmlEltWithIcObj(icObj) {
+
+          const fabricCanvas = this.fabricCanvas;
+
+          const fObj = new fabric.Group();
+
+          fObj.set({
+            left:   icObj.position.x,
+            top:    icObj.position.y,
+
+            width:  icObj.size.width,
+            height: icObj.size.height,
+
+
+            scaleX: icObj.scale.X,
+            scaleY: icObj.scale.Y,
+
+            flipX:   icObj.flip.X,
+            flipY:   icObj.flip.Y,
+
+            angle :  icObj.orientation,
+
+            originX: "left",
+            originY: "top",
+
+
+            icObj: icObj,
+          });
+
+
+          fObj.refreshScreenshot_p = () => {
+            console.log("refreshScreenshot_p");
+
+            const html_elt = icObj.htmlElt;
+            console.log("html_elt", html_elt);
+
+            // const canvasElt_p = html2canvas(html_elt);
+            const canvasElt_p = html2canvas(html_elt, {
+              // onclone: function (clone__htmlElt) {
+                  // clone__htmlElt.style.visibility = "visible";
+                  // clone__htmlElt.style.display = "block";
+                // },
+            });
+
+            const fObj_hmtlElt_image_p = canvasElt_p.then((canvasElt) => {
+
+              function getNumericalValueForPxString(pxString) {
+                return parseInt(pxString.replace("px", ""));
+              }
+
+              const width__canvasElt  = getNumericalValueForPxString(canvasElt.style.width);
+              const height__canvasElt = getNumericalValueForPxString(canvasElt.style.height);
+
+              const img = new fabric.Image(canvasElt);
+
+              const group = fObj;
+              img.set({
+                // left: 0,
+                // top: 0,
+                //SHU: that smell of Scotch Tape
+                left: -group.width/2,
+                top:  -group.height/2,
+
+                //debug
+                // stroke: "yellow",
+                // strokeWidth: 2,
+              });
+
+              return img;
+            });
+
+            const add_fObjfObj_htmlElt_image_p = fObj_hmtlElt_image_p.then((fObj_child) => {
+              if(fObj.child_htmlScreenshot != null) {
+                fObj.remove(fObj.child_htmlScreenshot);
+              }
+
+              //add image as child
+              fObj.child_htmlScreenshot = fObj_child;
+
+              // fObj.add(fObj_child);
+              fObj.addWithUpdate(fObj_child);        //this updates group's size to fit children
+              console.log("fObj, added child:", fObj_child);
+
+              return fObj;
+            });
+
+            return add_fObjfObj_htmlElt_image_p;
+          };
+
+          //event listeners
+          if(icObj.canBeHeld) {
+            this.addInteraction_hold(fObj);
+          }
+          if(icObj.canBeMoved) {
+            this.addInteraction_move(fObj);
+          }
+          if(icObj.canBeResized) {
+            this.addInteraction_resize2(fObj);
+          }
+          if(icObj.canBeRotated) {
+            this.addInteraction_rotate(fObj);
+          }
+
+
+          this.addInteraction_select(fObj);
+          // this.addListeners(fObj);
+
+
+          return fObj;
+        }
+
 
 
 
@@ -9495,6 +10527,32 @@
 
             //new way
             icObj.text = text_new;
+          });
+
+
+          fObj.on('editing:entered', function(options) {
+            const icObj = fObj.icObj;
+            icObj.nowEditEnter();
+          });
+
+          fObj.on('editing:exited', function(options) {
+            const icObj = fObj.icObj;
+            icObj.nowEditExit();
+          });
+
+        }
+
+        addInteraction_doubleClick(fObj) {
+
+          const infiniteCanvas = this.infiniteCanvas;
+          const fabricCanvas   = this.fabricCanvas;
+
+          fObj.on('mousedblclick', function(options) {
+            console.log("mousedblclick", "options", options);
+
+            const icObj = fObj.icObj;
+
+            icObj.edit.start();
           });
 
         }
@@ -13874,9 +14932,46 @@
               case "KeyU":
                 {
                   // keyboardIntegration.infiniteCanvas.addNewTouchSlot();
-                  keyboardIntegration.infiniteCanvas.addNewGMOperator();
+                  // keyboardIntegration.infiniteCanvas.addNewGMOperator();
+                  keyboardIntegration.infiniteCanvas.addNewGMOperator_editable("x (22/7)");
+
                 }
                 break;
+
+              case "Digit6":
+                {
+                  // const html_elt = document.getElementById("debug_nbObjects");
+                  // const html_elt = document.body;
+
+
+                  const input = document.createElement("INPUT");
+                  input.setAttribute("type", "text");
+                  // input.setAttribute("text", "lolilol");
+
+                  input.style.backgroundColor = "yellow";
+                  document.body.appendChild(input);
+
+                  const html_elt = input;
+
+
+                  /*
+                  const div = document.createElement("DIV");
+                  div.style.backgroundColor = "yellow";
+                  div.style.width  = "200px";
+                  div.style.height = "200px";
+
+                  // div.style.visibility = "hidden";
+                  // div.style.display = "none";
+
+                  document.body.appendChild(div);
+
+                  const html_elt = div;
+                  */
+
+                  keyboardIntegration.infiniteCanvas.addNewHtmlElt(html_elt);
+                }
+              break;
+
 
               case "Digit7":
                 {
@@ -13931,7 +15026,9 @@
                   */
 
                   // const mathNode = random_mathNode_withDepth(4);
+                  // const mathNode = random_mathNode_withDepth_and_nbSymbols(4,0);
                   const mathNode = random_mathNode_withDepth_and_nbSymbols(4,1);
+
                   keyboardIntegration.infiniteCanvas.addNewMathNode(mathNode);
 
                 }
@@ -14595,6 +15692,12 @@
       // const canvas = document.getElementById("myCanvas");
       const fabricIntegration   = new FabricIntegration(infiniteCanvas, inputProperties);
       fabricIntegration.clipboardIntegration = clipboardIntegration;
+
+      //debug {
+      // console.log("fabricIntegration.fabricCanvas", fabricIntegration.fabricCanvas);
+      // infiniteCanvas.canvasContainer = fabricIntegration.fabricCanvas.contextTop.canvas.parentElement;
+      //}
+
       infiniteCanvas.redrawCanvasListeners.push((redrawOccasion) => {
         fabricIntegration.redrawCanvas(redrawOccasion);
       });
