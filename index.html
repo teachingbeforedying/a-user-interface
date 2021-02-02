@@ -347,6 +347,44 @@
       };
 
 
+      // (...) [...] {...}		            1
+      // x(...) x[...] obj.prop :		    2
+      // '		                            3
+      // !		                            4
+      // ^, .^		                        5
+      // +, -, ~, not		                6
+      // See section below		            7
+      // *, /, .*, ./, %, mod		        8
+      // +, -		                        9
+      // :		                           10
+      // to, in		                     11
+      // <<, >>, >>>		                 12
+      // Err :501		                   13
+      // &		                           14
+      // ^|		                         15
+      // |		                           16
+      // and		                         17
+      // xor		                         18
+      // or		                         19
+      // ?, :		                       20
+      // =		                           21
+      // ,		                           22
+      // ;		                           23
+      // \n, ;		                       24
+      const precedenceDict = {
+          "unaryPlus":  6,
+          "unaryMinus": 6,
+
+          "multiply": 8,
+          "divide":   8,
+
+          "add":      9,
+          "subtract": 9,
+      };
+
+
+
+
 
       function random_op(arity) {
         const arr_ops = Object.values(dict_ops[arity]);
@@ -592,6 +630,53 @@
         } else {
           const operatorNode = random_operatorNode_binary_withDepth_and_nbSymbols(depth, nb_symbols);
           outMathNode = operatorNode;
+        }
+
+        return outMathNode;
+      }
+
+      function random_onion_mathNode(depth, isWithExplicitationParentheses = true) {
+        var outMathNode;
+
+        if (depth < 1) {
+          throw new Error("mathNode is has min depth: 1");
+        } else if (depth == 1) {
+          const terminalNode = random_terminal_mathNode_withType_inArr(["SymbolNode"]);
+          outMathNode = terminalNode;
+        } else {
+          const innerOnionNode = random_onion_mathNode(depth-1, isWithExplicitationParentheses);
+
+          const layerTerminalNode = random_terminal_mathNode_withType_inArr(["ConstantNode"]);
+
+          const layerNode = random_operatorNode([innerOnionNode, layerTerminalNode]);
+          console.log("layerNode", layerNode);
+
+          outMathNode = layerNode;
+
+          if(isWithExplicitationParentheses) {
+            if(innerOnionNode.type == "OperatorNode") {
+              console.log("innerOnionNode", innerOnionNode);
+
+              const opFuncName__innerOnionNode = innerOnionNode.fn;
+              const opFuncName__layerNode      = layerNode.fn;
+
+              const precedence__innerOnionNode = precedenceDict[opFuncName__innerOnionNode];
+              const precedence__layerNode      = precedenceDict[opFuncName__layerNode];
+
+              const isSamePrecedence = (precedence__innerOnionNode == precedence__layerNode);
+
+              if(isSamePrecedence) {
+                const enveloppedInnerOnionNode = new math.ParenthesisNode(innerOnionNode);
+
+                const layerNode_explicit = new math.OperatorNode(layerNode.op, layerNode.fn, [enveloppedInnerOnionNode, layerTerminalNode]);
+
+                outMathNode = layerNode_explicit;
+              }
+
+            }
+
+          }
+
         }
 
         return outMathNode;
@@ -2323,8 +2408,256 @@
 
 
 
+      // createIcTouchSlot(trueRect, touchSlotConfig) {
+      //   console.log("createIcTouchSlot");
+      //
+      //   const infiniteCanvas = this;
+      //
+      //   const type      = "touchSlot";
+      //   const position  = Geometry.createPoint(trueRect.x, trueRect.y);
+      //   const size      = Geometry.createSize(trueRect.width, trueRect.height);
+      //   const homeScale = Object.assign({}, this.scale);
+      //
+      //   const icObj = this.createIcObject(type, position, size, homeScale);
+      //
+      //   //debug for icText snapping
+      //   // const icTextSize = {
+      //   //   width:  248.4375,
+      //   //   height: 113,
+      //   //   // width:  268.4375,
+      //   //   // height: 130,
+      //   // };
+      //   // icObj.size = icTextSize;
+      //
+      //
+      //   const icTouchSlot_spec = {
+      //     isSnappable: false,
+      //
+      //     stroke: "black",
+      //     strokeWidth: 3,
+      //
+      //     touchSlotConfig: touchSlotConfig,
+      //   };
+      //
+      //   const icTouchSlot = Object.assign(icObj, icTouchSlot_spec);
+      //
+      //   //add reactive part
+      //   this.mutateTouchSlot__addReactivePart(icTouchSlot, touchSlotConfig);
+      //
+      //   return icTouchSlot;
+      // }
+
+
+      // mutateTouchSlot__addReactivePart(icTouchSlot) {
+      //   console.log("mutateTouchSlot__addReactivePart", icTouchSlot);
+      //
+      //   const infiniteCanvas = this;
+      //
+      //   const attemptTouching = function(icObj_slot, icObj_piece) {
+      //     console.log("attemptTouching", icObj_slot, icObj_piece);
+      //
+      //     const canTouch = checkCanTouch(icObj_slot, icObj_piece);
+      //
+      //     const rep_official = icObj_piece;
+      //     console.log("attempting to touch with touchState: " + rep_official.touchStateDict[icObj_slot.id]);
+      //
+      //     if(canTouch) {
+      //       console.log("can touch");
+      //
+      //       const rep_official = icObj_piece;
+      //       const represented  = icObj_piece.represented;
+      //       const rep_free     = represented.getRepresentation("free");
+      //
+      //       // console.log("rep_free.isHeld", rep_free.isHeld);
+      //       // if(rep_free.isHeld) {
+      //       //   presnap(icObj_slot, icObj_piece);
+      //       // } else {
+      //       //   presnap(icObj_slot, icObj_piece);
+      //       //   snap(icObj_slot, icObj_piece);
+      //       // }
+      //
+      //       touch(icObj_slot, icObj_piece);
+      //
+      //     } else {
+      //       console.log("can't touch");
+      //     }
+      //
+      //   };
+      //
+      //   const checkCanTouch = function(icObj_slot, icObj_piece) {
+      //     console.log("checkCanTouch", icObj_piece);
+      //     var outBool;
+      //
+      //     outBool = Touch.canTouch(icObj_piece, icObj_slot);
+      //
+      //     return outBool;
+      //   };
+      //
+      //
+      //   const touch = function(icObj_slot, icObj_piece) {
+      //     console.log("touch", icObj_piece);
+      //
+      //     const rep_official = icObj_piece;
+      //     // const represented  = icObj_piece.represented;
+      //     // const rep_free     = represented.getRepresentation("free");
+      //     // const rep_touched  = represented.getRepresentation("snapped");
+      //
+      //     rep_official.touchStateDict[icObj_slot.id] = TouchState.Touched;
+      //
+      //     const represented  = icObj_piece.represented;
+      //     const rep_free     = represented.getRepresentation("free");
+      //
+      //     //apply mutation
+      //     console.log("touch: apply mutation");
+      //     // console.log("rep_official.text", rep_official.text);
+      //     if(rep_official.text != null) {
+      //
+      //       /*
+      //       const number_in   = parseInt(rep_official.text,10);
+      //       const number_out  = number_in + 1;
+      //
+      //       rep_free.text     = "" + number_out;
+      //       */
+      //
+      //       const number_in   = parseInt(rep_official.text,10);
+      //       const transformationFunc = icTouchSlot.touchSlotConfig.transformationFunc;
+      //       const number_out  = transformationFunc(number_in);
+      //
+      //       rep_free.text     = "" + number_out;
+      //     }
+      //     else if(rep_official.mathNode != null) {
+      //
+      //       // const tex_in    = rep_official.tex;
+      //       // const expr_in   = algebra.fromTex(tex_in);
+      //       const mathNode_in = rep_official.mathNode;
+      //
+      //       const transformationFunc = icTouchSlot.touchSlotConfig.transformationFunc;
+      //       const mathNode_out  = transformationFunc(mathNode_in);
+      //
+      //       rep_free.mathNode = mathNode_out;
+      //
+      //       // const tex_out = expr_out.toTex();
+      //       // rep_free.tex  = tex_out;
+      //     }
+      //     else {
+      //       console.log("&&&touch");
+      //
+      //       const transformationFunc = icTouchSlot.touchSlotConfig.transformationFunc;
+      //
+      //       const mutationObj = transformationFunc(rep_free);
+      //       Object.assign(rep_free, mutationObj);
+      //
+      //     }
+      //
+      //
+      //
+      //   };
+      //
+      //
+      //
+      //
+      //
+      //   const attemptUntouching = function(icObj_slot, icObj_piece) {
+      //     console.log("attemptUntouching", icObj_slot, icObj_piece);
+      //
+      //     const canUntouch = checkCanUntouch(icObj_slot, icObj_piece);
+      //     console.log("canUntouch", canUntouch);
+      //
+      //     const rep_official = icObj_piece;
+      //     console.log("attempting to untouch with touchState: " + rep_official.touchStateDict[icObj_slot.id]);
+      //
+      //     if(canUntouch) {
+      //       // console.log("can untouch");
+      //       untouch(icObj_slot, icObj_piece);
+      //
+      //     } else {
+      //       // console.log("can't untouch");
+      //     }
+      //
+      //   };
+      //
+      //   const checkCanUntouch = function(icObj_slot, icObj_piece) {
+      //     console.log("checkCanUntouch", icObj_piece);
+      //     var outBool;
+      //
+      //     outBool = Touch.canUntouch(icObj_piece, icObj_slot);
+      //
+      //     return outBool;
+      //   };
+      //
+      //   const untouch = function(icObj_slot, icObj_piece) {
+      //     console.log("untouch", icObj_piece);
+      //
+      //     const rep_free     = icObj_piece;   //SHU: this is probably false
+      //
+      //     const represented  = icObj_piece.represented;
+      //     const rep_official = represented.getRepresentation("official");
+      //
+      //     rep_official.touchStateDict[icObj_slot.id] = TouchState.Untouched;
+      //   };
+      //
+      //
+      //
+      //   const r_official_update_handler = (icObj_slot, icObj_piece, outerUpdatesDict) => {
+      //     console.log("r_official_update_handler", icObj_piece);
+      //
+      //     const touchState = icObj_piece.touchStateDict[icObj_slot.id];
+      //     console.log("touchState", touchState);
+      //
+      //     if(touchState == TouchState.Untouched) {
+      //       attemptTouching(icObj_slot, icObj_piece);
+      //     } else if(touchState == TouchState.Touched) {
+      //       attemptUntouching(icObj_slot, icObj_piece);
+      //     }
+      //
+      //   };
+      //
+      //   const r_official_update_handler2 = (rep_official_incoming, outerUpdatesDict) => {
+      //     console.log("r_official_update_handler2", rep_official_incoming);
+      //
+      //     const represented  = infiniteCanvas.getRepresented(icTouchSlot.id);
+      //     console.log("represented", represented);
+      //     const rep_official = represented.r_official();
+      //
+      //     const touchSlot   = rep_official;
+      //     const incomingObj = rep_official_incoming;
+      //
+      //     if(incomingObj != touchSlot) { //don't touch oneself
+      //
+      //       if(!incomingObj.isTouchable) {
+      //         //ignore: incomingObj is intangible
+      //       } else {
+      //         r_official_update_handler(touchSlot, incomingObj, outerUpdatesDict);
+      //       }
+      //
+      //     } else {
+      //       console.log("I won't touch myself");  //SHU: ...
+      //     }
+      //
+      //   };
+      //
+      //   infiniteCanvas.onIcObjUpdate(r_official_update_handler2);
+      //
+      //   //for each existing canvas object, add touchState wrt this new touchSlot
+      //   infiniteCanvas.onceOnAddRepresentedForIcObject(icTouchSlot, (icTouchSlot) => {
+      //
+      //     const id_touchSlot = icTouchSlot.id;
+      //
+      //     const arr_official = Object.values(infiniteCanvas.represented).map(represented => represented.r_official());
+      //     const arr_official_preexisiting = arr_official.filter(rep => (rep.id != id_touchSlot));
+      //     arr_official_preexisiting.forEach((rep, i) => {
+      //
+      //       rep.touchStateDict[id_touchSlot] = TouchState.Untouched;
+      //       //SHU TODO: check if touches
+      //
+      //     });
+      //
+      //   });
+      //
+      // }
+
       createIcTouchSlot(trueRect, touchSlotConfig) {
-        console.log("createIcTouchSlot");
+        console.log("createIcTouchSlot", trueRect, touchSlotConfig);
 
         const infiniteCanvas = this;
 
@@ -2334,16 +2667,6 @@
         const homeScale = Object.assign({}, this.scale);
 
         const icObj = this.createIcObject(type, position, size, homeScale);
-
-        //debug for icText snapping
-        // const icTextSize = {
-        //   width:  248.4375,
-        //   height: 113,
-        //   // width:  268.4375,
-        //   // height: 130,
-        // };
-        // icObj.size = icTextSize;
-
 
         const icTouchSlot_spec = {
           isSnappable: false,
@@ -2356,213 +2679,30 @@
 
         const icTouchSlot = Object.assign(icObj, icTouchSlot_spec);
 
-        //add reactive part
-        this.mutateTouchSlot__addReactivePart(icTouchSlot, touchSlotConfig);
 
-        return icTouchSlot;
+        const engine = new TouchSlotEngine();
+        const eType  = "touchSlot";
+
+        const icEngined = infiniteCanvas.createIcEngined(icTouchSlot, eType, engine);
+
+        //debug: hot-mutating touchSlotConfig
+        // setTimeout(() => {
+        //
+        //   const represented = infiniteCanvas.getRepresented(icEngined.id);
+        //   const rep_free    = represented.r_free();
+        //
+        //   rep_free.touchSlotConfig = {
+        //     transformationFunc: (icObj) => {
+        //       icObj.fill = "orange";
+        //     },
+        //   };
+        //
+        // }, 10000);
+
+        return icEngined;
       }
 
-      mutateTouchSlot__addReactivePart(icTouchSlot) {
-        console.log("mutateTouchSlot__addReactivePart", icTouchSlot);
 
-        const infiniteCanvas = this;
-
-        const attemptTouching = function(icObj_slot, icObj_piece) {
-          console.log("attemptTouching", icObj_slot, icObj_piece);
-
-          const canTouch = checkCanTouch(icObj_slot, icObj_piece);
-
-          const rep_official = icObj_piece;
-          console.log("attempting to touch with touchState: " + rep_official.touchStateDict[icObj_slot.id]);
-
-          if(canTouch) {
-            console.log("can touch");
-
-            const rep_official = icObj_piece;
-            const represented  = icObj_piece.represented;
-            const rep_free     = represented.getRepresentation("free");
-
-            // console.log("rep_free.isHeld", rep_free.isHeld);
-            // if(rep_free.isHeld) {
-            //   presnap(icObj_slot, icObj_piece);
-            // } else {
-            //   presnap(icObj_slot, icObj_piece);
-            //   snap(icObj_slot, icObj_piece);
-            // }
-
-            touch(icObj_slot, icObj_piece);
-
-          } else {
-            console.log("can't touch");
-          }
-
-        };
-
-        const checkCanTouch = function(icObj_slot, icObj_piece) {
-          console.log("checkCanTouch", icObj_piece);
-          var outBool;
-
-          outBool = Touch.canTouch(icObj_piece, icObj_slot);
-
-          return outBool;
-        };
-
-
-        const touch = function(icObj_slot, icObj_piece) {
-          console.log("touch", icObj_piece);
-
-          const rep_official = icObj_piece;
-          // const represented  = icObj_piece.represented;
-          // const rep_free     = represented.getRepresentation("free");
-          // const rep_touched  = represented.getRepresentation("snapped");
-
-          rep_official.touchStateDict[icObj_slot.id] = TouchState.Touched;
-
-          const represented  = icObj_piece.represented;
-          const rep_free     = represented.getRepresentation("free");
-
-          //apply mutation
-          console.log("touch: apply mutation");
-          // console.log("rep_official.text", rep_official.text);
-          if(rep_official.text != null) {
-
-            /*
-            const number_in   = parseInt(rep_official.text,10);
-            const number_out  = number_in + 1;
-
-            rep_free.text     = "" + number_out;
-            */
-
-            const number_in   = parseInt(rep_official.text,10);
-            const transformationFunc = icTouchSlot.touchSlotConfig.transformationFunc;
-            const number_out  = transformationFunc(number_in);
-
-            rep_free.text     = "" + number_out;
-          }
-          // console.log("rep_official.text", rep_official.text);
-
-
-          if(rep_official.mathNode != null) {
-
-            // const tex_in    = rep_official.tex;
-            // const expr_in   = algebra.fromTex(tex_in);
-            const mathNode_in = rep_official.mathNode;
-
-            const transformationFunc = icTouchSlot.touchSlotConfig.transformationFunc;
-            const mathNode_out  = transformationFunc(mathNode_in);
-
-            rep_free.mathNode = mathNode_out;
-
-            // const tex_out = expr_out.toTex();
-            // rep_free.tex  = tex_out;
-          }
-
-
-
-        };
-
-
-
-
-
-        const attemptUntouching = function(icObj_slot, icObj_piece) {
-          console.log("attemptUntouching", icObj_slot, icObj_piece);
-
-          const canUntouch = checkCanUntouch(icObj_slot, icObj_piece);
-          console.log("canUntouch", canUntouch);
-
-          const rep_official = icObj_piece;
-          console.log("attempting to untouch with touchState: " + rep_official.touchStateDict[icObj_slot.id]);
-
-          if(canUntouch) {
-            // console.log("can untouch");
-            untouch(icObj_slot, icObj_piece);
-
-          } else {
-            // console.log("can't untouch");
-          }
-
-        };
-
-        const checkCanUntouch = function(icObj_slot, icObj_piece) {
-          console.log("checkCanUntouch", icObj_piece);
-          var outBool;
-
-          outBool = Touch.canUntouch(icObj_piece, icObj_slot);
-
-          return outBool;
-        };
-
-        const untouch = function(icObj_slot, icObj_piece) {
-          console.log("untouch", icObj_piece);
-
-          const rep_free     = icObj_piece;   //SHU: this is probably false
-
-          const represented  = icObj_piece.represented;
-          const rep_official = represented.getRepresentation("official");
-
-          rep_official.touchStateDict[icObj_slot.id] = TouchState.Untouched;
-        };
-
-
-
-        const r_official_update_handler = (icObj_slot, icObj_piece, outerUpdatesDict) => {
-          console.log("r_official_update_handler", icObj_piece);
-
-          const touchState = icObj_piece.touchStateDict[icObj_slot.id];
-          console.log("touchState", touchState);
-
-          if(touchState == TouchState.Untouched) {
-            attemptTouching(icObj_slot, icObj_piece);
-          } else if(touchState == TouchState.Touched) {
-            attemptUntouching(icObj_slot, icObj_piece);
-          }
-
-        };
-
-        const r_official_update_handler2 = (rep_official_incoming, outerUpdatesDict) => {
-          console.log("r_official_update_handler2", rep_official_incoming);
-
-          const represented  = infiniteCanvas.getRepresented(icTouchSlot.id);
-          console.log("represented", represented);
-          const rep_official = represented.r_official();
-
-          const touchSlot   = rep_official;
-          const incomingObj = rep_official_incoming;
-
-          if(incomingObj != touchSlot) { //don't touch oneself
-
-            if(!incomingObj.isTouchable) {
-              //ignore: incomingObj is intangible
-            } else {
-              r_official_update_handler(touchSlot, incomingObj, outerUpdatesDict);
-            }
-
-          } else {
-            console.log("I won't touch myself");  //SHU: ...
-          }
-
-        };
-
-        infiniteCanvas.onIcObjUpdate(r_official_update_handler2);
-
-        //for each existing canvas object, add touchState wrt this new touchSlot
-        infiniteCanvas.onceOnAddRepresentedForIcObject(icTouchSlot, (icTouchSlot) => {
-
-          const id_touchSlot = icTouchSlot.id;
-
-          const arr_official = Object.values(infiniteCanvas.represented).map(represented => represented.r_official());
-          const arr_official_preexisiting = arr_official.filter(rep => (rep.id != id_touchSlot));
-          arr_official_preexisiting.forEach((rep, i) => {
-
-            rep.touchStateDict[id_touchSlot] = TouchState.Untouched;
-            //SHU TODO: check if touches
-
-          });
-
-        });
-
-      }
 
 
 
@@ -3008,6 +3148,234 @@
               operatorConfig.transformationFunc = transformationFunc;
             }
             break;
+
+
+            case "simplify__top_layer":
+            {
+              operatorConfig.name = "stl";
+              const transformationFunc = (node_a) => {
+                var outNode;
+
+                function standardOperation(node_in) {
+                  var outNode;
+
+                  if(node_in.type == "OperatorNode") {
+
+                    const depth = getDepth(node_in);
+
+                    if(depth > 2) {
+                      console.log("___st A");
+
+                      //'outermost first' simplify
+
+                      function isTerminalType(mathNode) {
+                        const type = mathNode.type;
+                        return ( (type == "ConstantNode") || (type == "SymbolNode") );
+                      }
+
+                      const operator__layerN          = node_in;
+                      const arr_child__layerN         = operator__layerN.args;
+                      const terminal__layerN          = arr_child__layerN.filter(child => isTerminalType(child)).find(e => true);
+
+                      const operator__layerN_minus_1      = arr_child__layerN.filter(child => (child.type == "OperatorNode") ).find(e => true);
+                      const arr_child__layerN_minus_1     = operator__layerN_minus_1.args;
+                      // const terminal__layerN_minus_1      = arr_child__layerN_minus_1.filter(child => isTerminalType(child)).find(e => true);
+                      const arr_terminal__layerN_minus_1  = arr_child__layerN_minus_1.filter(child => isTerminalType(child));
+
+                      function isSameTerminal(termNode1, termNode2) {
+                        var outBool;
+
+                        function isSameTerminalType(termNode1, termNode2) {
+                          return (termNode1.type == termNode2.type);
+                        }
+
+                        const isSameTerminalType_ = isSameTerminalType(termNode1, termNode2);
+                        console.log("isSameTerminalType_", isSameTerminalType_);
+
+                        if(!isSameTerminalType_) {
+                          return false;                 //j'aime pas trop ça mais bon...
+                        }
+
+                        function isSameTerminalContent(termNode1, termNode2) {
+                          console.log("isSameTerminal", termNode1, termNode2);
+                          var outBool;
+
+                          switch(termNode1.type) {
+                            case "SymbolNode":
+                              outBool = (termNode1.name == termNode2.name);
+                            break;
+                            case "ConstantNode":
+                              outBool = (termNode1.value == termNode2.value);
+                            break;
+                            default:
+                              throw new Error("unsupported type", termNode1.type);
+                              break;
+                          }
+
+                          return outBool;
+                        }
+
+                        outBool = isSameTerminalContent(termNode1, termNode2);
+
+                        return outBool;
+                      }
+
+                      const sameTerminal = arr_terminal__layerN_minus_1.find(term__layerN_minus_1 => isSameTerminal(terminal__layerN, term__layerN_minus_1));
+                      if(!sameTerminal) {
+                        return node_in;
+                      }
+
+                      function isInverseOperators(opNode1, opNode2) {
+                        console.log("isInverseOperators", opNode1, opNode2);
+                        var outBool;
+
+                        const set_opFunc = new Set([opNode1.fn, opNode2.fn]);
+                        console.log("set_opFunc", set_opFunc);
+
+                        /*Set utils*/
+                        function eqSet(as, bs) {
+                            return as.size === bs.size && all(isIn(bs), as);
+                        }
+
+                        function all(pred, as) {
+                            for (var a of as) if (!pred(a)) return false;
+                            return true;
+                        }
+
+                        function isIn(as) {
+                            return function (a) {
+                                return as.has(a);
+                            };
+                        }
+                        /**/
+
+
+
+                        const arr_set_inverse = [
+                          new Set(["multiply", "divide"]),
+                          new Set(["add", "subtract"]),
+                        ];
+
+                        outBool = arr_set_inverse.reduce((acc, x) => {
+                          if(eqSet(set_opFunc, x)) {
+                            acc = true;
+                          }
+                          return acc;
+                        }, false);
+
+                        return outBool;
+                      }
+
+                      const isInverseOperators_ = isInverseOperators(operator__layerN_minus_1, operator__layerN);
+                      console.log("isInverseOperators_", isInverseOperators_);
+                      if(!isInverseOperators_) {
+                        return node_in;
+                      }
+
+                      const node__layerN_minus_2      = arr_child__layerN_minus_1.filter(child => child != sameTerminal).find(e => true);
+
+                      //remove parentheses if any
+                      // if(node__layerN_minus_2.type == "ParenthesisNode") {
+                      //   const contentNode = node__layerN_minus_2.content;
+                      //   outNode = contentNode;
+                      // } else {
+                      //   outNode = node__layerN_minus_2;
+                      // }
+
+                      outNode = node__layerN_minus_2;
+
+                    } else {
+                      console.log("___st B");
+
+                      //simple simplify
+
+                      const node_unsimplified = node_in;
+
+                      const node_simplified = math.simplify(node_unsimplified);
+                      node_simplified.isSimplified = true;
+
+                      outNode = node_simplified;
+
+                    }
+
+                  } else {
+                    console.log("___st C");
+                    console.log("node_in", node_in);
+
+                    //simple simplify
+
+                    const node_unsimplified = node_in;
+
+                    const node_simplified = math.simplify(node_unsimplified);   //SHU: boom
+                    node_simplified.isSimplified = true;
+
+                    outNode = node_simplified;
+
+                  }
+
+                  outNode.autoSimplify = node_in.autoSimplify;
+
+                  return outNode;
+                }
+
+                if(node_a.isEquation) {
+                  console.log("node_a", node_a);
+                  const node_left     = standardOperation(node_a.params[0]);
+                  const node_right    = standardOperation(node_a.params[1]);
+                  const node_equation = new math.RelationalNode(["equal"], [node_left, node_right]);
+                  node_equation.isEquation = true;
+
+                  outNode = node_equation;
+                } else {
+                  outNode = standardOperation(node_a);
+                }
+
+                return outNode;
+              };
+              operatorConfig.transformationFunc = transformationFunc;
+            }
+            break;
+
+            case "simplify__remove_parentheses":
+            {
+              operatorConfig.name = "srp";
+              const transformationFunc = (node_a) => {
+                var outNode;
+
+                function standardOperation(node_in) {
+                  var outNode;
+
+                  if(node_in.type == "ParenthesisNode") {
+                    const contentNode = node_in.content;
+                    outNode = contentNode;
+                  } else {
+                    outNode = node_in;
+                  }
+
+                  outNode.autoSimplify = node_in.autoSimplify;
+
+                  return outNode;
+                }
+
+                if(node_a.isEquation) {
+                  console.log("node_a", node_a);
+                  const node_left     = standardOperation(node_a.params[0]);
+                  const node_right    = standardOperation(node_a.params[1]);
+                  const node_equation = new math.RelationalNode(["equal"], [node_left, node_right]);
+                  node_equation.isEquation = true;
+
+                  outNode = node_equation;
+                } else {
+                  outNode = standardOperation(node_a);
+                }
+
+                return outNode;
+              };
+              operatorConfig.transformationFunc = transformationFunc;
+            }
+            break;
+
+
           }
 
           return operatorConfig;
@@ -3457,8 +3825,7 @@
 
         const icEngined = Object.assign(icObj, icEngined_spec);
 
-        //add reactive part
-        // this.mutateEngined__addReactivePart(icEngined);
+        Enginiter.installEngine(icEngined, icEngined.engine);
 
         return icEngined;
       }
@@ -3474,42 +3841,13 @@
 
 
       createIcEngined_debug(trueRect) {
-        console.log("createIcCountdown", trueRect);
+        console.log("createIcEngined_debug", trueRect);
 
         const engineCarrier   = infiniteCanvas.createIcText(trueRect.x, trueRect.y, "icEngined_debug");
         engineCarrier.backgroundColor = "gold";
 
-        engineCarrier.getContextObj = function(engineCarrier) {
-          const contextObj = {
-            engineCarrier: engineCarrier,
-          };
-          return contextObj;
-        };
+        const engine = Engine.debugInstance();
 
-        class DebugEngine {
-          constructor() {
-
-            this.initialized = false;
-
-            this.initialize = function(contextObj) {
-              this.initialized = true;
-              this.contextObj = contextObj;
-            }
-
-            this.start = function() {   //SHU: attention, il y a peut-être une drôlerie de closure ici
-              console.log("this.contextObj.engineCarrier", this.contextObj.engineCarrier);
-              this.contextObj.engineCarrier.text += "[]";
-            };
-
-            this.stop = function() {
-              // delete this.contextObj;
-            };
-
-          }
-        }
-
-        const engine = new DebugEngine();
-        console.log("fresh engine", engine);
         const eType = "debug";
 
         const icEngined = infiniteCanvas.createIcEngined(engineCarrier, eType, engine);
@@ -3767,13 +4105,13 @@
 
             this.initialized = false;
 
-            this.initialize = function(contextObj) {
+            this.initialize = function(scopeObj) {
               this.initialized = true;
-              this.contextObj = contextObj;
+              this.scopeObj = scopeObj;
             }
 
             this.start = function() {
-              console.log("this.contextObj.facade", this.contextObj.facade);
+              console.log("this.scopeObj.facade", this.scopeObj.facade);
             };
 
             this.stop = function() {
@@ -3783,7 +4121,7 @@
             this.interact = function() {
               console.log("interact");
 
-              this.contextObj.facade.text += "+";
+              this.scopeObj.facade.text += "+";
             };
 
           }
@@ -4368,9 +4706,12 @@
           height: height,
         };
 
-        const rank            = this.getNextTouchSlotRank();
-        const touchSlotConfig = this.touchSlotConfigForTouchSlotRank(rank);
 
+        const toucher = Toucher.debugInstance();
+
+        const touchSlotConfig = {
+          transformationFunc: toucher.transformationFunc,
+        };
 
         const icTouchSlot = this.createIcTouchSlot(trueRect, touchSlotConfig);
         this.addNewIcObject(icTouchSlot);
@@ -5721,13 +6062,23 @@
           const eType           = json_icObject.eType;
           icObj.eType           = eType;
           const engine_serial   = json_icObject.engine_serial;
-          const engine          = deserialize(engine_serial);
-          console.log("rehydrated engine", engine);
-          // engine.initialize()
-          icObj.engine          = engine;
 
-          const getContextObj = deserialize(json_icObject.getContextObj);
-          icObj.getContextObj = getContextObj;
+          // const engine          = deserialize(engine_serial);
+          // console.log("rehydrated engine", engine);
+          // // engine.initialize()
+          // icObj.engine          = engine;
+
+          const virgin          = deserialize(engine_serial);
+
+          icObj.engine            = {};
+          icObj.engine.initialize = virgin.initialize.bind(icObj.engine);
+          icObj.engine.virgin     = virgin;
+
+          console.log("rehydrated engine", icObj.engine);
+
+
+          const getScopeObj = deserialize(json_icObject.getScopeObj);
+          icObj.getScopeObj = getScopeObj;
         }
 
         const isUsingCenterPosition = json_icObject.isUsingCenterPosition;
@@ -5776,9 +6127,11 @@
                 return icObj;
               });
 
-              Promise.all(arr_p)
+              icObj_p = Promise.all(arr_p)
               .then((arr_icObj) => {
                 icObj.children = arr_icObj;
+
+                return icObj;
               });
             }
             break;
@@ -5805,6 +6158,22 @@
             }
             break;
 
+          case "touchSlot":
+            {
+            const touchSlotConfig_serial = json_icObject.touchSlotConfig_serial;
+            const touchSlotConfig        = deserialize(touchSlotConfig_serial);
+
+            icObj_p = icObj_p
+                      .then(icObj => {
+
+                        icObj.touchSlotConfig = touchSlotConfig;
+
+                        return icObj;
+                      })
+
+            }
+            break;
+
           case "composite":
             {
               const parts = json_icObject.parts;
@@ -5814,13 +6183,15 @@
                 return icObj;
               });
 
-              Promise.all(arr_p)
+              icObj_p = Promise.all(arr_p)
               .then((arr_icObj) => {
                 icObj.parts = arr_icObj;
 
                 // if(icObj.engine == null) {
                 //   icObj.engine = Compositer.defaultCompositeEngine(icObj, icObj.parts);
                 // }
+
+                return icObj;
               });
             }
             break;
@@ -5856,15 +6227,16 @@
           //don't serialize engine directly
           delete icObj_serial.engine;
 
-          //serialize a prepared version of engine (== a context-free version)
-          const engine_cloned = Object.assign({}, icObj.engine);
-          delete engine_cloned.contextObj;
+          //serialize the virgin version of engine (== a version which is context-free and not bound)
+          const virgin = engine.virgin;
+
+          const engine_cloned = Object.assign({}, virgin);
           console.log("engine_cloned", engine_cloned);
 
           const engine_serial = serialize(engine_cloned);
           icObj_serial.engine_serial = engine_serial;
 
-          icObj_serial.getContextObj = serialize(icObj.getContextObj);
+          icObj_serial.getScopeObj = serialize(icObj.getScopeObj);  //SHU: maybe this function is a bit useless
         }
 
         var icObj_serial_p = Promise.resolve(icObj_serial);
@@ -5929,6 +6301,22 @@
                                     });
             }
             break;
+
+          case "touchSlot":
+            {
+            const touchSlotConfig = icObj.touchSlotConfig;
+            const touchSlotConfig_serial = serialize(touchSlotConfig);
+
+            icObj_serial_p = icObj_serial_p
+                            .then((icObj_serial) => {
+
+                              icObj_serial.touchSlotConfig_serial = touchSlotConfig_serial;
+                              return icObj_serial;
+                            });
+            }
+            break;
+
+
 
           case "composite":
             {
@@ -7160,6 +7548,433 @@
 
       /*//////
       *********/
+
+      class Enginiter {
+
+        static installEngine(engineCarrier, engine) {
+
+          //install func for engine to work properly
+          engineCarrier.getScopeObj = function(engineCarrier) {
+            const scopeObj = {
+              engineCarrier: engineCarrier,
+            };
+            return scopeObj;
+          };
+
+          //install engine
+          engineCarrier.engine = engine;
+        }
+
+      }
+
+      class Engine {
+        constructor() {
+
+          this.initialized = false;
+
+          this.initialize = function(scopeObj) {
+            this.initialized = true;
+            this.scopeObj = scopeObj;
+          }
+
+          this.start = function() {   //SHU: attention, il y a peut-être une drôlerie de closure ici
+            console.log("this.scopeObj.engineCarrier", this.scopeObj.engineCarrier);
+            const engineCarrier = this.scopeObj.engineCarrier;
+            //do something with engineCarrier
+          };
+
+          this.stop = function() {
+            // delete this.scopeObj;
+          };
+
+        }
+
+        static debugInstance() {
+          const engine = new Engine();
+
+          engine.start = function() {   //SHU: attention, il y a peut-être une drôlerie de closure ici
+            console.log("engine.start()");
+
+            console.log("this.scopeObj.engineCarrier", this.scopeObj.engineCarrier);
+
+            const engineCarrier = this.scopeObj.engineCarrier;
+
+            engineCarrier.text += "[]";
+
+            const interval__growth = setInterval(() => {
+              // engineCarrier.text += "[]";              //linear      growth
+              engineCarrier.text += engineCarrier.text;   //exponential growth
+
+              if(engineCarrier.text.length > 10000) {
+                engineCarrier.engine.stop();
+              }
+
+            }, 1000);
+
+
+            if(this.scopeObj.running == null) {
+              this.scopeObj.running = {};
+            }
+            this.scopeObj.running["interval"] = {
+              interval__growth: interval__growth,
+            };
+
+          };
+
+          engine.stop = function() {
+            if(this.scopeObj.running != null) {
+              if(this.scopeObj.running["interval"] != null) {
+                const arr_interval = Object.values(this.scopeObj.running["interval"]);
+
+                arr_interval.forEach((interval, i) => {
+                  clearInterval(interval);
+                });
+
+              }
+            }
+          };
+
+          return engine;
+        }
+
+      }
+
+
+      class Toucher {
+
+        constructor() {
+          this.transformationFunc = null;
+        }
+
+        static debugInstance() {
+          const toucher = new Toucher();
+
+          const transformationFunc = (icObject_in) => {
+            var outMutationObject = {};
+
+            function randomColor() {
+                var r = 255*Math.random()|0,
+                    g = 255*Math.random()|0,
+                    b = 255*Math.random()|0;
+                return 'rgb(' + r + ',' + g + ',' + b + ')';
+            }
+
+            const color = randomColor();
+            outMutationObject.fill = color;
+
+            return outMutationObject;
+          };
+
+          toucher.transformationFunc = transformationFunc;
+
+          return toucher;
+        }
+
+      }
+
+
+      class TouchSlotEngine {
+        // constructor(touchSlotConfig) {
+        constructor() {
+
+          this.initialized = false;
+
+          this.initialize = function(scopeObj) {
+
+            //"wake up":
+            //bind all funcs
+            // function isFunction(functionToCheck) {
+            //   return functionToCheck && {}.toString.call(functionToCheck) === '[object Function]';
+            // }
+            const isFunction = value => value && (Object.prototype.toString.call(value) === "[object Function]" || "function" === typeof value || value instanceof Function);
+
+            this.awoken = {
+              'i_am': "awoken",
+            };
+            console.log("this.virgin", this.virgin);
+            Object.entries(this.virgin)
+                  .filter(([propName, prop]) => isFunction(prop))
+                  .forEach(([propName, prop], i) => {
+                    this.awoken[propName] = prop.bind(this.awoken);
+                  });
+
+            // this.scopeObj  = scopeObj;
+              //engineCarrier,
+              //infiniteCanvas,
+            this.awoken.scopeObj = scopeObj;
+
+            this.initialized = true;
+          }
+
+
+
+          this.attemptTouching = function(icObj_slot, icObj_piece) {
+            console.log("attemptTouching", icObj_slot, icObj_piece);
+
+            const canTouch = this.checkCanTouch(icObj_slot, icObj_piece);
+
+            const rep_official = icObj_piece;
+            console.log("attempting to touch with touchState: " + rep_official.touchStateDict[icObj_slot.id]);
+
+            if(canTouch) {
+              console.log("can touch");
+
+              const rep_official = icObj_piece;
+              const represented  = icObj_piece.represented;
+              const rep_free     = represented.getRepresentation("free");
+
+              // console.log("rep_free.isHeld", rep_free.isHeld);
+              // if(rep_free.isHeld) {
+              //   presnap(icObj_slot, icObj_piece);
+              // } else {
+              //   presnap(icObj_slot, icObj_piece);
+              //   snap(icObj_slot, icObj_piece);
+              // }
+
+              this.touch(icObj_slot, icObj_piece);
+
+            } else {
+              console.log("can't touch");
+            }
+
+          };
+
+          this.checkCanTouch = function(icObj_slot, icObj_piece) {
+            console.log("checkCanTouch", icObj_piece);
+            var outBool;
+
+            outBool = Touch.canTouch(icObj_piece, icObj_slot);
+
+            return outBool;
+          };
+
+
+          this.touch = function(icObj_slot, icObj_piece) {
+            console.log("touch", icObj_piece);
+
+            const icTouchSlot = this.scopeObj.engineCarrier;
+
+
+            const rep_official = icObj_piece;
+            // const represented  = icObj_piece.represented;
+            // const rep_free     = represented.getRepresentation("free");
+            // const rep_touched  = represented.getRepresentation("snapped");
+
+            rep_official.touchStateDict[icObj_slot.id] = TouchState.Touched;
+
+            const represented  = icObj_piece.represented;
+            const rep_free     = represented.getRepresentation("free");
+
+            //apply mutation
+            console.log("touch: apply mutation");
+            // console.log("rep_official.text", rep_official.text);
+            if(rep_official.text != null) {
+
+              /*
+              const number_in   = parseInt(rep_official.text,10);
+              const number_out  = number_in + 1;
+
+              rep_free.text     = "" + number_out;
+              */
+
+              const number_in   = parseInt(rep_official.text,10);
+              const transformationFunc = icTouchSlot.touchSlotConfig.transformationFunc;
+              const number_out  = transformationFunc(number_in);
+
+              rep_free.text     = "" + number_out;
+            }
+            else if(rep_official.mathNode != null) {
+
+              // const tex_in    = rep_official.tex;
+              // const expr_in   = algebra.fromTex(tex_in);
+              const mathNode_in = rep_official.mathNode;
+
+              const transformationFunc = icTouchSlot.touchSlotConfig.transformationFunc;
+              const mathNode_out  = transformationFunc(mathNode_in);
+
+              rep_free.mathNode = mathNode_out;
+
+              // const tex_out = expr_out.toTex();
+              // rep_free.tex  = tex_out;
+            }
+            else {
+              console.log("&&&touch");
+              console.log("icTouchSlot", icTouchSlot);
+
+              const transformationFunc = icTouchSlot.touchSlotConfig.transformationFunc;
+
+              const mutationObj = transformationFunc(rep_free);
+              Object.assign(rep_free, mutationObj);
+
+            }
+
+
+
+          };
+
+
+
+
+
+          this.attemptUntouching = function(icObj_slot, icObj_piece) {
+            console.log("attemptUntouching", icObj_slot, icObj_piece);
+
+            const canUntouch = this.checkCanUntouch(icObj_slot, icObj_piece);
+            console.log("canUntouch", canUntouch);
+
+            const rep_official = icObj_piece;
+            console.log("attempting to untouch with touchState: " + rep_official.touchStateDict[icObj_slot.id]);
+
+            if(canUntouch) {
+              // console.log("can untouch");
+              this.untouch(icObj_slot, icObj_piece);
+
+            } else {
+              // console.log("can't untouch");
+            }
+
+          };
+
+          this.checkCanUntouch = function(icObj_slot, icObj_piece) {
+            console.log("checkCanUntouch", icObj_piece);
+            var outBool;
+
+            outBool = Touch.canUntouch(icObj_piece, icObj_slot);
+
+            return outBool;
+          };
+
+          this.untouch = function(icObj_slot, icObj_piece) {
+            console.log("untouch", icObj_piece);
+
+            const rep_free     = icObj_piece;   //SHU: this is probably false
+
+            const represented  = icObj_piece.represented;
+            const rep_official = represented.getRepresentation("official");
+
+            rep_official.touchStateDict[icObj_slot.id] = TouchState.Untouched;
+          };
+
+
+
+          // this.r_official_update_handler = (icObj_slot, icObj_piece, outerUpdatesDict) => {
+          this.r_official_update_handler = function(icObj_slot, icObj_piece, outerUpdatesDict) {
+
+            console.log("r_official_update_handler", icObj_piece);
+
+            const touchState = icObj_piece.touchStateDict[icObj_slot.id];
+            console.log("touchState", touchState);
+
+            if(touchState == TouchState.Untouched) {
+              this.attemptTouching(icObj_slot, icObj_piece);
+            } else if(touchState == TouchState.Touched) {
+              this.attemptUntouching(icObj_slot, icObj_piece);
+            }
+
+          };
+
+          // this.r_official_update_handler2 = (rep_official_incoming, outerUpdatesDict) => {
+          this.r_official_update_handler2 = function(rep_official_incoming, outerUpdatesDict) {   //SHU: when using func.bind(myObj), be sure not to use arrow functions
+
+            console.log("r_official_update_handler2", rep_official_incoming);
+
+            console.log("engine::r_official_update_handler2, this", this);
+            console.log("this.scopeObj", this.scopeObj);      //SHU666
+
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            console.log("infiniteCanvas", infiniteCanvas);
+            const icTouchSlot    = this.scopeObj.engineCarrier;
+
+            const represented  = infiniteCanvas.getRepresented(icTouchSlot.id);
+            console.log("represented", represented);
+            const rep_official = represented.r_official();
+
+            const touchSlot   = rep_official;
+            const incomingObj = rep_official_incoming;
+
+            if(incomingObj != touchSlot) { //don't touch oneself
+
+              if(!incomingObj.isTouchable) {
+                //ignore: incomingObj is intangible
+              } else {
+                this.r_official_update_handler(touchSlot, incomingObj, outerUpdatesDict);
+              }
+
+            } else {
+              console.log("I won't touch myself");  //SHU: ...
+            }
+
+          };
+
+
+          this.start = function() {
+            console.log("engine::start, this", this);
+            console.log("touchSlotEngine::start", "this.scopeObj", this.scopeObj);
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const icTouchSlot    = this.scopeObj.engineCarrier;
+
+
+            infiniteCanvas.onIcObjUpdate(this.r_official_update_handler2);
+
+            //for each existing canvas object, add touchState wrt this new touchSlot
+            infiniteCanvas.onceOnAddRepresentedForIcObject(icTouchSlot, (icTouchSlot) => {
+
+              const id_touchSlot = icTouchSlot.id;
+
+              const arr_official = Object.values(infiniteCanvas.represented).map(represented => represented.r_official());
+              const arr_official_preexisiting = arr_official.filter(rep => (rep.id != id_touchSlot));
+              arr_official_preexisiting.forEach((rep, i) => {
+
+                rep.touchStateDict[id_touchSlot] = TouchState.Untouched;
+                //SHU TODO: check if touches
+
+              });
+
+            });
+
+          };
+
+          this.stop = function() {
+            // delete this.scopeObj;
+          };
+
+
+          this.virgin = Object.assign({}, this);  //virgin == not bound
+
+        }
+
+        static debugInstance() {
+          const engine = new Engine();
+
+          engine.start = function() {   //SHU: attention, il y a peut-être une drôlerie de closure ici
+            console.log("engine.start()");
+            console.log("this.scopeObj.engineCarrier", this.scopeObj.engineCarrier);
+            const engineCarrier = this.scopeObj.engineCarrier;
+
+          };
+
+          engine.stop = function() {
+            if(this.scopeObj.running != null) {
+              if(this.scopeObj.running["interval"] != null) {
+                const arr_interval = Object.values(this.scopeObj.running["interval"]);
+
+                arr_interval.forEach((interval, i) => {
+                  clearInterval(interval);
+                });
+
+              }
+            }
+          };
+
+          return engine;
+        }
+
+      }
+
+
+
+
+
 
 
       class Compositer {
@@ -14973,10 +15788,17 @@
               break;
 
 
+              case "Digit5":
+                {
+                  keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__remove_parentheses");
+                }
+              break;
+
               case "Digit7":
                 {
                   // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify");
-                  keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__step_by_step");
+                  // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__step_by_step");
+                  keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__top_layer");
                 }
               break;
 
@@ -14999,6 +15821,21 @@
                   // keyboardIntegration.infiniteCanvas.addNewGreenMouseWell();
                 }
                 break;
+
+              case "KeyM":
+                {
+                  keyboardIntegration.infiniteCanvas.addNewTouchSlot();
+                }
+                break;
+
+              case "Comma":
+                {
+                  keyboardIntegration.infiniteCanvas.addNewSnapSlot();
+                }
+                break;
+
+
+
 
               case "Quote":
                 {
@@ -15027,7 +15864,13 @@
 
                   // const mathNode = random_mathNode_withDepth(4);
                   // const mathNode = random_mathNode_withDepth_and_nbSymbols(4,0);
-                  const mathNode = random_mathNode_withDepth_and_nbSymbols(4,1);
+                  // const mathNode = random_mathNode_withDepth_and_nbSymbols(4,1);
+
+                  // const mathNode = random_onion_mathNode(5);
+                  const mathNode = random_onion_mathNode(3);
+                  // const mathNode = random_onion_mathNode(5, false);
+
+                  mathNode.autoSimplify = false;
 
                   keyboardIntegration.infiniteCanvas.addNewMathNode(mathNode);
 
@@ -15046,6 +15889,12 @@
                   keyboardIntegration.infiniteCanvas.addNewIcEngined_debug();
                 }
                 break;
+
+
+
+
+
+
 
 
               case "Equal":
@@ -15998,17 +16847,30 @@
         if(represented.r_official().eType != null) {
           // console.log("---here---");
 
-          const icEngined = represented.r_official();
+          // const icEngined = represented.r_official();
+          const icEngined = represented.r_free();
+          // const icEngined = represented.r_engined();     //SHU: maybe one day...
 
-          //initialize
-          const contextObj = icEngined.getContextObj(icEngined);
-          icEngined.engine.initialize(contextObj);
+
+          //initialize (==hydrate)
+          const scopeObj = icEngined.getScopeObj(icEngined);
+          scopeObj.infiniteCanvas = infiniteCanvas;
+
+          // icEngined.engine.initialize = icEngined.engine.initialize.bind(icEngined.engine);
+          // console.log("icEngined.engine.scopeObj.infiniteCanvas, before", icEngined.engine.scopeObj.infiniteCanvas);
+          icEngined.engine.initialize(scopeObj);
+          console.log("icEngined.engine.awoken.scopeObj.infiniteCanvas, after ", icEngined.engine.awoken.scopeObj.infiniteCanvas);
+
 
           //start
-          icEngined.engine.start();
+          // icEngined.engine.start();
+          // icEngined.engine.start(scopeObj);
+
+          icEngined.engine.awoken.start();
+
         }
 
-      })
+      });
 
       // infiniteCanvas.requestSyncWithIcObjListeners.push((icObj) => {
       //   fabricIntegration.syncWithIcObj(icObj);
