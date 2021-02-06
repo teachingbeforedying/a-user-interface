@@ -70,6 +70,15 @@
           }
         }
 
+        class Color {
+          static randomColor() {
+              var r = 255*Math.random()|0,
+                  g = 255*Math.random()|0,
+                  b = 255*Math.random()|0;
+              return 'rgb(' + r + ',' + g + ',' + b + ')';
+          }
+        }
+
     </script>
 
 
@@ -2568,7 +2577,132 @@
       }
 
 
+      createIcButton(trueRect, buttonConfig_in) {
+        console.log("createIcButton", trueRect, buttonConfig_in);
 
+        const infiniteCanvas = this;
+
+        const type      = "button";
+        const position  = Geometry.createPoint(trueRect.x, trueRect.y);
+        const size      = Geometry.createSize(trueRect.width, trueRect.height);
+        const homeScale = Object.assign({}, this.scale);
+
+        const icObj = this.createIcObject(type, position, size, homeScale);
+
+        var buttonConfig;
+        if(buttonConfig_in == null) {
+          buttonConfig = {
+            buttonFunc: (scopeObj) => {
+              console.log("buttonFunc", scopeObj);
+              const button = scopeObj.engineCarrier;
+              button.fill = Color.randomColor();
+            },
+          };
+        }
+
+        const icButton_spec = {
+          isSnappable: false,
+
+          stroke: "black",
+          strokeWidth: 1,
+          fill: "lightgray",
+
+          buttonConfig: buttonConfig,
+        };
+
+        const icButton = Object.assign(icObj, icButton_spec);
+
+
+        const engine = new ButtonEngine();
+        const eType  = "button";
+
+        const icEngined = infiniteCanvas.createIcEngined(icButton, eType, engine);
+
+        return icEngined;
+      }
+
+      createIcClickWell(trueRect, value_in = -48) {
+        console.log("createIcClickWell", trueRect);
+
+        const infiniteCanvas = this;
+
+        // const type      = "clickWell";
+        const type      = "button";
+
+        const position  = Geometry.createPoint(trueRect.x, trueRect.y);
+        const size      = Geometry.createSize(trueRect.width, trueRect.height);
+        const homeScale = Object.assign({}, this.scale);
+
+        const icObj = this.createIcObject(type, position, size, homeScale);
+
+        const buttonFunc = (scopeObj) => {
+          console.log("buttonFunc", scopeObj);
+          const button = scopeObj.engineCarrier;
+          button.fill  = Color.randomColor();
+
+          //create/add new spawn
+          const infiniteCanvas = scopeObj.infiniteCanvas;
+
+          const trueRect = {
+            x:      button.position.x,
+            y:      button.position.y,
+            width:  button.size.width,
+            height: button.size.height,
+          };
+
+          // const spawn = infiniteCanvas.createIcText(trueRect.x, trueRect.y, "spawn");
+          // const spawn = infiniteCanvas.createIcText(trueRect.x, trueRect.y, "12");
+
+          const mathNode        = new math.ConstantNode(value_in);
+          mathNode.autoSimplify = true;
+          const spawn = infiniteCanvas.createIcMathNode(trueRect.x, trueRect.y, mathNode);
+
+
+          infiniteCanvas.addIcObject(spawn);
+
+
+          //set spawn as active object
+          const spawn__represented = infiniteCanvas.getRepresented(spawn.id);
+          const spawn__rep_free    = spawn__represented.r_free();
+
+          //greenMouseify
+          infiniteCanvas.greenMouseify(spawn__rep_free);
+          spawn__rep_free.onHold(() => {
+            spawn__rep_free.greenMouseCurse_start();
+          })
+
+          // infiniteCanvas.setActiveObject(spawn__rep_free);
+        };
+
+        const buttonConfig = {
+          buttonFunc: buttonFunc,
+        };
+
+
+        const icButton_spec = {
+          isSnappable: false,
+
+          stroke: "black",
+          strokeWidth: 1,
+          fill: "lightgray",
+
+          buttonConfig: buttonConfig,
+        };
+
+        const icButton = Object.assign(icObj, icButton_spec);
+
+
+        const engine = new ButtonEngine();
+        const eType  = "button";
+
+        const icEngined = infiniteCanvas.createIcEngined(icButton, eType, engine);
+
+        return icEngined;
+      }
+
+      setActiveObject(icObj) {
+        icObj.im_active_now = true;
+      }
 
 
 
@@ -2674,6 +2808,10 @@
 
         return icComposite;
       }
+
+
+
+
 
 
       greenMouseify(rep) {
@@ -3267,6 +3405,184 @@
 
         return icComposite;
       }
+
+
+      createIcGMTargetTouchSlot(trueRect, targetValue_in) {
+        console.log("createIcGMOperator", trueRect);
+
+        var targetValue = targetValue_in;
+        if(targetValue == null) {
+          targetValue = -48;
+        }
+
+
+        const canTouchFunc_geometryWise = (above, below, context) => {
+          return Touch.canTouch(above, below);
+        };
+
+        // const canTouchFunc_valueWise = (above, below) => {
+        //   const value = parseInt(above.text,10);
+        //   const isValueValid = (value == targetValue);
+        //   return isValueValid;
+        // };
+
+        const canTouchFunc_valueWise = (above, below, context) => {
+          var outBool;
+
+          // const touchSlot = below;
+          const facade    = context.facade;
+
+          const mathNode__above = above.mathNode;
+          console.log("mathNode__above", mathNode__above);
+          const mathNode__below = facade.mathNode;
+          console.log("mathNode__below", mathNode__below);
+
+          const relationalNode = new math.RelationalNode(['equal'], [mathNode__above, mathNode__below]);
+          console.log("relationalNode", relationalNode);
+
+          const isSameValue = relationalNode.evaluate();
+          console.log("isSameValue", isSameValue);
+
+
+          outBool = isSameValue;
+
+          return outBool;
+        };
+
+
+        const canTouchFuncs = {
+          "geometry": canTouchFunc_geometryWise,
+          "value":    canTouchFunc_valueWise,
+        };
+
+        const canTouchFunc_allWise = (above, below, context) => {
+          return Object.entries(canTouchFuncs).reduce((acc, [canTouchFunc_xWiseName, canTouchFunc_xWise]) => {
+            const canTouch_xWise = canTouchFunc_xWise(above,below, context);
+            console.log("canTouch_xWise", canTouchFunc_xWiseName, canTouch_xWise);
+            return acc && canTouch_xWise;
+          }, true);
+        };
+
+        const canTouchFunc = canTouchFunc_allWise;
+
+        const transformationFunc = (icObj) => {
+          var outIcObj;
+
+          console.log("yey");
+
+          outIcObj = icObj.clone();
+
+          outIcObj.fill = "yellow";
+          outIcObj.color = "white";
+
+          outIcObj.im_dead_now = true;
+
+
+          // icObj.text = "touched";
+          // icObj.text += " : yey!";
+
+          // icObj.mathNode = icObj.mathNode;            //SHU: oh my god.  "Ok."
+          // icObj.mathNode = new math.ConstantNode("Super!");
+
+
+          return outIcObj;
+        };
+
+        const touchSlotConfig = {
+          canTouchFunc:       canTouchFunc,
+          transformationFunc: transformationFunc,
+          context: {},
+        };
+
+        const touchSlot    = infiniteCanvas.createIcTouchSlot(trueRect, touchSlotConfig);
+        touchSlot.fill     = "";
+
+
+        // const text             = targetValue.toString(10);
+        // const facade           = infiniteCanvas.createIcText(trueRect.x, trueRect.y, text);
+        // facade.backgroundColor = "orange";
+        // facade.isTouchable     = false;
+
+        const mathNode         = new math.ConstantNode(targetValue);
+        const facade           = infiniteCanvas.createIcMathNode(trueRect.x, trueRect.y, mathNode);
+        facade.backgroundColor = "orange";
+        facade.isTouchable     = false;
+
+        const parts = {
+          "touchSlot": touchSlot,
+          "facade":    facade,
+        };
+
+
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+
+        const icComposite = this.createIcComposite(trueRect, parts, compositeConfig);
+        icComposite.cType = "gm_targetTouchSlot";
+
+        icComposite.isTouchable = false;
+
+
+        //enrich touchSlotConfig.context
+        infiniteCanvas.onceOnAddRepresentedForIcObject(facade, (facade) => {
+          const facade__represented  = infiniteCanvas.getRepresented(facade.id);
+          // const facade__rep_free     = facade__represented.r_free();
+          const facade__rep_official = facade__represented.r_official();
+
+          touchSlotConfig.context.facade = facade__rep_official;
+        });
+
+
+
+        // const touchSlotEngine = touchSlot.engine;
+        // console.log("touchSlot", touchSlot);
+        // Hooker.installHooks(touchSlotEngine, "touch");
+        // touchSlotEngine.did["touch"].on((...args) => {
+        //   console.log("did touch", ...args);
+        //
+        //   infiniteCanvas.addNewCircle();
+        // });
+        infiniteCanvas.onceOnAddRepresentedForIcObject(touchSlot, (touchSlot) => {
+          const touchSlot__represented  = infiniteCanvas.getRepresented(touchSlot.id);
+          const touchSlot__rep_free     = touchSlot__represented.r_free();
+
+          const touchSlotEngine = touchSlot__rep_free.engine;
+          // Hooker.installHooks(touchSlotEngine, "touch");
+          // touchSlotEngine.did["touch"].on((...args) => {
+
+          Hooker.installHooks(touchSlotEngine.awoken, "touch");
+          touchSlotEngine.awoken.did["touch"].on((...args) => {
+            console.log("did touch", ...args);
+
+            infiniteCanvas.addNewCircle();
+
+            const context = touchSlot__rep_free.touchSlotConfig.context;
+            const facade__rep_official  = context.facade;                 //SHU: this is context so it is official rep
+
+            const facade__represented = facade__rep_official.represented;
+            const facade__rep_free    = facade__represented.r_free();
+
+            // facade__rep_free.text = "Super!";
+            // facade__rep_free.mathNode = new math.ConstantNode("Super!");
+            facade__rep_free.mathNode = new math.ConstantNode(10000000);
+
+            facade__rep_free.fill     = "darkblue";
+            facade__rep_free.stroke   = "yellow";
+
+            //debug
+            facade__rep_free.position = {
+              x: facade__rep_free.position.x + 100,
+              y: facade__rep_free.position.y - 50,
+            };
+
+          });
+        });
+
+
+        return icComposite;
+      }
+
+
+
 
 
       createIcGMChallenge(trueRect, challengeIndex) {
@@ -4504,6 +4820,47 @@
       }
 
 
+      addNewButton() {
+        const true_cursor = this.getTrueCursor();
+
+        const left = true_cursor.x;
+        const top  = true_cursor.y;
+
+        const width  = 100;   //"information" size
+        const height = 100;
+
+        const trueRect = {
+          x: left,
+          y: top,
+          width: width,
+          height: height,
+        };
+
+        const icButton = this.createIcButton(trueRect);
+        this.addNewIcObject(icButton);
+      }
+
+      addNewClickWell(value) {
+        const true_cursor = this.getTrueCursor();
+
+        const left = true_cursor.x;
+        const top  = true_cursor.y;
+
+        const width  = 100;   //"information" size
+        const height = 100;
+
+        const trueRect = {
+          x: left,
+          y: top,
+          width: width,
+          height: height,
+        };
+
+        const icClickWell = this.createIcClickWell(trueRect, value);
+        this.addNewIcObject(icClickWell);
+      }
+
+
 
       addNewGMOperator() {
         const true_cursor = this.getTrueCursor();
@@ -4585,6 +4942,26 @@
 
         const icGMTargetSlot = this.createIcGMTargetSlot(trueRect);
         this.addNewIcObject(icGMTargetSlot);
+      }
+
+      addNewGMTargetTouchSlot() {
+        const true_cursor = this.getTrueCursor();
+
+        const left = true_cursor.x;
+        const top  = true_cursor.y;
+
+        const width  = 100;   //"information" size
+        const height = 100;
+
+        const trueRect = {
+          x: left,
+          y: top,
+          width: width,
+          height: height,
+        };
+
+        const icGMTargetTouchSlot = this.createIcGMTargetTouchSlot(trueRect);
+        this.addNewIcObject(icGMTargetTouchSlot);
       }
 
 
@@ -6206,6 +6583,22 @@
 
       }
 
+      addInteraction_click() {
+        console.log("IcObject::addInteraction_click", "this.id", this.id, this.id_rep);
+        const icObj = this;
+
+        icObj.clickListeners = [];
+        icObj.nowClicked = () => {
+          icObj.clickListeners.forEach((listener, i) => {
+            listener(icObj);
+          });
+        };
+        icObj.onClick = (listener) => {
+          icObj.clickListeners.push(listener);
+        };
+
+      }
+
 
 
 
@@ -7518,7 +7911,16 @@
             console.log("checkCanTouch", icObj_piece);
             var outBool;
 
-            outBool = Touch.canTouch(icObj_piece, icObj_slot);
+            // outBool = Touch.canTouch(icObj_piece, icObj_slot);
+
+            var canTouchFunc = this.scopeObj.engineCarrier.touchSlotConfig.canTouchFunc;
+            if(canTouchFunc == null) {
+              canTouchFunc = Touch.canTouch;
+            }
+
+            const context = this.scopeObj.engineCarrier.touchSlotConfig.context;
+
+            outBool = canTouchFunc(icObj_piece, icObj_slot, context);
 
             return outBool;
           };
@@ -7543,36 +7945,41 @@
             //apply mutation
             console.log("touch: apply mutation");
             // console.log("rep_official.text", rep_official.text);
-            if(rep_official.text != null) {
 
-              /*
-              const number_in   = parseInt(rep_official.text,10);
-              const number_out  = number_in + 1;
+            // if(rep_official.text != null) {
+            //
+            //   /*
+            //   const number_in   = parseInt(rep_official.text,10);
+            //   const number_out  = number_in + 1;
+            //
+            //   rep_free.text     = "" + number_out;
+            //   */
+            //
+            //   const number_in   = parseInt(rep_official.text,10);
+            //   const transformationFunc = icTouchSlot.touchSlotConfig.transformationFunc;
+            //   const number_out  = transformationFunc(number_in);
+            //
+            //   rep_free.text     = "" + number_out;
+            // }
+            // else
 
-              rep_free.text     = "" + number_out;
-              */
+            // if(rep_official.mathNode != null) {
+            //
+            //   // const tex_in    = rep_official.tex;
+            //   // const expr_in   = algebra.fromTex(tex_in);
+            //   const mathNode_in = rep_official.mathNode;
+            //
+            //   const transformationFunc = icTouchSlot.touchSlotConfig.transformationFunc;
+            //   const mathNode_out  = transformationFunc(mathNode_in);
+            //
+            //   rep_free.mathNode = mathNode_out;
+            //
+            //   // const tex_out = expr_out.toTex();
+            //   // rep_free.tex  = tex_out;
+            // }
+            // else
 
-              const number_in   = parseInt(rep_official.text,10);
-              const transformationFunc = icTouchSlot.touchSlotConfig.transformationFunc;
-              const number_out  = transformationFunc(number_in);
-
-              rep_free.text     = "" + number_out;
-            }
-            else if(rep_official.mathNode != null) {
-
-              // const tex_in    = rep_official.tex;
-              // const expr_in   = algebra.fromTex(tex_in);
-              const mathNode_in = rep_official.mathNode;
-
-              const transformationFunc = icTouchSlot.touchSlotConfig.transformationFunc;
-              const mathNode_out  = transformationFunc(mathNode_in);
-
-              rep_free.mathNode = mathNode_out;
-
-              // const tex_out = expr_out.toTex();
-              // rep_free.tex  = tex_out;
-            }
-            else {
+            {
               console.log("&&&touch");
               console.log("icTouchSlot", icTouchSlot);
 
@@ -8595,6 +9002,95 @@
       // }
 
 
+      class ButtonEngine {
+        constructor() {
+
+          this.initialized = false;
+
+          this.initialize = function(scopeObj) {
+
+            //"wake up":
+            //bind all funcs
+            // function isFunction(functionToCheck) {
+            //   return functionToCheck && {}.toString.call(functionToCheck) === '[object Function]';
+            // }
+            const isFunction = value => value && (Object.prototype.toString.call(value) === "[object Function]" || "function" === typeof value || value instanceof Function);
+
+            this.awoken = {
+              'i_am': "awoken",
+            };
+            console.log("this.virgin", this.virgin);
+            Object.entries(this.virgin)
+                  .filter(([propName, prop]) => isFunction(prop))
+                  .forEach(([propName, prop], i) => {
+                    this.awoken[propName] = prop.bind(this.awoken);
+                  });
+
+            // this.scopeObj  = scopeObj;
+              //engineCarrier,
+              //infiniteCanvas,
+            this.awoken.scopeObj = scopeObj;
+
+            this.initialized = true;
+          }
+
+
+          this.clickListener = function() {
+            const button     = this.scopeObj.engineCarrier;
+            const buttonFunc = button.buttonConfig.buttonFunc;
+            buttonFunc(this.scopeObj);
+          };
+
+          this.start = function() {
+            console.log("engine::start, this", this);
+            console.log("buttonEngine::start", "this.scopeObj", this.scopeObj);
+
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const button         = this.scopeObj.engineCarrier;
+
+            console.log("buttonEngine.start", button.id);
+
+            //get free_rep
+            const button__represented = infiniteCanvas.getRepresented(button.id);
+            const button__rep_free    = button__represented.r_free();
+
+
+            //"prestart"
+            button__rep_free.addInteraction_click();
+
+
+            //listen to button
+            const button__listener = this.clickListener;
+            button__rep_free.onClick(button__listener);
+
+          };
+
+          this.stop = function() {
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const button         = this.scopeObj.engineCarrier;
+
+            console.log("buttonEngine.start", button.id);
+
+            //get free_rep
+            const button__represented = infiniteCanvas.getRepresented(button.id);
+            const button__rep_free    = button__represented.r_free();
+
+            const button__listener = this.clickListener;
+            button__rep_free.offClick(button__listener);
+          };
+
+
+          this.virgin = Object.assign({}, this);  //virgin == not bound
+
+
+        }
+
+
+      }
+
+
+
+
       class GMOperatorTextChangeEngine {
 
 
@@ -8869,19 +9365,39 @@
               transformationFunc = (node_a) => {
                 var outNode;
 
-                const node_b        = new math.ConstantNode(10);
-                const node_operator = new math.OperatorNode('+', 'add', [node_a, node_b]);
+                function standardOperation(node_in) {
+                  var outNode;
 
-                const node_unsimplified = node_operator;
+                  const node_b        = new math.ConstantNode(10);
+                  const node_operator = new math.OperatorNode('+', 'add', [node_a, node_b]);
 
-                if(node_a.autoSimplify) {
-                  const node_simplified = math.simplify(node_unsimplified);
-                  outNode = node_simplified;
-                } else {
-                  outNode = node_unsimplified;
+                  const node_unsimplified = node_operator;
+
+                  if(node_a.autoSimplify) {
+                    const node_simplified = math.simplify(node_unsimplified);
+                    outNode = node_simplified;
+                  } else {
+                    outNode = node_unsimplified;
+                  }
+
+                  outNode.autoSimplify = node_a.autoSimplify;
+
+                  return outNode;
                 }
 
-                outNode.autoSimplify = node_a.autoSimplify;
+                if(node_a.isEquation) {
+                  console.log("node_a", node_a);
+                  const node_left     = standardOperation(node_a.params[0]);
+                  const node_right    = standardOperation(node_a.params[1]);
+                  const node_equation = new math.RelationalNode(["equal"], [node_left, node_right]);
+                  node_equation.isEquation = true;
+
+                  outNode = node_equation;
+                } else {
+                  outNode = standardOperation(node_a);
+                }
+
+                // outNode.autoSimplify = node_a.autoSimplify;
 
                 return outNode;
               };
@@ -8890,25 +9406,77 @@
               name = "×2";
               // transformationFunc = (number) => (number * 2);
               // transformationFunc = (expr) => expr.multiply(2);
-              transformationFunc = (node_a) => {
+              const transformationFunc__mathNode = (node_a) => {
                 var outNode;
 
-                const node_b        = new math.ConstantNode(2);
-                const node_operator = new math.OperatorNode('x', 'multiply', [node_a, node_b]);
+                function standardOperation(node_in) {
+                  var outNode;
 
-                const node_unsimplified = node_operator;
+                  const node_b        = new math.ConstantNode(2);
+                  const node_operator = new math.OperatorNode('x', 'multiply', [node_a, node_b]);
 
-                if(node_a.autoSimplify) {
-                  const node_simplified = math.simplify(node_unsimplified);
-                  outNode = node_simplified;
+                  const node_unsimplified = node_operator;
+
+                  if(node_a.autoSimplify) {
+                    const node_simplified = math.simplify(node_unsimplified);
+                    outNode = node_simplified;
+                  } else {
+                    outNode = node_unsimplified;
+                  }
+
+                  outNode.autoSimplify = node_a.autoSimplify;
+
+                  return outNode;
+                };
+
+                if(node_a.isEquation) {
+                  console.log("node_a", node_a);
+                  const node_left     = standardOperation(node_a.params[0]);
+                  const node_right    = standardOperation(node_a.params[1]);
+                  const node_equation = new math.RelationalNode(["equal"], [node_left, node_right]);
+                  node_equation.isEquation = true;
+
+                  outNode = node_equation;
                 } else {
-                  outNode = node_unsimplified;
+                  outNode = standardOperation(node_a);
                 }
 
-                outNode.autoSimplify = node_a.autoSimplify;
+                // outNode.autoSimplify = node_a.autoSimplify;
 
                 return outNode;
+
               };
+
+              /*
+              const transformationFunc__default = (icObj) => {
+
+                icObj.scale = {
+                  X: icObj.scale.X * 2,
+                  Y: icObj.scale.Y * 2,
+                };
+
+                return icObj;
+              }
+
+              transformationFunc = (icObj) => {
+                var out;
+                console.log("transformationFunc, icObj", icObj);
+
+                switch(icObj.type) {
+                  case "mathNode":
+                    out = transformationFunc__mathNode(icObj);
+                    break;
+                  default:
+                    out = transformationFunc__default(icObj);
+                    break;
+                }
+
+                return out;
+              }
+              */
+              transformationFunc = transformationFunc__mathNode;
+
+
               break;
             case 3:
               name = "×(-1)";
@@ -8917,31 +9485,65 @@
               transformationFunc = (node_a) => {
                 var outNode;
 
-                const node_minus_1                  = new math.ConstantNode(-1);
-                const node_minus_1_with_parentheses = new math.ParenthesisNode(node_minus_1);
-                const node_b = node_minus_1_with_parentheses;
+                function standardOperation(node_in) {
+                  var outNode;
 
-                const node_operator = new math.OperatorNode('x', 'multiply', [node_a, node_b]);
+                  const node_minus_1                  = new math.ConstantNode(-1);
+                  const node_minus_1_with_parentheses = new math.ParenthesisNode(node_minus_1);
+                  const node_b = node_minus_1_with_parentheses;
 
-                const node_unsimplified = node_operator;
+                  const node_operator = new math.OperatorNode('x', 'multiply', [node_a, node_b]);
 
-                if(node_a.autoSimplify) {
-                  const node_simplified = math.simplify(node_unsimplified);
-                  outNode = node_simplified;
-                } else {
-                  outNode = node_unsimplified;
+                  const node_unsimplified = node_operator;
+
+                  if(node_a.autoSimplify) {
+                    const node_simplified = math.simplify(node_unsimplified);
+                    outNode = node_simplified;
+                  } else {
+                    outNode = node_unsimplified;
+                  }
+
+                  outNode.autoSimplify = node_a.autoSimplify;
+
+                  return outNode;
                 }
 
-                outNode.autoSimplify = node_a.autoSimplify;
+
+                if(node_a.isEquation) {
+                  console.log("node_a", node_a);
+                  const node_left     = standardOperation(node_a.params[0]);
+                  const node_right    = standardOperation(node_a.params[1]);
+                  const node_equation = new math.RelationalNode(["equal"], [node_left, node_right]);
+                  node_equation.isEquation = true;
+
+                  outNode = node_equation;
+                } else {
+                  outNode = standardOperation(node_a);
+                }
+
+                // outNode.autoSimplify = node_a.autoSimplify;
 
                 return outNode;
+
               };
               break;
             default:
               break;
           }
 
-          const operatorConfig = new OperatorConfig(name, transformationFunc);
+          // const operatorConfig = new OperatorConfig(name, transformationFunc);
+
+          const icObjTransformationFunc = (icObj) => {
+            var outIcObj;
+
+            outIcObj = icObj.clone();
+
+            outIcObj.mathNode = transformationFunc(icObj.mathNode);
+
+            return outIcObj;
+          };
+          const operatorConfig = new OperatorConfig(name, icObjTransformationFunc);
+
           outOperatorConfig = operatorConfig;
 
           return outOperatorConfig;
@@ -9412,6 +10014,13 @@
                   fabricIntegration.removeFabricObject(fObj);
                 }
               }
+              else if(propName == "im_active_now") {
+                console.log("im_active_now");
+                if(icObj_fRep.im_active_now) {
+                  fabricIntegration.fabricCanvas.setActiveObject(fObj);
+                }
+              }
+
               // else if(propName == "isHeld") {
               //   console.log("innerUpdate", "isHeld");
               // }
@@ -9538,6 +10147,17 @@
               .then((fObj) => {
                 fabricCanvas.renderAll();
               });
+            }
+
+
+            if(icObj.im_active_now) {
+              fabricIntegration.fabricCanvas.setActiveObject(fObj);
+
+              icObj.nowHeld();
+
+              //SHU TODO
+              //while held, position offset should follow cursor offset     (a DSL would be nice someday)
+
             }
 
           }
@@ -9671,6 +10291,16 @@
               fObj_p = Promise.resolve(fObj);
               }
               break;
+
+            case "button":
+              {
+              const fObj = this.createFabricButtonWithIcObj(icObj);
+              fObj_p = Promise.resolve(fObj);
+              }
+              break;
+
+
+
 
             case "well":
               {
@@ -10966,6 +11596,56 @@
         }
 
 
+        createFabricButtonWithIcObj(icObj) {
+          console.log("createFabricSnapSlotWithIcObj", icObj);
+
+          const infiniteCanvas = this.infiniteCanvas;
+
+          var fObj = new fabric.Rect();
+
+          const position_screen = icObj.getScreenPositionWithoutOffset();
+          // console.log("position_screen", position_screen);
+          const homeSize_screen = icObj.getHomeScreenSize();
+          // console.log("homeSize_screen", homeSize_screen);
+
+
+          fObj.set({
+            left:   position_screen.x,    //SHU: ??? where is infiniteCanvas.offset taking part ???
+            top:    position_screen.y,
+
+            width:  homeSize_screen.width,
+            height: homeSize_screen.height,
+
+            scaleX:  icObj.scale.X,
+            scaleY:  icObj.scale.Y,
+
+            flipX:   icObj.flip.X,
+            flipY:   icObj.flip.Y,
+
+
+            angle :  icObj.orientation,
+
+            //to avoid overlapping when clicking
+            padding:     0,
+
+            stroke:      icObj.stroke,
+            strokeWidth: icObj.strokeWidth,
+            fill:        icObj.fill,
+
+            icObj : icObj,
+          });
+
+
+          // if(icObj.canBeHeld) {
+          //   this.addInteraction_hold(fObj);
+          // }
+          fObj.selectable = false;
+          this.addInteraction_click(fObj);
+
+          return fObj;
+        }
+
+
 
         createFabricWellWithIcObj(icObj) {
           console.log("createFabricWellWithIcObj", icObj);
@@ -11851,6 +12531,7 @@
 
           //release
           fObj.on('mouseup', function(options) {
+            console.log("fObj, mouseup", options);
             isHeld = false;
             console.log("isHeld", isHeld);
             icObj.nowReleased();
@@ -11901,6 +12582,21 @@
             console.log("editing:exited, icObj.text", icObj.text);
 
             icObj.nowEditExit();
+          });
+
+        }
+
+        addInteraction_click(fObj) {
+
+          const infiniteCanvas = this.infiniteCanvas;
+          const fabricCanvas   = this.fabricCanvas;
+
+          fObj.on('mousedown', function(options) {
+            console.log("mousedown", "options", options);
+
+            const icObj = fObj.icObj;
+
+            icObj.nowClicked();
           });
 
         }
@@ -16337,9 +17033,10 @@
               case "KeyU":
                 {
                   // keyboardIntegration.infiniteCanvas.addNewTouchSlot();
-                  // keyboardIntegration.infiniteCanvas.addNewGMOperator();
-                  keyboardIntegration.infiniteCanvas.addNewGMOperator_editable("x (22/7)");
 
+                  keyboardIntegration.infiniteCanvas.addNewGMOperator();
+
+                  // keyboardIntegration.infiniteCanvas.addNewGMOperator_editable("x (22/7)");
                 }
                 break;
 
@@ -16397,13 +17094,18 @@
                   // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify");
                   // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__step_by_step");
                   keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__top_layer");
+
+                  // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("equation__add1");
                 }
               break;
 
               case "Digit8":
                 {
                   // keyboardIntegration.infiniteCanvas.addNewTouchSlot();
-                  keyboardIntegration.infiniteCanvas.addNewGMTargetSlot();
+                  // keyboardIntegration.infiniteCanvas.addNewGMTargetSlot();
+
+                  keyboardIntegration.infiniteCanvas.addNewGMTargetTouchSlot();
+
                 }
               break;
 
@@ -16428,7 +17130,7 @@
 
               case "Comma":
                 {
-                  keyboardIntegration.infiniteCanvas.addNewSnapSlot();
+                  keyboardIntegration.infiniteCanvas.addNewButton();
                 }
                 break;
 
@@ -16497,7 +17199,8 @@
 
               case "Equal":
                 {
-                  keyboardIntegration.infiniteCanvas.addNewObserver();
+                  // keyboardIntegration.infiniteCanvas.addNewObserver();
+                  keyboardIntegration.infiniteCanvas.addNewClickWell(-22);
                 }
                 break;
 
@@ -16527,7 +17230,8 @@
 
               case "BracketRight":
                 {
-                  keyboardIntegration.infiniteCanvas.addNewEventReceiver();
+                  keyboardIntegration.infiniteCanvas.addNewClickWell();
+                  // keyboardIntegration.infiniteCanvas.addNewEventReceiver();
                 }
                 break;
 
@@ -17480,6 +18184,39 @@
       fabricIntegration.mouseIntegration = mouseIntegration;
 
     </script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     <script>
 
