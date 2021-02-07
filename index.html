@@ -2665,6 +2665,84 @@
           const spawn__represented = infiniteCanvas.getRepresented(spawn.id);
           const spawn__rep_free    = spawn__represented.r_free();
 
+          infiniteCanvas.setActiveObject(spawn__rep_free);
+        };
+
+        const buttonConfig = {
+          buttonFunc: buttonFunc,
+        };
+
+
+        const icButton_spec = {
+          isSnappable: false,
+
+          stroke: "black",
+          strokeWidth: 1,
+          fill: "lightgray",
+
+          buttonConfig: buttonConfig,
+        };
+
+        const icButton = Object.assign(icObj, icButton_spec);
+
+
+        const engine = new ButtonEngine();
+        const eType  = "button";
+
+        const icEngined = infiniteCanvas.createIcEngined(icButton, eType, engine);
+
+        return icEngined;
+      }
+
+      setActiveObject(icObj) {
+        icObj.im_active_now = true;
+      }
+
+
+      createIcGMClickWell(trueRect, value_in = -48) {
+        console.log("createIcClickWell", trueRect);
+
+        const infiniteCanvas = this;
+
+        // const type      = "clickWell";
+        const type      = "button";
+
+        const position  = Geometry.createPoint(trueRect.x, trueRect.y);
+        const size      = Geometry.createSize(trueRect.width, trueRect.height);
+        const homeScale = Object.assign({}, this.scale);
+
+        const icObj = this.createIcObject(type, position, size, homeScale);
+
+        const buttonFunc = (scopeObj) => {
+          console.log("buttonFunc", scopeObj);
+          const button = scopeObj.engineCarrier;
+          button.fill  = Color.randomColor();
+
+          //create/add new spawn
+          const infiniteCanvas = scopeObj.infiniteCanvas;
+
+          const trueRect = {
+            x:      button.position.x,
+            y:      button.position.y,
+            width:  button.size.width,
+            height: button.size.height,
+          };
+
+          // const spawn = infiniteCanvas.createIcText(trueRect.x, trueRect.y, "spawn");
+          // const spawn = infiniteCanvas.createIcText(trueRect.x, trueRect.y, "12");
+
+          const mathNode        = new math.ConstantNode(value_in);
+          mathNode.autoSimplify = true;
+          const spawn = infiniteCanvas.createIcMathNode(trueRect.x, trueRect.y, mathNode);
+
+
+          infiniteCanvas.addIcObject(spawn);
+
+
+          //set spawn as active object
+          const spawn__represented = infiniteCanvas.getRepresented(spawn.id);
+          const spawn__rep_free    = spawn__represented.r_free();
+
           //greenMouseify
           infiniteCanvas.greenMouseify(spawn__rep_free);
           spawn__rep_free.onHold(() => {
@@ -2700,9 +2778,8 @@
         return icEngined;
       }
 
-      setActiveObject(icObj) {
-        icObj.im_active_now = true;
-      }
+
+
 
 
 
@@ -3408,7 +3485,7 @@
 
 
       createIcGMTargetTouchSlot(trueRect, targetValue_in) {
-        console.log("createIcGMOperator", trueRect);
+        console.log("createIcGMTargetTouchSlot", trueRect);
 
         var targetValue = targetValue_in;
         if(targetValue == null) {
@@ -3532,7 +3609,7 @@
         });
 
 
-
+        /*
         // const touchSlotEngine = touchSlot.engine;
         // console.log("touchSlot", touchSlot);
         // Hooker.installHooks(touchSlotEngine, "touch");
@@ -3576,7 +3653,7 @@
 
           });
         });
-
+        */
 
         return icComposite;
       }
@@ -4189,7 +4266,7 @@
         this.onAddRepresented(autoUnsub);
       }
 
-      removeRepresented(represented) {
+      removeRepresented(represented, shouldAlsoRemoveChildren = false) {
         console.log("removeRepresented", represented);
 
         const id_icObj = represented.r_official().id;
@@ -4201,12 +4278,18 @@
         }
 
 
+        if(shouldAlsoRemoveChildren) {
+          if(represented.r_official().type == "composite") {
+            Object.values(represented.parts).forEach((part__represented, i) => {
+              this.removeRepresented(part__represented);
+            });
+          }
+        }
 
-        // if(rep_official.type == "composite") {
-        //   Object.values(represented.parts).forEach((part__represented, i) => {
-        //     this.removeRepresented(part__represented);
-        //   });
-        // }
+        if(represented.r_official().type == "engined") {
+          represented.r_free().engine.awoken.stop();
+        }
+
 
 
         this.untetherIcObject(represented);   //== stop tracking icObj updates
@@ -5958,6 +6041,17 @@
       set_pov(pov) {
         this.updateScaleAndOffset(pov.scale, pov.offset);
       }
+
+
+      move_to_position(position) {
+        const offset = {
+          dx: -position.x,
+          dy: -position.y,
+        };
+        this.updateScaleAndOffset(this.scale, offset);
+        this.redrawCanvas(RedrawOccasion.offsetChanged);
+      }
+
 
 
 
@@ -14610,6 +14704,19 @@
 
 
 
+        static rectForRectRel(rect, rect_rel) {
+          var outRect;
+
+          outRect = {
+            x:       rect.x + rect_rel.l * rect.width,
+            y:       rect.y + rect_rel.t * rect.height,
+            width:   (rect_rel.r - rect_rel.l) * rect.width,
+            height:  (rect_rel.b - rect_rel.t) * rect.height,
+          };
+
+          return outRect;
+        }
+
 
 
 
@@ -19578,6 +19685,506 @@
         // const zPuzzle_4pieces = new ZPuzzle(infiniteCanvas);
 
     </script>
+
+
+
+    <script>
+
+      class GolfGame1 {
+
+        constructor(infiniteCanvas, golfGame1Config) {
+
+          this.name    = golfGame1Config.name;
+
+          //create objects (courses)
+          this.courses = Object.entries(golfGame1Config.golfCourses).reduce((acc, [golfCourseName, golfCourseConfig]) => {
+
+            const golfCourse    = new GolfCourse(infiniteCanvas, golfCourseConfig);
+
+            acc[golfCourseName] = golfCourse;
+
+            return acc;
+          }, {});
+
+
+          //add logic
+            //segues
+          const zip = (a, b) => a.map((k, i) => [k, b[i]]);
+
+          const arr_courses        = Object.values(this.courses);
+          const arr_courses_from   = arr_courses.slice(0, -1);
+          const arr_courses_to     = arr_courses.slice(1);
+          const arr_courses_zipped = zip(arr_courses_from, arr_courses_to);
+
+          this.arr_segues = arr_courses_zipped.map(([course_from, course_to]) => {
+            const segueConfig = {};
+            const segue = new GolfSegue(infiniteCanvas, segueConfig, course_from, course_to);
+            return segue;
+          });
+
+            //steps
+          this.steps = Object.entries(golfGame1Config.steps).reduce((acc, [stepName, stepConfig], i) => {
+
+            const golfCourseName = stepConfig.golfCourseName;
+            const golfCourse     = this.courses[golfCourseName];
+
+            const segue = this.arr_segues[i];
+            console.log("segue", segue);
+
+            const step    = new GolfStep(stepConfig, golfCourse, segue);
+            acc[stepName] = step;
+
+            return acc;
+          }, {});
+
+
+
+        }
+
+        static fromJson(json_golfGame) {
+
+        }
+
+        static default_courseConfig() {
+          var outConfig;
+
+          const components = {
+            "bg": {
+              type: "rect",
+              config: {
+                fill: "green",
+              },
+              rect_rel: {
+                l: 0.0,
+                r: 1.0,
+                t: 0.0,
+                b: 1.0,
+              },
+            },
+
+            "tee": {
+              type: "gm_clickWell",
+              config: {
+                value: 1,
+              },
+              rect_rel: {
+                l: 0.05,
+                r: 0.15,
+                t: 0.40,
+                b: 0.50,
+              },
+            },
+
+            // "bumpers": {
+              "bumper1": {
+                type: "gm_operator",
+                config: {
+                  operatorString: "+ 1",
+                },
+                rect_rel: {
+                  l: 0.15,
+                  r: 0.25,
+                  t: 0.80,
+                  b: 0.90,
+                },
+              },
+              "bumper2": {
+                type: "gm_operator",
+                config: {
+                  operatorString: "+ 10",
+                },
+                rect_rel: {
+                  l: 0.35,
+                  r: 0.45,
+                  t: 0.80,
+                  b: 0.90,
+                },
+              },
+              "bumper3": {
+                type: "gm_operator",
+                config: {
+                  operatorString: "x 2",
+                },
+                rect_rel: {
+                  l: 0.55,
+                  r: 0.65,
+                  t: 0.80,
+                  b: 0.90,
+                },
+              },
+              "bumper4": {
+                type: "gm_operator",
+                config: {
+                  operatorString: "x (-1)",
+                },
+                rect_rel: {
+                  l: 0.75,
+                  r: 0.85,
+                  t: 0.80,
+                  b: 0.90,
+                },
+              },
+            // },
+
+            "hole": {
+              type: "gm_targetTouchSlot",
+              config: {
+                value: -48,
+              },
+              rect_rel: {
+                l: 0.85,
+                r: 0.95,
+                t: 0.40,
+                b: 0.50,
+              },
+            },
+          };
+
+          const config = {
+            rect: {
+              x:           0,
+              y:           0,
+              width:    1600,
+              height:   1000,
+            },
+            components: components,
+          };
+
+          outConfig = config;
+
+          return outConfig;
+        }
+
+        static default_stepConfig() {
+          var outConfig;
+
+          const config = {
+            golfCourseName: "course1",
+            componentSpecs: {
+              "tee": {
+                ammo: 2,
+              },
+            },
+          };
+
+          outConfig = config;
+
+          return outConfig;
+        }
+
+        static default_gameConfig() {
+          var outConfig;
+
+          const course1Config = GolfGame1.default_courseConfig();
+          const course2Config = GolfGame1.default_courseConfig();
+          course2Config.rect.x += 2000;
+          // course2Config.rect.y -= 1000;
+
+          const golfCourses = {
+            "course1" : course1Config,
+            "course2" : course2Config,
+          };
+
+
+          const step1Config = GolfGame1.default_stepConfig();
+          const step2Config = GolfGame1.default_stepConfig();
+          step2Config.golfCourseName = "course2";
+
+          const steps = {
+            "step1" : step1Config,
+            "step2" : step2Config,
+          };
+
+          const config = {
+            golfCourses: golfCourses,
+            steps: steps,
+          };
+
+          outConfig = config;
+
+          return outConfig;
+        }
+
+        static defaultInstance(infiniteCanvas) {
+          var out;
+
+          const golfGame1Config = GolfGame1.default_gameConfig();
+
+          out = new GolfGame1(infiniteCanvas, golfGame1Config);
+
+          return out;
+        }
+
+      }
+
+      class GolfCourse {
+
+        constructor(infiniteCanvas, golfCourseConfig) {
+          console.log("GolfCourse, constructor", golfCourseConfig);
+          this.infiniteCanvas = infiniteCanvas;
+
+          this.rect = golfCourseConfig.rect;
+
+          // this.components =
+          const components = Object.entries(golfCourseConfig.components).reduce((acc, [componentName, componentConfig]) => {
+            console.log("componentName", componentName);
+
+            const icObj = this.createIcObjForComponent(infiniteCanvas, componentConfig);
+            infiniteCanvas.addIcObject(icObj);
+
+            const represented = infiniteCanvas.getRepresented(icObj.id);
+            const rep_free    = represented.r_free();
+
+            const component = {
+              lol: "lol",
+              // icObj: icObj,
+              icObj: rep_free,
+            };
+
+            acc[componentName] = component;
+
+            return acc;
+          }, {});
+          this.components = components;
+        }
+
+
+        createIcObjForComponent(infiniteCanvas, componentConfig) {
+          console.log("createIcObjForComponent", componentConfig);
+          var outIcObj;
+
+          const rect_rel__component = componentConfig.rect_rel;
+          const trueRect__component = Geometry.rectForRectRel(this.rect, rect_rel__component);
+
+          switch(componentConfig.type) {
+            case "rect":
+              {
+              const config = componentConfig.config;
+              const fill   = config.fill;
+              outIcObj = infiniteCanvas.createIcRect(trueRect__component);
+              outIcObj.fill = fill;
+              }
+              break;
+            case "gm_clickWell":
+              {
+              const config = componentConfig.config;
+              const value  = config.value;
+              outIcObj = infiniteCanvas.createIcGMClickWell(trueRect__component, value);
+              }
+              break;
+            case "gm_operator":
+              {
+              const config         = componentConfig.config;
+              const operatorString = config.operatorString;
+              outIcObj = infiniteCanvas.createIcGMOperator(trueRect__component, operatorString);
+              }
+              break;
+            case "gm_targetTouchSlot":
+              {
+              const config = componentConfig.config;
+              const value  = config.value;
+              outIcObj = infiniteCanvas.createIcGMTargetTouchSlot(trueRect__component, value);
+              }
+              break;
+            default:
+              throw new Error("unsupported type: " + componentConfig.type);
+              break;
+          }
+
+          return outIcObj;
+        }
+
+        mutateIntoScoreLabel(score) {
+
+          const golfCourse     = this;
+          const infiniteCanvas = this.infiniteCanvas;
+
+          //remove almost all golfCourse components
+          Object.entries(golfCourse.components)
+          .filter(([componentName, component]) => {
+            return (componentName != "bg");
+          })
+          .forEach(([componentName, component], i) => {
+            const icObj = component.icObj;
+
+            // icObj.im_dead_now = true;
+            // infiniteCanvas.removeIcObject(icObj);
+
+            const represented = icObj.represented;
+            infiniteCanvas.removeRepresented(represented, true);
+          });
+
+          //change bg color
+          const icObj_bg = golfCourse.components["bg"].icObj;
+
+          // function colorForScore(score) {
+          //   var outColor;
+          //
+          //   switch(score.medal) {
+          //     case "bronze":
+          //     outColor = "bronze";
+          //     break;
+          //     case "silver":
+          //     outColor = "silver";
+          //     break;
+          //     case "gold":
+          //     outColor = "gold";
+          //     break;
+          //   }
+          //
+          //   return outColor;
+          // }
+          icObj_bg.fill = "gold";
+
+          //add score label
+          const rect__scoreLabel = {
+            x:      golfCourse.rect.x,
+            y:      golfCourse.rect.y,
+            width:  golfCourse.rect.width,
+            height: golfCourse.rect.height,
+          };
+          const scoreLabel = infiniteCanvas.createIcText(rect__scoreLabel.x, rect__scoreLabel.y, "" + score);     //SHU TODO: createIcLabel(trueRect, text)
+          infiniteCanvas.addIcObject(scoreLabel);
+
+
+        }
+
+      }
+
+      class GolfStep {
+
+        constructor(golfStepConfig, golfCourse, segue) {
+          this.golfCourse = golfCourse;
+          this.segue      = segue;
+
+          this.configure(golfStepConfig);
+
+          this.initializeCompletionListeners();
+
+          this.setupAttemptListeners(golfStepConfig, golfCourse);
+          this.setupCompletionTrigger(golfStepConfig, golfCourse);
+
+          this.addCompletionListener(golfStepConfig, golfCourse);
+        }
+
+        configure(golfStepConfig) {
+
+        }
+
+        initializeCompletionListeners() {
+          // this.nb_attempts = 0;
+          this.arr_attempts = [];
+
+          this.listeners_completed = [];
+
+          this.onCompleted  = (listener) => {
+            this.listeners_completed.push(listener);
+          };
+          this.offCompleted = (listener) => {
+            this.listeners_completed = Utils.arrayByRemovingElement(this.listeners_completed, listener);
+          };
+          this.nowCompleted = () => {
+            this.listeners_completed.forEach((listener, i) => {
+              listener(this);
+            });
+          };
+        }
+
+        setupAttemptListeners(golfStepConfig, golfCourse) {   //SHU: this is where BigBrother sneaked in from
+
+          //gm.onHold(create attempt)
+          //gm.onTouched(add event to attempt)
+          //gm.onRelease(finalize attempt)
+
+          //create attempt
+
+        }
+
+        setupCompletionTrigger(golfStepConfig, golfCourse) {
+
+          const targetTouchSlot__rep_free = golfCourse.components["hole"].icObj;
+
+          const touchSlot__rep_free = targetTouchSlot__rep_free.parts["touchSlot"];
+
+          const touchSlotEngine = touchSlot__rep_free.engine;
+
+          Hooker.installHooks(touchSlotEngine.awoken, "touch");
+          touchSlotEngine.awoken.did["touch"].on((...args) => {
+            console.log("did touch", ...args);
+
+            this.nowCompleted();
+          });
+
+        }
+
+        addCompletionListener(golfStepConfig, golfCourse) {
+
+          const step = this;
+
+          this.onCompleted((golfStep) => {
+            console.log("step, onCompleted", golfStep);
+
+            /*
+            const score = golfStep.arr_attempts.length;
+            golfCourse.mutateIntoScoreLabel(score);
+            */
+
+            step.segue.play(golfStep);
+          });
+
+        }
+
+
+      }
+
+      class GolfStepAttempt {
+
+        constructor() {
+
+        }
+
+      }
+
+      class GolfSegue {
+
+        constructor(infiniteCanvas, golfSegueConfig, golfCourse_from, golfCourse_to) {
+          this.infiniteCanvas = infiniteCanvas;
+
+          this.golfSegueConfig = golfSegueConfig;
+          this.configure(golfSegueConfig);
+
+          this.golfCourse_from = golfCourse_from;
+          this.golfCourse_to   = golfCourse_to;
+        }
+
+        configure(golfSegueConfig) {
+
+        }
+
+        play(step_from) {
+          console.log("GolfSegue::play", step_from);
+
+          const score = 12;
+          this.golfCourse_from.mutateIntoScoreLabel(score);
+
+          const position_to = {
+            x: this.golfCourse_to.rect.x,
+            y: this.golfCourse_to.rect.y,
+          };
+          this.infiniteCanvas.move_to_position(position_to);
+
+        }
+
+
+      }
+
+
+
+    </script>
+    <script>
+      const golfGame1 = GolfGame1.defaultInstance(infiniteCanvas);
+    </script>
+
 
 
 
