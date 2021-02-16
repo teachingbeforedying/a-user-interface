@@ -87,8 +87,10 @@
 
           initialize() {
             this.log = console.log;
-
             console.log = function() {};
+
+            this.trace = console.trace;
+            console.trace = function() {};
           }
 
         }
@@ -321,6 +323,65 @@
       */
 
     </script> -->
+
+    <!-- <script src='lib/math-expressions.js' type='text/javascript'></script> -->
+    <!-- <script src='lib/math-expressions_umd.js' type='text/javascript'></script> -->
+    <script src='lib/math-expressions.browserified.bundle.js' type='text/javascript'></script>
+    <script>
+      const MathExpression = Bundle_ME.MathExpression;
+    </script>
+    <!-- <script>
+      //discovery
+      const mathExpression1      = MathExpression.fromText("sin^2 (x^3)");
+      const tex__mathExpression1 = mathExpression1.tex();
+      console.log("MathExpression, tex__mathExpression1", tex__mathExpression1);
+
+      const mathExpression2       = MathExpression.fromTex("5 \\times 3");
+      const text__mathExpression2 = mathExpression2.toString();
+      console.log("MathExpression, text__mathExpression2", text__mathExpression2);
+    </script> -->
+
+
+
+    <script src='lib/ngraph.graph.min.js' type='text/javascript'></script>
+    <!-- <script>
+      //discovery
+      const g = createGraph();
+
+      g.addNode('hello');
+      g.addNode('world');
+      //Now graph g contains two nodes: hello and world. You can also use addLink() method to grow a graph. Calling this method with nodes which are not present in the graph creates them:
+
+      g.addLink('space', 'bar'); // now graph 'g' has two new nodes: 'space' and 'bar'
+      //If nodes already present in the graph 'addLink()' makes them connected:
+
+      // Only a link between 'hello' and 'world' is created. No new nodes.
+      g.addLink('hello', 'world');
+
+      console.log("g", g);
+    </script> -->
+
+
+    <script src='lib/algebrite.bundle-for-browser.js' type='text/javascript'></script>
+    <script>
+
+      //discovery
+      const equality_1 = Algebrite.run('x + y + x == y + 2x');
+      logger.log("equality_1", equality_1);
+
+      const equality_2 = Algebrite.run('4(x + y) - x == 4y + 3x');
+      logger.log("equality_2", equality_2);
+
+
+      const equality_3 = Algebrite.run('4z(x + y) - zx == 4yz + 3xz');    //SHU: software is dumb and intelligent: a priori, xz != zx ( or maybe it's something else ... )
+      logger.log("equality_3", equality_3);
+
+      const equality_4 = Algebrite.run('4z(x + y) - zx == 4zy + 3zx');
+      logger.log("equality_4", equality_4);
+
+    </script>
+
+      <!-- custom maths stuff -->
     <script>
 
       const dict_ops = {
@@ -513,6 +574,107 @@
 
         return outFunc;
       }
+
+      function createMathNodeTransformationFunc_binary(mathOperatorSymbol_in, mathOperatorFuncName_in, node_b_in) {
+        return (node_a) => {
+          var outNode;
+
+          const mathOperatorSymbol      = mathOperatorSymbol_in;
+          const mathOperatorFuncName    = mathOperatorFuncName_in;
+          const node_b                  = node_b_in;
+
+          function standardOperation(node_in) {
+            var outNode;
+
+            // const node_b        = new math.ConstantNode(mathValue);
+            const node_operator = new math.OperatorNode(mathOperatorSymbol, mathOperatorFuncName, [node_in, node_b]);
+
+            const node_unsimplified = node_operator;
+
+            if(node_in.autoSimplify) {
+              const node_simplified = math.simplify(node_unsimplified);
+              outNode = node_simplified;
+            } else {
+              outNode = node_unsimplified;
+            }
+
+            outNode.autoSimplify = node_in.autoSimplify;
+
+            return outNode;
+          }
+
+          // logger.log("node_a", node_a);
+          if(node_a.isEquation) {
+            console.log("node_a", node_a);
+            const node_left     = standardOperation(node_a.params[0]);
+            const node_right    = standardOperation(node_a.params[1]);
+            const node_equation = new math.RelationalNode(["equal"], [node_left, node_right]);
+            node_equation.isEquation = true;
+
+            outNode = node_equation;
+          } else {
+            outNode = standardOperation(node_a);
+          }
+
+          // outNode.autoSimplify = node_a.autoSimplify;
+
+          return outNode;
+        };
+      };
+
+      function random_operatorNodeFactoryFuncWrapper_binary(operatorParams) {
+        var outFuncWrapper;
+
+        const arr_type__node_b = operatorParams.node_b.types;
+        const range__node_b    = operatorParams.node_b.range;
+
+
+        const arity = 2
+        const op    = random_op(arity);
+
+        var node_b = random_terminal_mathNode_withType_inArr(arr_type__node_b);
+        logger.log("random_operatorNodeFactoryFuncWrapper_binary, node_b", node_b);
+        if(node_b.type == "ConstantNode") {
+
+          function randomValue() {
+            return math.randomInt(range__node_b.min, range__node_b.max);
+          }
+
+          var value = randomValue();
+          logger.log("value:", value);
+          if(op.name == "divide") {
+            while(value == 0) {
+              value = randomValue();
+            }
+          }
+
+
+          node_b = new math.ConstantNode(value);
+
+          if(node_b.value < 0) {
+            node_b = new math.ParenthesisNode(node_b);
+          }
+
+        }
+
+        const func = createMathNodeTransformationFunc_binary(op.op, op.name, node_b);
+
+        const simpleName = op.op + " " + node_b.toString();
+
+        const funcWrapper = {
+          semantics: {
+            operator: op,
+            node_b:   node_b.cloneDeep(),
+            name:     simpleName,
+          },
+          func: func,
+        };
+
+        outFuncWrapper = funcWrapper;
+
+        return outFuncWrapper;
+      }
+
 
       function random_operatorNode_debug() {
         const arr_nodes = [
@@ -1004,42 +1166,7 @@
 
     </script>
 
-    <!-- <script src='lib/math-expressions.js' type='text/javascript'></script> -->
-    <!-- <script src='lib/math-expressions_umd.js' type='text/javascript'></script> -->
-    <script src='lib/math-expressions.browserified.bundle.js' type='text/javascript'></script>
-    <script>
-      const MathExpression = Bundle_ME.MathExpression;
-    </script>
-    <!-- <script>
-      //discovery
-      const mathExpression1      = MathExpression.fromText("sin^2 (x^3)");
-      const tex__mathExpression1 = mathExpression1.tex();
-      console.log("MathExpression, tex__mathExpression1", tex__mathExpression1);
 
-      const mathExpression2       = MathExpression.fromTex("5 \\times 3");
-      const text__mathExpression2 = mathExpression2.toString();
-      console.log("MathExpression, text__mathExpression2", text__mathExpression2);
-    </script> -->
-
-
-
-    <script src='lib/ngraph.graph.min.js' type='text/javascript'></script>
-    <!-- <script>
-      //discovery
-      const g = createGraph();
-
-      g.addNode('hello');
-      g.addNode('world');
-      //Now graph g contains two nodes: hello and world. You can also use addLink() method to grow a graph. Calling this method with nodes which are not present in the graph creates them:
-
-      g.addLink('space', 'bar'); // now graph 'g' has two new nodes: 'space' and 'bar'
-      //If nodes already present in the graph 'addLink()' makes them connected:
-
-      // Only a link between 'hello' and 'world' is created. No new nodes.
-      g.addLink('hello', 'world');
-
-      console.log("g", g);
-    </script> -->
 
 
 
@@ -1521,12 +1648,29 @@
         //   infiniteCanvas.manageIcObjUpdate(icObj, requestCanvasRedraw);
         // });
 
+        //report updates
         const rep_official = represented.r_official();
         rep_official.onOuterUpdate((rep_official, updateDict) => {
           // console.log("rep_official", "onOuterUpdate", rep_official);
           infiniteCanvas.icObjDidUpdate(rep_official, updateDict);
         });
 
+        //await object death
+        const death_handler = (rep_official_incoming, outerUpdatesDict) => {
+          // logger.log("death_handler", rep_official_incoming, outerUpdatesDict);
+          const isDead = (outerUpdatesDict["im_dead_now"] != null) && (outerUpdatesDict["im_dead_now"].new == true);
+          if(isDead) {
+            const represented = rep_official_incoming.represented;
+
+            infiniteCanvas.removeRepresented(represented);
+
+            infiniteCanvas.offIcObjUpdate(death_handler);
+          }
+        };
+        infiniteCanvas.onIcObjUpdate(death_handler);
+
+
+        //official rep follows free rep
         const rep_free     = represented.r_free();
         rep_official.follow(rep_free);
 
@@ -2883,7 +3027,7 @@
           //greenMouseify
           infiniteCanvas.greenMouseify(spawn__rep_free);
           spawn__rep_free.onHold(() => {
-            spawn__rep_free.greenMouseCurse_start();
+            spawn__rep_free.curse_greenMouse_start();
           })
 
         });
@@ -2916,7 +3060,7 @@
           //greenMouseify
           infiniteCanvas.greenMouseify(spawn__rep_free);
           spawn__rep_free.onHold(() => {
-            spawn__rep_free.greenMouseCurse_start();
+            spawn__rep_free.curse_greenMouse_start();
           })
 
           //bornAgainify
@@ -3030,7 +3174,7 @@
         //
         //   infiniteCanvas.greenMouseify(rep_free);
         //
-        //   rep_free.greenMouseCurse_start();
+        //   rep_free.curse_greenMouse_start();
         // });
 
 
@@ -3046,22 +3190,22 @@
         console.log("greenMouseify", rep);
 
         rep.die = () => {
-          console.log("greenMouse, die");
-          rep.im_dead_now = true;
+          logger.log("greenMouse, die");
+          rep.im_dying_now = true;
         };
 
-        rep.greenMouseCurse = (icObj) => {
-          console.log("greenMouse, curse()");
-          rep.greenMouseCurse_end();
+        rep.curse_greenMouse_do = (icObj) => {
+          console.log("curse_greenMouse_do");
+          rep.curse_greenMouse_end();
           rep.die();
         };
 
-        rep.greenMouseCurse_start = () => {
-          rep.onRelease(rep.greenMouseCurse);
+        rep.curse_greenMouse_start = () => {
+          rep.onRelease(rep.curse_greenMouse_do);
         };
 
-        rep.greenMouseCurse_end = () => {
-          rep.offRelease(rep.greenMouseCurse);
+        rep.curse_greenMouse_end = () => {
+          rep.offRelease(rep.curse_greenMouse_do);
         };
 
       }
@@ -3082,6 +3226,10 @@
         }
 
         const stem = rep.clone();
+
+        rep.prepareForResurrection = () => {
+
+        };
 
         rep.resurrect = () => {
           console.log("resurrect");
@@ -3105,7 +3253,7 @@
             //greenMouseify
           infiniteCanvas.greenMouseify(spawn__rep_free);
           spawn__rep_free.onHold(() => {
-            spawn__rep_free.greenMouseCurse_start();
+            spawn__rep_free.curse_greenMouse_start();
           })
 
             //bornAgainify
@@ -3115,12 +3263,23 @@
         };
 
         rep.curse_bornAgain_start = () => {
+          rep.will["die"].on(rep.prepareForResurrection);
           rep.did["die"].on(rep.resurrect);
         };
 
         rep.curse_bornAgain_end = () => {
           rep.did["die"].off(rep.resurrect);
         };
+
+
+
+        //not that easy to die
+        // Object.defineProperty(rep, 'im_dying_now', {
+        //   get() { return false; },
+        //   set(newValue) { rep.lolilol = newValue; },
+        //   enumerable: true,
+        //   configurable: true
+        // });
 
       }
 
@@ -3722,6 +3881,7 @@
         // };
 
         const canTouchFunc_valueWise = (above, below, context) => {
+          logger.log("canTouchFunc_valueWise", above, below, context);
           var outBool;
 
           // const touchSlot = below;
@@ -3732,14 +3892,47 @@
           const mathNode__below = facade.mathNode;
           console.log("mathNode__below", mathNode__below);
 
-          const relationalNode = new math.RelationalNode(['equal'], [mathNode__above, mathNode__below]);
-          console.log("relationalNode", relationalNode);
+          function isSameValue(mathNode_1, mathNode_2) {
+            var outBool;
 
-          const isSameValue = relationalNode.evaluate();
-          console.log("isSameValue", isSameValue);
+            function isContainingSymbolNode(mathNode) {
+              var outBool;
+
+              const arr_symbolNode = mathNode.filter(function (node) { return node.isSymbolNode; });
+
+              outBool = (arr_symbolNode.length > 0);
+
+              return outBool;
+            }
+
+            const isSymbolNode_in_either = isContainingSymbolNode(mathNode_1) || isContainingSymbolNode(mathNode_2);
+            if(isSymbolNode_in_either) {
+
+              const expr__mathNode_1 = mathNode_1.toString();
+              const expr__mathNode_2 = mathNode_2.toString();
+
+              const expr__equality = expr__mathNode_1 + " == " + expr__mathNode_2;
+              const algebrite_result = Algebrite.run(expr__equality);
+
+              outBool = (algebrite_result == true);
+
+            } else {
+
+              const relationalNode = new math.RelationalNode(['equal'], [mathNode__above, mathNode__below]);
+              logger.log("relationalNode", relationalNode);
+
+              outBool = relationalNode.evaluate();
+            }
+
+            return outBool;
+          }
 
 
-          outBool = isSameValue;
+          const isSameValue_ = isSameValue(mathNode__above, mathNode__below);
+          console.log("isSameValue_", isSameValue_);
+
+
+          outBool = isSameValue_;
 
           return outBool;
         };
@@ -3770,7 +3963,7 @@
           outIcObj.fill = "yellow";
           outIcObj.color = "white";
 
-          outIcObj.im_dead_now = true;
+          // outIcObj.im_dying_now = true;
 
 
           // icObj.text = "touched";
@@ -4542,7 +4735,11 @@
       }
 
       removeRepresented(represented, shouldAlsoRemoveChildren = false) {
-        console.log("removeRepresented", represented);
+        logger.trace("removeRepresented", represented);
+
+        // if(represented == null) {
+        //   throw new Error("represented == null");
+        // }
 
         const id_icObj = represented.r_official().id;
         const represented_check = this.getRepresented(id_icObj);
@@ -4697,18 +4894,18 @@
         // this.redrawCanvas(RedrawOccasion.objectRemoved);
       }
 
-      manageIcObjUpdate(icObj, requestCanvasRedraw = false) {
-        console.log("manageIcObjUpdate");
-
-        if(icObj.toBeDeleted) {
-          console.log("this", this);
-          this.removeIcObject(icObj);
-        }
-
-        this.icObjDidUpdate(icObj);
-
-        this.setChanged(true);
-      }
+      // manageIcObjUpdate(icObj, requestCanvasRedraw = false) {
+      //   console.log("manageIcObjUpdate");
+      //
+      //   if(icObj.toBeDeleted) {
+      //     console.log("this", this);
+      //     this.removeIcObject(icObj);
+      //   }
+      //
+      //   this.icObjDidUpdate(icObj);
+      //
+      //   this.setChanged(true);
+      // }
 
       icObjDidUpdate(icObj, outerUpdatesDict) {
         console.log("icObjDidUpdate", icObj, outerUpdatesDict);
@@ -4721,6 +4918,9 @@
         this.icObjListeners.push(listener);
       }
 
+      offIcObjUpdate(listener) {
+        this.icObjListeners = Utils.arrayByRemovingElement(this.icObjListeners, listener);
+      }
 
 
       addDehydratedIcObject(icObj) {
@@ -5172,7 +5372,7 @@
 
         const represented = this.getRepresented(icComposite.id);
         const rep_free = represented.r_free();
-        rep_free.im_dead_now = true;
+        rep_free.im_dying_now = true;
 
         this.removeRepresented(represented);
       }
@@ -8366,7 +8566,7 @@
           };
 
           this.checkCanTouch = function(icObj_slot, icObj_piece) {
-            console.log("checkCanTouch", icObj_piece);
+            logger.log("checkCanTouch", icObj_piece);
             var outBool;
 
             // outBool = Touch.canTouch(icObj_piece, icObj_slot);
@@ -8516,7 +8716,7 @@
           // this.r_official_update_handler2 = (rep_official_incoming, outerUpdatesDict) => {
           this.r_official_update_handler2 = function(rep_official_incoming, outerUpdatesDict) {   //SHU: when using func.bind(myObj), be sure not to use arrow functions
 
-            console.log("r_official_update_handler2", rep_official_incoming);
+            logger.log("r_official_update_handler2", rep_official_incoming);
 
             // console.log("engine::r_official_update_handler2, this", this);
             // console.log("this.scopeObj", this.scopeObj);
@@ -8549,7 +8749,7 @@
 
           this.start = function() {
             console.log("engine::start, this", this);
-            console.log("touchSlotEngine::start", "this.scopeObj", this.scopeObj);
+            logger.log("touchSlotEngine::start", "this.scopeObj", this.scopeObj);
             const infiniteCanvas = this.scopeObj.infiniteCanvas;
             const icTouchSlot    = this.scopeObj.engineCarrier;
 
@@ -8812,7 +9012,7 @@
 
 
             console.log("remove rep_snapped", rep_snapped.id_rep);
-            rep_snapped.im_dead_now = true;
+            rep_snapped.im_dying_now = true;
             infiniteCanvas.removeRepresentation(represented, rep_snapped);
             represented.removeRepresentation(rep_snapped);
 
@@ -8951,7 +9151,7 @@
 
             if(rep_snapped != null) {
               console.log("remove rep_snapped", rep_snapped.id_rep);
-              rep_snapped.im_dead_now = true;
+              rep_snapped.im_dying_now = true;
               infiniteCanvas.removeRepresentation(represented, rep_snapped);
               represented.removeRepresentation(rep_snapped);
             } else {
@@ -8959,7 +9159,7 @@
             }
 
 
-            // rep_free.im_dead_now = true; //SHU: this is interesting
+            // rep_free.im_dying_now = true; //SHU: this is interesting
 
             /*
             rep_free.opacity = 1.0;
@@ -10489,10 +10689,12 @@
             const innerUpdateListener = (icObj_fRep, propName, oldValue, newValue) => {
               console.log("innerUpdateListener", icObj_fRep.id_rep, propName);
 
-              if(propName == "im_dead_now") {
-                console.log("im_dead_now");
-                if(icObj_fRep.im_dead_now) {
+              if(propName == "im_dying_now") {
+                console.log("im_dying_now");
+                if(icObj_fRep.im_dying_now) {
                   fabricIntegration.removeFabricObject(fObj);
+                  icObj_fRep.im_dying_now = false;
+                  icObj_fRep.im_dead_now  = true;
                 }
               }
               else if(propName == "im_active_now") {
@@ -10555,10 +10757,12 @@
             const outerUpdateListener = (icObj_fRep) => {
               console.log("outerUpdateListener", icObj_fRep.id_rep, propName);
 
-              if(propName == "im_dead_now") {
-                console.log("im_dead_now");
-                if(icObj_fRep.im_dead_now) {
+              if(propName == "im_dying_now") {
+                console.log("im_dying_now");
+                if(icObj_fRep.im_dying_now) {
                   fabricIntegration.removeFabricObject(fObj);
+                  icObj_fRep.im_dying_now = false;
+                  icObj_fRep.im_dead_now  = true;
                 }
               }
               // else if(propName == "isHeld") {
@@ -11522,7 +11726,133 @@
         }
 
 
+        // createFabricMathNodeWithIcObj(icObj) {
+        //
+        //   const fabricCanvas = this.fabricCanvas;
+        //
+        //   const fObj = new fabric.Group();
+        //
+        //   fObj.set({
+        //     left:   icObj.position.x,
+        //     top:    icObj.position.y,
+        //
+        //     width:  icObj.size.width,
+        //     height: icObj.size.height,
+        //
+        //
+        //     scaleX: icObj.scale.X,
+        //     scaleY: icObj.scale.Y,
+        //
+        //     flipX:   icObj.flip.X,
+        //     flipY:   icObj.flip.Y,
+        //
+        //     angle :  icObj.orientation,
+        //
+        //     originX: "left",
+        //     originY: "top",
+        //
+        //
+        //     icObj: icObj,
+        //   });
+        //
+        //
+        //   fObj.refreshTex_p = () => {
+        //     console.log("refreshTex");
+        //
+        //     const tex   = icObj.mathNode.toTex();
+        //     console.log("tex:", tex);
+        //
+        //     function upgradeTex(tex) {
+        //       var outTex;
+        //
+        //       outTex = tex.replaceAll("\\cdot", "\\times");
+        //
+        //       return outTex;
+        //     }
+        //
+        //     const tex_upgraded = upgradeTex(tex);
+        //
+        //     const fill  = icObj.fill;
+        //
+        //     // const svgEl   = TexHelper.toSvgEl(tex, fill);
+        //     const svgEl   = TexHelper.toSvgEl(tex_upgraded, fill);
+        //
+        //     svgEl.setAttribute("width",  fObj.width);
+        //     svgEl.setAttribute("height", fObj.height);
+        //
+        //     const dataUrl = SvgHelper.toDataURL(svgEl);
+        //     const fObj_svg_image_p = new Promise((resolve, reject) => {
+        //
+        //       fabric.Image.fromURL(dataUrl, function (img) {
+        //         // console.log("img", img);
+        //
+        //         const group = fObj;
+        //         img.set({
+        //           // left: 0,
+	      //           // top: 0,
+        //           //SHU: that smell of Scotch Tape
+        //           left: -group.width/2,
+	      //           top:  -group.height/2,
+        //
+        //           //debug
+        //           // stroke: "yellow",
+        //           // strokeWidth: 2,
+        //         });
+        //
+        //         resolve(img);
+        //       },
+        //       null,
+        //       {
+        //         crossOrigin: 'Anonymous',
+        //       });
+        //
+        //     });
+        //
+        //     const add_fObjfObj_svg_image_p = fObj_svg_image_p.then((fObj_child) => {
+        //       if(fObj.child_tex != null) {
+        //         fObj.remove(fObj.child_tex);
+        //       }
+        //
+        //       //add svg image as child
+        //       fObj.child_tex = fObj_child;
+        //
+        //       fObj.add(fObj_child);
+        //       // fObj.addWithUpdate(fObj_child);        //this updates group's size to fit children
+        //       console.log("fObj, added child:", fObj_child);
+        //
+        //       return fObj;
+        //     });
+        //
+        //     return add_fObjfObj_svg_image_p;
+        //   };
+        //
+        //   //event listeners
+        //   if(icObj.canBeHeld) {
+        //     this.addInteraction_hold(fObj);
+        //   }
+        //   if(icObj.canBeMoved) {
+        //     this.addInteraction_move(fObj);
+        //   }
+        //   if(icObj.canBeResized) {
+        //     this.addInteraction_resize2(fObj);
+        //   }
+        //   if(icObj.canBeRotated) {
+        //     this.addInteraction_rotate(fObj);
+        //   }
+        //
+        //
+        //   this.addInteraction_select(fObj);
+        //   // this.addListeners(fObj);
+        //
+        //   this.addInteraction_doubleClick(fObj);
+        //
+        //
+        //
+        //   return fObj;
+        // }
+
         createFabricMathNodeWithIcObj(icObj) {
+          logger.log("createFabricMathNodeWithIcObj", icObj);
 
           const fabricCanvas = this.fabricCanvas;
 
@@ -11532,9 +11862,8 @@
             left:   icObj.position.x,
             top:    icObj.position.y,
 
-            width:  icObj.size.width,
-            height: icObj.size.height,
-
+            // width:  icObj.size.width,
+            // height: icObj.size.height,
 
             scaleX: icObj.scale.X,
             scaleY: icObj.scale.Y,
@@ -11544,9 +11873,9 @@
 
             angle :  icObj.orientation,
 
-            originX: "left",
+            originX: "center",
+            // originX: icObj.originX ? icObj.originX : "left",
             originY: "top",
-
 
             icObj: icObj,
           });
@@ -11555,7 +11884,9 @@
           fObj.refreshTex_p = () => {
             console.log("refreshTex");
 
-            const tex   = icObj.mathNode.toTex();
+            const mathNode = icObj.mathNode;
+
+            const tex   = mathNode.toTex();
             console.log("tex:", tex);
 
             function upgradeTex(tex) {
@@ -11573,8 +11904,27 @@
             // const svgEl   = TexHelper.toSvgEl(tex, fill);
             const svgEl   = TexHelper.toSvgEl(tex_upgraded, fill);
 
-            svgEl.setAttribute("width",  fObj.width);
-            svgEl.setAttribute("height", fObj.height);
+            // svgEl.setAttribute("width",  fObj.width);
+            // svgEl.setAttribute("height", fObj.height);
+            // logger.log('svgEl.getAttribute("width")',  svgEl.getAttribute("width"));
+            // logger.log('svgEl.getAttribute("height")', svgEl.getAttribute("height"));
+            const width_ex__svgEl  = parseFloat(svgEl.getAttribute("width").replace("ex", ""));
+            const height_ex__svgEl = parseFloat(svgEl.getAttribute("height").replace("ex", ""));
+
+            const depth__mathNode = getDepth(icObj.mathNode);
+
+            const scaleFactor     = Math.max(20, 70 - depth__mathNode * 8);
+            // const scaleFactor     = 10 + depth__mathNode * 10;
+
+            const width_px__svgEl  = width_ex__svgEl  * scaleFactor;
+            const height_px__svgEl = height_ex__svgEl * scaleFactor;
+            logger.log('width_px__svgEl',   width_px__svgEl);
+            logger.log('height_px__svgEl',  height_px__svgEl);
+
+            fObj.set({
+              width:  width_px__svgEl,
+              height: height_px__svgEl,
+            });
 
             const dataUrl = SvgHelper.toDataURL(svgEl);
             const fObj_svg_image_p = new Promise((resolve, reject) => {
@@ -11590,10 +11940,18 @@
                   left: -group.width/2,
 	                top:  -group.height/2,
 
+                  // width:  group.width,
+                  // height: group.height,
+                  // width:  width_px__svgEl,
+                  // height: height_px__svgEl,
+
                   //debug
                   // stroke: "yellow",
                   // strokeWidth: 2,
                 });
+
+                img.scaleToWidth(width_px__svgEl);
+                img.scaleToHeight(height_px__svgEl);
 
                 resolve(img);
               },
@@ -13019,7 +13377,7 @@
         }
 
         addInteraction_hold(fObj) {
-          console.log("addInteraction_hold", fObj);
+          // logger.trace("addInteraction_hold", fObj);
 
           const infiniteCanvas = this.infiniteCanvas;
           const fabricCanvas   = this.fabricCanvas;
@@ -14605,11 +14963,11 @@
                 return patternCanvas;
               };
 
-              var img = new Image();
-              img.src = '../assets/honey_im_subtle.png';
-
-              var texturePatternBrush = new fabric.PatternBrush(canvas);
-              texturePatternBrush.source = img;
+              // var img = new Image();
+              // img.src = 'img/sparkle_gradient.png';
+              //
+              // var texturePatternBrush = new fabric.PatternBrush(canvas);
+              // texturePatternBrush.source = img;
             }
 
         }
@@ -14690,9 +15048,12 @@
           const fObj = this.fabricCanvas.getActiveObject();
 
           function deleteFObj(fObj_to_delete) {
-            fObj_to_delete.icObj.delete_p()
+            const icObj = fObj_to_delete.icObj;
+            icObj.delete_p()
             .then(() => {
               fabricIntegration.removeFabricObject(fObj_to_delete);
+              icObj.im_dying_now = false;
+              icObj.im_dead_now  = true;
             })
             .catch(err => {
               console.log("fObj.icObj.delete_p", "error", err);
@@ -15924,7 +16285,7 @@
       //
       //
       //       console.log("remove rep_snapped", rep_snapped.id_rep);
-      //       rep_snapped.im_dead_now = true;
+      //       rep_snapped.im_dying_now = true;
       //       infiniteCanvas.removeRepresentation(represented, rep_snapped);
       //       represented.removeRepresentation(rep_snapped);
       //
@@ -16064,7 +16425,7 @@
       //
       //       if(rep_snapped != null) {
       //         console.log("remove rep_snapped", rep_snapped.id_rep);
-      //         rep_snapped.im_dead_now = true;
+      //         rep_snapped.im_dying_now = true;
       //         infiniteCanvas.removeRepresentation(represented, rep_snapped);
       //         represented.removeRepresentation(rep_snapped);
       //       } else {
@@ -16072,7 +16433,7 @@
       //       }
       //
       //
-      //       // rep_free.im_dead_now = true; //SHU: this is interesting
+      //       // rep_free.im_dying_now = true; //SHU: this is interesting
       //
       //       rep_free.opacity = 1.0;
       //         //debug
@@ -17736,10 +18097,10 @@
               case "KeyM":
                 {
                   // keyboardIntegration.infiniteCanvas.addNewTouchSlot();
-                  // keyboardIntegration.infiniteCanvas.addNewBornAgainGreenMouse(1);
+                  keyboardIntegration.infiniteCanvas.addNewBornAgainGreenMouse(1);
 
                   // keyboardIntegration.infiniteCanvas.addNewRxSubject(1);
-                  keyboardIntegration.infiniteCanvas.addNewLabelValue("lol", 9);
+                  // keyboardIntegration.infiniteCanvas.addNewLabelValue("lol", 9);
                 }
                 break;
 
@@ -20419,7 +20780,8 @@
               zIndex: -10,
               config: {
                 // fill: "green",
-                fill: "lightgreen",
+                // fill: "lightgreen",
+                fill: "orange",
               },
               rect_rel: {
                 l: 0.0,
@@ -20486,7 +20848,9 @@
               zIndex: -10,
               config: {
                 // fill: "green",
-                fill: "lightgreen",
+                // fill: "lightgreen",
+                fill: "orange",
+
               },
               rect_rel: {
                 l: 0.0,
@@ -20585,7 +20949,9 @@
               zIndex: -10,
               config: {
                 // fill: "green",
-                fill: "lightgreen",
+                // fill: "lightgreen",
+                fill: "orange",
+
               },
               rect_rel: {
                 l: 0.0,
@@ -20891,7 +21257,7 @@
           // .forEach(([componentName, component], i) => {
           //   const icObj = component.icObj;
           //
-          //   // icObj.im_dead_now = true;
+          //   // icObj.im_dying_now = true;
           //   // infiniteCanvas.removeIcObject(icObj);
           //
           //   const represented = icObj.represented;
@@ -21314,6 +21680,67 @@
 
       }
 
+      class GMItem {
+        constructor(type, content, name, description, specs = {}) {
+          this.type        = type;
+          this.content     = content;
+          this.name        = name;
+          this.description = description;
+          this.specs       = specs;     //specific behavior (for example: does not accept symbolic input params)
+        }
+
+        static value(content, name, description, specs = {}) {
+          const type = "value";
+          const item = new GMItem(type, content, name, description, specs);
+          return item;
+        }
+
+        static operator(content, name, description, specs = {}) {
+          const type = "operator";
+          const item = new GMItem(type, content, name, description, specs);
+          return item;
+        }
+
+      }
+
+      class GMOperatorGroup {
+
+        constructor(arr_gm_operator) {
+
+        }
+
+      }
+
+      class GMMaker {
+
+        static createGMItemTarget__x_to_expr(gmItem__initial, arr_gmItem_operator, nb_iter) {
+          var outItem;
+
+          const arr_index = [...new Array(nb_iter).keys()];
+
+          const mathNode__initial = gmItem__initial.content;
+
+          const mathNode__target = arr_index.reduce((acc, x) => {
+
+            const node_a = acc;
+
+            const gmItem_operator = Utils.randomElementInArray(arr_gmItem_operator);
+
+            const operatorNodeFactoryFunc = gmItem_operator.content;
+
+            const node_op = operatorNodeFactoryFunc(node_a);
+
+            return node_op;
+          }, mathNode__initial.clone());
+
+          outItem = GMItem.value(mathNode__target, "target", "");
+
+          return outItem;
+        }
+
+      }
+
+
     </script>
 
 
@@ -21328,75 +21755,257 @@
           const golfCourse       = new GolfCourse(infiniteCanvas, golfCourseConfig);
           this.golfCourse = golfCourse;
 
+          //prepare golf course
+          this.prepareGolfCourse(golfCourse);
+
+          //setup step generator
+          // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance1(infiniteCanvas, golfCourse, stepGeneratorFunc);
+          const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance2(infiniteCanvas, golfCourse, stepGeneratorFunc);
+
+
           //create first step
-          const step = GolfGameStep__Endless_Practice.randomInstance(infiniteCanvas, golfCourse);
+          // const step = GolfGameStep__Endless_Practice.randomInstance1(infiniteCanvas, golfCourse);
+          const step = stepGeneratorFunc();
 
           //start game
           step.start();
         }
 
-        createRandomStep() {
+        prepareGolfCourse(golfCourse) {
+
           const infiniteCanvas = this.infiniteCanvas;
 
-          const challengeMathNodeConfig = GolfGame__Endless_Practice.random_challengeMathNodeConfig();
-          const stepConfig = {
-            challengeMathNodeConfig: challengeMathNodeConfig,
-          };
+          //clear
+            //remove ball
+          if(golfCourse.components["ball"]) {
+            const icObj__ball = golfCourse.components["ball"].icObj;
+            // infiniteCanvas.removeObject(icObj__ball);
 
-          const step = new GolfGameStep__Endless_Practice(infiniteCanvas, stepConfig, golfCourse);
-          return step;
+            const trueRect__ball = {
+              x:      icObj__ball.position.x,
+              y:      icObj__ball.position.y,
+              width:  icObj__ball.size.width,
+              height: icObj__ball.size.height,
+            };
+
+            // icObj__ball.curse_greenMouse_end();
+            // icObj__ball.curse_bornAgain_end();
+            // icObj__ball.im_dying_now = true;
+            icObj__ball.fill = "orange";    //SHU: hahaha
+
+            const icObj__rect = infiniteCanvas.createIcRect(trueRect__ball);
+            icObj__rect.fill = "lightgreen";
+            icObj__rect.canBeMoved    = false;
+            icObj__rect.canBeRotated  = false;
+            icObj__rect.canBeResized  = false;
+            icObj__rect.canBeSelected = false;
+
+            icObj__rect.canBeHeld     = false;
+            infiniteCanvas.addIcObject(icObj__rect);
+
+            golfCourse.components["tee"] = {
+              icObj: icObj__rect,
+            };
+
+          }
+
+          //add "Impossible" button
+          {
+            const rect_rel__button = {
+              l: 0.75,
+              r: 0.95,
+              t: 0.10,
+              b: 0.20,
+            };
+            const trueRect__button = Geometry.rectForRectRel(golfCourse.rect, rect_rel__button);
+
+            const icObj__button = infiniteCanvas.createIcButton(trueRect__button);
+            infiniteCanvas.addIcObject(icObj__button);
+
+            golfCourse.components["button_impossible"] = {
+              icObj: icObj__button,
+            };
+
+          }
+
+
+          //SHU: OUILLE OUILLE OUILLE
+          if(golfCourse.components["hole"]) {
+            const icObj__hole   = golfCourse.components["hole"].icObj;
+            const icObj__facade = icObj__hole.parts["facade"];
+            // logger.log("icObj__facade", icObj__facade);
+            // icObj__facade.originX = "right";
+            // icObj__facade.fill = "blue";
+            // logger.log("icObj__facade", icObj__facade);
+
+            infiniteCanvas.getRepresented(icObj__facade.id).r_free().originX = "right";
+          }
+
         }
 
-        static random_challengeMathNodeConfig() {
-          logger.log("random_challengeConfig");
+        // static random_challengeMathNodeConfig() {
+        //   logger.log("random_challengeMathNodeConfig");
+        //
+        //   const mathNode__initial = random_terminal_mathNode_withType_inArr(["ConstantNode"]);
+        //   mathNode__initial.autoSimplify = true;
+        //
+        //   const mathNode__target  = random_terminal_mathNode_withType_inArr(["ConstantNode"]);
+        //
+        //   // const min__nb_operators = 2;
+        //   // const max__nb_operators = 5;
+        //   // const nb_operators      = Math.floor(Math.random() * (max__nb_operators - min__nb_operators)) + min__nb_operators;
+        //   const nb_operators = 4;
+        //
+        //   const arr_operatorNodeFunc = [...new Array(nb_operators).keys()].map(index => {
+        //     const operatorNodeFunc = random_operatorNodeFactoryFunc_binary(["ConstantNode"]);
+        //     return operatorNodeFunc;
+        //   });
+        //
+        //   const mathNodeConfig = {
+        //     initial: mathNode__initial,
+        //     target : mathNode__target,
+        //     operatorFuncs: arr_operatorNodeFunc,
+        //   };
+        //
+        //   return mathNodeConfig;
+        // }
+
+        static random_challengeGMItemConfig() {
+          logger.log("random_challengeGMItemConfig");
 
           const mathNode__initial = random_terminal_mathNode_withType_inArr(["ConstantNode"]);
           mathNode__initial.autoSimplify = true;
+          const gmItem__initial = GMItem.value(mathNode__initial, "initial", "");
 
           const mathNode__target  = random_terminal_mathNode_withType_inArr(["ConstantNode"]);
+          const gmItem__target = GMItem.value(mathNode__target, "target", "");
+
 
           // const min__nb_operators = 2;
           // const max__nb_operators = 5;
           // const nb_operators      = Math.floor(Math.random() * (max__nb_operators - min__nb_operators)) + min__nb_operators;
           const nb_operators = 4;
 
-          const arr_operatorNodeFunc = [...new Array(nb_operators).keys()].map(index => {
-            const operatorNodeFunc = random_operatorNodeFactoryFunc_binary(["ConstantNode"]);
-            return operatorNodeFunc;
+          const arr_gmItem_operator = [...new Array(nb_operators).keys()].map(index => {
+
+            const operatorParams = {
+              node_b: {
+                types: ["ConstantNode"],
+                range: {
+                  min: -10,
+                  max: +10,
+                },
+              },
+            };
+
+            const operatorNodeFuncWrapper = random_operatorNodeFactoryFuncWrapper_binary(operatorParams);
+            const name = operatorNodeFuncWrapper.semantics.name;
+            const func = operatorNodeFuncWrapper.func;
+            const gmItem__operator = GMItem.operator(func, name, "");
+            return gmItem__operator;
           });
 
-          const mathNodeConfig = {
-            initial: mathNode__initial,
-            target : mathNode__target,
-            operatorFuncs: arr_operatorNodeFunc,
+          const gmItemConfig = {
+            initial:    gmItem__initial,
+            target :    gmItem__target,
+            operators:  arr_gmItem_operator,
           };
 
-          return mathNodeConfig;
+          return gmItemConfig;
+        }
+
+        static random_challengeGMItemConfig__x_to_expr() {
+          logger.log("random_challengeGMItemConfig__x_to_expr");
+
+          const mathNode__initial = new math.SymbolNode("x");
+          // mathNode__initial.autoSimplify = true;
+          const gmItem__initial = GMItem.value(mathNode__initial, "initial", "");
+
+
+          // const min__nb_operators = 2;
+          // const max__nb_operators = 5;
+          // const nb_operators      = Math.floor(Math.random() * (max__nb_operators - min__nb_operators)) + min__nb_operators;
+          const nb_operators = 4;
+
+          const arr_gmItem_operator = [...new Array(nb_operators).keys()].map(index => {
+
+            const operatorParams = {
+              node_b: {
+                types: ["ConstantNode"],
+                range: {
+                  min: -10,
+                  max: +10,
+                },
+              },
+            };
+
+            const operatorNodeFuncWrapper = random_operatorNodeFactoryFuncWrapper_binary(operatorParams);
+            const name = operatorNodeFuncWrapper.semantics.name;
+            const func = operatorNodeFuncWrapper.func;
+            const gmItem__operator = GMItem.operator(func, name, "");
+            return gmItem__operator;
+          });
+
+
+          const gmItem__target   = GMMaker.createGMItemTarget__x_to_expr(gmItem__initial, arr_gmItem_operator, 4);
+
+          const gmItemConfig = {
+            initial:    gmItem__initial,
+            target :    gmItem__target,
+            operators:  arr_gmItem_operator,
+          };
+
+          return gmItemConfig;
         }
 
       }
 
       class GolfGameStep__Endless_Practice {
 
-        constructor(infiniteCanvas, golfStepConfig, golfCourse) {
+        constructor(infiniteCanvas, golfStepConfig, golfCourse, stepGeneratorFunc) {
 
           this.infiniteCanvas = infiniteCanvas;
           // this.golfStepConfig = golfStepConfig;
           this.golfCourse     = golfCourse;
 
+          this.stepGeneratorFunc = stepGeneratorFunc;
+
           this.configure(golfStepConfig);
 
         }
 
-        static randomInstance(infiniteCanvas, golfCourse) {
+        static randomInstance1(infiniteCanvas, golfCourse, stepGeneratorFunc) {
           // const game = this;
-          const challengeMathNodeConfig = GolfGame__Endless_Practice.random_challengeMathNodeConfig();
+          // const challengeMathNodeConfig = GolfGame__Endless_Practice.random_challengeMathNodeConfig();
+          // const stepConfig = {
+          //   challengeMathNodeConfig: challengeMathNodeConfig,
+          //   // game: game,
+          // };
+
+          const challengeGMItemConfig = GolfGame__Endless_Practice.random_challengeGMItemConfig();
           const stepConfig = {
-            challengeMathNodeConfig: challengeMathNodeConfig,
-            // game: game,
+            challengeGMItemConfig: challengeGMItemConfig,
           };
 
-          const step = new GolfGameStep__Endless_Practice(infiniteCanvas, stepConfig, golfCourse);
+          const step = new GolfGameStep__Endless_Practice(infiniteCanvas, stepConfig, golfCourse, stepGeneratorFunc);
+
+          return step;
+        }
+
+        static randomInstance2(infiniteCanvas, golfCourse, stepGeneratorFunc) {
+          // const game = this;
+          // const challengeMathNodeConfig = GolfGame__Endless_Practice.random_challengeMathNodeConfig();
+          // const stepConfig = {
+          //   challengeMathNodeConfig: challengeMathNodeConfig,
+          //   // game: game,
+          // };
+
+          const challengeGMItemConfig = GolfGame__Endless_Practice.random_challengeGMItemConfig__x_to_expr();
+          const stepConfig = {
+            challengeGMItemConfig: challengeGMItemConfig,
+          };
+
+          const step = new GolfGameStep__Endless_Practice(infiniteCanvas, stepConfig, golfCourse, stepGeneratorFunc);
 
           return step;
         }
@@ -21406,23 +22015,35 @@
           // this.par = golfStepConfig.par;
           this.nb_attempts = 0;
 
-          this.challengeMathNodeConfig = golfStepConfig.challengeMathNodeConfig;
+          // this.challengeMathNodeConfig = golfStepConfig.challengeMathNodeConfig;
+          this.challengeGMItemConfig = golfStepConfig.challengeGMItemConfig;
         }
 
         start() {
-          const golfCourse = this.golfCourse;
+          const golfCourse        = this.golfCourse;
+          const stepGeneratorFunc = this.stepGeneratorFunc;
 
           this.invest(golfCourse);
 
           this.possess(golfCourse);
 
-          this.recurse();
+          this.recurse(stepGeneratorFunc);
         }
 
         end() {
           // this.golfCourse.fillHole();
           const step = this;
+          const infiniteCanvas = this.infiniteCanvas;
+
           step.rep_free__hole.parts.touchSlot.fill  = "yellow";
+
+          //destroy ball
+            //end curses
+          step.rep_free__ball.curse_bornAgain_end();
+          step.rep_free__ball.curse_greenMouse_end();
+            //remove
+          step.rep_free__ball.im_dying_now = true;
+          // infiniteCanvas.removeRepresented(step.rep_free__ball.represented);
 
           //remove all listeners
           const touchSlot__rep_free       = step.rep_free__hole.parts.touchSlot;
@@ -21432,85 +22053,179 @@
 
         invest(golfCourse) {
 
-          const step = this;
+          const step           = this;
+          const infiniteCanvas = this.infiniteCanvas;
 
-          //station: add objects
-          // {
-          //   const infiniteCanvas = this.infiniteCanvas;
-          //
-          //     //add label/value: score
-          //   function addLabel_score() {
-          //     const rect__score = golfCourse.rect;
-          //     rect__score.width  = 300;
-          //     rect__score.height = 150;
-          //
-          //     const string__score = "score:";
-          //     const value__score  = 0;
-          //
-          //     const icObj__score  = infiniteCanvas.createIcLabelValue(rect__score, string__score, value__score);
-          //     icObj__score.zIndex = 200;
-          //
-          //     infiniteCanvas.addIcObject(icObj__score);
-          //
-          //     const rep_free__score_valueLabel = infiniteCanvas.getRepresented(icObj__score.id).r_free();
-          //     step.rep_free__score_valueLabel  = rep_free__score_valueLabel;
-          //     step.rep_free__score_value       = rep_free__score_valueLabel.parts["value"];
-          //   }
-          //   addLabel_score();
-          //
-          //     //add label/value: par
-          //   function addLabelValue_par() {
-          //     const rect__par = {
-          //       x: step.rep_free__score_valueLabel.position.x,
-          //       y: step.rep_free__score_valueLabel.position.y + 120,
-          //       width:  300,
-          //       height: 150,
-          //     };
-          //
-          //     const string__par = "par:";
-          //     const value__par  = step.par;
-          //
-          //     const icObj__par = infiniteCanvas.createIcLabelValue(rect__par, string__par, value__par);
-          //     icObj__par.zIndex = 201;
-          //
-          //     infiniteCanvas.addIcObject(icObj__par);
-          //
-          //     const rep_free__par_valueLabel = infiniteCanvas.getRepresented(icObj__par.id).r_free();
-          //     step.rep_free__par_valueLabel  = rep_free__par_valueLabel;
-          //     step.rep_free__par_value       = rep_free__par_valueLabel.parts["value"];
-          //
-          //     setTimeout(() => {
-          //       step.rep_free__par_value.position = {
-          //         x: step.rep_free__score_value.position.x,
-          //         y: step.rep_free__par_value.position.y,
-          //       };
-          //     }, 20);   //SHU TODO: remove this ugliness
-          //   }
-          //   addLabelValue_par();
-          //
-          //
-          //
-          //     //add button: restart
-          // }
+          //clear: remove objects
+
+
+
+          //furnish: add objects
+          {
+            const infiniteCanvas = this.infiniteCanvas;
+
+            //   //add label/value: score
+            // function addLabel_score() {
+            //   const rect__score = golfCourse.rect;
+            //   rect__score.width  = 300;
+            //   rect__score.height = 150;
+            //
+            //   const string__score = "score:";
+            //   const value__score  = 0;
+            //
+            //   const icObj__score  = infiniteCanvas.createIcLabelValue(rect__score, string__score, value__score);
+            //   icObj__score.zIndex = 200;
+            //
+            //   infiniteCanvas.addIcObject(icObj__score);
+            //
+            //   const rep_free__score_valueLabel = infiniteCanvas.getRepresented(icObj__score.id).r_free();
+            //   step.rep_free__score_valueLabel  = rep_free__score_valueLabel;
+            //   step.rep_free__score_value       = rep_free__score_valueLabel.parts["value"];
+            // }
+            // addLabel_score();
+            //
+            //   //add label/value: par
+            // function addLabelValue_par() {
+            //   const rect__par = {
+            //     x: step.rep_free__score_valueLabel.position.x,
+            //     y: step.rep_free__score_valueLabel.position.y + 120,
+            //     width:  300,
+            //     height: 150,
+            //   };
+            //
+            //   const string__par = "par:";
+            //   const value__par  = step.par;
+            //
+            //   const icObj__par = infiniteCanvas.createIcLabelValue(rect__par, string__par, value__par);
+            //   icObj__par.zIndex = 201;
+            //
+            //   infiniteCanvas.addIcObject(icObj__par);
+            //
+            //   const rep_free__par_valueLabel = infiniteCanvas.getRepresented(icObj__par.id).r_free();
+            //   step.rep_free__par_valueLabel  = rep_free__par_valueLabel;
+            //   step.rep_free__par_value       = rep_free__par_valueLabel.parts["value"];
+            //
+            //   setTimeout(() => {
+            //     step.rep_free__par_value.position = {
+            //       x: step.rep_free__score_value.position.x,
+            //       y: step.rep_free__par_value.position.y,
+            //     };
+            //   }, 20);   //SHU TODO: remove this ugliness
+            // }
+            // addLabelValue_par();
+
+
+              //add ball:
+              // {
+              //   const icObj__dirtyBall = golfCourse.components["ball"].icObj;
+              //   const trueRect__dirtyBall = {
+              //     x:      icObj__dirtyBall.position.x,
+              //     y:      icObj__dirtyBall.position.y + 150,
+              //     width:  icObj__dirtyBall.size.width,
+              //     height: icObj__dirtyBall.size.height,
+              //   };
+              //
+              //   // const value = 0;
+              //   //debug
+              //   const mathNode__initial = step.challengeGMItemConfig.initial.content;
+              //   const value = mathNode__initial.value;
+              //
+              //
+              //   // const icObj = infiniteCanvas.createIcGMClickWell(trueRect__dirtyBall, value);
+              //   const icObj = infiniteCanvas.createIcBornAgainGreenMouse(trueRect__dirtyBall, value);
+              //   infiniteCanvas.addIcObject(icObj);
+              //
+              //   const rep_free = infiniteCanvas.getRepresented(icObj.id).r_free();
+              //
+              //   step.rep_free__ball  = rep_free;
+              // }
+              {
+                const icObj__tee = golfCourse.components["tee"].icObj;
+                const trueRect__tee = {
+                  x:      icObj__tee.position.x,
+                  y:      icObj__tee.position.y,
+                  width:  icObj__tee.size.width,
+                  height: icObj__tee.size.height,
+                };
+
+                // const value = 0;
+                //debug
+                const mathNode__initial = step.challengeGMItemConfig.initial.content;
+                const value = mathNode__initial.value;
+
+                const icObj = infiniteCanvas.createIcBornAgainGreenMouse(trueRect__tee, value);
+                infiniteCanvas.addIcObject(icObj);
+
+                const rep_free = infiniteCanvas.getRepresented(icObj.id).r_free();
+
+                step.rep_free__ball  = rep_free;
+              }
+
+
+              //add button: restart
+
+
+              //add button: impossible
+
+          }
 
 
           //invest: "this is mine now"
           {
-            step.rep_free__ball = golfCourse.components["ball"].icObj;
-            // this.rep_free__ball = golfCourse.components["ball"].icObj;
+            // step.rep_free__ball = golfCourse.components["ball"].icObj;
             step.rep_free__hole = golfCourse.components["hole"].icObj;
           }
 
 
           //employ: now you do X
             //initial
-          step.rep_free__ball.mathNode              = step.challengeMathNodeConfig.initial;
+          const mathNode__initial      = step.challengeGMItemConfig.initial.content;
+          step.rep_free__ball.mathNode = mathNode__initial;
+          logger.log("mathNode__initial", mathNode__initial);
+
+
+
             //target
-          step.rep_free__hole.parts.facade.mathNode = step.challengeMathNodeConfig.target;
+          const mathNode__target       = step.challengeGMItemConfig.target.content;
+          step.rep_free__hole.parts.facade.mathNode = mathNode__target;
           step.rep_free__hole.parts.touchSlot.fill  = "";
             //operators
+          const arr_gm_operator = Object.values(golfCourse.components).filter(component => component.type == "gm_operator");
+          const arr_rep_free__operator = arr_gm_operator.map((gm_operator, i) => {
+            const icObj__rep_free = gm_operator.icObj;
+            return icObj__rep_free;
+          });
+          const arr_gmItem_operator = step.challengeGMItemConfig.operators;
 
+          const zip = (a, b) => a.map((k, i) => [k, b[i]]);
 
+          const arr_zipped = zip(arr_rep_free__operator, arr_gmItem_operator);
+
+          arr_zipped.forEach(([rep_free__operator, gmItem_operator], i) => {
+
+            //touchSlot
+            const rep_free__touchSlot = rep_free__operator.parts["touchSlot"];
+
+            const mathNodeTransformationFunc = gmItem_operator.content;
+            const icObjTransformationFunc = (icObj) => {
+              var outIcObj;
+
+              outIcObj = icObj.clone();
+
+              // logger.log("icObj.mathNode", icObj.mathNode);
+              outIcObj.mathNode = mathNodeTransformationFunc(icObj.mathNode);
+
+              return outIcObj;
+            };
+            rep_free__touchSlot.touchSlotConfig.transformationFunc = icObjTransformationFunc;
+
+            //facade
+            const rep_free__facade = rep_free__operator.parts["facade"];
+            rep_free__facade.text = gmItem_operator.name;
+
+            rep_free__facade.originX = "center";
+
+          });
 
         }
 
@@ -21523,7 +22238,7 @@
           this.addCompletionListener(golfCourse);
         }
 
-        recurse() {
+        recurse(stepGeneratorFunc) {
           const step = this;
 
           const segueConfig = {};
@@ -21531,7 +22246,7 @@
 
           const golfCourse_to = step_from.golfCourse;
 
-          const segue = new GolfGameSegue__Endless_Practice(infiniteCanvas, segueConfig, step_from, golfCourse_to, null);
+          const segue = new GolfGameSegue__Endless_Practice(infiniteCanvas, segueConfig, step_from, golfCourse_to, stepGeneratorFunc);
 
           this.segue = segue;
         }
@@ -21556,81 +22271,81 @@
           };
         }
 
-        setupAttemptListeners(golfCourse) {   //SHU: this is where BigBrother sneaked in from
-
-          const step = this;
-
-          function waitForNewAttempt() {
-            const ball__rep_free = golfCourse.components["ball"].icObj;
-
-            const createAttemptFunc = () => {
-
-                const attempt = new GolfStepAttempt();
-
-                step.arr_attempt.push(attempt);
-
-                ball__rep_free.offHold(createAttemptFunc);
-            };
-
-            ball__rep_free.onHold(createAttemptFunc);
-          }
-
-          //gm.onHold(create attempt)
-          {
-            waitForNewAttempt();
-          }
-
-          //gm.onTouched(add event to attempt)
-          {
-
-          }
-
-          //gm.onRelease(finalize attempt)
-          {
-            const ball__rep_free = golfCourse.components["ball"].icObj;
-
-            ball__rep_free.onRelease(waitForNewAttempt);
-          }
-
-          //create attempt
-
-
-
-
-
-
-          //course use listeners
-
-          function listenToOperatorTouches(icObj__rep_free) {
-
-            const touchSlot__rep_free  = icObj__rep_free.parts["touchSlot"];
-            // logger.log("touchSlot__rep_free", touchSlot__rep_free);
-
-            const touchSlotEngine = touchSlot__rep_free.engine;
-
-            Hooker.installHooks(touchSlotEngine.awoken, "touch");
-            touchSlotEngine.awoken.did["touch"].on((...args) => {
-              logger.log("did touch", ...args);
-
-              // counter += 1
-              const attempt = step.getCurrentAttempt();
-              logger.log("attempt", attempt);
-              attempt.manoeuvre.nb_touched += 1;
-
-              //debug
-              step.rep_free__score_value.text = "" + attempt.manoeuvre.nb_touched;
-            });
-
-          }
-
-          const arr_gm_operator = Object.values(golfCourse.components).filter(component => component.type == "gm_operator");
-
-          arr_gm_operator.forEach((gm_operator, i) => {
-            const icObj__rep_free = gm_operator.icObj;
-            listenToOperatorTouches(icObj__rep_free);
-          });
-
-        }
+        // setupAttemptListeners(golfCourse) {   //SHU: this is where BigBrother sneaked in from
+        //
+        //   const step = this;
+        //
+        //   function waitForNewAttempt() {
+        //     const ball__rep_free = golfCourse.components["ball"].icObj;
+        //
+        //     const createAttemptFunc = () => {
+        //
+        //         const attempt = new GolfStepAttempt();
+        //
+        //         step.arr_attempt.push(attempt);
+        //
+        //         ball__rep_free.offHold(createAttemptFunc);
+        //     };
+        //
+        //     ball__rep_free.onHold(createAttemptFunc);
+        //   }
+        //
+        //   //gm.onHold(create attempt)
+        //   {
+        //     waitForNewAttempt();
+        //   }
+        //
+        //   //gm.onTouched(add event to attempt)
+        //   {
+        //
+        //   }
+        //
+        //   //gm.onRelease(finalize attempt)
+        //   {
+        //     const ball__rep_free = golfCourse.components["ball"].icObj;
+        //
+        //     ball__rep_free.onRelease(waitForNewAttempt);
+        //   }
+        //
+        //   //create attempt
+        //
+        //
+        //
+        //
+        //
+        //
+        //   //course use listeners
+        //
+        //   function listenToOperatorTouches(icObj__rep_free) {
+        //
+        //     const touchSlot__rep_free  = icObj__rep_free.parts["touchSlot"];
+        //     // logger.log("touchSlot__rep_free", touchSlot__rep_free);
+        //
+        //     const touchSlotEngine = touchSlot__rep_free.engine;
+        //
+        //     Hooker.installHooks(touchSlotEngine.awoken, "touch");
+        //     touchSlotEngine.awoken.did["touch"].on((...args) => {
+        //       logger.log("did touch", ...args);
+        //
+        //       // counter += 1
+        //       const attempt = step.getCurrentAttempt();
+        //       logger.log("attempt", attempt);
+        //       attempt.manoeuvre.nb_touched += 1;
+        //
+        //       //debug
+        //       step.rep_free__score_value.text = "" + attempt.manoeuvre.nb_touched;
+        //     });
+        //
+        //   }
+        //
+        //   const arr_gm_operator = Object.values(golfCourse.components).filter(component => component.type == "gm_operator");
+        //
+        //   arr_gm_operator.forEach((gm_operator, i) => {
+        //     const icObj__rep_free = gm_operator.icObj;
+        //     listenToOperatorTouches(icObj__rep_free);
+        //   });
+        //
+        // }
 
         setupCompletionTrigger(golfCourse) {
 
@@ -21687,7 +22402,7 @@
 
       class GolfGameSegue__Endless_Practice {
 
-        constructor(infiniteCanvas, golfSegueConfig, step_from, golfCourse_to, step_to = null) {
+        constructor(infiniteCanvas, golfSegueConfig, step_from, golfCourse_to, /*step_to = null,*/ stepGeneratorFunc) {
           this.infiniteCanvas = infiniteCanvas;
 
           this.golfSegueConfig = golfSegueConfig;
@@ -21696,7 +22411,8 @@
           this.step_from = step_from;
 
           this.golfCourse_to = golfCourse_to;
-          this.step_to       = step_to;
+          // this.step_to       = step_to;
+          this.stepGeneratorFunc = stepGeneratorFunc;
         }
 
         configure(golfSegueConfig) {
@@ -21718,7 +22434,8 @@
 
 
             if(this.step_to == null) {
-              const step = GolfGameStep__Endless_Practice.randomInstance(infiniteCanvas, golfCourse_to);
+              // const step = GolfGameStep__Endless_Practice.randomInstance1(infiniteCanvas, golfCourse_to);
+              const step = this.stepGeneratorFunc();
               this.step_to = step;
             }
             this.step_to.start();
@@ -21737,6 +22454,56 @@
 
 
     </script>
+
+
+
+
+    <script>
+
+      class Atelier__X_X {
+
+        constructor(infiniteCanvas) {
+
+          //create targetTouchSlot
+          const trueRect_2 = {
+            x: 1000,
+            y: 500,
+            width: 100,
+            height: 100,
+          };
+          const icTargetTouchSlot = infiniteCanvas.createIcGMTargetTouchSlot(trueRect_2, 12);
+          infiniteCanvas.addIcObject(icTargetTouchSlot);
+
+
+
+
+          //create var
+          const trueRect_1 = {
+            x: 500,
+            y: 500,
+            width: 100,
+            height: 100,
+          };
+          const mathNode = new math.SymbolNode("x");
+          const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
+          icMathNode.isTouchable = true;
+          infiniteCanvas.addIcObject(icMathNode);
+
+
+
+
+
+        }
+
+
+
+      }
+
+    </script>
+    <script>
+      // const atelier__X_X = new Atelier__X_X(infiniteCanvas);
+    </script>
+
 
 
 
