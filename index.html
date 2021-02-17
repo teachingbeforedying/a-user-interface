@@ -479,9 +479,9 @@
       }
       // console.log("random_op", random_op(2));
 
-      function random_number(min = 0, max = 100, step = 1) {
-        const span   = max - min;
-        const number = Math.floor(Math.random() * span);
+      function random_number(range) {
+        const span   = range.max - range.min;
+        const number = Math.floor(range.min + Math.random() * span);
         return number;
       }
 
@@ -516,8 +516,8 @@
 
       //////////////////////
 
-      function random_constantNode() {
-        const number = random_number();
+      function random_constantNode(range = {min: 0, max: 100, step: 1}) {
+        const number = random_number(range);
         const constantNode = new math.ConstantNode(number);
         return constantNode;
       }
@@ -575,7 +575,7 @@
         return outFunc;
       }
 
-      function createMathNodeTransformationFunc_binary(mathOperatorSymbol_in, mathOperatorFuncName_in, node_b_in) {
+      function createMathNodeTransformationFunc_binary(mathOperatorSymbol_in, mathOperatorFuncName_in, node_b_in, isShuffled = false) {
         return (node_a) => {
           var outNode;
 
@@ -587,7 +587,29 @@
             var outNode;
 
             // const node_b        = new math.ConstantNode(mathValue);
-            const node_operator = new math.OperatorNode(mathOperatorSymbol, mathOperatorFuncName, [node_in, node_b]);
+
+            var arr_child = [node_in, node_b];
+            logger.log("arr_child, before", arr_child);
+            if(isShuffled) {
+              switch(mathOperatorFuncName) {
+                case "add":
+                case "multiply":
+                  {
+                    const shuffle = arr =>
+                      [...arr].reduceRight((res,_,__,s) =>
+                        (res.push(s.splice(0|Math.random()*s.length,1)[0]), res),[]);
+
+                    arr_child = shuffle(arr_child);
+                    logger.log("arr_child, after", arr_child);
+                  }
+                  break;
+                default:
+                  //do nothing
+                  break;
+              }
+            }
+
+            const node_operator = new math.OperatorNode(mathOperatorSymbol, mathOperatorFuncName, arr_child);
 
             const node_unsimplified = node_operator;
 
@@ -628,6 +650,8 @@
         const arr_type__node_b = operatorParams.node_b.types;
         const range__node_b    = operatorParams.node_b.range;
 
+        const isShuffled       = (operatorParams.isShuffled != null) ? operatorParams.isShuffled : false;
+
 
         const arity = 2
         const op    = random_op(arity);
@@ -657,7 +681,7 @@
 
         }
 
-        const func = createMathNodeTransformationFunc_binary(op.op, op.name, node_b);
+        const func = createMathNodeTransformationFunc_binary(op.op, op.name, node_b, isShuffled);
 
         const simpleName = op.op + " " + node_b.toString();
 
@@ -1329,6 +1353,8 @@
       class Debug {
         constructor (eltsDict) {
           this.eltsDict = eltsDict;
+
+          this.eltsDict["container"].style.visibility = "hidden";
         }
 
         setScale(scale) {
@@ -1351,6 +1377,8 @@
       }
 
       const debugEltsDict = {
+        container:            document.getElementById("debug_container"),
+
         scale:                document.getElementById("debug_scale"),
         offset:               document.getElementById("debug_offset"),
         nb_objects:           document.getElementById("debug_nbObjects"),
@@ -1642,6 +1670,8 @@
       }
 
       tetherIcObject(represented) {
+        // logger.log("tetherIcObject", represented.r_official().id);
+
         const infiniteCanvas = this;
 
         // icObj.didUpdateListeners.push((icObj, requestCanvasRedraw) => {
@@ -1658,13 +1688,20 @@
         //await object death
         const death_handler = (rep_official_incoming, outerUpdatesDict) => {
           // logger.log("death_handler", rep_official_incoming, outerUpdatesDict);
+
           const isDead = (outerUpdatesDict["im_dead_now"] != null) && (outerUpdatesDict["im_dead_now"].new == true);
           if(isDead) {
             const represented = rep_official_incoming.represented;
+            // logger.log("isDead", represented.r_official().id);
 
-            infiniteCanvas.removeRepresented(represented);
+            if(represented.r_official() != null) {  //SHU666: deeper into sadness
+              var shouldAlsoRemoveChildren = represented.r_official().shouldAlsoRemoveChildren ? represented.r_official().shouldAlsoRemoveChildren : false;
 
-            infiniteCanvas.offIcObjUpdate(death_handler);
+              infiniteCanvas.removeRepresented(represented, shouldAlsoRemoveChildren);
+
+              infiniteCanvas.offIcObjUpdate(death_handler);
+            }
+
           }
         };
         infiniteCanvas.onIcObjUpdate(death_handler);
@@ -3037,7 +3074,7 @@
       }
 
 
-      createIcBornAgainGreenMouse(trueRect, value_in = 1) {
+      createIcBornAgainGreenMouse(trueRect, mathNode_in = new math.ConstantNode(1)) {
         console.log("createIcBornAgainGreenMouse", trueRect);
 
         const infiniteCanvas = this;
@@ -3045,8 +3082,9 @@
         // const type      = "bornAgainGreenMouse";
 
 
-        const mathNode        = new math.ConstantNode(value_in);
-        mathNode.autoSimplify = true;
+        const mathNode        = mathNode_in;
+        // mathNode.autoSimplify = true;
+
         const spawn = infiniteCanvas.createIcMathNode(trueRect.x, trueRect.y, mathNode);
         spawn.isTouchable = true;
 
@@ -3061,7 +3099,7 @@
           infiniteCanvas.greenMouseify(spawn__rep_free);
           spawn__rep_free.onHold(() => {
             spawn__rep_free.curse_greenMouse_start();
-          })
+          });
 
           //bornAgainify
           infiniteCanvas.bornAgainify(spawn__rep_free);
@@ -3074,6 +3112,123 @@
 
 
         return spawn;
+      }
+
+
+      createIcGreenMouseBox(trueRect, mathNode_in = new math.ConstantNode(1)) {
+        console.log("createIcBornAgainGreenMouseBox", trueRect);
+
+        const infiniteCanvas = this;
+
+        // const type      = "bornAgainGreenMouse";
+
+
+        const mathNode        = mathNode_in;
+        // mathNode.autoSimplify = true;
+
+
+        const facade      = infiniteCanvas.createIcMathNode(trueRect.x, trueRect.y, mathNode);
+        const contactArea = infiniteCanvas.createIcRect(trueRect);
+        contactArea.fill = "lightblue";
+
+        const parts = {
+          contactArea: contactArea,
+          facade:      facade,
+        };
+
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+
+        const icComposite = this.createIcComposite(trueRect, parts, compositeConfig);
+        icComposite.cType = "gm_box";
+
+        const greenMouseBox = icComposite;
+        greenMouseBox.isTouchable = true;
+        // greenMouseBox.canBeHeld   = true;
+
+
+        infiniteCanvas.onceOnAddRepresentedForIcObject(greenMouseBox, (greenMouseBox) => {
+
+          //set spawn as active object
+          const greenMouseBox__represented = infiniteCanvas.getRepresented(greenMouseBox.id);
+          const greenMouseBox__rep_free    = greenMouseBox__represented.r_free();
+
+          //greenMouseify
+          const facade__rep_free    = greenMouseBox__rep_free.parts.facade;
+
+          greenMouseBox__rep_free.die = () => {
+            greenMouseBox__rep_free.im_dying_now = true;
+          };
+
+          infiniteCanvas.greenMouseify(facade__rep_free);
+            //rewrite greenMouse.die
+          facade__rep_free.die = () => {
+            logger.log("greenMouse, die (override)");
+            greenMouseBox__rep_free.die();
+          };
+
+          facade__rep_free.onHold(() => {
+            logger.log("greenMouseBox__rep_free", "curse_greenMouse_start");
+            facade__rep_free.curse_greenMouse_start();
+          });
+
+        });
+
+        return greenMouseBox;
+      }
+
+      createIcBornAgainGreenMouseBox(trueRect, mathNode_in = new math.ConstantNode(1)) {
+        console.log("createIcBornAgainGreenMouseBox", trueRect);
+
+        const infiniteCanvas = this;
+
+        // const type      = "bornAgainGreenMouse";
+
+
+        const mathNode        = mathNode_in;
+        // mathNode.autoSimplify = true;
+
+
+        const facade      = infiniteCanvas.createIcMathNode(trueRect.x, trueRect.y, mathNode);
+        const contactArea = infiniteCanvas.createIcRect(trueRect);
+        contactArea.fill = "lightblue";
+
+        const parts = {
+          contactArea: contactArea,
+          facade:      facade,
+        };
+
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+
+        const icComposite = this.createIcComposite(trueRect, parts, compositeConfig);
+        icComposite.cType = "gm_box";
+
+        const greenMouseBox = icComposite;
+        greenMouseBox.isTouchable = true;
+
+
+        infiniteCanvas.onceOnAddRepresentedForIcObject(greenMouseBox, (greenMouseBox) => {
+
+          //set spawn as active object
+          const greenMouseBox__represented = infiniteCanvas.getRepresented(greenMouseBox.id);
+          const greenMouseBox__rep_free    = greenMouseBox__represented.r_free();
+
+          //greenMouseify
+          infiniteCanvas.greenMouseify(greenMouseBox__rep_free);
+          greenMouseBox__rep_free.onHold(() => {
+            greenMouseBox__rep_free.curse_greenMouse_start();
+          });
+
+          //bornAgainify
+          infiniteCanvas.bornAgainify(greenMouseBox__rep_free);
+          //spawn__rep_free.onHold(() => {
+            greenMouseBox__rep_free.curse_bornAgain_start();
+          //});
+
+        });
+
+
+
+        return greenMouseBox;
       }
 
 
@@ -3208,6 +3363,22 @@
           rep.offRelease(rep.curse_greenMouse_do);
         };
 
+        // rep.curse_greenMouse_start = () => {
+        //   if(rep.cType == "gm_box") {
+        //     rep.parts.facade.onRelease(rep.curse_greenMouse_do);
+        //   } else {
+        //     rep.onRelease(rep.curse_greenMouse_do);
+        //   }
+        // };
+        //
+        // rep.curse_greenMouse_end = () => {
+        //   if(rep.cType == "gm_box") {
+        //     rep.parts.facade.offRelease(rep.curse_greenMouse_do);
+        //   } else {
+        //     rep.offRelease(rep.curse_greenMouse_do);
+        //   }
+        // };
+
       }
 
 
@@ -3226,6 +3397,7 @@
         }
 
         const stem = rep.clone();
+        // stem.mathNode = rep.mathNode.cloneDeep();
 
         rep.prepareForResurrection = () => {
 
@@ -3236,6 +3408,8 @@
 
           //born again
           const resurrected = stem.clone();
+          logger.log("resurrected", resurrected);
+          resurrected.mathNode = stem.mathNode;
 
           const id_resurrected = this.generateIcObjectId();
           resurrected.id       = id_resurrected;
@@ -4070,6 +4244,137 @@
       }
 
 
+      createIcGMBoxTargetTouchSlot(trueRect, targetMathNode) {
+        console.log("createIcGMBoxTargetTouchSlot", trueRect, targetMathNode);
+
+
+        const canTouchFunc_geometryWise = (above, below, context) => {
+          const contactArea = above.parts.contactArea;
+          return Touch.canTouch(contactArea, below);
+        };
+
+        const canTouchFunc_valueWise = (above, below, context) => {
+          logger.log("canTouchFunc_valueWise", above, below, context);
+          var outBool;
+
+          // const touchSlot = below;
+          const facade    = context.facade;
+
+          const mathNode__above = above.parts.facade.mathNode;
+          console.log("mathNode__above", mathNode__above);
+          const mathNode__below = facade.mathNode;
+          console.log("mathNode__below", mathNode__below);
+
+          function isSameValue(mathNode_1, mathNode_2) {
+            var outBool;
+
+            function isContainingSymbolNode(mathNode) {
+              var outBool;
+
+              const arr_symbolNode = mathNode.filter(function (node) { return node.isSymbolNode; });
+
+              outBool = (arr_symbolNode.length > 0);
+
+              return outBool;
+            }
+
+            const isSymbolNode_in_either = isContainingSymbolNode(mathNode_1) || isContainingSymbolNode(mathNode_2);
+            if(isSymbolNode_in_either) {
+
+              const expr__mathNode_1 = mathNode_1.toString();
+              const expr__mathNode_2 = mathNode_2.toString();
+
+              const expr__equality = expr__mathNode_1 + " == " + expr__mathNode_2;
+              const algebrite_result = Algebrite.run(expr__equality);
+
+              outBool = (algebrite_result == true);
+
+            } else {
+
+              const relationalNode = new math.RelationalNode(['equal'], [mathNode__above, mathNode__below]);
+              logger.log("relationalNode", relationalNode);
+
+              outBool = relationalNode.evaluate();
+            }
+
+            return outBool;
+          }
+
+
+          const isSameValue_ = isSameValue(mathNode__above, mathNode__below);
+          console.log("isSameValue_", isSameValue_);
+
+
+          outBool = isSameValue_;
+
+          return outBool;
+        };
+
+
+        const canTouchFuncs = {
+          "geometry": canTouchFunc_geometryWise,
+          "value":    canTouchFunc_valueWise,
+        };
+
+        const canTouchFunc_allWise = (above, below, context) => {
+          return Object.entries(canTouchFuncs).reduce((acc, [canTouchFunc_xWiseName, canTouchFunc_xWise]) => {
+            const canTouch_xWise = canTouchFunc_xWise(above,below, context);
+            console.log("canTouch_xWise", canTouchFunc_xWiseName, canTouch_xWise);
+            return acc && canTouch_xWise;
+          }, true);
+        };
+
+        const canTouchFunc = canTouchFunc_allWise;
+
+        const transformationFunc = (icObj) => {
+          var outIcObj;
+
+          logger.log("icGMBox original transformation func");
+
+          return outIcObj;
+        };
+
+        const touchSlotConfig = {
+          canTouchFunc:       canTouchFunc,
+          transformationFunc: transformationFunc,
+          context: {},
+        };
+
+        const touchSlot    = infiniteCanvas.createIcTouchSlot(trueRect, touchSlotConfig);
+        touchSlot.fill     = "";
+
+
+
+        const facade           = infiniteCanvas.createIcMathNode(trueRect.x, trueRect.y, targetMathNode);
+        facade.backgroundColor = "orange";
+        // facade.isTouchable     = false;
+
+        const parts = {
+          "touchSlot": touchSlot,
+          "facade":    facade,
+        };
+
+
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+
+        const icComposite = this.createIcComposite(trueRect, parts, compositeConfig);
+        icComposite.cType = "gm_boxTargetTouchSlot";
+
+        // icComposite.isTouchable = false;
+
+
+        //enrich touchSlotConfig.context
+        infiniteCanvas.onceOnAddRepresentedForIcObject(facade, (facade) => {
+          const facade__represented  = infiniteCanvas.getRepresented(facade.id);
+          // const facade__rep_free     = facade__represented.r_free();
+          const facade__rep_official = facade__represented.r_official();
+
+          touchSlotConfig.context.facade = facade__rep_official;
+        });
+
+        return icComposite;
+      }
+
 
 
 
@@ -4753,7 +5058,7 @@
         if(shouldAlsoRemoveChildren) {
           if(represented.r_official().type == "composite") {
             Object.values(represented.parts).forEach((part__represented, i) => {
-              this.removeRepresented(part__represented);
+              this.removeRepresented(part__represented, shouldAlsoRemoveChildren);
             });
           }
         }
@@ -4789,6 +5094,8 @@
       }
 
       didRemoveRepresented(represented) {
+        logger.log("didRemoveRepresented", represented);
+
         this.setChanged(true);
 
         this.didRemoveRepresentedListeners.forEach((listener, i) => {
@@ -5374,7 +5681,7 @@
         const rep_free = represented.r_free();
         rep_free.im_dying_now = true;
 
-        this.removeRepresented(represented);
+        // this.removeRepresented(represented);
       }
 
 
@@ -10687,7 +10994,7 @@
             }
 
             const innerUpdateListener = (icObj_fRep, propName, oldValue, newValue) => {
-              console.log("innerUpdateListener", icObj_fRep.id_rep, propName);
+              logger.log("innerUpdateListener", icObj_fRep.id_rep, propName, newValue);
 
               if(propName == "im_dying_now") {
                 console.log("im_dying_now");
@@ -10754,8 +11061,9 @@
             fObj.fListener_inner = innerUpdateListener;
             icObj_fRep.onInnerUpdate(innerUpdateListener);
 
-            const outerUpdateListener = (icObj_fRep) => {
-              console.log("outerUpdateListener", icObj_fRep.id_rep, propName);
+            // const outerUpdateListener = (icObj_fRep) => {
+            const outerUpdateListener = (icObj_fRep, propName, oldValue, newValue) => {
+              logger.log("outerUpdateListener", icObj_fRep.id_rep, propName, newValue);
 
               if(propName == "im_dying_now") {
                 console.log("im_dying_now");
@@ -19873,7 +20181,7 @@
     </script>
 
     <!-- debug -->
-    <div id="xyloGame_container" style="position:absolute; left:0; bottom: 0; font-size: 60px; pointer-events: none;">
+    <!-- <div id="xyloGame_container" style="position:absolute; left:0; bottom: 0; font-size: 60px; pointer-events: none;">
       <div>
         <div style="display: inline-block;">current number: </div>
         <div style="display: inline-block;" id="xyloGame_currentNumber"></div>
@@ -19886,7 +20194,7 @@
         <div style="display: inline-block;"></div>
         <div style="display: inline-block;" id="xyloGame_completed"></div>
       </div>
-    </div>
+    </div> -->
 
     <script>
       class XyloGameHUD {
@@ -20781,7 +21089,7 @@
               config: {
                 // fill: "green",
                 // fill: "lightgreen",
-                fill: "orange",
+                // fill: "orange",
               },
               rect_rel: {
                 l: 0.0,
@@ -20950,8 +21258,8 @@
               config: {
                 // fill: "green",
                 // fill: "lightgreen",
-                fill: "orange",
-
+                // fill: "orange",
+                fill: "lightyellow",
               },
               rect_rel: {
                 l: 0.0,
@@ -20961,11 +21269,11 @@
               },
             },
 
-            "ball": {
-              type: "gm_clickWell",
+            "tee": {
+              type: "rect",
               zIndex: 100,
               config: {
-                value: 1,
+                fill: "lightgreen",
               },
               rect_rel: {
                 l: 0.05,
@@ -21103,7 +21411,7 @@
 
           const courseConfig = GolfCourseConfig.template_challenge();
 
-          courseConfig.components.ball.config.value = courseConfigMiniObj.initial;
+          // courseConfig.components.ball.config.value = courseConfigMiniObj.initial;
           courseConfig.components.hole.config.value = courseConfigMiniObj.target;
 
           //SHU TODO: remove this ugliness
@@ -21184,7 +21492,8 @@
               {
               const config = componentConfig.config;
               const value  = config.value;
-              outIcObj = infiniteCanvas.createIcGMTargetTouchSlot(trueRect__component, value);
+              // outIcObj = infiniteCanvas.createIcGMTargetTouchSlot(trueRect__component, value);
+              outIcObj = infiniteCanvas.createIcGMBoxTargetTouchSlot(trueRect__component, value);
               }
               break;
 
@@ -21759,8 +22068,10 @@
           this.prepareGolfCourse(golfCourse);
 
           //setup step generator
+            //numbers
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance1(infiniteCanvas, golfCourse, stepGeneratorFunc);
           const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance2(infiniteCanvas, golfCourse, stepGeneratorFunc);
+          // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance3(infiniteCanvas, golfCourse, stepGeneratorFunc);
 
 
           //create first step
@@ -21776,38 +22087,7 @@
           const infiniteCanvas = this.infiniteCanvas;
 
           //clear
-            //remove ball
-          if(golfCourse.components["ball"]) {
-            const icObj__ball = golfCourse.components["ball"].icObj;
-            // infiniteCanvas.removeObject(icObj__ball);
-
-            const trueRect__ball = {
-              x:      icObj__ball.position.x,
-              y:      icObj__ball.position.y,
-              width:  icObj__ball.size.width,
-              height: icObj__ball.size.height,
-            };
-
-            // icObj__ball.curse_greenMouse_end();
-            // icObj__ball.curse_bornAgain_end();
-            // icObj__ball.im_dying_now = true;
-            icObj__ball.fill = "orange";    //SHU: hahaha
-
-            const icObj__rect = infiniteCanvas.createIcRect(trueRect__ball);
-            icObj__rect.fill = "lightgreen";
-            icObj__rect.canBeMoved    = false;
-            icObj__rect.canBeRotated  = false;
-            icObj__rect.canBeResized  = false;
-            icObj__rect.canBeSelected = false;
-
-            icObj__rect.canBeHeld     = false;
-            infiniteCanvas.addIcObject(icObj__rect);
-
-            golfCourse.components["tee"] = {
-              icObj: icObj__rect,
-            };
-
-          }
+            //nothing to clear
 
           //add "Impossible" button
           {
@@ -21829,16 +22109,42 @@
           }
 
 
-          //SHU: OUILLE OUILLE OUILLE
+
           if(golfCourse.components["hole"]) {
-            const icObj__hole   = golfCourse.components["hole"].icObj;
-            const icObj__facade = icObj__hole.parts["facade"];
+            const icObj__hole      = golfCourse.components["hole"].icObj;
+
+            const icObj__facade    = icObj__hole.parts["facade"];
+            const icObj__touchSlot = icObj__hole.parts["touchSlot"];
+
             // logger.log("icObj__facade", icObj__facade);
             // icObj__facade.originX = "right";
             // icObj__facade.fill = "blue";
             // logger.log("icObj__facade", icObj__facade);
 
-            infiniteCanvas.getRepresented(icObj__facade.id).r_free().originX = "right";
+            const rep_free__hole =  infiniteCanvas.getRepresented(icObj__hole.id).r_free();
+            const rep_free__facade = rep_free__hole.parts.facade;
+            const rep_free__touchSlot = rep_free__hole.parts.touchSlot;
+
+            rep_free__hole.compositeConfig[rep_free__facade.id].isMobile    = true;
+            rep_free__hole.compositeConfig[rep_free__touchSlot.id].isMobile = true;
+
+
+            rep_free__facade.originX = "right";
+            rep_free__facade.position = {
+              x: rep_free__facade.position.x,
+              y: rep_free__facade.position.y - 150,
+            };
+
+            rep_free__touchSlot.position = {
+              x: rep_free__touchSlot.position.x,
+              y: rep_free__touchSlot.position.y + 100,
+            };
+
+
+            rep_free__hole.compositeConfig[rep_free__facade.id].isMobile    = false;
+            rep_free__hole.compositeConfig[rep_free__touchSlot.id].isMobile = false;
+
+
           }
 
         }
@@ -21870,14 +22176,17 @@
         //   return mathNodeConfig;
         // }
 
-        static random_challengeGMItemConfig() {
+        static random_challengeGMItemConfig(range_initial, range_target) {
           logger.log("random_challengeGMItemConfig");
 
-          const mathNode__initial = random_terminal_mathNode_withType_inArr(["ConstantNode"]);
+          // const mathNode__initial = random_terminal_mathNode_withType_inArr(["ConstantNode"]);
+          const mathNode__initial = random_constantNode(range_initial);
           mathNode__initial.autoSimplify = true;
           const gmItem__initial = GMItem.value(mathNode__initial, "initial", "");
 
-          const mathNode__target  = random_terminal_mathNode_withType_inArr(["ConstantNode"]);
+          // const mathNode__target  = random_terminal_mathNode_withType_inArr(["ConstantNode"]);
+          const mathNode__target = random_constantNode(range_target);
+
           const gmItem__target = GMItem.value(mathNode__target, "target", "");
 
 
@@ -21958,7 +22267,58 @@
           return gmItemConfig;
         }
 
+
+        static random_challengeGMItemConfig__x_to_expr__shuffled() {
+          logger.log("random_challengeGMItemConfig__x_to_expr__shuffled");
+
+          const mathNode__initial = new math.SymbolNode("y");
+          // mathNode__initial.autoSimplify = true;
+          const gmItem__initial = GMItem.value(mathNode__initial, "initial", "");
+
+
+          // const min__nb_operators = 2;
+          // const max__nb_operators = 5;
+          // const nb_operators      = Math.floor(Math.random() * (max__nb_operators - min__nb_operators)) + min__nb_operators;
+          const nb_operators = 4;
+
+          const arr_gmItem_operator = [...new Array(nb_operators).keys()].map(index => {
+
+            const operatorParams = {
+              node_b: {
+                types: ["ConstantNode"],
+                range: {
+                  min: -10,
+                  max: +10,
+                },
+              },
+              isShuffled: true,
+            };
+
+            const operatorNodeFuncWrapper = random_operatorNodeFactoryFuncWrapper_binary(operatorParams);
+            const name = operatorNodeFuncWrapper.semantics.name;
+            const func = operatorNodeFuncWrapper.func;
+            const gmItem__operator = GMItem.operator(func, name, "");
+            return gmItem__operator;
+          });
+
+
+          const gmItem__target   = GMMaker.createGMItemTarget__x_to_expr(gmItem__initial, arr_gmItem_operator, 4);
+
+          const gmItemConfig = {
+            initial:    gmItem__initial,
+            target :    gmItem__target,
+            operators:  arr_gmItem_operator,
+          };
+
+          return gmItemConfig;
+        }
+
+
       }
+
+
+
+
 
       class GolfGameStep__Endless_Practice {
 
@@ -21982,7 +22342,10 @@
           //   // game: game,
           // };
 
-          const challengeGMItemConfig = GolfGame__Endless_Practice.random_challengeGMItemConfig();
+          const range_initial = {min: 0, max: 10, step: 1};
+          const range_target  = {min: -100, max: 100, step: 1};
+
+          const challengeGMItemConfig = GolfGame__Endless_Practice.random_challengeGMItemConfig(range_initial, range_target);
           const stepConfig = {
             challengeGMItemConfig: challengeGMItemConfig,
           };
@@ -22010,6 +22373,24 @@
           return step;
         }
 
+        static randomInstance3(infiniteCanvas, golfCourse, stepGeneratorFunc) {
+          // const game = this;
+          // const challengeMathNodeConfig = GolfGame__Endless_Practice.random_challengeMathNodeConfig();
+          // const stepConfig = {
+          //   challengeMathNodeConfig: challengeMathNodeConfig,
+          //   // game: game,
+          // };
+
+          const challengeGMItemConfig = GolfGame__Endless_Practice.random_challengeGMItemConfig__x_to_expr__shuffled();
+          const stepConfig = {
+            challengeGMItemConfig: challengeGMItemConfig,
+          };
+
+          const step = new GolfGameStep__Endless_Practice(infiniteCanvas, stepConfig, golfCourse, stepGeneratorFunc);
+
+          return step;
+        }
+
 
         configure(golfStepConfig) {
           // this.par = golfStepConfig.par;
@@ -22028,6 +22409,8 @@
           this.possess(golfCourse);
 
           this.recurse(stepGeneratorFunc);
+
+          // this.infiniteCanvas.redrawCanvas(RedrawOccasion.forceRedraw);   //SHU666:pour éviter les bugs de non rafraîchissement des teXFObj //ce n'est pas la panacée
         }
 
         end() {
@@ -22039,16 +22422,63 @@
 
           //destroy ball
             //end curses
-          step.rep_free__ball.curse_bornAgain_end();
-          step.rep_free__ball.curse_greenMouse_end();
+          // step.rep_free__ball.curse_bornAgain_end();
+          // step.rep_free__ball.curse_greenMouse_end();
+          step.rep_free__ball.parts.facade.curse_greenMouse_end();
+
+
+            //remove "die" hooks listeners
+          step.rep_free__ball.will["die"].listeners = [];
+
             //remove
           step.rep_free__ball.im_dying_now = true;
+          step.rep_free__ball.parts.facade.im_dying_now      = true;
+          step.rep_free__ball.parts.contactArea.im_dying_now = true;
+
           // infiniteCanvas.removeRepresented(step.rep_free__ball.represented);
 
           //remove all listeners
           const touchSlot__rep_free       = step.rep_free__hole.parts.touchSlot;
           const touchSlotEngine           = touchSlot__rep_free.engine;
           touchSlotEngine.awoken.did["touch"].off(this.listener_targetDidTouch);
+
+        }
+
+        addNewBall() {
+          const step = this;
+          const infiniteCanvas = this.infiniteCanvas;
+          const golfCourse = this.golfCourse;
+
+
+          const icObj__tee = golfCourse.components["tee"].icObj;
+          const trueRect__ball = {
+            x:      icObj__tee.position.x,
+            y:      icObj__tee.position.y,
+            width:  50,
+            height: 50,
+          };
+
+          // const value = 0;
+          //debug
+          const mathNode__initial = step.challengeGMItemConfig.initial.content;
+          // const value = mathNode__initial.value;
+
+          // const icObj = infiniteCanvas.createIcBornAgainGreenMouseBox(trueRect__ball, mathNode__initial);
+          const icObj = infiniteCanvas.createIcGreenMouseBox(trueRect__ball, mathNode__initial);
+          infiniteCanvas.addIcObject(icObj);
+
+          const rep_free__ball = infiniteCanvas.getRepresented(icObj.id).r_free();
+          Hooker.installHooks(rep_free__ball, "die");
+          rep_free__ball.did["die"].on(() => {
+            logger.log("did die");
+
+            rep_free__ball.parts.facade.im_dying_now      = true;
+            rep_free__ball.parts.contactArea.im_dying_now = true;
+
+            step.addNewBall();
+          });
+
+          step.rep_free__ball  = rep_free__ball;
         }
 
         invest(golfCourse) {
@@ -22116,50 +22546,7 @@
 
 
               //add ball:
-              // {
-              //   const icObj__dirtyBall = golfCourse.components["ball"].icObj;
-              //   const trueRect__dirtyBall = {
-              //     x:      icObj__dirtyBall.position.x,
-              //     y:      icObj__dirtyBall.position.y + 150,
-              //     width:  icObj__dirtyBall.size.width,
-              //     height: icObj__dirtyBall.size.height,
-              //   };
-              //
-              //   // const value = 0;
-              //   //debug
-              //   const mathNode__initial = step.challengeGMItemConfig.initial.content;
-              //   const value = mathNode__initial.value;
-              //
-              //
-              //   // const icObj = infiniteCanvas.createIcGMClickWell(trueRect__dirtyBall, value);
-              //   const icObj = infiniteCanvas.createIcBornAgainGreenMouse(trueRect__dirtyBall, value);
-              //   infiniteCanvas.addIcObject(icObj);
-              //
-              //   const rep_free = infiniteCanvas.getRepresented(icObj.id).r_free();
-              //
-              //   step.rep_free__ball  = rep_free;
-              // }
-              {
-                const icObj__tee = golfCourse.components["tee"].icObj;
-                const trueRect__tee = {
-                  x:      icObj__tee.position.x,
-                  y:      icObj__tee.position.y,
-                  width:  icObj__tee.size.width,
-                  height: icObj__tee.size.height,
-                };
-
-                // const value = 0;
-                //debug
-                const mathNode__initial = step.challengeGMItemConfig.initial.content;
-                const value = mathNode__initial.value;
-
-                const icObj = infiniteCanvas.createIcBornAgainGreenMouse(trueRect__tee, value);
-                infiniteCanvas.addIcObject(icObj);
-
-                const rep_free = infiniteCanvas.getRepresented(icObj.id).r_free();
-
-                step.rep_free__ball  = rep_free;
-              }
+              step.addNewBall();
 
 
               //add button: restart
@@ -22203,21 +22590,42 @@
 
           arr_zipped.forEach(([rep_free__operator, gmItem_operator], i) => {
 
+
             //touchSlot
             const rep_free__touchSlot = rep_free__operator.parts["touchSlot"];
 
             const mathNodeTransformationFunc = gmItem_operator.content;
             const icObjTransformationFunc = (icObj) => {
+              logger.log("icObjTransformationFunc", icObj);
               var outIcObj;
 
-              outIcObj = icObj.clone();
 
-              // logger.log("icObj.mathNode", icObj.mathNode);
-              outIcObj.mathNode = mathNodeTransformationFunc(icObj.mathNode);
+
+              outIcObj = icObj.clone();
+              logger.log("outIcObj", outIcObj);
+
+              if(outIcObj.mathNode) {
+                delete outIcObj.mathNode;     //SHU666: true sadness
+              }
+
+
+
+              if(icObj.cType == "gm_box") {
+                logger.log("gm_box");
+
+                const facade = icObj.parts.facade;
+                outIcObj.parts.facade.mathNode = mathNodeTransformationFunc(facade.mathNode);
+              }
+
+              // if(icObj.mathNode != null) {
+              //   // logger.log("icObj.mathNode", icObj.mathNode);
+              //   outIcObj.mathNode = mathNodeTransformationFunc(icObj.mathNode);
+              // }
 
               return outIcObj;
             };
             rep_free__touchSlot.touchSlotConfig.transformationFunc = icObjTransformationFunc;
+
 
             //facade
             const rep_free__facade = rep_free__operator.parts["facade"];
@@ -22227,6 +22635,8 @@
 
           });
 
+
+          // step.infiniteCanvas.redrawCanvas(RedrawOccasion.forceRedraw);   //SHU666:pour éviter les bugs de non rafraîchissement des teXFObj //ce n'est pas la panacée
         }
 
         possess(golfCourse) {
@@ -22463,6 +22873,15 @@
       class Atelier__X_X {
 
         constructor(infiniteCanvas) {
+          this.infiniteCanvas = infiniteCanvas;
+
+          // this.debug1();
+          this.debug2();
+        }
+
+        debug1() {
+
+          const infiniteCanvas = this.infiniteCanvas;
 
           //create targetTouchSlot
           const trueRect_2 = {
@@ -22473,8 +22892,6 @@
           };
           const icTargetTouchSlot = infiniteCanvas.createIcGMTargetTouchSlot(trueRect_2, 12);
           infiniteCanvas.addIcObject(icTargetTouchSlot);
-
-
 
 
           //create var
@@ -22488,13 +22905,32 @@
           const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
           icMathNode.isTouchable = true;
           infiniteCanvas.addIcObject(icMathNode);
-
-
-
-
-
         }
 
+        debug2() {
+
+          const infiniteCanvas = this.infiniteCanvas;
+
+          //create icGreenMouseBox
+          const trueRect_2 = {
+            x: 1000,
+            y: 500,
+            width: 100,
+            height: 100,
+          };
+          const icGreenMouseBox = infiniteCanvas.createIcGreenMouseBox(trueRect_2, new math.ConstantNode(12));
+          // icGreenMouseBox.shouldAlsoRemoveChildren = true;
+          infiniteCanvas.addIcObject(icGreenMouseBox);
+
+          setTimeout(() => {
+            const represented = infiniteCanvas.getRepresented(icGreenMouseBox.id);
+            logger.log("represented", represented);
+            represented.r_free().im_dying_now                   = true;
+            represented.r_free().parts.facade.im_dying_now      = true;
+            represented.r_free().parts.contactArea.im_dying_now = true;
+          }, 1000);
+
+        }
 
 
       }
