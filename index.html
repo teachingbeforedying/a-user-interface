@@ -68,7 +68,22 @@
 
             return elt;
           }
+
+          static early_break_reduce(arr, reduce_callback, initial, checkStopFunc) {
+            const x = [...arr]                         // create copy of "array" for iterating
+                      .reduce((acc, x, i, arr) => {
+                         if (checkStopFunc(acc, x, i, arr)) {
+                           arr.splice(1);     // eject early by mutating iterated copy
+                           return acc;
+                         }
+                         return reduce_callback(acc, x, i, arr);
+                      }, initial);
+            return x;
+          }
+
+
         }
+
 
         class Color {
           static randomColor() {
@@ -79,25 +94,47 @@
           }
         }
 
+
         class Logger {
 
           constructor() {
             this.initialize();
+
+            // this.hush(this);
           }
 
           initialize() {
-            this.log = console.log;
-            console.log = function() {};
-
-            this.trace = console.trace;
-            console.trace = function() {};
+            this.invest(console);
+            this.hush(console);
           }
+
+          invest(obj) {
+            this.log   = obj.log;
+            this.trace = obj.trace;
+          }
+
+          hush(obj) {
+            obj.log   = function() {};
+            obj.trace = function() {};
+          }
+
 
         }
 
         const logger = new Logger();
 
     </script>
+    <!-- <script>
+      //debug
+      const arr_test = [1,2,3,4,5,6];
+      const s = Utils.early_break_reduce(arr_test, (acc,x,i,arr) => {
+        logger.log("x", x);
+        return acc + x;
+      }, 0, (acc, x, i, arr) => {
+        return i > 2;
+      });
+      logger.log("s", s);
+    </script> -->
 
 
 
@@ -384,35 +421,56 @@
       <!-- custom maths stuff -->
     <script>
 
-      const dict_ops = {
+      const dict_opConfig = {
         1: {
           minus: {
-            op: "-",
+            arity: 1,
+            symbol: "-",
             name: "unaryMinus",
+            precedence: 6,
           },
           inverse: {
-            op: "/",
+            arity: 1,
+            symbol: "/",
             name: "inverse",
+            precedence: "?",
           },
         },
         2: {
           plus: {
-            op: "+",
+            arity: 2,
+            symbol: "+",
             // name: "plus",
             name: "add",
+            precedence: 9,
+
+            inverse: "minus",
           },
           minus: {
-            op: "-",
+            arity: 2,
+            symbol: "-",
             // name: "minus",
             name: "subtract",
+            precedence: 9,
+
+            inverse: "plus",
           },
           multiply: {
-            op: "x",
+            arity: 2,
+            symbol: "×",
+
             name: "multiply",
+            precedence: 8,
+
+            inverse: "divide",
           },
           divide: {
-            op: "/",
+            arity: 2,
+            symbol: "/",
             name: "divide",
+            precedence: 8,
+
+            inverse: "multiply",
           },
           // pow: {
           //   op: "^",
@@ -421,13 +479,21 @@
         },
         n : {
           plus: {
-            op: "+",
+            arity: "n",
+            symbol: "+",
             // name: "plus",
             name: "add",
+            precedence: 9,
+
+            inverse: "minus",
           },
           multiply: {
-            op: "x",
+            arity: "n",
+            symbol: "×",
             name: "multiply",
+            precedence: 8,
+
+            inverse: "divide",
           },
         },
       };
@@ -469,12 +535,63 @@
       };
 
 
+      class Operator {
+
+        constructor(arity, easyName, symbol, name, inverseName = null) {
+          this.arity    = arity;
+          this.easyName = easyName;
+
+          this.op       = symbol;
+          this.symbol   = symbol;
+
+          this.name     = name;
+
+          this.inverseName  = inverseName;
+        }
+
+        static fromConfig(opConfig) {
+          const op = new Operator(opConfig.arity, "lolilol", opConfig.symbol, opConfig.name, opConfig.inverse);
+          return op;
+        }
+
+        static randomInstance(arity) {
+
+          const arr_opConfig = Object.values(dict_opConfig[arity]);
+          const opConfig__random = Utils.randomElementInArray(arr_opConfig);
+
+          const op__random = Operator.fromConfig(opConfig__random);
+          return op__random;
+        }
+
+
+        inverse() {   //what did you expect ?
+          const arity       = this.arity;
+          const inverseName = this.inverseName;
+
+          const opConfig__inverse = dict_opConfig[arity][inverseName];
+
+          const op__inverse = Operator.fromConfig(opConfig__inverse);
+          return op__inverse;
+        }
+
+      }
+
+      class Operation {
+
+        constructor(operator, arr_rest) {
+
+        }
+
+
+
+      }
+
+
 
 
 
       function random_op(arity) {
-        const arr_ops = Object.values(dict_ops[arity]);
-        const op = Utils.randomElementInArray(arr_ops);
+        const op = Operator.randomInstance(arity);
         return op;
       }
       // console.log("random_op", random_op(2));
@@ -589,7 +706,7 @@
             // const node_b        = new math.ConstantNode(mathValue);
 
             var arr_child = [node_in, node_b];
-            logger.log("arr_child, before", arr_child);
+            // logger.log("arr_child, before", arr_child);
             if(isShuffled) {
               switch(mathOperatorFuncName) {
                 case "add":
@@ -600,7 +717,7 @@
                         (res.push(s.splice(0|Math.random()*s.length,1)[0]), res),[]);
 
                     arr_child = shuffle(arr_child);
-                    logger.log("arr_child, after", arr_child);
+                    // logger.log("arr_child, after", arr_child);
                   }
                   break;
                 default:
@@ -614,7 +731,8 @@
             const node_unsimplified = node_operator;
 
             if(node_in.autoSimplify) {
-              const node_simplified = math.simplify(node_unsimplified);
+              // const node_simplified = math.simplify(node_unsimplified);
+              const node_simplified = standardOperation__simplify_top_layer(node_unsimplified);
               outNode = node_simplified;
             } else {
               outNode = node_unsimplified;
@@ -657,7 +775,7 @@
         const op    = random_op(arity);
 
         var node_b = random_terminal_mathNode_withType_inArr(arr_type__node_b);
-        logger.log("random_operatorNodeFactoryFuncWrapper_binary, node_b", node_b);
+        // logger.log("random_operatorNodeFactoryFuncWrapper_binary, node_b", node_b);
         if(node_b.type == "ConstantNode") {
 
           function randomValue() {
@@ -665,7 +783,7 @@
           }
 
           var value = randomValue();
-          logger.log("value:", value);
+          // logger.log("value:", value);
           if(op.name == "divide") {
             while(value == 0) {
               value = randomValue();
@@ -683,16 +801,29 @@
 
         const func = createMathNodeTransformationFunc_binary(op.op, op.name, node_b, isShuffled);
 
-        const simpleName = op.op + " " + node_b.toString();
+        const op__inverse   = op.inverse();
+        const func__inverse = createMathNodeTransformationFunc_binary(op__inverse.op, op__inverse.name, node_b, isShuffled);
 
-        const funcWrapper = {
-          semantics: {
-            operator: op,
-            node_b:   node_b.cloneDeep(),
-            name:     simpleName,
-          },
-          func: func,
-        };
+        function createFuncWrapper(op, node_b, func) {
+
+          const simpleName = op.op + " " + node_b.toString();
+
+          const funcWrapper = {
+            semantics: {
+              operator: op,
+              node_b:   node_b.cloneDeep(),
+              name:     simpleName,
+            },
+            func: func,
+            inverse: null,  //set later
+          };
+
+          return funcWrapper;
+        }
+
+        const funcWrapper          = createFuncWrapper(op, node_b, func);
+        const funcWrapper__inverse = createFuncWrapper(op__inverse, node_b, func__inverse);
+        funcWrapper.inverse = funcWrapper__inverse;
 
         outFuncWrapper = funcWrapper;
 
@@ -1183,6 +1314,232 @@
       //   console.log("getArr_all_leaves__node(debugNode)", getArr_all_leaves__node(debugNode));
       // }
 
+
+
+      class Simplifier {
+
+        constructor() {
+
+        }
+
+        static simplify_top_layer() {
+
+        }
+
+      }
+
+
+
+
+      function standardOperation__simplify_top_layer(node_in) {
+        var outNode;
+
+        if(node_in.type == "OperatorNode") {
+
+          const depth = getDepth(node_in);
+
+          if(depth > 2) {
+            console.log("___st A");
+
+            //'outermost first' simplify
+
+            function isTerminalType(mathNode) {
+              var outBool;
+
+              const type = mathNode.type;
+
+              switch(type) {
+                case "ConstantNode":
+                case "SymbolNode":
+                  outBool = true;
+                  break;
+                case "ParenthesisNode":
+                  {
+                    //check content
+                    const mathNode__content = mathNode.content;
+                    outBool = isTerminalType(mathNode__content);
+                  }
+                  break;
+                default:
+                  outBool = false;
+                  break;
+              }
+
+              return outBool;
+            }
+
+            function getTerminalMathNode(mathNode) {
+              var outMathNode;
+
+              const type = mathNode.type;
+
+              switch(type) {
+                case "ConstantNode":
+                case "SymbolNode":
+                  outMathNode = mathNode;
+                  break;
+                case "ParenthesisNode":
+                  {
+                    //check content
+                    const mathNode__content = mathNode.content;
+                    outMathNode = getTerminalMathNode(mathNode__content);
+                  }
+                  break;
+                default:
+                  // outMathNode = null;
+                  throw new Error("no terminal node to fetch");
+                  break;
+              }
+
+              return outMathNode;
+            }
+
+            const operator__layerN          = node_in;
+            const arr_child__layerN         = operator__layerN.args;
+            var terminal__layerN          = arr_child__layerN.filter(child => isTerminalType(child)).find(e => true);
+            terminal__layerN = getTerminalMathNode(terminal__layerN);
+
+            const operator__layerN_minus_1      = arr_child__layerN.filter(child => (child.type == "OperatorNode") ).find(e => true);
+            const arr_child__layerN_minus_1     = operator__layerN_minus_1.args;
+            // const terminal__layerN_minus_1      = arr_child__layerN_minus_1.filter(child => isTerminalType(child)).find(e => true);
+            var arr_terminal__layerN_minus_1  = arr_child__layerN_minus_1.filter(child => isTerminalType(child));
+            arr_terminal__layerN_minus_1 = arr_terminal__layerN_minus_1.map(mathNode => getTerminalMathNode(mathNode));
+
+            function isSameTerminal(termNode1, termNode2) {
+              var outBool;
+
+              function isSameTerminalType(termNode1, termNode2) {
+                return (termNode1.type == termNode2.type);
+              }
+
+              const isSameTerminalType_ = isSameTerminalType(termNode1, termNode2);
+              console.log("isSameTerminalType_", isSameTerminalType_);
+
+              if(!isSameTerminalType_) {
+                return false;                 //j'aime pas trop ça mais bon...
+              }
+
+              function isSameTerminalContent(termNode1, termNode2) {
+                console.log("isSameTerminal", termNode1, termNode2);
+                var outBool;
+
+                switch(termNode1.type) {
+                  case "SymbolNode":
+                    outBool = (termNode1.name == termNode2.name);
+                  break;
+                  case "ConstantNode":
+                    outBool = (termNode1.value == termNode2.value);
+                  break;
+                  default:
+                    throw new Error("unsupported type", termNode1.type);
+                    break;
+                }
+
+                return outBool;
+              }
+
+              outBool = isSameTerminalContent(termNode1, termNode2);
+
+              return outBool;
+            }
+
+            const sameTerminal = arr_terminal__layerN_minus_1.find(term__layerN_minus_1 => isSameTerminal(terminal__layerN, term__layerN_minus_1));
+            if(!sameTerminal) {
+              return node_in;
+            }
+
+            function isInverseOperators(opNode1, opNode2) {
+              console.log("isInverseOperators", opNode1, opNode2);
+              var outBool;
+
+              const set_opFunc = new Set([opNode1.fn, opNode2.fn]);
+              console.log("set_opFunc", set_opFunc);
+
+              /*Set utils*/
+              function eqSet(as, bs) {
+                  return as.size === bs.size && all(isIn(bs), as);
+              }
+
+              function all(pred, as) {
+                  for (var a of as) if (!pred(a)) return false;
+                  return true;
+              }
+
+              function isIn(as) {
+                  return function (a) {
+                      return as.has(a);
+                  };
+              }
+              /**/
+
+
+
+              const arr_set_inverse = [
+                new Set(["multiply", "divide"]),
+                new Set(["add", "subtract"]),
+              ];
+
+              outBool = arr_set_inverse.reduce((acc, x) => {
+                if(eqSet(set_opFunc, x)) {
+                  acc = true;
+                }
+                return acc;
+              }, false);
+
+              return outBool;
+            }
+
+            const isInverseOperators_ = isInverseOperators(operator__layerN_minus_1, operator__layerN);
+            console.log("isInverseOperators_", isInverseOperators_);
+            if(!isInverseOperators_) {
+              return node_in;
+            }
+
+            const node__layerN_minus_2      = arr_child__layerN_minus_1.filter(child => child != sameTerminal).find(e => true);
+
+            //remove parentheses if any
+            // if(node__layerN_minus_2.type == "ParenthesisNode") {
+            //   const contentNode = node__layerN_minus_2.content;
+            //   outNode = contentNode;
+            // } else {
+            //   outNode = node__layerN_minus_2;
+            // }
+
+            outNode = node__layerN_minus_2;
+
+          } else {
+            console.log("___st B");
+
+            //simple simplify
+
+            const node_unsimplified = node_in;
+
+            const node_simplified = math.simplify(node_unsimplified);
+            node_simplified.isSimplified = true;
+
+            outNode = node_simplified;
+
+          }
+
+        } else {
+          console.log("___st C");
+          logger.log("node_in", node_in);
+
+          //simple simplify
+
+          const node_unsimplified = node_in;
+
+          const node_simplified = math.simplify(node_unsimplified);   //SHU: boom
+          node_simplified.isSimplified = true;
+
+          outNode = node_simplified;
+
+        }
+
+        outNode.autoSimplify = node_in.autoSimplify;
+
+        return outNode;
+      }
 
 
 
@@ -2842,8 +3199,8 @@
 
           const label__rep_free = labelValue__rep_free.parts["label"];
           const value__rep_free = labelValue__rep_free.parts["value"];
-          logger.log("label__rep_free", label__rep_free);
-          logger.log("value__rep_free", value__rep_free);
+          // logger.log("label__rep_free", label__rep_free);
+          // logger.log("value__rep_free", value__rep_free);
 
 
           labelValue__rep_free.compositeConfig[value__rep_free.id].isMobile = true;
@@ -3162,12 +3519,12 @@
           infiniteCanvas.greenMouseify(facade__rep_free);
             //rewrite greenMouse.die
           facade__rep_free.die = () => {
-            logger.log("greenMouse, die (override)");
+            // logger.log("greenMouse, die (override)");
             greenMouseBox__rep_free.die();
           };
 
           facade__rep_free.onHold(() => {
-            logger.log("greenMouseBox__rep_free", "curse_greenMouse_start");
+            // logger.log("greenMouseBox__rep_free", "curse_greenMouse_start");
             facade__rep_free.curse_greenMouse_start();
           });
 
@@ -3230,6 +3587,8 @@
 
         return greenMouseBox;
       }
+
+
 
 
 
@@ -3345,7 +3704,7 @@
         console.log("greenMouseify", rep);
 
         rep.die = () => {
-          logger.log("greenMouse, die");
+          // logger.log("greenMouse, die");
           rep.im_dying_now = true;
         };
 
@@ -3408,7 +3767,7 @@
 
           //born again
           const resurrected = stem.clone();
-          logger.log("resurrected", resurrected);
+          // logger.log("resurrected", resurrected);
           resurrected.mathNode = stem.mathNode;
 
           const id_resurrected = this.generateIcObjectId();
@@ -3456,6 +3815,67 @@
         // });
 
       }
+
+      // createCurseTrigger_countdown() {
+      //
+      //   const curseTrigger = new CurseTrigger_countdown();
+      //
+      //   return curseTrigger;
+      // }
+
+      createCurse_metamorphosis(curseTrigger) {
+        logger.log("createCurse_metamorphosis", curseTrigger);
+
+
+        // const facade_represented = infiniteCanvas.getRepresented(facade.id);
+        // const facade_rep_free    = facade_represented.r_free();
+        //
+        // const mathNode = new math.ConstantNode(stepIndex);
+        // facade_rep_free.mathNode = mathNode;
+
+        const curseFunc = (rep_free) => {
+          // logger.log("curseFunc, rep_free:", rep_free);
+          const mathNode = random_constantNode();
+          rep_free.mathNode = mathNode;
+        };
+
+        const curse_metamorphosis = this.createCurse(curseTrigger);
+        // logger.log("curse_metamorphosis.curseTrigger", curse_metamorphosis.curseTrigger);
+
+        curse_metamorphosis.curseFunc           = curseFunc;
+        curse_metamorphosis.rx_countDownCounter = curseTrigger.engine.rx_countDownCounter;
+
+        return curse_metamorphosis;
+      }
+
+      createCurse(curseTrigger) {
+        // logger.log("createCurse", curseTrigger);
+
+        const curse = new Curse(curseTrigger);
+
+        return curse;
+      }
+
+      accurse__metamorphosis(rep_free) {
+        const infiniteCanvas = this;
+
+        const curseTrigger_countdown = new CurseTrigger_countdown();
+        const curse_metamorphosis = this.createCurse_metamorphosis(curseTrigger_countdown);
+
+        curse_metamorphosis.reset = function() {
+          const curseTrigger_countdown = new CurseTrigger_countdown();
+          curseTrigger_countdown.curse = curse_metamorphosis;
+
+          curse_metamorphosis.curseTrigger        = curseTrigger_countdown;
+          curse_metamorphosis.rx_countDownCounter = curseTrigger_countdown.engine.rx_countDownCounter;
+
+
+          // infiniteCanvas.accurse__metamorphosis(rep_free);   //SHU: does not work
+        };
+
+        rep_free.curse_metamorphosis = curse_metamorphosis;
+      }
+
 
 
 
@@ -3652,183 +4072,197 @@
               const transformationFunc = (node_a) => {
                 var outNode;
 
-                function standardOperation(node_in) {
-                  var outNode;
+                // function standardOperation(node_in) {
+                //   var outNode;
+                //
+                //   if(node_in.type == "OperatorNode") {
+                //
+                //     const depth = getDepth(node_in);
+                //
+                //     if(depth > 2) {
+                //       console.log("___st A");
+                //
+                //       //'outermost first' simplify
+                //
+                //       function isTerminalType(mathNode) {
+                //         const type = mathNode.type;
+                //         return ( (type == "ConstantNode") || (type == "SymbolNode") );
+                //       }
+                //
+                //       const operator__layerN          = node_in;
+                //       const arr_child__layerN         = operator__layerN.args;
+                //       const terminal__layerN          = arr_child__layerN.filter(child => isTerminalType(child)).find(e => true);
+                //
+                //       const operator__layerN_minus_1      = arr_child__layerN.filter(child => (child.type == "OperatorNode") ).find(e => true);
+                //       const arr_child__layerN_minus_1     = operator__layerN_minus_1.args;
+                //       // const terminal__layerN_minus_1      = arr_child__layerN_minus_1.filter(child => isTerminalType(child)).find(e => true);
+                //       const arr_terminal__layerN_minus_1  = arr_child__layerN_minus_1.filter(child => isTerminalType(child));
+                //
+                //       function isSameTerminal(termNode1, termNode2) {
+                //         var outBool;
+                //
+                //         function isSameTerminalType(termNode1, termNode2) {
+                //           return (termNode1.type == termNode2.type);
+                //         }
+                //
+                //         const isSameTerminalType_ = isSameTerminalType(termNode1, termNode2);
+                //         console.log("isSameTerminalType_", isSameTerminalType_);
+                //
+                //         if(!isSameTerminalType_) {
+                //           return false;                 //j'aime pas trop ça mais bon...
+                //         }
+                //
+                //         function isSameTerminalContent(termNode1, termNode2) {
+                //           console.log("isSameTerminal", termNode1, termNode2);
+                //           var outBool;
+                //
+                //           switch(termNode1.type) {
+                //             case "SymbolNode":
+                //               outBool = (termNode1.name == termNode2.name);
+                //             break;
+                //             case "ConstantNode":
+                //               outBool = (termNode1.value == termNode2.value);
+                //             break;
+                //             default:
+                //               throw new Error("unsupported type", termNode1.type);
+                //               break;
+                //           }
+                //
+                //           return outBool;
+                //         }
+                //
+                //         outBool = isSameTerminalContent(termNode1, termNode2);
+                //
+                //         return outBool;
+                //       }
+                //
+                //       const sameTerminal = arr_terminal__layerN_minus_1.find(term__layerN_minus_1 => isSameTerminal(terminal__layerN, term__layerN_minus_1));
+                //       if(!sameTerminal) {
+                //         return node_in;
+                //       }
+                //
+                //       function isInverseOperators(opNode1, opNode2) {
+                //         console.log("isInverseOperators", opNode1, opNode2);
+                //         var outBool;
+                //
+                //         const set_opFunc = new Set([opNode1.fn, opNode2.fn]);
+                //         console.log("set_opFunc", set_opFunc);
+                //
+                //         /*Set utils*/
+                //         function eqSet(as, bs) {
+                //             return as.size === bs.size && all(isIn(bs), as);
+                //         }
+                //
+                //         function all(pred, as) {
+                //             for (var a of as) if (!pred(a)) return false;
+                //             return true;
+                //         }
+                //
+                //         function isIn(as) {
+                //             return function (a) {
+                //                 return as.has(a);
+                //             };
+                //         }
+                //         /**/
+                //
+                //
+                //
+                //         const arr_set_inverse = [
+                //           new Set(["multiply", "divide"]),
+                //           new Set(["add", "subtract"]),
+                //         ];
+                //
+                //         outBool = arr_set_inverse.reduce((acc, x) => {
+                //           if(eqSet(set_opFunc, x)) {
+                //             acc = true;
+                //           }
+                //           return acc;
+                //         }, false);
+                //
+                //         return outBool;
+                //       }
+                //
+                //       const isInverseOperators_ = isInverseOperators(operator__layerN_minus_1, operator__layerN);
+                //       console.log("isInverseOperators_", isInverseOperators_);
+                //       if(!isInverseOperators_) {
+                //         return node_in;
+                //       }
+                //
+                //       const node__layerN_minus_2      = arr_child__layerN_minus_1.filter(child => child != sameTerminal).find(e => true);
+                //
+                //       //remove parentheses if any
+                //       // if(node__layerN_minus_2.type == "ParenthesisNode") {
+                //       //   const contentNode = node__layerN_minus_2.content;
+                //       //   outNode = contentNode;
+                //       // } else {
+                //       //   outNode = node__layerN_minus_2;
+                //       // }
+                //
+                //       outNode = node__layerN_minus_2;
+                //
+                //     } else {
+                //       console.log("___st B");
+                //
+                //       //simple simplify
+                //
+                //       const node_unsimplified = node_in;
+                //
+                //       const node_simplified = math.simplify(node_unsimplified);
+                //       node_simplified.isSimplified = true;
+                //
+                //       outNode = node_simplified;
+                //
+                //     }
+                //
+                //   } else {
+                //     console.log("___st C");
+                //     console.log("node_in", node_in);
+                //
+                //     //simple simplify
+                //
+                //     const node_unsimplified = node_in;
+                //
+                //     const node_simplified = math.simplify(node_unsimplified);   //SHU: boom
+                //     node_simplified.isSimplified = true;
+                //
+                //     outNode = node_simplified;
+                //
+                //   }
+                //
+                //   outNode.autoSimplify = node_in.autoSimplify;
+                //
+                //   return outNode;
+                // }
 
-                  if(node_in.type == "OperatorNode") {
-
-                    const depth = getDepth(node_in);
-
-                    if(depth > 2) {
-                      console.log("___st A");
-
-                      //'outermost first' simplify
-
-                      function isTerminalType(mathNode) {
-                        const type = mathNode.type;
-                        return ( (type == "ConstantNode") || (type == "SymbolNode") );
-                      }
-
-                      const operator__layerN          = node_in;
-                      const arr_child__layerN         = operator__layerN.args;
-                      const terminal__layerN          = arr_child__layerN.filter(child => isTerminalType(child)).find(e => true);
-
-                      const operator__layerN_minus_1      = arr_child__layerN.filter(child => (child.type == "OperatorNode") ).find(e => true);
-                      const arr_child__layerN_minus_1     = operator__layerN_minus_1.args;
-                      // const terminal__layerN_minus_1      = arr_child__layerN_minus_1.filter(child => isTerminalType(child)).find(e => true);
-                      const arr_terminal__layerN_minus_1  = arr_child__layerN_minus_1.filter(child => isTerminalType(child));
-
-                      function isSameTerminal(termNode1, termNode2) {
-                        var outBool;
-
-                        function isSameTerminalType(termNode1, termNode2) {
-                          return (termNode1.type == termNode2.type);
-                        }
-
-                        const isSameTerminalType_ = isSameTerminalType(termNode1, termNode2);
-                        console.log("isSameTerminalType_", isSameTerminalType_);
-
-                        if(!isSameTerminalType_) {
-                          return false;                 //j'aime pas trop ça mais bon...
-                        }
-
-                        function isSameTerminalContent(termNode1, termNode2) {
-                          console.log("isSameTerminal", termNode1, termNode2);
-                          var outBool;
-
-                          switch(termNode1.type) {
-                            case "SymbolNode":
-                              outBool = (termNode1.name == termNode2.name);
-                            break;
-                            case "ConstantNode":
-                              outBool = (termNode1.value == termNode2.value);
-                            break;
-                            default:
-                              throw new Error("unsupported type", termNode1.type);
-                              break;
-                          }
-
-                          return outBool;
-                        }
-
-                        outBool = isSameTerminalContent(termNode1, termNode2);
-
-                        return outBool;
-                      }
-
-                      const sameTerminal = arr_terminal__layerN_minus_1.find(term__layerN_minus_1 => isSameTerminal(terminal__layerN, term__layerN_minus_1));
-                      if(!sameTerminal) {
-                        return node_in;
-                      }
-
-                      function isInverseOperators(opNode1, opNode2) {
-                        console.log("isInverseOperators", opNode1, opNode2);
-                        var outBool;
-
-                        const set_opFunc = new Set([opNode1.fn, opNode2.fn]);
-                        console.log("set_opFunc", set_opFunc);
-
-                        /*Set utils*/
-                        function eqSet(as, bs) {
-                            return as.size === bs.size && all(isIn(bs), as);
-                        }
-
-                        function all(pred, as) {
-                            for (var a of as) if (!pred(a)) return false;
-                            return true;
-                        }
-
-                        function isIn(as) {
-                            return function (a) {
-                                return as.has(a);
-                            };
-                        }
-                        /**/
-
-
-
-                        const arr_set_inverse = [
-                          new Set(["multiply", "divide"]),
-                          new Set(["add", "subtract"]),
-                        ];
-
-                        outBool = arr_set_inverse.reduce((acc, x) => {
-                          if(eqSet(set_opFunc, x)) {
-                            acc = true;
-                          }
-                          return acc;
-                        }, false);
-
-                        return outBool;
-                      }
-
-                      const isInverseOperators_ = isInverseOperators(operator__layerN_minus_1, operator__layerN);
-                      console.log("isInverseOperators_", isInverseOperators_);
-                      if(!isInverseOperators_) {
-                        return node_in;
-                      }
-
-                      const node__layerN_minus_2      = arr_child__layerN_minus_1.filter(child => child != sameTerminal).find(e => true);
-
-                      //remove parentheses if any
-                      // if(node__layerN_minus_2.type == "ParenthesisNode") {
-                      //   const contentNode = node__layerN_minus_2.content;
-                      //   outNode = contentNode;
-                      // } else {
-                      //   outNode = node__layerN_minus_2;
-                      // }
-
-                      outNode = node__layerN_minus_2;
-
-                    } else {
-                      console.log("___st B");
-
-                      //simple simplify
-
-                      const node_unsimplified = node_in;
-
-                      const node_simplified = math.simplify(node_unsimplified);
-                      node_simplified.isSimplified = true;
-
-                      outNode = node_simplified;
-
-                    }
-
-                  } else {
-                    console.log("___st C");
-                    console.log("node_in", node_in);
-
-                    //simple simplify
-
-                    const node_unsimplified = node_in;
-
-                    const node_simplified = math.simplify(node_unsimplified);   //SHU: boom
-                    node_simplified.isSimplified = true;
-
-                    outNode = node_simplified;
-
-                  }
-
-                  outNode.autoSimplify = node_in.autoSimplify;
-
-                  return outNode;
-                }
+                const operation = standardOperation__simplify_top_layer;
 
                 if(node_a.isEquation) {
                   console.log("node_a", node_a);
-                  const node_left     = standardOperation(node_a.params[0]);
-                  const node_right    = standardOperation(node_a.params[1]);
+                  const node_left     = operation(node_a.params[0]);
+                  const node_right    = operation(node_a.params[1]);
                   const node_equation = new math.RelationalNode(["equal"], [node_left, node_right]);
                   node_equation.isEquation = true;
 
                   outNode = node_equation;
                 } else {
-                  outNode = standardOperation(node_a);
+                  outNode = operation(node_a);
                 }
 
                 return outNode;
               };
-              operatorConfig.transformationFunc = transformationFunc;
+
+              const icObjTransformationFunc = (icObj) => {
+                var outIcObj;
+
+                outIcObj = icObj.clone();
+
+                // logger.log("icObj.mathNode", icObj.mathNode);
+                outIcObj.mathNode = transformationFunc(icObj.mathNode);
+
+                return outIcObj;
+              };
+
+              operatorConfig.transformationFunc = icObjTransformationFunc;
             }
             break;
 
@@ -4055,7 +4489,7 @@
         // };
 
         const canTouchFunc_valueWise = (above, below, context) => {
-          logger.log("canTouchFunc_valueWise", above, below, context);
+          // logger.log("canTouchFunc_valueWise", above, below, context);
           var outBool;
 
           // const touchSlot = below;
@@ -4082,6 +4516,49 @@
             const isSymbolNode_in_either = isContainingSymbolNode(mathNode_1) || isContainingSymbolNode(mathNode_2);
             if(isSymbolNode_in_either) {
 
+              function evaluateMathNode(mathNode, dict_subst) {
+                return mathNode.evaluate(dict_subst);
+              }
+
+              function evaluation_grid(mathNode_1, mathNode_2) {
+                var outBool;
+
+                const arr_dict_subst = [
+                  {
+                    x: 0,
+                  },
+                  {
+                    x: 1,
+                  },
+                  {
+                    x: -1,
+                  },
+                ];
+
+                //early break reduce
+                outBool = Utils.early_break_reduce(arr_test, (acc,x,i,arr) => {
+                  // logger.log("early_break_reduce", x.x);
+
+                  const ev_1 = evaluateMathNode(mathNode_1, x);
+                  const ev_2 = evaluateMathNode(mathNode_2, x);
+
+                  const isEqual_ev = (ev_1 == ev_2);
+
+                  return acc && isEqual_ev;
+                }, true, (acc, x, i, arr) => {
+                  return (acc == false);
+                });
+
+                return outBool;
+              }
+
+              outBool = evaluation_grid(mathNode_1, mathNode_2);
+              if(outBool) {
+                return outBool;
+              }
+
+
+
               const expr__mathNode_1 = mathNode_1.toString();
               const expr__mathNode_2 = mathNode_2.toString();
 
@@ -4093,7 +4570,7 @@
             } else {
 
               const relationalNode = new math.RelationalNode(['equal'], [mathNode__above, mathNode__below]);
-              logger.log("relationalNode", relationalNode);
+              // logger.log("relationalNode", relationalNode);
 
               outBool = relationalNode.evaluate();
             }
@@ -4254,7 +4731,7 @@
         };
 
         const canTouchFunc_valueWise = (above, below, context) => {
-          logger.log("canTouchFunc_valueWise", above, below, context);
+          // logger.log("canTouchFunc_valueWise", above, below, context);
           var outBool;
 
           // const touchSlot = below;
@@ -4281,6 +4758,49 @@
             const isSymbolNode_in_either = isContainingSymbolNode(mathNode_1) || isContainingSymbolNode(mathNode_2);
             if(isSymbolNode_in_either) {
 
+              function evaluateMathNode(mathNode, dict_subst) {
+                return mathNode.evaluate(dict_subst);
+              }
+
+              function evaluation_grid(mathNode_1, mathNode_2) {
+                var outBool;
+
+                const arr_dict_subst = [
+                  {
+                    x: 0,
+                  },
+                  {
+                    x: 1,
+                  },
+                  {
+                    x: -1,
+                  },
+                ];
+
+                //early break reduce
+                outBool = Utils.early_break_reduce(arr_test, (acc,x,i,arr) => {
+                  // logger.log("early_break_reduce", x.x);
+
+                  const ev_1 = evaluateMathNode(mathNode_1, x);
+                  const ev_2 = evaluateMathNode(mathNode_2, x);
+
+                  const isEqual_ev = (ev_1 == ev_2);
+
+                  return acc && isEqual_ev;
+                }, true, (acc, x, i, arr) => {
+                  return (acc == false);
+                });
+
+                return outBool;
+              }
+
+              outBool = evaluation_grid(mathNode_1, mathNode_2);
+              if(outBool) {
+                return outBool;
+              }
+
+
+
               const expr__mathNode_1 = mathNode_1.toString();
               const expr__mathNode_2 = mathNode_2.toString();
 
@@ -4292,7 +4812,7 @@
             } else {
 
               const relationalNode = new math.RelationalNode(['equal'], [mathNode__above, mathNode__below]);
-              logger.log("relationalNode", relationalNode);
+              // logger.log("relationalNode", relationalNode);
 
               outBool = relationalNode.evaluate();
             }
@@ -4375,6 +4895,259 @@
         return icComposite;
       }
 
+
+      createIcGMBlob(trueRect, targetMathNode) {
+        console.log("createIcGMBlob", trueRect, targetMathNode);
+
+        const canTouchFunc_geometryWise = (above, below, context) => {
+          const contactArea = above.parts.contactArea;
+          return Touch.canTouch(contactArea, below);
+        };
+
+        const canTouchFunc_valueWise = (above, below, context) => {
+          // logger.log("canTouchFunc_valueWise", above, below, context);
+          var outBool;
+
+          // const touchSlot = below;
+          const facade    = context.facade;
+
+          const mathNode__above = above.parts.facade.mathNode;
+          console.log("mathNode__above", mathNode__above);
+          const mathNode__below = facade.mathNode;
+          console.log("mathNode__below", mathNode__below);
+
+          function isSameValue(mathNode_1, mathNode_2) {
+            var outBool;
+
+            function isContainingSymbolNode(mathNode) {
+              var outBool;
+
+              const arr_symbolNode = mathNode.filter(function (node) { return node.isSymbolNode; });
+
+              outBool = (arr_symbolNode.length > 0);
+
+              return outBool;
+            }
+
+            const isSymbolNode_in_either = isContainingSymbolNode(mathNode_1) || isContainingSymbolNode(mathNode_2);
+            if(isSymbolNode_in_either) {
+
+              function evaluateMathNode(mathNode, dict_subst) {
+                // logger.log("evaluateMathNode, mathNode", mathNode);
+                // logger.log("evaluateMathNode, dict_subst", dict_subst);
+                return mathNode.evaluate(dict_subst);
+              }
+
+              function evaluation_grid(mathNode_1, mathNode_2) {
+                var outBool;
+
+                const arr_dict_subst = [
+                  {
+                    x: 0,
+                  },
+                  {
+                    x: 1,
+                  },
+                  {
+                    x: -1,
+                  },
+                ];
+
+                //early break reduce
+                outBool = Utils.early_break_reduce(arr_dict_subst, (acc,x,i,arr) => {
+                  // logger.log("early_break_reduce", x.x);
+
+                  const ev_1 = evaluateMathNode(mathNode_1, x);
+                  const ev_2 = evaluateMathNode(mathNode_2, x);
+
+                  const isEqual_ev = (ev_1 == ev_2);
+
+                  return acc && isEqual_ev;
+                }, true, (acc, x, i, arr) => {
+                  return (acc == false);
+                });
+
+                return outBool;
+              }
+
+              outBool = evaluation_grid(mathNode_1, mathNode_2);
+              if(outBool) {
+                return outBool;
+              }
+
+
+              const expr__mathNode_1 = mathNode_1.toString();
+              const expr__mathNode_2 = mathNode_2.toString();
+
+              const expr__equality = expr__mathNode_1 + " == " + expr__mathNode_2;
+              const algebrite_result = Algebrite.run(expr__equality);
+
+              outBool = (algebrite_result == true);
+
+            } else {
+
+              const relationalNode = new math.RelationalNode(['equal'], [mathNode__above, mathNode__below]);
+              // logger.log("relationalNode", relationalNode);
+
+              outBool = relationalNode.evaluate();
+            }
+
+            return outBool;
+          }
+
+
+          const isSameValue_ = isSameValue(mathNode__above, mathNode__below);
+          console.log("isSameValue_", isSameValue_);
+
+
+          outBool = isSameValue_;
+
+          return outBool;
+        };
+
+
+        const canTouchFuncs = {
+          "geometry": canTouchFunc_geometryWise,
+          "value":    canTouchFunc_valueWise,
+        };
+
+        const canTouchFunc_allWise = (above, below, context) => {
+          return Object.entries(canTouchFuncs).reduce((acc, [canTouchFunc_xWiseName, canTouchFunc_xWise]) => {
+            const canTouch_xWise = canTouchFunc_xWise(above,below, context);
+            console.log("canTouch_xWise", canTouchFunc_xWiseName, canTouch_xWise);
+            return acc && canTouch_xWise;
+          }, true);
+        };
+
+        const canTouchFunc = canTouchFunc_allWise;
+
+        const transformationFunc = (icObj) => {
+          var outIcObj;
+
+          // logger.log("icGMBox original transformation func");
+
+          return outIcObj;
+        };
+
+        const touchSlotConfig = {
+          canTouchFunc:       canTouchFunc,
+          transformationFunc: transformationFunc,
+          context: {},
+        };
+
+        const touchSlot    = infiniteCanvas.createIcTouchSlot(trueRect, touchSlotConfig);
+        touchSlot.fill     = "";
+
+
+
+        const facade           = infiniteCanvas.createIcMathNode(trueRect.x, trueRect.y, targetMathNode);
+        facade.backgroundColor = "orange";
+        // facade.isTouchable     = false;
+
+        const curseFacade = infiniteCanvas.createIcText(trueRect.x, trueRect.y, "0");
+
+        const parts = {
+          "touchSlot": touchSlot,
+          "facade":    facade,
+
+          "curseFacade" : curseFacade,
+        };
+
+
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+
+        const icComposite = this.createIcComposite(trueRect, parts, compositeConfig);
+        icComposite.cType = "gm_blobTarget";
+
+        // icComposite.isTouchable = false;
+
+
+        //enrich touchSlotConfig.context
+        infiniteCanvas.onceOnAddRepresentedForIcObject(facade, (facade) => {
+          const facade__represented  = infiniteCanvas.getRepresented(facade.id);
+          // const facade__rep_free     = facade__represented.r_free();
+          const facade__rep_official = facade__represented.r_official();
+
+          touchSlotConfig.context.facade = facade__rep_official;
+        });
+
+
+
+        //curse: metamorphosis
+        infiniteCanvas.onceOnAddRepresentedForIcObject(icComposite, (icComposite) => {
+
+          const composite_represented = infiniteCanvas.getRepresented(icComposite.id);
+          const composite_rep_free    = composite_represented.r_free();
+
+          const facade_rep_free       = composite_rep_free.parts.facade;
+          const curseFacade_rep_free  = composite_rep_free.parts.curseFacade;
+
+
+          // const countDownTrigger = infiniteCanvas.createCurseTrigger_countdown();
+          infiniteCanvas.accurse__metamorphosis(facade_rep_free);
+
+          const curseFunc = () => {
+            // logger.log("curseFunc, rep_free:", facade_rep_free);
+            const mathNode = random_constantNode();
+            facade_rep_free.mathNode = mathNode;
+            facade_rep_free.curse_metamorphosis.reset();
+          };
+          facade_rep_free.curse_metamorphosis.curseFunc = curseFunc;
+
+
+
+          facade_rep_free.curse_metamorphosis.start();
+
+
+
+
+
+          const curseTrigger = facade_rep_free.curse_metamorphosis.curseTrigger;
+          // logger.log("curseTrigger", curseTrigger);
+
+          // Hooker.installHooks(curseTrigger, "impulse");
+          // curseTrigger.did["impulse"].on(() => {
+            // logger.log("did impulse");
+            // const countDownEngine = curseTrigger.engine;
+            // const counter         = countDownEngine.getCounter();
+            // curseFacade_rep_free.text = "" + counter;
+          // });
+
+
+          // facade_rep_free.curse_metamorphosis.start();
+
+          facade_rep_free.curse_metamorphosis.rx_countDownCounter.subscribe({
+            next: (value) => {
+              // logger.log("rx_countDownCounter, next", value);
+              // logger.log("curseFacade_rep_free", curseFacade_rep_free);
+
+              curseFacade_rep_free.text = "" + value;
+              // facade_rep_free.mathNode = new math.ConstantNode(value);
+            },
+          });
+
+
+        });
+
+
+        return icComposite;
+
+
+        // keyboard_Rx.rx_keyUp.subscribe({
+        //   next: (e) => {
+        //     logger.log("e",e);
+        //
+        //     switch(e.code) {
+        //       case "Numpad1":
+        //         facade_rep_free.curse_metamorphosis.curseTrigger.impulse();
+        //         break;
+        //     }
+        //
+        //   },
+        // });
+
+
+      }
 
 
 
@@ -4750,6 +5523,7 @@
 
 
 
+
             this.start = function() {
               const countDownEngine = this;
 
@@ -5040,7 +5814,7 @@
       }
 
       removeRepresented(represented, shouldAlsoRemoveChildren = false) {
-        logger.trace("removeRepresented", represented);
+        // logger.trace("removeRepresented", represented);
 
         // if(represented == null) {
         //   throw new Error("represented == null");
@@ -5094,7 +5868,7 @@
       }
 
       didRemoveRepresented(represented) {
-        logger.log("didRemoveRepresented", represented);
+        // logger.log("didRemoveRepresented", represented);
 
         this.setChanged(true);
 
@@ -8591,16 +9365,28 @@
 
             // receiver.didUpdateProp(prop,value);
 
+            function reportOuterUpdates() {
+              // console.log("didUpdateTimeout", "triggering");
+              receiver.didUpdateFromOuter(outerUpdates);
+              receiver.didUpdateFromOuterTimeout = null;
+              outerUpdates = {};
+            }
+
             //timeout to avoid calling didUpdate for every updated prop
             if(receiver.didUpdateFromOuterTimeout == null) {
-              const timeout_delayInMs = 17;
+
+              // const timeout_delayInMs = 17;
+              const timeout_delayInMs = 0;
+              // const timeout_delayInMs = 500;
+
               receiver.didUpdateFromOuterTimeout = setTimeout(() => {
-                // console.log("didUpdateTimeout", "triggering");
-                receiver.didUpdateFromOuter(outerUpdates);
-                receiver.didUpdateFromOuterTimeout = null;
-                outerUpdates = {};
+                reportOuterUpdates();
               }, timeout_delayInMs);
+
             }
+
+            // requestAnimationFrame(reportOuterUpdates);
+
           };
 
 
@@ -8873,7 +9659,7 @@
           };
 
           this.checkCanTouch = function(icObj_slot, icObj_piece) {
-            logger.log("checkCanTouch", icObj_piece);
+            // logger.log("checkCanTouch", icObj_piece);
             var outBool;
 
             // outBool = Touch.canTouch(icObj_piece, icObj_slot);
@@ -8950,8 +9736,19 @@
 
               const transformationFunc = icTouchSlot.touchSlotConfig.transformationFunc;
 
-              const mutationObj = transformationFunc(rep_free);
-              Object.assign(rep_free, mutationObj);
+              var icObj__touched = rep_free;
+
+              ////temporary
+              //// {
+              ////   if(icObj__touched.type == "composite" && icObj__touched.parts.contactArea != null) {
+              ////     icObj__touched = icObj__touched.parts.facade;
+              ////   }
+              //// }
+
+              logger.log("icObj__touched", icObj__touched);
+
+              const mutationObj = transformationFunc(icObj__touched);
+              Object.assign(icObj__touched, mutationObj);
 
             }
 
@@ -9023,7 +9820,7 @@
           // this.r_official_update_handler2 = (rep_official_incoming, outerUpdatesDict) => {
           this.r_official_update_handler2 = function(rep_official_incoming, outerUpdatesDict) {   //SHU: when using func.bind(myObj), be sure not to use arrow functions
 
-            logger.log("r_official_update_handler2", rep_official_incoming);
+            // logger.log("r_official_update_handler2", rep_official_incoming);
 
             // console.log("engine::r_official_update_handler2, this", this);
             // console.log("this.scopeObj", this.scopeObj);
@@ -9056,7 +9853,7 @@
 
           this.start = function() {
             console.log("engine::start, this", this);
-            logger.log("touchSlotEngine::start", "this.scopeObj", this.scopeObj);
+            // logger.log("touchSlotEngine::start", "this.scopeObj", this.scopeObj);
             const infiniteCanvas = this.scopeObj.infiniteCanvas;
             const icTouchSlot    = this.scopeObj.engineCarrier;
 
@@ -10994,7 +11791,7 @@
             }
 
             const innerUpdateListener = (icObj_fRep, propName, oldValue, newValue) => {
-              logger.log("innerUpdateListener", icObj_fRep.id_rep, propName, newValue);
+              // logger.log("innerUpdateListener", icObj_fRep.id_rep, propName, newValue);
 
               if(propName == "im_dying_now") {
                 console.log("im_dying_now");
@@ -11028,7 +11825,10 @@
               }
 
 
-
+              // else if(propName == "text") {
+              //   logger.log("innerUpdate, text", fObj.text);
+              //   standardRedraw(fObj);
+              // }
               else if(propName == "tex") {
                 fObj.refreshTex_p()
                 .then((fObj) => {
@@ -11063,7 +11863,7 @@
 
             // const outerUpdateListener = (icObj_fRep) => {
             const outerUpdateListener = (icObj_fRep, propName, oldValue, newValue) => {
-              logger.log("outerUpdateListener", icObj_fRep.id_rep, propName, newValue);
+              // logger.log("outerUpdateListener", icObj_fRep.id_rep, propName, newValue);
 
               if(propName == "im_dying_now") {
                 console.log("im_dying_now");
@@ -11076,6 +11876,10 @@
               // else if(propName == "isHeld") {
               //   console.log("outerUpdate", "isHeld");
               // }
+              else if(propName == "text") {
+                // logger.log("outerUpdate, text", fObj.text);
+                standardRedraw(fObj);
+              }
               else if(propName == "tex") {
                 fObj.refreshTex_p()
                 .then((fObj) => {
@@ -12160,7 +12964,7 @@
         // }
 
         createFabricMathNodeWithIcObj(icObj) {
-          logger.log("createFabricMathNodeWithIcObj", icObj);
+          // logger.log("createFabricMathNodeWithIcObj", icObj);
 
           const fabricCanvas = this.fabricCanvas;
 
@@ -12226,8 +13030,8 @@
 
             const width_px__svgEl  = width_ex__svgEl  * scaleFactor;
             const height_px__svgEl = height_ex__svgEl * scaleFactor;
-            logger.log('width_px__svgEl',   width_px__svgEl);
-            logger.log('height_px__svgEl',  height_px__svgEl);
+            // logger.log('width_px__svgEl',   width_px__svgEl);
+            // logger.log('height_px__svgEl',  height_px__svgEl);
 
             fObj.set({
               width:  width_px__svgEl,
@@ -17032,6 +17836,505 @@
 
 
 
+      class Curse {
+
+        constructor(curseTrigger) {
+          // logger.log("Curse::constructor", curseTrigger);
+
+          this.curseFunc    = null;
+
+          this.curseTrigger       = curseTrigger;
+          this.curseTrigger.curse = this;
+        }
+
+        enact() {
+          if(this.curseFunc != null) {
+            this.curseFunc();
+          }
+        }
+
+        start() {
+          this.curseTrigger.start();
+        }
+
+        stop() {
+          this.curseTrigger.stop();
+        }
+
+        reset() {
+
+        }
+
+      }
+
+
+      class CurseTrigger_countdown {
+
+        constructor() {
+          this.curse     = null;
+
+
+          const curseTrigger = this;
+
+          const countDownConfig = CountDownConfig.defaultConfig();
+          countDownConfig.stepFunc = (countDownObj) => {
+            // logger.log("stepFunc", countDownObj);
+
+            if(countDownObj.index == 10) {             //SHU123
+              curseTrigger.expulse();
+            }
+          };
+
+          // const engine    = new CountDownEngine_auto(countDownConfig);
+          const engine    = new CountDownEngine(countDownConfig);
+
+          this.engine = engine;
+        }
+
+        impulse() {
+          if(this.engine.impulse != null) {
+            this.engine.impulse();
+          }
+        }
+
+        expulse() {
+          this.curse.enact();
+        }
+
+        start() {
+          this.engine.start();
+        }
+
+        stop() {
+          this.engine.stop();
+        }
+
+      }
+
+
+
+
+
+      class CountDownConfig {
+
+        constructor(value_start, value_end, stepFunc, stepDuration) {
+          this.value_start   = value_start;
+          this.value_end     = value_end;
+
+          this.stepFunc      = stepFunc;
+          this.stepDuration  = stepDuration;
+        }
+
+        static defaultConfig() {
+          var outConfig;
+
+          const value_start = 10;
+          const value_end   = 0;
+
+          const stepFunc = (stepIndex) => {
+            console.log("stepFunc", stepIndex);
+          };
+
+          const stepDuration = 1000;
+
+          outConfig = new CountDownConfig(value_start, value_end, stepFunc, stepDuration);
+
+          return outConfig;
+        }
+
+      }
+
+
+
+
+      class CountDownSequencer {
+
+        constructor(value_from, value_to = 0) {
+
+          // const animatedObj = {
+          //   value: value_from,
+          //
+          //   index:    0,
+          //   progress: 0,
+          // };
+          // this.animatedObj = animatedObj;
+
+          const nb_values = (value_from - value_to) + 1;
+          const arr_keyframes = [...new Array(nb_values).keys()].reverse().map((value, index) => {
+            // logger.log("keyframe: value, index", value, index);
+
+            const progress = (value_from - value) / (value_from - value_to);
+            // logger.log("keyframe: progress", progress);
+
+
+            const keyframe = {
+              value:    value,
+
+              index:    index,
+              progress: progress,
+
+              duration: 1,
+            };
+
+            return keyframe;
+          });
+          this.arr_keyframes = arr_keyframes;
+
+          const animatedObj = Object.assign({}, arr_keyframes[0]);
+          this.animatedObj = animatedObj;
+
+          const arr_butfirst_keyframes = arr_keyframes.slice(1);
+          this.arr_butfirst_keyframes  = arr_butfirst_keyframes;
+
+          const stepDuration = 1;
+          this.stepDuration  = stepDuration;
+
+          const duration     = (nb_values - 1) * stepDuration;
+          // const duration     = nb_values * stepDuration;
+
+          this.duration      = duration;
+
+          const countDownSequencer = this;
+          const animation = anime({
+            // targets: countDownEngine,
+            targets: animatedObj,
+
+            /*animated props*/
+            // progress: 1,
+            /*--------------*/
+            // keyframes: arr_keyframes,
+            keyframes: arr_butfirst_keyframes,
+
+            direction: 'normal',
+            easing: 'linear',
+            duration: duration,
+
+            autoplay: false,
+
+            // update: (anim) => {                        //SHU: this would have been nice, but it triggers bizarrely
+            //   countDownSequencer.update(animatedObj);
+            // },
+          });
+
+          this.animation = animation;
+
+          // this.debugAnimation();
+        }
+
+        debugAnimation() {
+          const duration = this.duration;
+
+          this.arr_keyframes.forEach((keyframe, i) => {
+
+            const progress__keyframe  = keyframe.progress;
+            const timestamp__keyframe = progress__keyframe * duration;
+            // logger.log("timestamp__keyframe", timestamp__keyframe);
+
+            this.animation.seek(timestamp__keyframe);
+
+            // logger.log("this.animatedObj", this.animatedObj);
+          });
+
+          this.animation.seek(0);
+        }
+
+        // moveToFirstFrame() {
+        //   this.animation.seek(0);
+        //   this.update(this.animatedObj);
+        // }
+
+        moveToNextFrame() {
+          // logger.log("moveToNextFrame");
+
+          const index__current = this.animatedObj.index;
+          // logger.log("index__current", index__current);
+          const index__next    = index__current + 1;
+          // logger.log("index__next", index__next);
+
+          if(index__next < this.arr_keyframes.length) {
+
+            const keyframe__next  = this.arr_keyframes[index__next];
+            // logger.log("keyframe__next", keyframe__next);
+
+
+            const progress__next  = keyframe__next.progress;
+            const timestamp__next = progress__next * this.duration;
+            // logger.log("timestamp__next", timestamp__next);
+
+            this.animation.seek(timestamp__next);
+            // logger.log("this.animation.progress", this.animation.progress);
+            this.update();
+
+          } else {
+            // logger.log("can't move further");
+          }
+
+        }
+
+
+        update() {
+          if(this.countDownEngine != null) {
+            const animatedObj = this.animatedObj;
+            this.countDownEngine.update(animatedObj);
+          }
+        }
+
+        // pulse() {
+        //   this.moveToNextFrame();
+        // }
+
+      }
+
+
+      class CountDownObj {
+        constructor(value_from) {
+          this.value    = value_from;
+          this.progress = 0;
+        }
+      }
+
+      class CountDownEngine {     //SHU:    /!\ this is not an icEngined engine
+
+
+        constructor(countDownConfig_in = null) {
+
+          var countDownConfig = countDownConfig_in;
+          if(countDownConfig == null) {
+            countDownConfig = CountDownConfig.defaultConfig();
+          }
+
+          this.counter_start = countDownConfig.value_start;
+          this.counter_end   = countDownConfig.value_end;
+
+          this.stepFunc      = countDownConfig.stepFunc;
+          this.stepDuration  = countDownConfig.stepDuration;
+
+          const nb_steps     = math.abs(this.counter_end - this.counter_start);
+          this.nb_steps      = nb_steps;
+
+          this.arr_steps     = [...new Array(nb_steps).keys()];
+          this.step_current  = 0;
+
+          this.counter = this.counter_start;
+
+          this.progress = 0;
+
+          this.isPaused = true;
+
+          const duration = this.nb_steps * this.stepDuration;
+
+          const countDownSequencer = new CountDownSequencer(nb_steps);
+          countDownSequencer.countDownEngine = this;
+          this.countDownSequencer = countDownSequencer;
+
+
+
+          const rx_countDownCounter = new ReplaySubject(1);
+          const countDownObj = countDownSequencer.animatedObj;
+          rx_countDownCounter.next(countDownObj.value);
+          this.rx_countDownCounter = rx_countDownCounter;
+
+
+          this.start = function() {
+            const countDownEngine = this;
+
+            // countDownEngine.stepFunc(0);
+            // countDownEngine.stepFunc(countDownSequencer.animatedObj);
+            countDownEngine.update(countDownSequencer.animatedObj);
+
+            countDownEngine.play();
+          };
+          // }.bind(this);
+
+          this.stop = function() {
+            const countDownEngine = this;
+
+            countDownEngine.reset();
+          };
+          // }.bind(this);
+
+          this.play = function() {
+            const countDownEngine = this;
+
+            const date_play           = new Date();
+            countDownEngine.date_play = date_play;
+
+            countDownEngine.isPaused = false;
+            // countDownEngine.animation.play();
+          };
+          // }.bind(this);
+
+          this.pause = function() {
+            const countDownEngine = this;
+
+            const date_pause           = new Date();
+            countDownEngine.date_pause = date_pause;
+
+            // countDownEngine.animation.pause();
+            countDownEngine.isPaused = true;
+          };
+          // }.bind(this);
+
+          this.reset = function() {
+            const countDownEngine = this;
+
+            // countDownEngine.animation.reset();
+          };
+          // }.bind(this);
+
+          this.update = function(countDownObj) {
+            // logger.log("update", countDownObj);
+            const countDownEngine = this;
+
+            countDownEngine.stepFunc(countDownObj);
+            countDownEngine.rx_countDownCounter.next(countDownObj.value);
+          };
+          // }.bind(this);
+
+
+          this.impulse = function() {
+            // this.countDownSequencer.pulse();
+            this.countDownSequencer.moveToNextFrame();
+          };
+
+
+          this.getCounter = function() {
+            return this.countDownSequencer.animatedObj.value;
+          };
+
+        }
+
+      }
+
+
+      // class CountDownEngine {     //SHU:    /!\ this is not an icEngined engine
+      //   constructor(countDownConfig_in = null) {
+      //
+      //     var countDownConfig = countDownConfig_in;
+      //     if(countDownConfig == null) {
+      //       countDownConfig = CountDownConfig.defaultConfig();
+      //     }
+      //
+      //     this.counter_start = countDownConfig.value_start;
+      //     this.counter_end   = countDownConfig.value_end;
+      //
+      //     this.stepFunc      = countDownConfig.stepFunc;
+      //     this.stepDuration  = countDownConfig.stepDuration;
+      //
+      //     const nb_steps     = math.abs(this.counter_end - this.counter_start);
+      //     this.nb_steps      = nb_steps;
+      //
+      //     this.arr_steps     = [...new Array(nb_steps).keys()];
+      //     this.step_current  = 0;
+      //
+      //     this.counter = this.counter_start;
+      //
+      //     this.progress = 0;
+      //
+      //     this.isPaused = true;
+      //
+      //     const duration = this.nb_steps * this.stepDuration;
+      //
+      //     this.animatedObj = {
+      //       progress: 0
+      //     };
+      //
+      //     const countDownEngine = this;
+      //     const animatedObj = this.animatedObj;
+      //     const animation = anime({
+      //       // targets: countDownEngine,
+      //       targets: animatedObj,
+      //
+      //       /*animated props*/
+      //       progress: 1,
+      //       /*--------------*/
+      //
+      //       direction: 'normal',
+      //       easing: 'linear',
+      //       duration: duration,
+      //
+      //       autoplay: false,
+      //
+      //       update: (anim) => {
+      //         const progress = anim.progress / 100;
+      //         countDownEngine.progress = progress;
+      //         countDownEngine.update(progress);
+      //       },
+      //     });
+      //
+      //     this.animation = animation;
+      //
+      //
+      //
+      //     this.start = function() {
+      //       const countDownEngine = this;
+      //
+      //       countDownEngine.stepFunc(0);
+      //       countDownEngine.play();
+      //     };
+      //     // }.bind(this);
+      //
+      //     this.stop = function() {
+      //       const countDownEngine = this;
+      //
+      //       countDownEngine.reset();
+      //     };
+      //     // }.bind(this);
+      //
+      //     this.play = function() {
+      //       const countDownEngine = this;
+      //
+      //       const date_play           = new Date();
+      //       countDownEngine.date_play = date_play;
+      //
+      //       countDownEngine.isPaused = false;
+      //       countDownEngine.animation.play();
+      //     };
+      //     // }.bind(this);
+      //
+      //     this.pause = function() {
+      //       const countDownEngine = this;
+      //
+      //       const date_pause           = new Date();
+      //       countDownEngine.date_pause = date_pause;
+      //
+      //       countDownEngine.animation.pause();
+      //       countDownEngine.isPaused = true;
+      //     };
+      //     // }.bind(this);
+      //
+      //     this.reset = function() {
+      //       const countDownEngine = this;
+      //
+      //       countDownEngine.animation.reset();
+      //     };
+      //     // }.bind(this);
+      //
+      //     this.update = function(progress) {
+      //       console.log("update", progress);
+      //       const countDownEngine = this;
+      //
+      //       const cursor      = progress * countDownEngine.nb_steps;
+      //       const step_cursor = math.floor(cursor);
+      //
+      //       const isStepChanged = (step_cursor - countDownEngine.step_current) >= 1;
+      //       if(isStepChanged) {
+      //         countDownEngine.step_current = step_cursor;
+      //         countDownEngine.stepFunc(step_cursor);
+      //       }
+      //     };
+      //     // }.bind(this);
+      //
+      //   }
+      //
+      // }
+
+
+
+
+
+
+
 //I/O
 
       class FileIntegration {
@@ -21493,7 +22796,8 @@
               const config = componentConfig.config;
               const value  = config.value;
               // outIcObj = infiniteCanvas.createIcGMTargetTouchSlot(trueRect__component, value);
-              outIcObj = infiniteCanvas.createIcGMBoxTargetTouchSlot(trueRect__component, value);
+              // outIcObj = infiniteCanvas.createIcGMBoxTargetTouchSlot(trueRect__component, value);
+              outIcObj = infiniteCanvas.createIcGMBlob(trueRect__component, value);
               }
               break;
 
@@ -21810,11 +23114,11 @@
 
             Hooker.installHooks(touchSlotEngine.awoken, "touch");
             touchSlotEngine.awoken.did["touch"].on((...args) => {
-              logger.log("did touch", ...args);
+              // logger.log("did touch", ...args);
 
               // counter += 1
               const attempt = step.getCurrentAttempt();
-              logger.log("attempt", attempt);
+              // logger.log("attempt", attempt);
               attempt.manoeuvre.nb_touched += 1;
 
               //debug
@@ -21842,7 +23146,7 @@
 
           Hooker.installHooks(touchSlotEngine.awoken, "touch");
           touchSlotEngine.awoken.did["touch"].on((...args) => {
-            logger.log("did touch", ...args);
+            // logger.log("did touch", ...args);
 
             this.nowCompleted();
           });
@@ -21855,7 +23159,7 @@
 
           this.onCompleted((golfStep) => {
             // console.log("step, onCompleted", golfStep);
-            logger.log("step, onCompleted", golfStep);
+            // logger.log("step, onCompleted", golfStep);
 
             /*
             const score = golfStep.arr_attempts.length;
@@ -21917,7 +23221,7 @@
         }
 
         play(step_from) {
-          logger.log("GolfSegue::play", step_from);
+          // logger.log("GolfSegue::play", step_from);
 
           const score = 12;
           // this.golfCourse_from.mutateIntoScoreLabel(score);
@@ -22070,8 +23374,9 @@
           //setup step generator
             //numbers
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance1(infiniteCanvas, golfCourse, stepGeneratorFunc);
-          const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance2(infiniteCanvas, golfCourse, stepGeneratorFunc);
+          // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance2(infiniteCanvas, golfCourse, stepGeneratorFunc);
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance3(infiniteCanvas, golfCourse, stepGeneratorFunc);
+          const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance4(infiniteCanvas, golfCourse, stepGeneratorFunc);
 
 
           //create first step
@@ -22177,7 +23482,7 @@
         // }
 
         static random_challengeGMItemConfig(range_initial, range_target) {
-          logger.log("random_challengeGMItemConfig");
+          // logger.log("random_challengeGMItemConfig");
 
           // const mathNode__initial = random_terminal_mathNode_withType_inArr(["ConstantNode"]);
           const mathNode__initial = random_constantNode(range_initial);
@@ -22224,7 +23529,7 @@
         }
 
         static random_challengeGMItemConfig__x_to_expr() {
-          logger.log("random_challengeGMItemConfig__x_to_expr");
+          // logger.log("random_challengeGMItemConfig__x_to_expr");
 
           const mathNode__initial = new math.SymbolNode("x");
           // mathNode__initial.autoSimplify = true;
@@ -22269,7 +23574,7 @@
 
 
         static random_challengeGMItemConfig__x_to_expr__shuffled() {
-          logger.log("random_challengeGMItemConfig__x_to_expr__shuffled");
+          // logger.log("random_challengeGMItemConfig__x_to_expr__shuffled");
 
           const mathNode__initial = new math.SymbolNode("y");
           // mathNode__initial.autoSimplify = true;
@@ -22308,6 +23613,79 @@
             initial:    gmItem__initial,
             target :    gmItem__target,
             operators:  arr_gmItem_operator,
+          };
+
+          return gmItemConfig;
+        }
+
+
+        static random_challengeGMItemConfig__expr_to_x() {
+          // logger.log("random_challengeGMItemConfig__expr_to_x");
+
+          const mathNode__target = new math.SymbolNode("x");
+          // mathNode__initial.autoSimplify = true;
+          const gmItem__target = GMItem.value(mathNode__target, "target", "");
+
+
+          // const min__nb_operators = 2;
+          // const max__nb_operators = 5;
+          // const nb_operators      = Math.floor(Math.random() * (max__nb_operators - min__nb_operators)) + min__nb_operators;
+          const nb_operators = 4;
+
+          const arr_gmItem_operator = [...new Array(nb_operators).keys()].map(index => {
+
+            const operatorParams = {
+              node_b: {
+                types: ["ConstantNode"],
+                range: {
+                  min: -10,
+                  max: +10,
+                },
+              },
+            };
+
+            const operatorNodeFuncWrapper = random_operatorNodeFactoryFuncWrapper_binary(operatorParams);
+            const name = operatorNodeFuncWrapper.semantics.name;
+            const func = operatorNodeFuncWrapper.func;
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+            };
+            const gmItem__operator = GMItem.operator(func, name, "", specs);
+            return gmItem__operator;
+          });
+
+          // const depth__initial    = 4;
+          const depth__initial    = 10;
+
+          const gmItem__initial   = GMMaker.createGMItemTarget__x_to_expr(gmItem__target, arr_gmItem_operator, depth__initial);
+          const mathNode__initial = gmItem__initial.content;
+          mathNode__initial.autoSimplify = true;
+
+
+          const arr_gmItem_operator__inverse = arr_gmItem_operator.map((gmItem__operator) => {
+
+            const operatorNodeFuncWrapper = gmItem__operator.specs.funcWrapper.inverse;
+            // logger.log("operatorNodeFuncWrapper", operatorNodeFuncWrapper);
+
+            const operator__inverse = operatorNodeFuncWrapper.semantics.operator;
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+            const func = operatorNodeFuncWrapper.func;
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+            };
+
+            const gmItem__operator__inverse = GMItem.operator(func, name, "", specs);
+
+            return gmItem__operator__inverse;
+          });
+
+          const gmItemConfig = {
+            initial:    gmItem__initial,
+            target :    gmItem__target,
+
+            // operators:  arr_gmItem_operator,
+            operators: arr_gmItem_operator__inverse,
           };
 
           return gmItemConfig;
@@ -22382,6 +23760,24 @@
           // };
 
           const challengeGMItemConfig = GolfGame__Endless_Practice.random_challengeGMItemConfig__x_to_expr__shuffled();
+          const stepConfig = {
+            challengeGMItemConfig: challengeGMItemConfig,
+          };
+
+          const step = new GolfGameStep__Endless_Practice(infiniteCanvas, stepConfig, golfCourse, stepGeneratorFunc);
+
+          return step;
+        }
+
+        static randomInstance4(infiniteCanvas, golfCourse, stepGeneratorFunc) {
+          // const game = this;
+          // const challengeMathNodeConfig = GolfGame__Endless_Practice.random_challengeMathNodeConfig();
+          // const stepConfig = {
+          //   challengeMathNodeConfig: challengeMathNodeConfig,
+          //   // game: game,
+          // };
+
+          const challengeGMItemConfig = GolfGame__Endless_Practice.random_challengeGMItemConfig__expr_to_x();
           const stepConfig = {
             challengeGMItemConfig: challengeGMItemConfig,
           };
@@ -22470,7 +23866,7 @@
           const rep_free__ball = infiniteCanvas.getRepresented(icObj.id).r_free();
           Hooker.installHooks(rep_free__ball, "die");
           rep_free__ball.did["die"].on(() => {
-            logger.log("did die");
+            // logger.log("did die");
 
             rep_free__ball.parts.facade.im_dying_now      = true;
             rep_free__ball.parts.contactArea.im_dying_now = true;
@@ -22494,55 +23890,55 @@
           {
             const infiniteCanvas = this.infiniteCanvas;
 
-            //   //add label/value: score
-            // function addLabel_score() {
-            //   const rect__score = golfCourse.rect;
-            //   rect__score.width  = 300;
-            //   rect__score.height = 150;
-            //
-            //   const string__score = "score:";
-            //   const value__score  = 0;
-            //
-            //   const icObj__score  = infiniteCanvas.createIcLabelValue(rect__score, string__score, value__score);
-            //   icObj__score.zIndex = 200;
-            //
-            //   infiniteCanvas.addIcObject(icObj__score);
-            //
-            //   const rep_free__score_valueLabel = infiniteCanvas.getRepresented(icObj__score.id).r_free();
-            //   step.rep_free__score_valueLabel  = rep_free__score_valueLabel;
-            //   step.rep_free__score_value       = rep_free__score_valueLabel.parts["value"];
-            // }
-            // addLabel_score();
-            //
-            //   //add label/value: par
-            // function addLabelValue_par() {
-            //   const rect__par = {
-            //     x: step.rep_free__score_valueLabel.position.x,
-            //     y: step.rep_free__score_valueLabel.position.y + 120,
-            //     width:  300,
-            //     height: 150,
-            //   };
-            //
-            //   const string__par = "par:";
-            //   const value__par  = step.par;
-            //
-            //   const icObj__par = infiniteCanvas.createIcLabelValue(rect__par, string__par, value__par);
-            //   icObj__par.zIndex = 201;
-            //
-            //   infiniteCanvas.addIcObject(icObj__par);
-            //
-            //   const rep_free__par_valueLabel = infiniteCanvas.getRepresented(icObj__par.id).r_free();
-            //   step.rep_free__par_valueLabel  = rep_free__par_valueLabel;
-            //   step.rep_free__par_value       = rep_free__par_valueLabel.parts["value"];
-            //
-            //   setTimeout(() => {
-            //     step.rep_free__par_value.position = {
-            //       x: step.rep_free__score_value.position.x,
-            //       y: step.rep_free__par_value.position.y,
-            //     };
-            //   }, 20);   //SHU TODO: remove this ugliness
-            // }
-            // addLabelValue_par();
+              //add label/value: score
+            function addLabel_score() {
+              const rect__score = golfCourse.rect;
+              rect__score.width  = 300;
+              rect__score.height = 150;
+
+              const string__score = "score:";
+              const value__score  = 0;
+
+              const icObj__score  = infiniteCanvas.createIcLabelValue(rect__score, string__score, value__score);
+              icObj__score.zIndex = 200;
+
+              infiniteCanvas.addIcObject(icObj__score);
+
+              const rep_free__score_valueLabel = infiniteCanvas.getRepresented(icObj__score.id).r_free();
+              step.rep_free__score_valueLabel  = rep_free__score_valueLabel;
+              step.rep_free__score_value       = rep_free__score_valueLabel.parts["value"];
+            }
+            addLabel_score();
+
+              //add label/value: par
+            function addLabelValue_par() {
+              const rect__par = {
+                x: step.rep_free__score_valueLabel.position.x,
+                y: step.rep_free__score_valueLabel.position.y + 120,
+                width:  300,
+                height: 150,
+              };
+
+              const string__par = "par:";
+              const value__par  = step.par;
+
+              const icObj__par = infiniteCanvas.createIcLabelValue(rect__par, string__par, value__par);
+              icObj__par.zIndex = 201;
+
+              infiniteCanvas.addIcObject(icObj__par);
+
+              const rep_free__par_valueLabel = infiniteCanvas.getRepresented(icObj__par.id).r_free();
+              step.rep_free__par_valueLabel  = rep_free__par_valueLabel;
+              step.rep_free__par_value       = rep_free__par_valueLabel.parts["value"];
+
+              setTimeout(() => {
+                step.rep_free__par_value.position = {
+                  x: step.rep_free__score_value.position.x,
+                  y: step.rep_free__par_value.position.y,
+                };
+              }, 20);   //SHU TODO: remove this ugliness
+            }
+            addLabelValue_par();
 
 
               //add ball:
@@ -22568,7 +23964,7 @@
             //initial
           const mathNode__initial      = step.challengeGMItemConfig.initial.content;
           step.rep_free__ball.mathNode = mathNode__initial;
-          logger.log("mathNode__initial", mathNode__initial);
+          // logger.log("mathNode__initial", mathNode__initial);
 
 
 
@@ -22596,13 +23992,13 @@
 
             const mathNodeTransformationFunc = gmItem_operator.content;
             const icObjTransformationFunc = (icObj) => {
-              logger.log("icObjTransformationFunc", icObj);
+              // logger.log("icObjTransformationFunc", icObj);
               var outIcObj;
 
 
 
               outIcObj = icObj.clone();
-              logger.log("outIcObj", outIcObj);
+              // logger.log("outIcObj", outIcObj);
 
               if(outIcObj.mathNode) {
                 delete outIcObj.mathNode;     //SHU666: true sadness
@@ -22611,7 +24007,7 @@
 
 
               if(icObj.cType == "gm_box") {
-                logger.log("gm_box");
+                // logger.log("gm_box");
 
                 const facade = icObj.parts.facade;
                 outIcObj.parts.facade.mathNode = mathNodeTransformationFunc(facade.mathNode);
@@ -22642,7 +24038,7 @@
         possess(golfCourse) {
           this.initializeCompletionListeners();
 
-          // this.setupAttemptListeners(golfCourse);
+          this.setupAttemptListeners(golfCourse);
 
           this.setupCompletionTrigger(golfCourse);
           this.addCompletionListener(golfCourse);
@@ -22681,81 +24077,92 @@
           };
         }
 
-        // setupAttemptListeners(golfCourse) {   //SHU: this is where BigBrother sneaked in from
-        //
-        //   const step = this;
-        //
-        //   function waitForNewAttempt() {
-        //     const ball__rep_free = golfCourse.components["ball"].icObj;
-        //
-        //     const createAttemptFunc = () => {
-        //
-        //         const attempt = new GolfStepAttempt();
-        //
-        //         step.arr_attempt.push(attempt);
-        //
-        //         ball__rep_free.offHold(createAttemptFunc);
-        //     };
-        //
-        //     ball__rep_free.onHold(createAttemptFunc);
-        //   }
-        //
-        //   //gm.onHold(create attempt)
-        //   {
-        //     waitForNewAttempt();
-        //   }
-        //
-        //   //gm.onTouched(add event to attempt)
-        //   {
-        //
-        //   }
-        //
-        //   //gm.onRelease(finalize attempt)
-        //   {
-        //     const ball__rep_free = golfCourse.components["ball"].icObj;
-        //
-        //     ball__rep_free.onRelease(waitForNewAttempt);
-        //   }
-        //
-        //   //create attempt
-        //
-        //
-        //
-        //
-        //
-        //
-        //   //course use listeners
-        //
-        //   function listenToOperatorTouches(icObj__rep_free) {
-        //
-        //     const touchSlot__rep_free  = icObj__rep_free.parts["touchSlot"];
-        //     // logger.log("touchSlot__rep_free", touchSlot__rep_free);
-        //
-        //     const touchSlotEngine = touchSlot__rep_free.engine;
-        //
-        //     Hooker.installHooks(touchSlotEngine.awoken, "touch");
-        //     touchSlotEngine.awoken.did["touch"].on((...args) => {
-        //       logger.log("did touch", ...args);
-        //
-        //       // counter += 1
-        //       const attempt = step.getCurrentAttempt();
-        //       logger.log("attempt", attempt);
-        //       attempt.manoeuvre.nb_touched += 1;
-        //
-        //       //debug
-        //       step.rep_free__score_value.text = "" + attempt.manoeuvre.nb_touched;
-        //     });
-        //
-        //   }
-        //
-        //   const arr_gm_operator = Object.values(golfCourse.components).filter(component => component.type == "gm_operator");
-        //
-        //   arr_gm_operator.forEach((gm_operator, i) => {
-        //     const icObj__rep_free = gm_operator.icObj;
-        //     listenToOperatorTouches(icObj__rep_free);
-        //   });
-        //
-        // }
+        setupAttemptListeners(golfCourse) {   //SHU: this is where BigBrother sneaked in from
+
+          const step = this;
+
+          // function waitForNewAttempt() {
+          //   const ball__rep_free = golfCourse.components["ball"].icObj;
+          //
+          //   const createAttemptFunc = () => {
+          //
+          //       const attempt = new GolfStepAttempt();
+          //
+          //       step.arr_attempt.push(attempt);
+          //
+          //       ball__rep_free.offHold(createAttemptFunc);
+          //   };
+          //
+          //   ball__rep_free.onHold(createAttemptFunc);
+          // }
+          //
+          // //gm.onHold(create attempt)
+          // {
+          //   waitForNewAttempt();
+          // }
+          //
+          // //gm.onTouched(add event to attempt)
+          // {
+          //
+          // }
+          //
+          // //gm.onRelease(finalize attempt)
+          // {
+          //   const ball__rep_free = golfCourse.components["ball"].icObj;
+          //
+          //   ball__rep_free.onRelease(waitForNewAttempt);
+          // }
+
+          //create attempt
+
+
+
+
+
+
+          //course use listeners
+
+          function listenToOperatorTouches(icObj__rep_free) {
+
+            const touchSlot__rep_free  = icObj__rep_free.parts["touchSlot"];
+            // logger.log("touchSlot__rep_free", touchSlot__rep_free);
+
+            const touchSlotEngine = touchSlot__rep_free.engine;
+
+            Hooker.installHooks(touchSlotEngine.awoken, "touch");
+            touchSlotEngine.awoken.did["touch"].on((...args) => {
+              // logger.log("did touch", ...args);
+
+              // // counter += 1
+              // const attempt = step.getCurrentAttempt();
+              // logger.log("attempt", attempt);
+              // attempt.manoeuvre.nb_touched += 1;
+              //
+              // //debug
+              // step.rep_free__score_value.text = "" + attempt.manoeuvre.nb_touched;
+
+
+
+              // const rep_free__curseFacade = step.rep_free__hole.parts.curseFacade;
+              const rep_free__curseFacade = step.rep_free__hole.parts.curseFacade;
+              const rep_free__facade      = step.rep_free__hole.parts.facade;
+
+
+              rep_free__facade.curse_metamorphosis.curseTrigger.impulse();
+
+
+            });
+
+          }
+
+          const arr_gm_operator = Object.values(golfCourse.components).filter(component => component.type == "gm_operator");
+
+          arr_gm_operator.forEach((gm_operator, i) => {
+            const icObj__rep_free = gm_operator.icObj;
+            listenToOperatorTouches(icObj__rep_free);
+          });
+
+        }
 
         setupCompletionTrigger(golfCourse) {
 
@@ -22767,7 +24174,7 @@
 
           Hooker.installHooks(touchSlotEngine.awoken, "touch");
           const listener_targetDidTouch = (...args) => {
-            logger.log("did touch", ...args);
+            // logger.log("did touch", ...args);
 
             this.nowCompleted();
           };
@@ -22782,7 +24189,7 @@
 
           this.listener_onCompleted = (golfStep) => {
             // console.log("step, onCompleted", golfStep);
-            logger.log("step, onCompleted", golfStep);
+            // logger.log("step, onCompleted", golfStep);
 
             /*
             const score = golfStep.arr_attempts.length;
@@ -22830,7 +24237,7 @@
         }
 
         play(step_from) {
-          logger.log("GolfSegue::play", step_from);
+          // logger.log("GolfSegue::play", step_from);
 
           const golfCourse_to = this.golfCourse_to;
 
@@ -22868,6 +24275,26 @@
 
 
 
+
+
+    <script>
+      class Keyboard_Rx {
+        constructor() {
+          this.rx_keyUp = new Subject();
+          document.addEventListener('keyup', (e) => {
+            this.rx_keyUp.next(e);
+          });
+        }
+      }
+    </script>
+    <script>
+      const keyboard_Rx = new Keyboard_Rx();
+    </script>
+
+
+
+
+
     <script>
 
       class Atelier__X_X {
@@ -22876,7 +24303,9 @@
           this.infiniteCanvas = infiniteCanvas;
 
           // this.debug1();
-          this.debug2();
+          // this.debug2();
+
+          this.debug_countdown_1();
         }
 
         debug1() {
@@ -22929,6 +24358,105 @@
             represented.r_free().parts.facade.im_dying_now      = true;
             represented.r_free().parts.contactArea.im_dying_now = true;
           }, 1000);
+
+        }
+
+        debug_countdown_1() {
+
+          const infiniteCanvas = this.infiniteCanvas;
+
+          //create icGreenMouseBox
+          const trueRect = {
+            x: 1000,
+            y: 500,
+            width: 100,
+            height: 100,
+          };
+          // const icMathNode = infiniteCanvas.createIcMathNode(trueRect_2, new math.ConstantNode(12));
+          const mathNode = new math.ConstantNode(12);
+          const icMathNode = infiniteCanvas.createIcMathNode(trueRect.x, trueRect.y, mathNode);
+          // infiniteCanvas.addIcObject(icMathNode);
+
+          const icText = infiniteCanvas.createIcText(trueRect.x, trueRect.y, "0");
+          // infiniteCanvas.addIcObject(icMathNode);
+
+          const parts = {
+            curseFacade:  icText,
+            mathNode:     icMathNode,
+          };
+
+          const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+          const icComposite = infiniteCanvas.createIcComposite(trueRect, parts, compositeConfig);
+
+          infiniteCanvas.addIcObject(icComposite);
+
+
+
+          const facade_represented = infiniteCanvas.getRepresented(icMathNode.id);
+          const facade_rep_free    = facade_represented.r_free();
+
+          // const countDownTrigger = infiniteCanvas.createCurseTrigger_countdown();
+          infiniteCanvas.accurse__metamorphosis(facade_rep_free);
+
+          const curseFunc = () => {
+            logger.log("curseFunc, rep_free:", facade_rep_free);
+            const mathNode = random_constantNode();
+            facade_rep_free.mathNode = mathNode;
+            facade_rep_free.curse_metamorphosis.reset();
+          };
+          facade_rep_free.curse_metamorphosis.curseFunc = curseFunc;
+
+
+
+          facade_rep_free.curse_metamorphosis.start();
+
+
+          keyboard_Rx.rx_keyUp.subscribe({
+            next: (e) => {
+              logger.log("e",e);
+
+              switch(e.code) {
+                case "Numpad1":
+                  facade_rep_free.curse_metamorphosis.curseTrigger.impulse();
+                  break;
+              }
+
+            },
+          });
+
+
+
+
+
+
+          const composite_represented = infiniteCanvas.getRepresented(icComposite.id);
+          const composite_rep_free    = composite_represented.r_free();
+          const curseFacade_rep_free  = composite_rep_free.parts.curseFacade;
+
+          const curseTrigger = facade_rep_free.curse_metamorphosis.curseTrigger;
+          logger.log("curseTrigger", curseTrigger);
+
+          // Hooker.installHooks(curseTrigger, "impulse");
+          // curseTrigger.did["impulse"].on(() => {
+            // logger.log("did impulse");
+            // const countDownEngine = curseTrigger.engine;
+            // const counter         = countDownEngine.getCounter();
+            // curseFacade_rep_free.text = "" + counter;
+          // });
+
+
+          // facade_rep_free.curse_metamorphosis.start();
+
+          facade_rep_free.curse_metamorphosis.rx_countDownCounter.subscribe({
+            next: (value) => {
+              logger.log("rx_countDownCounter, next", value);
+              logger.log("curseFacade_rep_free", curseFacade_rep_free);
+
+              curseFacade_rep_free.text = "" + value;
+              // facade_rep_free.mathNode = new math.ConstantNode(value);
+            },
+          });
+
 
         }
 
