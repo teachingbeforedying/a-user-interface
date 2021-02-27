@@ -143,8 +143,46 @@
     <!-- UI -->
     <script src='lib/fabric.min.js'      type='text/javascript'></script>
     <script src='lib/anime.min.js'       type='text/javascript'></script>
+
+      <!-- MathJax -->
+    <script>
+      //setup
+      MathJax = {
+        loader: {
+          load: ['[tex]/color']
+        },
+        tex: {
+          packages: {'[+]': ['color']},
+        },
+        startup: {
+          ready: () => {
+            logger.log('MathJax is loaded, but not yet initialized');
+            MathJax.startup.defaultReady();
+            logger.log('MathJax is initialized, and the initial typeset is queued');
+
+            const mathJaxContainer_svg = MathJax.tex2svg("{\\color(red) 13}");
+            logger.log("mathJaxContainer_svg", mathJaxContainer_svg);
+          },
+        },
+      };
+
+      // MathJax = {
+      //   tex: {
+      //     autoload: {
+      //       color: ['color', 'definecolor', 'textcolor', 'colorbox', 'fcolorbox'],
+      //     },
+      //   },
+      // };
+    </script>
     <!-- <script src='lib/mathjax.tex-mml-chtml.js' type='text/javascript'></script> -->
     <script src='lib/mathjax.tex-svg.js' type='text/javascript'></script>
+    <script>
+      //test
+      logger.log("MathJax", MathJax);
+      logger.log("MathJax.tex2svg", MathJax.tex2svg);
+      // MathJax.tex2svg("{\\color(red) 13}");
+    </script>
+
     <script>
       //integration
       class TexHelper {
@@ -1314,8 +1352,8 @@
       //   console.log("getArr_all_leaves__node(debugNode)", getArr_all_leaves__node(debugNode));
       // }
 
-
-
+    </script>
+    <script>
       class Simplifier {
 
         constructor() {
@@ -1327,7 +1365,6 @@
         }
 
       }
-
 
 
 
@@ -1546,7 +1583,201 @@
 
 
     </script>
+    <script>
 
+      class RichMathNode {
+
+        constructor(mathNode) {
+          this.mathNode = mathNode;
+          this.rich     = {};
+        }
+
+        configure(config) {
+          this.rich.colorMode = config.colorMode;
+          this.rich.color     = config.color;
+        }
+
+        toTex() {
+          var outString;
+
+          const colorMode = this.rich.colorMode;
+          switch(colorMode) {
+            case "xylophone":
+              {
+                if(this.mathNode.type == "ConstantNode") {
+                  const positionalNumber = new PositionalNumber(this.mathNode.value);
+                  outString = positionalNumber.toTex();
+                } else {
+                  throw new Error("colorMode:xylophone only compatible with ConstantNode");
+                }
+              }
+              break;
+            case "evenodd":
+              {
+                const color__even = "#FFFFFF";
+                const color__odd  = "#000000";
+
+                var color;
+                if(this.rich.isEven) {
+                  color = color__even;
+                } else {
+                  color = color__odd;
+                }
+
+                const tex__mathNode = this.mathNode.toTex();
+                outString = TexEnricher.color(tex__mathNode, color);
+              }
+              break;
+            case "plain":
+              {
+                const tex__mathNode = this.mathNode.toTex();
+
+                //color
+                if(this.rich.color != null) {
+                  const color = this.rich.color;
+                  outString = TexEnricher.color(tex__mathNode, color);
+                } else {
+                  throw new Error("no color specified for colorMode: " + colorMode);
+                }
+
+              }
+              break;
+            default:
+              {
+                const tex__mathNode = this.mathNode.toTex();
+                outString = tex__mathNode;
+              }
+              // throw new Error("unknown colorMode: " + colorMode);
+              break;
+          }
+
+          return outString;
+        }
+
+        clone() {
+          return;
+        }
+
+      }
+
+      class TexEnricher {
+
+        static color(tex_in, color_in) {
+          var outString;
+
+          outString = "{\\color{" + color_in + "} " + tex_in + " }";
+
+          return outString;
+        }
+
+        // static font(tex_in, font_in) {
+        //   var outString;
+        //
+        //   outString = "{\\fontfamily{pag}\\selectfont " + tex_in  + "}";
+        //
+        //   return outString;
+        // }
+
+      }
+
+      // class UnfoldedNumber {
+      class PositionalNumber {
+
+        constructor(number, base = 10) {
+          this.arr_digit = ("" + number).split("").map(digitStr => parseInt(digitStr));
+          this.base      = base;
+        }
+
+        toTex() {
+          var outString;
+
+          outString = this.arr_digit.reduce((acc, x) => {
+            acc += PositionalNumber.texForDigit(x);
+            return acc;
+          }, "");
+
+          return outString;
+        }
+
+        static texForDigit(digit) {
+          var outString;
+
+          outString = "" + digit;
+
+          const color = PositionalNumber.colorForDigit(digit);
+          outString = TexEnricher.color(outString, color);
+
+          return outString;
+        }
+
+        static colorForDigit(digit) {
+          var outColor = null;
+
+          switch(digit) {
+            case 0:
+              outColor = "#000000";
+              break;
+
+            case 1:
+              outColor = "#FF7F0E";
+              break;
+            case 2:
+              outColor = "#2CA02C";
+              break;
+            case 3:
+              outColor = "#D62728";
+              break;
+            case 4:
+              outColor = "#9467BD";
+              break;
+            case 5:
+              outColor = "#8C564B";
+              break;
+            case 6:
+              outColor = "#E377C2";
+              break;
+            case 7:
+              outColor = "#7F7F7F";
+              break;
+            case 8:
+              outColor = "#BCBD22";
+              break;
+            case 9:
+              outColor = "#17BECF";
+              break;
+
+            //SHU TODO: colors or patterns for those:
+            case 10:  //A
+              outColor = "#000000";
+              break;
+            case 11:  //B
+              outColor = "#000000";
+              break;
+            case 12:  //C
+              outColor = "#000000";
+              break;
+            case 13:  //D
+              outColor = "#000000";
+              break;
+            case 14:  //E
+              outColor = "#000000";
+              break;
+            case 15:  //F
+              outColor = "#000000";
+              break;
+
+            default:
+              throw new Error("unsupported digit: " + digit);
+          }
+
+          return outColor;
+        }
+
+
+
+      }
+
+    </script>
 
 
 
@@ -2587,37 +2818,61 @@
         return icMathNode;
       }
 
-      createIcAsText_mathNode(left, top, text, ) {
+      createIcRichMathNode(left, top, richMathNode) {
+        console.log("createIcRichMathNode", left, top, richMathNode);
 
-        const type      = "as_text__mathNode";
+        const type      = "richMathNode";
         const position  = Geometry.createPoint(left, top);
-        const size      = Geometry.createSize(0, 0);
+
+        // const size      = Geometry.createSize(img.width, img.height);
+        const size      = Geometry.createSize(100, 100);
+
         const homeScale = Object.assign({}, this.scale);
 
         const icObj = this.createIcObject(type, position, size, homeScale);
 
-
-        // const text     = "icText";
-        const fontSize = 100;
-
-        const icText_spec = {
-          text:      text,
-          textColor: "black",
-          fontSize:  fontSize,
+        const icRichMathNode_spec = {
+          richMathNode: richMathNode,
         };
 
-        const icText = Object.assign(icObj, icText_spec);
+        const icRichMathNode = Object.assign(icObj, icRichMathNode_spec);
 
-        return icText;
+
+        return icRichMathNode;
       }
 
-      createIcAsY(left, top, type_y, type_x, func_YtoX) {
 
-      }
-
-      createIcEditingAsY(left, top, type_y, type_x, func_YtoX) {
-
-      }
+      // createIcAsText_mathNode(left, top, text, ) {
+      //
+      //   const type      = "as_text__mathNode";
+      //   const position  = Geometry.createPoint(left, top);
+      //   const size      = Geometry.createSize(0, 0);
+      //   const homeScale = Object.assign({}, this.scale);
+      //
+      //   const icObj = this.createIcObject(type, position, size, homeScale);
+      //
+      //
+      //   // const text     = "icText";
+      //   const fontSize = 100;
+      //
+      //   const icText_spec = {
+      //     text:      text,
+      //     textColor: "black",
+      //     fontSize:  fontSize,
+      //   };
+      //
+      //   const icText = Object.assign(icObj, icText_spec);
+      //
+      //   return icText;
+      // }
+      //
+      // createIcAsY(left, top, type_y, type_x, func_YtoX) {
+      //
+      // }
+      //
+      // createIcEditingAsY(left, top, type_y, type_x, func_YtoX) {
+      //
+      // }
 
 
       createIcHtmlElt(left, top, html_elt) {
@@ -11829,13 +12084,10 @@
               //   logger.log("innerUpdate, text", fObj.text);
               //   standardRedraw(fObj);
               // }
-              else if(propName == "tex") {
-                fObj.refreshTex_p()
-                .then((fObj) => {
-                  standardRedraw(fObj);
-                });
-              }
-              else if(propName == "mathNode") {
+              else if(   propName == "tex"
+                      || propName == "mathNode"
+                      || propName == "richMathNode") {
+
                 fObj.refreshTex_p()
                 .then((fObj) => {
                   standardRedraw(fObj);
@@ -11880,13 +12132,10 @@
                 // logger.log("outerUpdate, text", fObj.text);
                 standardRedraw(fObj);
               }
-              else if(propName == "tex") {
-                fObj.refreshTex_p()
-                .then((fObj) => {
-                  standardRedraw(fObj);
-                });
-              }
-              else if(propName == "mathNode") {
+              else if(   propName == "tex"
+                      || propName == "mathNode"
+                      || propName == "richMathNode") {
+
                 fObj.refreshTex_p()
                 .then((fObj) => {
                   standardRedraw(fObj);
@@ -11927,13 +12176,9 @@
 
             //"initial refresh"
             const icObj = fObj.icObj;
-            if(icObj.type == "tex") {
-              fObj.refreshTex_p()
-              .then((fObj) => {
-                fabricCanvas.renderAll();
-              });
-            }
-            else if(icObj.type == "mathNode") {
+            if(   icObj.type == "tex"
+               || icObj.type == "mathNode"
+               || icObj.type == "richMathNode") {
               fObj.refreshTex_p()
               .then((fObj) => {
                 fabricCanvas.renderAll();
@@ -12038,6 +12283,13 @@
             case "mathNode":
               {
               const fObj = this.createFabricMathNodeWithIcObj(icObj);
+              fObj_p = Promise.resolve(fObj);
+              }
+              break;
+
+            case "richMathNode":
+              {
+              const fObj = this.createFabricRichMathNodeWithIcObj(icObj);
               fObj_p = Promise.resolve(fObj);
               }
               break;
@@ -13024,6 +13276,166 @@
             const height_ex__svgEl = parseFloat(svgEl.getAttribute("height").replace("ex", ""));
 
             const depth__mathNode = getDepth(icObj.mathNode);
+
+            const scaleFactor     = Math.max(20, 70 - depth__mathNode * 8);
+            // const scaleFactor     = 10 + depth__mathNode * 10;
+
+            const width_px__svgEl  = width_ex__svgEl  * scaleFactor;
+            const height_px__svgEl = height_ex__svgEl * scaleFactor;
+            // logger.log('width_px__svgEl',   width_px__svgEl);
+            // logger.log('height_px__svgEl',  height_px__svgEl);
+
+            fObj.set({
+              width:  width_px__svgEl,
+              height: height_px__svgEl,
+            });
+
+            const dataUrl = SvgHelper.toDataURL(svgEl);
+            const fObj_svg_image_p = new Promise((resolve, reject) => {
+
+              fabric.Image.fromURL(dataUrl, function (img) {
+                // console.log("img", img);
+
+                const group = fObj;
+                img.set({
+                  // left: 0,
+	                // top: 0,
+                  //SHU: that smell of Scotch Tape
+                  left: -group.width/2,
+	                top:  -group.height/2,
+
+                  // width:  group.width,
+                  // height: group.height,
+                  // width:  width_px__svgEl,
+                  // height: height_px__svgEl,
+
+                  //debug
+                  // stroke: "yellow",
+                  // strokeWidth: 2,
+                });
+
+                img.scaleToWidth(width_px__svgEl);
+                img.scaleToHeight(height_px__svgEl);
+
+                resolve(img);
+              },
+              null,
+              {
+                crossOrigin: 'Anonymous',
+              });
+
+            });
+
+            const add_fObjfObj_svg_image_p = fObj_svg_image_p.then((fObj_child) => {
+              if(fObj.child_tex != null) {
+                fObj.remove(fObj.child_tex);
+              }
+
+              //add svg image as child
+              fObj.child_tex = fObj_child;
+
+              fObj.add(fObj_child);
+              // fObj.addWithUpdate(fObj_child);        //this updates group's size to fit children
+              console.log("fObj, added child:", fObj_child);
+
+              return fObj;
+            });
+
+            return add_fObjfObj_svg_image_p;
+          };
+
+          //event listeners
+          if(icObj.canBeHeld) {
+            this.addInteraction_hold(fObj);
+          }
+          if(icObj.canBeMoved) {
+            this.addInteraction_move(fObj);
+          }
+          if(icObj.canBeResized) {
+            this.addInteraction_resize2(fObj);
+          }
+          if(icObj.canBeRotated) {
+            this.addInteraction_rotate(fObj);
+          }
+
+
+          this.addInteraction_select(fObj);
+          // this.addListeners(fObj);
+
+          this.addInteraction_doubleClick(fObj);
+
+
+
+          return fObj;
+        }
+
+
+        createFabricRichMathNodeWithIcObj(icObj) {
+          logger.log("createFabricRichMathNodeWithIcObj", icObj);
+
+          const fabricCanvas = this.fabricCanvas;
+
+          const fObj = new fabric.Group();
+
+          fObj.set({
+            left:   icObj.position.x,
+            top:    icObj.position.y,
+
+            // width:  icObj.size.width,
+            // height: icObj.size.height,
+
+            scaleX: icObj.scale.X,
+            scaleY: icObj.scale.Y,
+
+            flipX:   icObj.flip.X,
+            flipY:   icObj.flip.Y,
+
+            angle :  icObj.orientation,
+
+            originX: "center",
+            // originX: icObj.originX ? icObj.originX : "left",
+            originY: "top",
+
+            icObj: icObj,
+          });
+
+
+          fObj.refreshTex_p = () => {
+            console.log("refreshTex");
+
+            const richMathNode = icObj.richMathNode;
+            const mathNode     = richMathNode.mathNode;
+
+            // const tex   = mathNode.toTex();
+            const tex   = richMathNode.toTex();
+            logger.log("tex:", tex);
+
+            function upgradeTex(tex) {
+              var outTex;
+
+              outTex = tex.replaceAll("\\cdot", "\\times");
+
+              // outTex = "{\\color{blue} 0} {\\color{white} +} {\\color{red} 1}";
+
+              return outTex;
+            }
+
+            const tex_upgraded = upgradeTex(tex);
+
+            const fill  = icObj.fill;
+
+            // const svgEl   = TexHelper.toSvgEl(tex, fill);
+            const svgEl   = TexHelper.toSvgEl(tex_upgraded, fill);
+
+            // svgEl.setAttribute("width",  fObj.width);
+            // svgEl.setAttribute("height", fObj.height);
+            // logger.log('svgEl.getAttribute("width")',  svgEl.getAttribute("width"));
+            // logger.log('svgEl.getAttribute("height")', svgEl.getAttribute("height"));
+            const width_ex__svgEl  = parseFloat(svgEl.getAttribute("width").replace("ex", ""));
+            const height_ex__svgEl = parseFloat(svgEl.getAttribute("height").replace("ex", ""));
+
+
+            const depth__mathNode = getDepth(mathNode);
 
             const scaleFactor     = Math.max(20, 70 - depth__mathNode * 8);
             // const scaleFactor     = 10 + depth__mathNode * 10;
@@ -24266,7 +24678,7 @@
 
     </script>
     <script>
-      const golfGame__endless_practice = new GolfGame__Endless_Practice(infiniteCanvas);
+      // const golfGame__endless_practice = new GolfGame__Endless_Practice(infiniteCanvas);     //practice
 
 
 
@@ -24305,7 +24717,9 @@
           // this.debug1();
           // this.debug2();
 
-          this.debug_countdown_1();
+          // this.debug_countdown_1();
+
+          this.debug_colored_tex();
         }
 
         debug1() {
@@ -24461,12 +24875,59 @@
         }
 
 
+        debug_colored_tex() {
+
+          const infiniteCanvas = this.infiniteCanvas;
+
+          function addRichMathNode() {
+
+            const trueRect = {
+              x: 1000,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+
+            const mathNode = new math.ConstantNode(123456790);
+            const richMathNode = new RichMathNode(mathNode);
+            // richMathNode.rich.colorMode = "plain";
+            richMathNode.rich.colorMode = "xylophone";
+            // richMathNode.rich.colorMode = "evenodd";
+
+            richMathNode.rich.color     = "red";
+
+
+            // const icMathNode = infiniteCanvas.createIcMathNode(trueRect.x, trueRect.y, mathNode);
+            // infiniteCanvas.addIcObject(icMathNode);
+
+            // const icText = infiniteCanvas.createIcText(trueRect.x, trueRect.y, "0");
+
+            // const richMathNodeConfig = {
+            //   mathNode: mathNode,
+            //   color: "blue",
+            // };
+            const icRichMathNode = infiniteCanvas.createIcRichMathNode(trueRect.x, trueRect.y, richMathNode);
+
+            infiniteCanvas.addIcObject(icRichMathNode);
+          }
+
+          // setTimeout(() => {
+            addRichMathNode();
+          // }, 1000);
+
+
+        }
+
+
       }
 
     </script>
     <script>
-      // const atelier__X_X = new Atelier__X_X(infiniteCanvas);
+      setTimeout(() => {
+        const atelier__X_X = new Atelier__X_X(infiniteCanvas);
+      }, 1000);
     </script>
+
 
 
 
