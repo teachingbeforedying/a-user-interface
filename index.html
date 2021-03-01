@@ -1584,6 +1584,46 @@
 
     </script>
     <script>
+      class Splitter {
+
+        constructor() {
+
+        }
+
+        static split_top_layer(mathNode) {
+          var outArr;
+
+          switch(mathNode.type) {
+            case "OperatorNode":
+              const arr_args = mathNode.args;
+
+              const operatorNode__nude = mathNode.clone();
+              operatorNode__nude.args = [];
+
+              outArr = [...arr_args, operatorNode__nude];
+              break;
+
+            case "ParenthesisNode":
+              //SHU TODO
+            default:
+              outArr = [mathNode];
+              break;
+          }
+
+          return outArr;
+        }
+
+        static geometry__fireworks(center, nb_sparks) {
+          var outGeometryObj;
+
+
+          return outGeometryObj;
+        }
+
+      }
+    </script>
+
+    <script>
 
       class RichMathNode {
 
@@ -1601,17 +1641,29 @@
           var outString;
 
           const colorMode = this.rich.colorMode;
+
           switch(colorMode) {
             case "xylophone":
               {
                 if(this.mathNode.type == "ConstantNode") {
                   const positionalNumber = new PositionalNumber(this.mathNode.value);
-                  outString = positionalNumber.toTex();
+                  outString = positionalNumber.toTex("xylophone");
                 } else {
                   throw new Error("colorMode:xylophone only compatible with ConstantNode");
                 }
               }
               break;
+              case "fullplain":
+                {
+                  const color = this.rich.color;
+                  if(this.mathNode.type == "ConstantNode") {
+                    const positionalNumber = new PositionalNumber(this.mathNode.value);
+                    outString = positionalNumber.toTex(color);
+                  } else {
+                    throw new Error("colorMode:xylophone only compatible with ConstantNode");
+                  }
+                }
+                break;
             case "evenodd":
               {
                 const color__even = "#FFFFFF";
@@ -1688,24 +1740,53 @@
           this.base      = base;
         }
 
-        toTex() {
+        toTex(color) {
           var outString;
 
           outString = this.arr_digit.reduce((acc, x) => {
-            acc += PositionalNumber.texForDigit(x);
+            acc += PositionalNumber.texForDigit(x, color);
             return acc;
           }, "");
 
           return outString;
         }
 
-        static texForDigit(digit) {
+        static texForDigit(digit, color_in) {
+
           var outString;
 
           outString = "" + digit;
 
-          const color = PositionalNumber.colorForDigit(digit);
-          outString = TexEnricher.color(outString, color);
+          var color = color_in;
+          if(color == "xylophone") {
+
+
+            if(digit == 0) {
+              // outString = "{\\fbox {}}";
+              // outString = "{\\fbox {?}}";
+              // outString = "\\enspace";
+
+              // outString = "{\\mbox {0}}";
+
+              // outString = "▢";
+              // outString = "▫";
+              // outString = "☐";
+              // outString = "𖡄";
+              outString = "?";
+
+
+              ///not working
+              // outString = "{\\fbox {\\hspace{1cm}} }";
+
+            } else {
+              color = PositionalNumber.colorForDigit(digit);
+            }
+
+            outString = TexEnricher.color(outString, color);
+
+          } else {
+            outString = TexEnricher.color(outString, color);
+          }
 
           return outString;
         }
@@ -2635,7 +2716,7 @@
         };
 
         const icMathNode = Object.assign(icObj, icMathNode_spec);
-
+        icMathNode.isTouchable = true;
 
 
         //edition
@@ -4557,6 +4638,62 @@
                 return outNode;
               };
               operatorConfig.transformationFunc = transformationFunc;
+            }
+            break;
+
+
+
+            case "split__top_layer":
+            {
+              operatorConfig.name = "sptl";
+              const transformationFunc = (node_a) => {
+                var outArr;
+
+                const operation = Splitter.split_top_layer;
+
+                if(node_a.isEquation) {
+                  // console.log("node_a", node_a);
+                  // const node_left     = operation(node_a.params[0]);
+                  // const node_right    = operation(node_a.params[1]);
+                  // const node_equation = new math.RelationalNode(["equal"], [node_left, node_right]);
+                  // node_equation.isEquation = true;
+                  //
+                  // outNode = node_equation;
+                  throw new Error("unsupported (yet): split equation");
+                } else {
+                  outArr = operation(node_a);
+                }
+
+                return outArr;
+              };
+
+              const icObjTransformationFunc = (icObj) => {
+                var outIcObj;
+
+                // logger.log("icObj.mathNode", icObj.mathNode);
+                const arr_mathNodes = transformationFunc(icObj.mathNode);
+
+                const trueRect = {
+                  x:      icObj.position.x,
+                  y:      icObj.position.y,
+                  width:  icObj.size.width,
+                  height: icObj.size.height,
+                };
+
+                const arr_icMathNode = arr_mathNodes.map(mathNode => {
+                  return infiniteCanvas.createIcMathNode(trueRect.x, trueRect.y, mathNode);
+                })
+
+                const parts           = arr_mathNodes;
+                const compositeConfig = Compositer.defaultCompositeConfig(parts, true);
+                const icComposite     = infiniteCanvas.createIcComposite(trueRect, parts, compositeConfig);
+
+                outIcObj = icComposite;
+
+                return outIcObj;
+              };
+
+              operatorConfig.transformationFunc = icObjTransformationFunc;
             }
             break;
 
@@ -6620,6 +6757,14 @@
         this.addNewIcObject(icComposite);
       }
 
+      // composed(trueRect, arr_icObj) {
+      //   var outIcObj;
+      //
+      //   const compositeConfig = Compositer.defaultCompositeConfig(parts, true);
+      //   const icComposite     = infiniteCanvas.createIcComposite(trueRect, parts, compositeConfig);
+      //
+      //   return outIcObj;
+      // }
 
       compose(arr_icObj) {
         console.log("compose", arr_icObj);
@@ -9883,7 +10028,7 @@
 
 
           this.attemptTouching = function(icObj_slot, icObj_piece) {
-            console.log("attemptTouching", icObj_slot, icObj_piece);
+            logger.log("attemptTouching", icObj_slot, icObj_piece);
 
             const canTouch = this.checkCanTouch(icObj_slot, icObj_piece);
 
@@ -9914,7 +10059,7 @@
           };
 
           this.checkCanTouch = function(icObj_slot, icObj_piece) {
-            // logger.log("checkCanTouch", icObj_piece);
+            logger.log("checkCanTouch", icObj_piece);
             var outBool;
 
             // outBool = Touch.canTouch(icObj_piece, icObj_slot);
@@ -10059,7 +10204,7 @@
           // this.r_official_update_handler = (icObj_slot, icObj_piece, outerUpdatesDict) => {
           this.r_official_update_handler = function(icObj_slot, icObj_piece, outerUpdatesDict) {
 
-            console.log("r_official_update_handler", icObj_piece);
+            logger.log("r_official_update_handler", icObj_piece);
 
             const touchState = icObj_piece.touchStateDict[icObj_slot.id];
             console.log("touchState", touchState);
@@ -10075,7 +10220,7 @@
           // this.r_official_update_handler2 = (rep_official_incoming, outerUpdatesDict) => {
           this.r_official_update_handler2 = function(rep_official_incoming, outerUpdatesDict) {   //SHU: when using func.bind(myObj), be sure not to use arrow functions
 
-            // logger.log("r_official_update_handler2", rep_official_incoming);
+            logger.log("r_official_update_handler2", rep_official_incoming);
 
             // console.log("engine::r_official_update_handler2, this", this);
             // console.log("this.scopeObj", this.scopeObj);
@@ -20088,9 +20233,11 @@
                 {
                   // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify");
                   // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__step_by_step");
-                  keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__top_layer");
+                  // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__top_layer");
 
                   // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("equation__add1");
+
+                  keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("split__top_layer");
                 }
               break;
 
@@ -23208,8 +23355,8 @@
               const config = componentConfig.config;
               const value  = config.value;
               // outIcObj = infiniteCanvas.createIcGMTargetTouchSlot(trueRect__component, value);
-              // outIcObj = infiniteCanvas.createIcGMBoxTargetTouchSlot(trueRect__component, value);
-              outIcObj = infiniteCanvas.createIcGMBlob(trueRect__component, value);
+              outIcObj = infiniteCanvas.createIcGMBoxTargetTouchSlot(trueRect__component, value);
+              // outIcObj = infiniteCanvas.createIcGMBlob(trueRect__component, value);
               }
               break;
 
@@ -23785,10 +23932,11 @@
 
           //setup step generator
             //numbers
-          // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance1(infiniteCanvas, golfCourse, stepGeneratorFunc);
+          const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance1(infiniteCanvas, golfCourse, stepGeneratorFunc);
+            //litterals
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance2(infiniteCanvas, golfCourse, stepGeneratorFunc);
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance3(infiniteCanvas, golfCourse, stepGeneratorFunc);
-          const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance4(infiniteCanvas, golfCourse, stepGeneratorFunc);
+          // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance4(infiniteCanvas, golfCourse, stepGeneratorFunc);
 
 
           //create first step
@@ -24557,10 +24705,10 @@
 
               // const rep_free__curseFacade = step.rep_free__hole.parts.curseFacade;
               const rep_free__curseFacade = step.rep_free__hole.parts.curseFacade;
-              const rep_free__facade      = step.rep_free__hole.parts.facade;
-
-
-              rep_free__facade.curse_metamorphosis.curseTrigger.impulse();
+              if(rep_free__curseFacade != null) {
+                const rep_free__facade      = step.rep_free__hole.parts.facade;
+                rep_free__facade.curse_metamorphosis.curseTrigger.impulse();
+              }
 
 
             });
@@ -24678,10 +24826,9 @@
 
     </script>
     <script>
-      // const golfGame__endless_practice = new GolfGame__Endless_Practice(infiniteCanvas);     //practice
-
-
-
+      setTimeout(() => {    //SHU: wait for mathjax to finish loading
+        // const golfGame__endless_practice = new GolfGame__Endless_Practice(infiniteCanvas);     //practice
+      }, 1000);
     </script>
 
 
@@ -24719,7 +24866,12 @@
 
           // this.debug_countdown_1();
 
-          this.debug_colored_tex();
+          // this.debug_colored_tex();
+
+          // this.debug_rich_wedding();
+
+          this.debug_splitter_sptl();
+          // this.debug_splitter_spf();
         }
 
         debug1() {
@@ -24911,10 +25063,73 @@
             infiniteCanvas.addIcObject(icRichMathNode);
           }
 
-          // setTimeout(() => {
-            addRichMathNode();
-          // }, 1000);
+          addRichMathNode();
 
+        }
+
+        debug_rich_wedding() {
+
+          const infiniteCanvas = this.infiniteCanvas;
+
+          function addRichMathNode(trueRect, value, colorMode) {
+
+            const mathNode     = new math.ConstantNode(value);
+            const richMathNode = new RichMathNode(mathNode);
+            // richMathNode.rich.colorMode = "plain";
+            richMathNode.rich.colorMode = colorMode;
+            // richMathNode.rich.colorMode = "evenodd";
+
+            richMathNode.rich.color     = "red";
+
+
+            // const icMathNode = infiniteCanvas.createIcMathNode(trueRect.x, trueRect.y, mathNode);
+            // infiniteCanvas.addIcObject(icMathNode);
+
+            // const icText = infiniteCanvas.createIcText(trueRect.x, trueRect.y, "0");
+
+            // const richMathNodeConfig = {
+            //   mathNode: mathNode,
+            //   color: "blue",
+            // };
+            const icRichMathNode = infiniteCanvas.createIcRichMathNode(trueRect.x, trueRect.y, richMathNode);
+
+            infiniteCanvas.addIcObject(icRichMathNode);
+          }
+
+          const trueRect_1 = {
+            x: 1000,
+            y: 500,
+            width: 100,
+            height: 100,
+          };
+          const trueRect_1bis = {
+            x:      trueRect_1.x,
+            y:      trueRect_1.y + 50,
+            width:  trueRect_1.width,
+            height: trueRect_1.height,
+          };
+          const trueRect_2 = {
+            x: 1500,
+            y: 500,
+            width: 100,
+            height: 100,
+          };
+
+          addRichMathNode(trueRect_1,    10023456, "xylophone");
+          addRichMathNode(trueRect_1bis, 10023456, "fullplain");
+
+          // addRichMathNode(trueRect_2, 10023456, "plain");
+
+          // addRichMathNode(trueRect_2,  51, "evenOdd");
+
+
+        }
+
+        debug_splitter_sptl() {
+
+        }
+
+        debug_splitter_spf() {
 
         }
 
@@ -24923,7 +25138,7 @@
 
     </script>
     <script>
-      setTimeout(() => {
+      setTimeout(() => {    //SHU: wait for mathjax to finish loading
         const atelier__X_X = new Atelier__X_X(infiniteCanvas);
       }, 1000);
     </script>
