@@ -1622,7 +1622,17 @@
 
       }
     </script>
+    <script>
+      class TransformationOutput {
 
+        constructor(type, value, from) {
+          this.type  = type;
+          this.value = value;
+          this.from  = from;
+        }
+
+      }
+    </script>
     <script>
 
       class RichMathNode {
@@ -2428,7 +2438,9 @@
 
           const id_touchSlot = rep.id;
 
-          rep_official__incoming.touchStateDict[id_touchSlot] = TouchState.Untouched;
+          if(rep_official__incoming.touchStateDict[id_touchSlot] == null) {
+            rep_official__incoming.touchStateDict[id_touchSlot] = TouchState.Untouched;
+          }
           //SHU TODO: check if touches
 
         });
@@ -4670,8 +4682,9 @@
               const icObjTransformationFunc = (icObj) => {
                 var outIcObj;
 
-                // logger.log("icObj.mathNode", icObj.mathNode);
+                logger.log("icObj.mathNode", icObj.mathNode);
                 const arr_mathNodes = transformationFunc(icObj.mathNode);
+                logger.log("arr_mathNodes", arr_mathNodes);
 
                 const trueRect = {
                   x:      icObj.position.x,
@@ -4680,17 +4693,79 @@
                   height: icObj.size.height,
                 };
 
-                const arr_icMathNode = arr_mathNodes.map(mathNode => {
-                  return infiniteCanvas.createIcMathNode(trueRect.x, trueRect.y, mathNode);
+                const arr_icMathNode = arr_mathNodes.map((mathNode, index) => {
+                  const icMathNode = infiniteCanvas.createIcMathNode(trueRect.x, trueRect.y, mathNode);
+                  return icMathNode;
                 })
 
-                const parts           = arr_mathNodes;
+                const parts           = arr_icMathNode;
                 const compositeConfig = Compositer.defaultCompositeConfig(parts, true);
                 const icComposite     = infiniteCanvas.createIcComposite(trueRect, parts, compositeConfig);
 
-                outIcObj = icComposite;
+                const icObj__new = icComposite;
 
-                return outIcObj;
+                //debug
+                // const icText = infiniteCanvas.createIcText(trueRect.x, trueRect.y, "new_object");
+                // // const icObj__new = icText;
+                // const parts           = [icText];
+                // const compositeConfig = Compositer.defaultCompositeConfig(parts, true);
+                // const icComposite     = infiniteCanvas.createIcComposite(trueRect, parts, compositeConfig);
+                // const icObj__new = icComposite;
+
+
+                // outIcObj = icComposite;
+                // return outIcObj;
+                const transformationOutput = new TransformationOutput("new", icObj__new, icObj);
+                return transformationOutput;
+              };
+
+              operatorConfig.transformationFunc = icObjTransformationFunc;
+            }
+            break;
+
+
+            case "morpher__math_to_text":
+            {
+              operatorConfig.name = "morph: m→t";
+
+              const icObjTransformationFunc = (icObj) => {
+                var transformationOutput;
+
+                if(icObj.type == "mathNode") {
+                  const x = icObj.position.x;
+                  const y = icObj.position.y;
+                  const str = icObj.mathNode.toString();
+                  const icObj__new = infiniteCanvas.createIcText(x,y,str);
+                  transformationOutput = new TransformationOutput("new", icObj__new, icObj);
+                } else {
+                  transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+                }
+
+                return transformationOutput;
+              };
+
+              operatorConfig.transformationFunc = icObjTransformationFunc;
+            }
+            break;
+
+            case "morpher__text_to_math":
+            {
+              operatorConfig.name = "morph: t→m";
+
+              const icObjTransformationFunc = (icObj) => {
+                var transformationOutput;
+
+                if(icObj.type == "text") {
+                  const x = icObj.position.x;
+                  const y = icObj.position.y;
+                  const mathNode = math.parse(icObj.text);
+                  const icObj__new = infiniteCanvas.createIcMathNode(x,y,mathNode);
+                  transformationOutput = new TransformationOutput("new", icObj__new, icObj);
+                } else {
+                  transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+                }
+
+                return transformationOutput;
               };
 
               operatorConfig.transformationFunc = icObjTransformationFunc;
@@ -10147,8 +10222,47 @@
 
               logger.log("icObj__touched", icObj__touched);
 
-              const mutationObj = transformationFunc(icObj__touched);
-              Object.assign(icObj__touched, mutationObj);
+
+              const transformationOutput = transformationFunc(icObj__touched);
+              if(transformationOutput.type == "new") {
+                //new version
+
+                const icTouchSlot = this.scopeObj.infiniteCanvas;
+
+                //remove old
+                {
+                  // infiniteCanvas.removeIcObject(icObj__touched);
+                  icObj__touched.im_dying_now = true;
+                }
+
+                //add new
+                {
+                  const icObj__new = transformationOutput.value;
+                  logger.log("icObj__new", icObj__new);
+
+
+                  // icObj__new.isTouchable = false;
+                  icObj__new.touchStateDict[icObj_slot.id] = TouchState.Touched;
+                  if(icObj__new.type == "composite") {
+                    icObj__new.parts.forEach((part, i) => {
+                      part.touchStateDict[icObj_slot.id] = TouchState.Touched;
+                    });
+
+                  }
+
+                  infiniteCanvas.addIcObject(icObj__new);
+
+                  icObj__new.isActive = true;
+                  // icObj__new.isHeld   = true;
+                }
+
+
+              } else {
+                //old version
+                const mutationObj = transformationFunc(icObj__touched);
+                Object.assign(icObj__touched, mutationObj);
+              }
+
 
             }
 
@@ -11982,8 +12096,34 @@
               icObj.isSelected = false;
             });
 
+
+            //supercontainer
+            if(selectionMgmtObj.arr_selected.length == 0) {
+              logger.log("selectionMgmtObj.arr_selected.length == 0");
+
+            } else if(selectionMgmtObj.arr_selected.length == 1) {
+              logger.log("selectionMgmtObj.arr_selected.length == 1");
+
+              const fObj__selected  = selectionMgmtObj.arr_selected.find(e => true);
+              const icObj__selected = fObj__selected.icObj;
+
+              const icObj__supervessel = fabricIntegration.getIcObj__supervessel();
+              icObj__supervessel.position = {
+                x: icObj__selected.position.x,
+                y: icObj__selected.position.y,
+              };
+
+            } else {
+              logger.log("selectionMgmtObj.arr_selected.length > 1");
+            }
+
           }
 
+        }
+
+        getIcObj__supervessel() {
+          const icObj__supervessel = this.getFabricObjects().map(fObj => fObj.icObj).find(icObj => icObj.isSupervessel);
+          return icObj__supervessel;
         }
 
 
@@ -24870,8 +25010,10 @@
 
           // this.debug_rich_wedding();
 
-          this.debug_splitter_sptl();
+          // this.debug_splitter_sptl();
           // this.debug_splitter_spf();
+
+          this.debug_morpher();
         }
 
         debug1() {
@@ -25130,6 +25272,75 @@
         }
 
         debug_splitter_spf() {
+
+        }
+
+
+        debug_morpher() {
+
+          const infiniteCanvas = this.infiniteCanvas;
+
+          //create supercontainer
+          {
+            const trueRect_0 = {
+              x: 200,
+              y: 200,
+              width: 100,
+              height: 100,
+            };
+
+            const parts           = [];
+            const compositeConfig = Compositer.defaultCompositeConfig(parts, true);
+            const icComposite     = infiniteCanvas.createIcComposite(trueRect_0, parts, compositeConfig);
+            infiniteCanvas.addIcObject(icComposite);
+
+            const rep_free = infiniteCanvas.getRepresented(icComposite.id).r_free();
+            rep_free.fill = "lightgrey";
+            rep_free.isSupervessel = true;
+          }
+
+
+
+          //create var
+          {
+            const trueRect_1 = {
+              x: 500,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+            const mathNode = new math.SymbolNode("12");
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
+            icMathNode.isTouchable = true;
+            infiniteCanvas.addIcObject(icMathNode);
+          }
+
+
+          //create morpher
+          {
+            const trueRect_2 = {
+              x: 1000,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+            const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect_2, "morpher__math_to_text");
+            infiniteCanvas.addIcObject(gmOperator);
+          }
+          {
+            const trueRect_3 = {
+              x: 1000,
+              y: 800,
+              width: 100,
+              height: 100,
+            };
+            const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect_3, "morpher__text_to_math");
+            infiniteCanvas.addIcObject(gmOperator);
+          }
+
+
+
+
 
         }
 
