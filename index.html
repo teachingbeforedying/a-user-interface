@@ -10918,7 +10918,33 @@
           }
 
 
+          this.createHandleListener = function() {
+            const handle__listener = (representation, propName, oldValue, newValue) => {
+              const updatesDict = {
+                [propName]: {
+                  old: oldValue,
+                  new: newValue,
+                },
+              };
+              this.manageHandleUpdate(representation, updatesDict);
+            };
 
+            return handle__listener;
+          }
+
+          this.createPartListener = function() {
+            const part__listener = (representation, propName, oldValue, newValue) => {
+              const updatesDict = {
+                [propName]: {
+                  old: oldValue,
+                  new: newValue,
+                },
+              };
+              this.managePartUpdate(representation, updatesDict);
+            };
+
+            return part__listener;
+          }
 
 
 
@@ -10935,15 +10961,7 @@
 
 
 
-            const handle__listener = (representation, propName, oldValue, newValue) => {
-              const updatesDict = {
-                [propName]: {
-                  old: oldValue,
-                  new: newValue,
-                },
-              };
-              this.manageHandleUpdate(representation, updatesDict);
-            };
+            const handle__listener = this.createHandleListener();
 
             // outListenersDict["handle"] = handle__listener;
             outListenersDict[handle.id] = handle__listener;
@@ -10951,15 +10969,7 @@
             const parts          = handle__rep_free.parts;
             const part_listeners = Object.entries(parts).reduce((acc, [partName, part__rep_free]) => {
 
-              const part__listener = (representation, propName, oldValue, newValue) => {
-                const updatesDict = {
-                  [propName]: {
-                    old: oldValue,
-                    new: newValue,
-                  },
-                };
-                this.managePartUpdate(representation, updatesDict);
-              };
+              const part__listener = this.createPartListener();
 
               // acc[partName] = part__listener;
               acc[part__rep_free.id] = part__listener;
@@ -11013,7 +11023,7 @@
 
           //part update
           this.managePartUpdate = function(icObj_compositePart, outerUpdatesDict) {
-            console.log("part_update", icObj_compositePart);
+            logger.log("managePartUpdate", icObj_compositePart);
 
             const infiniteCanvas = this.scopeObj.infiniteCanvas;
             const handle         = this.scopeObj.engineCarrier;
@@ -11060,6 +11070,7 @@
                   rep_free.offInnerUpdate(listener);
 
                   //mutate
+                  logger.log("mutating part:", rep_free.id);
                   {
                     const position_new = {
                       x: rep_free.position.x + offset.dx,
@@ -11126,7 +11137,9 @@
                 //listen:off
                 part__rep_free.offInnerUpdate(listener);
 
+
                 //mutate
+                logger.log("mutating part:", part__rep_free.id);
                 {
                   const position_new = {
                     x: part__rep_free.position.x + offset.dx,
@@ -11138,6 +11151,30 @@
 
                 //listen:on
                 part__rep_free.onInnerUpdate(listener);
+
+              });
+
+            } else if(outerUpdatesDict.parts != null) {
+              logger.log("outerUpdatesDict.parts", outerUpdatesDict.parts);
+
+              // const arr_parts__old = [];
+              // const arr_parts__new = [];
+
+              Object.values(outerUpdatesDict.parts.new).forEach((part__rep_free, i) => {
+                const part__listener = this.createPartListener();
+                this.listeners[part__rep_free.id] = part__listener;
+
+                if(handle__rep_free.compositeConfig[part__rep_free.id] == null) {
+                  const config__part = {
+                    // isMobile: true,
+                    isMobile: false,
+                  };
+                  handle__rep_free.compositeConfig[part__rep_free.id] = config__part;
+                }
+
+                //'activate' listener
+                // const part__listener = this.listeners[part__rep_free.id];
+                part__rep_free.onInnerUpdate(part__listener);
 
               });
 
@@ -11172,6 +11209,7 @@
             const arr_parts_all   = Object.values(parts);
             arr_parts_all.forEach((part__rep_free, i) => {
 
+              //'activate' listeners
               const part__listener = this.listeners[part__rep_free.id];
               part__rep_free.onInnerUpdate(part__listener);
             });
@@ -12060,12 +12098,67 @@
 
           function selectionHandler__default(options) {
             const selectionMgmtObj = getSelectionMgmtObject(options);
-            processSelectionMgmtObject(selectionMgmtObj);
+            processSelectionMgmtObject(selectionMgmtObj, options);
           }
 
-          fabricCanvas.on('selection:cleared', selectionHandler__default);
-          fabricCanvas.on('selection:created', selectionHandler__default);
-          fabricCanvas.on('selection:updated', selectionHandler__default);
+          // fabricCanvas.on('mouse:down:before', (e) => {
+          //   logger.log("mouse:down:before", e);
+          //
+          //   if(e.target != null) {
+          //
+          //     const fObj__clicked  = e.target;
+          //     const icObj__clicked = fObj__clicked.icObj;
+          //     // logger.log("fObj__clicked", fObj__clicked);
+          //     // logger.log("icObj__clicked", icObj__clicked);
+          //
+          //     const fObj__supervessel  = fabricIntegration.getFObj__supervessel();
+          //     const icObj__supervessel = fObj__supervessel.icObj;
+          //     logger.log("icObj__supervessel", icObj__supervessel);
+          //
+          //     icObj__supervessel.zIndex = icObj__clicked.zIndex + 1;
+          //     icObj__supervessel.position = {
+          //       x: icObj__clicked.position.x,
+          //       y: icObj__clicked.position.y,
+          //     };
+          //
+          //
+          //     fabricCanvas._setupCurrentTransform(e, fObj__supervessel);
+          //
+          //     fabricCanvas.setActiveObject(fObj__supervessel);
+          //
+          //     // icObj__supervessel.parts.push(icObj__clicked);
+          //     // icObj__supervessel.parts = [icObj__clicked];
+          //     icObj__supervessel.parts[icObj__clicked.id] = icObj__clicked;
+          //
+          //     const options = {
+          //       selected: [fObj__supervessel],
+          //     };
+          //
+          //     selectionHandler__default(options);
+          //
+          //   } else {
+          //
+          //   }
+          //
+          // });
+          fabricCanvas.on('selection:created', (e) => {
+            logger.log("selection:created", e);
+            selectionHandler__default(e);
+          });
+          fabricCanvas.on('before:transform', (e) => {
+            logger.log("before:transform", e);
+          });
+
+          fabricCanvas.on('selection:updated', (e) => {
+            logger.log("selection:updated", e);
+            selectionHandler__default(e);
+          });
+
+          fabricCanvas.on('selection:cleared', (e) => {
+            logger.log("selection:cleared", e);
+            selectionHandler__default(e);
+          });
+
 
           function getSelectionMgmtObject(options) {
             var outObj;
@@ -12085,7 +12178,8 @@
             return outObj;
           }
 
-          function processSelectionMgmtObject(selectionMgmtObj) {
+          function processSelectionMgmtObject(selectionMgmtObj, options) {
+            logger.log("processSelectionMgmtObject", selectionMgmtObj, options);
 
             selectionMgmtObj.arr_selected.forEach((fObj, i) => {
               const icObj = fObj.icObj;
@@ -12097,21 +12191,52 @@
             });
 
 
-            //supercontainer
+            //supervessel
             if(selectionMgmtObj.arr_selected.length == 0) {
               logger.log("selectionMgmtObj.arr_selected.length == 0");
 
             } else if(selectionMgmtObj.arr_selected.length == 1) {
               logger.log("selectionMgmtObj.arr_selected.length == 1");
 
-              const fObj__selected  = selectionMgmtObj.arr_selected.find(e => true);
-              const icObj__selected = fObj__selected.icObj;
-
-              const icObj__supervessel = fabricIntegration.getIcObj__supervessel();
-              icObj__supervessel.position = {
-                x: icObj__selected.position.x,
-                y: icObj__selected.position.y,
-              };
+              // const fObj__selected  = selectionMgmtObj.arr_selected.find(e => true);
+              // const icObj__selected = fObj__selected.icObj;
+              // // icObj__selected.nowReleased();
+              // //XXX fabricCanvas.dismissActiveObject();
+              //
+              // const icObj__supervessel = fabricIntegration.getIcObj__supervessel();
+              // icObj__supervessel.position = {
+              //   x: icObj__selected.position.x,
+              //   y: icObj__selected.position.y,
+              // };
+              //
+              // const fObj__supervessel = fabricIntegration.getFObj__supervessel();
+              // fabricCanvas.setActiveObject(fObj__supervessel);
+              // // icObj__supervessel.nowHeld();
+              //
+              // const o2 = fObj__supervessel;
+              // // fabricCanvas._setupCurrentTransform(o2.e, o2.target);
+              //
+              // // fabricCanvas.on('mouse:down', function(o) {
+              // //   // logger.log("789789");
+              // //   // fabricCanvas._setupCurrentTransform(o.e, o.target);
+              // //   fabricCanvas._setupCurrentTransform(o2.e, o2.target);
+              // // });
+              //
+              // // fabricCanvas.fire("event:dragleave", () => {
+              // //
+              // // });
+              // // fabricCanvas.fire("event:dragenter", () => {
+              // //
+              // // });
+              //
+              // //look for Event instance
+              // const e = null;
+              // logger.log("options", options);
+              // const transform__current = fabricCanvas.getCurrentTransform();
+              // logger.log("transform__current", transform__current);
+              //
+              // fabricCanvas._setupCurrentTransform(e, o2);
+              // // fabricCanvas.renderAll();
 
             } else {
               logger.log("selectionMgmtObj.arr_selected.length > 1");
@@ -12119,6 +12244,11 @@
 
           }
 
+        }
+
+        getFObj__supervessel() {
+          const fObj__supervessel = this.getFabricObjects().find(fObj => fObj.icObj.isSupervessel);
+          return fObj__supervessel;
         }
 
         getIcObj__supervessel() {
@@ -25013,7 +25143,8 @@
           // this.debug_splitter_sptl();
           // this.debug_splitter_spf();
 
-          this.debug_morpher();
+          this.debug_composite_mutation();
+          // this.debug_morpher();
         }
 
         debug1() {
@@ -25275,12 +25406,84 @@
 
         }
 
+        debug_composite_mutation() {
+
+          const infiniteCanvas = this.infiniteCanvas;
+
+          //create composite
+          const trueRect_0 = {
+            x: 200,
+            y: 200,
+            width: 100,
+            height: 100,
+          };
+
+          const parts           = [];
+          const compositeConfig = Compositer.defaultCompositeConfig(parts, true);
+          const icComposite     = infiniteCanvas.createIcComposite(trueRect_0, parts, compositeConfig);
+          infiniteCanvas.addIcObject(icComposite);
+
+          const rep_free__composite = infiniteCanvas.getRepresented(icComposite.id).r_free();
+          rep_free__composite.fill = "lightgrey";
+          // rep_free.isSupervessel = true;
+          logger.log("rep_free__composite.compositeConfig", rep_free__composite.compositeConfig);
+
+
+          function addMathNode(rep_free__composite) {
+            const trueRect_1 = {
+              x: 500,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+            const mathNode = new math.SymbolNode("12");
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
+            icMathNode.isTouchable = true;
+            infiniteCanvas.addIcObject(icMathNode);
+
+            const rep_free__mathNode = infiniteCanvas.getRepresented(icMathNode.id).r_free();
+
+            const miniDict = {
+              [rep_free__mathNode.id]: rep_free__mathNode,
+            };
+
+            rep_free__composite.parts = Object.assign({}, rep_free__composite.parts, miniDict);
+          }
+
+          function addRect(rep_free__composite) {
+            const trueRect = {
+              x: 700,
+              y: 700,
+              width: 100,
+              height: 100,
+            };
+            const icRect = infiniteCanvas.createIcRect(trueRect);
+            infiniteCanvas.addIcObject(icRect);
+
+            const rep_free__rect = infiniteCanvas.getRepresented(icRect.id).r_free();
+            rep_free__rect.fill = "yellow";
+
+            const miniDict = {
+              [rep_free__rect.id]: rep_free__rect,
+            };
+
+            rep_free__composite.parts = Object.assign({}, rep_free__composite.parts, miniDict);
+          }
+
+          setTimeout(() => {
+
+            addMathNode(rep_free__composite);
+            // addRect(rep_free__composite);
+
+          }, 2000);
+
+        }
 
         debug_morpher() {
 
           const infiniteCanvas = this.infiniteCanvas;
 
-          //create supercontainer
+          //create supervessel
           {
             const trueRect_0 = {
               x: 200,
@@ -25317,30 +25520,40 @@
 
 
           //create morpher
-          {
-            const trueRect_2 = {
-              x: 1000,
-              y: 500,
-              width: 100,
-              height: 100,
-            };
-            const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect_2, "morpher__math_to_text");
-            infiniteCanvas.addIcObject(gmOperator);
-          }
-          {
-            const trueRect_3 = {
-              x: 1000,
-              y: 800,
-              width: 100,
-              height: 100,
-            };
-            const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect_3, "morpher__text_to_math");
-            infiniteCanvas.addIcObject(gmOperator);
-          }
+          // {
+          //   const trueRect_2 = {
+          //     x: 1000,
+          //     y: 500,
+          //     width: 100,
+          //     height: 100,
+          //   };
+          //   const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect_2, "morpher__math_to_text");
+          //   infiniteCanvas.addIcObject(gmOperator);
+          // }
+          // {
+          //   const trueRect_3 = {
+          //     x: 1000,
+          //     y: 800,
+          //     width: 100,
+          //     height: 100,
+          //   };
+          //   const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect_3, "morpher__text_to_math");
+          //   infiniteCanvas.addIcObject(gmOperator);
+          // }
 
 
-
-
+          // const fabricCanvas = fabricIntegration.fabricCanvas;
+          // fabricCanvas.on("dragenter", (options) => {
+          //   logger.log("dragenter, options", options);
+          // });
+          //
+          // fabricCanvas.on("dragleave", (options) => {
+          //   logger.log("dragleave, options", options);
+          // });
+          //
+          // fabricCanvas.on("drag", (options) => {
+          //   logger.log("drag, options", options);
+          // });
 
         }
 
