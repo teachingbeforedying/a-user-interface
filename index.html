@@ -1595,19 +1595,48 @@
 
           switch(mathNode.type) {
             case "OperatorNode":
-              const arr_args = mathNode.args;
+              {
+                const arr_args = mathNode.args;
 
-              const operatorNode__nude = mathNode.clone();
-              operatorNode__nude.args = [];
+                // const operatorNode__nude = mathNode.clone();
+                // operatorNode__nude.args = [];
+                //
+                // outArr = [...arr_args, operatorNode__nude];
 
-              outArr = [...arr_args, operatorNode__nude];
+                const symbolNode__operator = new math.SymbolNode(mathNode.op);
+                outArr = [symbolNode__operator, ...arr_args];
+              }
               break;
-
             case "ParenthesisNode":
-              //SHU TODO
+              {
+                // const symbolNode__operator = new math.SymbolNode("()");
+                // outArr = [symbolNode__operator, mathNode.content];
+
+                const symbolNode__operatorOpen  = new math.SymbolNode("(");
+                const symbolNode__operatorClose = new math.SymbolNode(")");
+                outArr = [symbolNode__operatorOpen, mathNode.content, symbolNode__operatorClose];
+              }
+              break;
             default:
               outArr = [mathNode];
               break;
+          }
+
+          return outArr;
+        }
+
+        static split_full(mathNode) {
+          var outArr;
+
+          const arr_components = Splitter.split_top_layer(mathNode);
+          if(arr_components.length > 1) {
+            outArr = arr_components.reduce((acc, x) => {
+              const arr_mathNode = Splitter.split_full(x);
+              acc.push(...arr_mathNode);
+              return acc;
+            }, []);
+          } else {
+            outArr = arr_components;
           }
 
           return outArr;
@@ -1618,6 +1647,173 @@
 
 
           return outGeometryObj;
+        }
+
+      }
+    </script>
+    <script>
+      class Joiner {
+        constructor() {
+
+        }
+
+        /**
+        *   create a mathNode using all mathNodes in arr_mathNode
+        */
+        static random_join(arr_mathNode) {
+          var outMathNode;
+
+          const join_workz = Joiner.random_join_workz(arr_mathNode, true);
+          outMathNode = join_workz.output;
+          logger.log("outMathNode", outMathNode);
+
+          return outMathNode;
+        }
+
+        static random_join_workz(arr_mathNode, isExhaustive = false) {
+          logger.log("random_join_workz", arr_mathNode);
+          var outWorkz;
+
+          outWorkz = {
+            output:   null,
+            arr_rest: [],
+          };
+
+          var isTerminal;
+          if(isExhaustive) {
+            const isOneNodeArray = (arr_mathNode.length == 1);
+            isTerminal = isOneNodeArray;
+          } else {
+            //randomly terminal
+            const random_boolean = Math.random() < 0.5;
+            isTerminal = random_boolean;
+          }
+
+
+          if(isTerminal) {
+            //get a terminal node
+            const arr_terminalNode     = arr_mathNode.filter(mathNode => {
+              const isConstantNode       = (mathNode.type == "ConstantNode");
+              const isTerminalSymbolNode = (mathNode.type == "SymbolNode") && (Joiner.filter_operatorSymbols([mathNode]).length == 0);
+              return isConstantNode || isTerminalSymbolNode;
+            })
+
+            const terminalNode = arr_terminalNode.find(e => true);
+
+            outWorkz.output   = terminalNode;
+            outWorkz.arr_rest = arr_mathNode.filter(mathNode => mathNode != terminalNode);
+
+          } else {
+            //1. get an operator
+            const arr_symbolNode       = Joiner.filter_operatorSymbols(arr_mathNode);
+            const symbolNode__operator = arr_symbolNode.find(e => true);
+            logger.log("symbolNode__operator", symbolNode__operator);
+
+            const arr_mathNode_rest    = arr_mathNode.filter(mathNode => mathNode != symbolNode__operator);
+
+            //2. get operands
+            const nb_operands = 2;
+            const obj_operands = [...new Array(nb_operands).keys()].reduce((acc, x, index) => {
+              const arr_component__before = acc.arr_component;
+
+              const isExhaustive = (index == (nb_operands - 1));
+              const join_workz = Joiner.random_join_workz(arr_component__before, isExhaustive);
+
+              acc.arr_component = join_workz.arr_rest;
+              const mathNode__operand = join_workz.output;
+              acc.arr_out.push(mathNode__operand);
+
+              return acc;
+            }, {
+              arr_component: arr_mathNode_rest,
+              arr_out: [],
+            });
+
+            const operatorNode = Joiner.operatorNodeForOperatorSymbolNode(symbolNode__operator);
+            operatorNode.args = obj_operands.arr_out;
+            logger.log("operatorNode")
+
+            outWorkz.output   = operatorNode;
+            outWorkz.arr_rest = obj_operands.arr_component;
+          }
+
+          return outWorkz;
+        }
+
+        static filter_operatorSymbols(arr_mathNode) {
+          var outArr;
+
+          function isOperatorSymbolNode(symbolNode) {
+            var outBool;
+
+            switch(symbolNode.name) {
+              case "+":
+              case "-":
+              case "×":
+              case "/":
+                outBool = true;
+                break;
+              default:
+                outBool = false;
+                break;
+            }
+
+            return outBool;
+          }
+
+          outArr = arr_mathNode
+                   .filter(mathNode => (mathNode.type == "SymbolNode"))
+                   .filter(isOperatorSymbolNode);
+
+          return outArr;
+        }
+
+        static operatorNodeForOperatorSymbolNode(symbolNode) {
+          var outOperatorNode;
+
+          const op = symbolNode.name;
+
+          var funcName;
+          switch(op) {
+            case "+":
+              funcName = "add";
+              break;
+            case "-":
+              funcName = "subtract";
+              break;
+            case "×":
+              funcName = "multiply";
+              break;
+            case "/":
+              funcName = "divide";
+              break;
+            default:
+              throw new Error("unsupported op symbol : " + op);
+            break;
+          }
+
+          outOperatorNode = new math.OperatorNode(op, funcName, []);
+
+          return outOperatorNode;
+        }
+
+      }
+    </script>
+
+
+
+    <!-- icObj transformation stuff -->
+    <script>
+      class Combiner {
+        constructor() {
+
+        }
+
+        static combine(arr_icObj) {
+          var outIcObj;
+
+
+          return outIcObj;
         }
 
       }
@@ -7000,21 +7196,37 @@
 
         switch(icObj.type) {
           case "mathNode":
+            {
+              const mathNode = icObj.mathNode;
+
+              const arr_components = Splitter.split_full(mathNode);
+
+              outArr = arr_components.map((mathNode__component, i) => {
+                const position = {
+                  x: icObj.position.x + 50 * i,
+                  y: icObj.position.y + 50 * i,
+                };
+                const icMathNode = infiniteCanvas.createIcMathNode(position.x, position.y, mathNode__component);
+                return icMathNode;
+              });
+
+            }
             break;
 
           case "text":
-            const text = icObj.text;
-            const arr_components = text.split("");
+            {
+              const text = icObj.text;
+              const arr_components = text.split("");
 
-            outArr = arr_components.map((str, i) => {
-              const position = {
-                x: icObj.position.x + 50 * i,
-                y: icObj.position.y + 50 * i,
-              };
-              const icText = infiniteCanvas.createIcText(position.x, position.y, str);
-              return icText;
-            });
-
+              outArr = arr_components.map((str__component, i) => {
+                const position = {
+                  x: icObj.position.x + 50 * i,
+                  y: icObj.position.y + 50 * i,
+                };
+                const icText = infiniteCanvas.createIcText(position.x, position.y, str__component);
+                return icText;
+              });
+            }
             break;
 
           case "image":
@@ -7032,6 +7244,105 @@
         return outArr;
       }
 
+      operateOnActiveObject__join() {
+
+        const infiniteCanvas = this;
+
+        //get supervessel
+        const rep_free__supervessel = infiniteCanvas.getSupervessel();
+        logger.log("rep_free__supervessel", rep_free__supervessel);
+
+        //get cargo
+        const arr_cargo = Object.values(rep_free__supervessel.parts);
+        if(arr_cargo.length == 0) {
+          //ignore            //SHU: ou alors faire surgir des paires du vide canvassien
+          return;
+        }
+
+        //join
+        const icObj__joined = infiniteCanvas.joinObjects(arr_cargo);
+
+        //if join was successful: perform replacement in supervessel
+        if(icObj__joined != null) {
+          //remove original parts
+          arr_cargo.forEach((rep_free__cargo, i) => {
+            rep_free__supervessel.engine.awoken.removePart(rep_free__cargo);
+          });
+
+          //add part: joined
+          {
+            //add to infiniteCanvas
+          infiniteCanvas.addIcObject(icObj__joined);
+
+            //get rep_free
+          const rep_free__joined = infiniteCanvas.getRepresented(icObj__joined.id).r_free();
+
+            //add to supervessel
+          rep_free__supervessel.engine.awoken.addPart(rep_free__joined);
+          }
+
+
+        }
+
+      }
+
+      joinObjects(arr_icObj) {
+        var outIcObj;
+
+        const infiniteCanvas = this;
+
+        const typeDescription = infiniteCanvas.createTypeDescription(arr_icObj);
+
+        if(typeDescription.type == "single") {
+          const icObjType = typeDescription.arr_type.find(e => true);
+          switch(icObjType) {
+            case "mathNode":
+              {
+                const arr_mathNode = arr_icObj.map(icObj => icObj.mathNode);
+                const mathNode__joined = Joiner.random_join(arr_mathNode);
+
+                const icObj = arr_icObj.find(e => true);
+                const position = {
+                  x: icObj.position.x,
+                  y: icObj.position.y,
+                };
+
+                const icMathNode = infiniteCanvas.createIcMathNode(position.x, position.y, mathNode__joined);
+                outIcObj = icMathNode;
+              }
+              break;
+            case "text":
+              {
+
+              }
+              break;
+            default:
+              break;
+          }
+        } else {
+
+        }
+
+        return outIcObj;
+      }
+
+      createTypeDescription(arr_icObj) {
+        var outTypeDesc = {};
+
+        const arr_type__all = arr_icObj.map(icObj => icObj.type);
+
+        const set_type      = new Set(arr_type__all);
+        const arr_type__distinct = [...set_type];
+        outTypeDesc.arr_type = arr_type__distinct;
+
+        if(arr_type__distinct.length == 1) {
+          outTypeDesc.type = "single";
+        } else {
+          outTypeDesc.type = "multi";
+        }
+
+        return outTypeDesc;
+      }
 
 
 
@@ -20799,7 +21110,9 @@
               case "Comma":
                 {
                   // keyboardIntegration.infiniteCanvas.addNewButton();
-                  keyboardIntegration.infiniteCanvas.addNewRxSubscription();
+                  // keyboardIntegration.infiniteCanvas.addNewRxSubscription();
+
+                  keyboardIntegration.infiniteCanvas.operateOnActiveObject__join();     // == join supervessel cargo
                 }
                 break;
 
