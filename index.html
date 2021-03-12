@@ -82,6 +82,22 @@
           }
 
 
+          /**
+           * Shuffles array in place.
+           * @param {Array} a items An array containing the items.
+           */
+          static shuffle(a) {
+              var j, x, i;
+              for (i = a.length - 1; i > 0; i--) {
+                  j = Math.floor(Math.random() * (i + 1));
+                  x = a[i];
+                  a[i] = a[j];
+                  a[j] = x;
+              }
+              return a;
+          }
+
+
         }
 
 
@@ -706,6 +722,16 @@
         return mathNode;
       }
 
+      function random_terminal_mathNode_withType_inArr_and_isEnvelopped(arr_type, isEnvelopped) {
+
+        var mathNode = random_terminal_mathNode_withType_inArr(arr_type);
+        if(isEnvelopped) {
+          mathNode = new math.ParenthesisNode(mathNode);
+        }
+
+        return mathNode;
+      }
+
       function random_operatorNode(/*arity,*/ arr_node) {
         const arity = arityForArr(arr_node);
         const op = random_op(arity);
@@ -1032,13 +1058,18 @@
         return outMathNode;
       }
 
-      function random_onion_mathNode(depth, isWithExplicitationParentheses = true) {
+      function random_onion_mathNode(depth, isWithExplicitationParentheses = true, isWithRandomParentheses = false) {
         var outMathNode;
 
         if (depth < 1) {
           throw new Error("mathNode is has min depth: 1");
         } else if (depth == 1) {
-          const terminalNode = random_terminal_mathNode_withType_inArr(["SymbolNode"]);
+
+          const random_boolean = Math.random() < 0.5;
+          const isEnvelopped = random_boolean;
+
+          const terminalNode = random_terminal_mathNode_withType_inArr_and_isEnvelopped(["SymbolNode"], isEnvelopped);
+
           outMathNode = terminalNode;
         } else {
           const innerOnionNode = random_onion_mathNode(depth-1, isWithExplicitationParentheses);
@@ -1063,7 +1094,12 @@
               const isSamePrecedence = (precedence__innerOnionNode == precedence__layerNode);
 
               if(isSamePrecedence) {
-                const enveloppedInnerOnionNode = new math.ParenthesisNode(innerOnionNode);
+                var enveloppedInnerOnionNode;
+                if(innerOnionNode.type == "ParenthesisNode") {    //already envelopped
+                  enveloppedInnerOnionNode = innerOnionNode;
+                } else {
+                  enveloppedInnerOnionNode = new math.ParenthesisNode(innerOnionNode);
+                }
 
                 const layerNode_explicit = new math.OperatorNode(layerNode.op, layerNode.fn, [enveloppedInnerOnionNode, layerTerminalNode]);
 
@@ -1609,12 +1645,12 @@
               break;
             case "ParenthesisNode":
               {
-                // const symbolNode__operator = new math.SymbolNode("()");
-                // outArr = [symbolNode__operator, mathNode.content];
+                const symbolNode__operator = new math.SymbolNode("()");
+                outArr = [symbolNode__operator, mathNode.content];
 
-                const symbolNode__operatorOpen  = new math.SymbolNode("(");
-                const symbolNode__operatorClose = new math.SymbolNode(")");
-                outArr = [symbolNode__operatorOpen, mathNode.content, symbolNode__operatorClose];
+                // const symbolNode__operatorOpen  = new math.SymbolNode("(");
+                // const symbolNode__operatorClose = new math.SymbolNode(")");
+                // outArr = [symbolNode__operatorOpen, mathNode.content, symbolNode__operatorClose];
               }
               break;
             default:
@@ -1663,12 +1699,105 @@
         static random_join(arr_mathNode) {
           var outMathNode;
 
-          const join_workz = Joiner.random_join_workz(arr_mathNode, true);
-          outMathNode = join_workz.output;
-          logger.log("outMathNode", outMathNode);
+          const nb_max_try = 1000;
+
+          var found = false;
+          var nb_try = 0;
+          //ugly brute            //SHU: sometimes, one can be proud of one's hideousness
+          while(!found && nb_try < nb_max_try) {
+            try {
+              const join_workz = Joiner.random_join_workz(arr_mathNode, true);
+              outMathNode = join_workz.output;
+              found = true;
+            }
+            catch(e) {
+              logger.log(e);
+              found = false;
+            }
+            nb_try += 1;
+          }
+
+          if(!found) {
+            outMathNode = new math.SymbolNode("error");
+          }
+
+          // logger.log("outMathNode", outMathNode);
 
           return outMathNode;
         }
+
+        // static random_join_workz(arr_mathNode, isExhaustive = false) {
+        //   logger.log("random_join_workz", arr_mathNode);
+        //   var outWorkz;
+        //
+        //   outWorkz = {
+        //     output:   null,
+        //     arr_rest: [],
+        //   };
+        //
+        //   var isTerminal;
+        //   if(isExhaustive) {
+        //     const isOneNodeArray = (arr_mathNode.length == 1);
+        //     isTerminal = isOneNodeArray;
+        //   } else {
+        //     //randomly terminal
+        //     const random_boolean = Math.random() < 0.5;
+        //     isTerminal = random_boolean;
+        //   }
+        //
+        //
+        //   if(isTerminal) {
+        //     //get a terminal node
+        //     const arr_terminalNode     = arr_mathNode.filter(mathNode => {
+        //       const isConstantNode       = (mathNode.type == "ConstantNode");
+        //       const isTerminalSymbolNode = (mathNode.type == "SymbolNode") && (Joiner.filter_operatorSymbols([mathNode]).length == 0);
+        //       return isConstantNode || isTerminalSymbolNode;
+        //     });
+        //     Utils.shuffle(arr_terminalNode);
+        //
+        //     const terminalNode = arr_terminalNode.find(e => true);
+        //
+        //     outWorkz.output   = terminalNode;
+        //     outWorkz.arr_rest = arr_mathNode.filter(mathNode => mathNode != terminalNode);
+        //
+        //   } else {
+        //     //1. get an operator
+        //     const arr_symbolNode       = Joiner.filter_operatorSymbols(arr_mathNode);
+        //     Utils.shuffle(arr_symbolNode);
+        //
+        //     const symbolNode__operator = arr_symbolNode.find(e => true);
+        //     logger.log("symbolNode__operator", symbolNode__operator);
+        //
+        //     const arr_mathNode_rest    = arr_mathNode.filter(mathNode => mathNode != symbolNode__operator);
+        //
+        //     //2. get operands
+        //     const nb_operands = 2;
+        //     const obj_operands = [...new Array(nb_operands).keys()].reduce((acc, x, index) => {
+        //       const arr_component__before = acc.arr_component;
+        //
+        //       const isExhaustive = (index == (nb_operands - 1));
+        //       const join_workz = Joiner.random_join_workz(arr_component__before, isExhaustive);
+        //
+        //       acc.arr_component = join_workz.arr_rest;
+        //       const mathNode__operand = join_workz.output;
+        //       acc.arr_out.push(mathNode__operand);
+        //
+        //       return acc;
+        //     }, {
+        //       arr_component: arr_mathNode_rest,
+        //       arr_out: [],
+        //     });
+        //
+        //     const operatorNode = Joiner.operatorNodeForOperatorSymbolNode(symbolNode__operator);
+        //     operatorNode.args = obj_operands.arr_out;
+        //     logger.log("operatorNode")
+        //
+        //     outWorkz.output   = operatorNode;
+        //     outWorkz.arr_rest = obj_operands.arr_component;
+        //   }
+        //
+        //   return outWorkz;
+        // }
 
         static random_join_workz(arr_mathNode, isExhaustive = false) {
           logger.log("random_join_workz", arr_mathNode);
@@ -1696,7 +1825,8 @@
               const isConstantNode       = (mathNode.type == "ConstantNode");
               const isTerminalSymbolNode = (mathNode.type == "SymbolNode") && (Joiner.filter_operatorSymbols([mathNode]).length == 0);
               return isConstantNode || isTerminalSymbolNode;
-            })
+            });
+            Utils.shuffle(arr_terminalNode);
 
             const terminalNode = arr_terminalNode.find(e => true);
 
@@ -1706,13 +1836,17 @@
           } else {
             //1. get an operator
             const arr_symbolNode       = Joiner.filter_operatorSymbols(arr_mathNode);
+            Utils.shuffle(arr_symbolNode);
+
             const symbolNode__operator = arr_symbolNode.find(e => true);
             logger.log("symbolNode__operator", symbolNode__operator);
 
             const arr_mathNode_rest    = arr_mathNode.filter(mathNode => mathNode != symbolNode__operator);
 
+            const specializedNode = Joiner.specializedNodeForSymbolNode(symbolNode__operator);
+
             //2. get operands
-            const nb_operands = 2;
+            const nb_operands = Joiner.arityForSymbolNode(symbolNode__operator);
             const obj_operands = [...new Array(nb_operands).keys()].reduce((acc, x, index) => {
               const arr_component__before = acc.arr_component;
 
@@ -1729,16 +1863,32 @@
               arr_out: [],
             });
 
-            const operatorNode = Joiner.operatorNodeForOperatorSymbolNode(symbolNode__operator);
-            operatorNode.args = obj_operands.arr_out;
+            const arr_operands = obj_operands.arr_out;
+
+            switch(specializedNode.type) {
+              case "ParenthesisNode":
+                const parenthesisNode = specializedNode;
+                const contentNode = arr_operands.find(e => true);
+                parenthesisNode.content = contentNode;
+                break;
+              case "OperatorNode":
+                const operatorNode = specializedNode;
+                operatorNode.args = arr_operands;
+                break;
+              default:
+                throw new Error("unsupported specializedNode type : " + specializedNode.type);
+                break;
+            }
+
             logger.log("operatorNode")
 
-            outWorkz.output   = operatorNode;
+            outWorkz.output   = specializedNode;
             outWorkz.arr_rest = obj_operands.arr_component;
           }
 
           return outWorkz;
         }
+
 
         static filter_operatorSymbols(arr_mathNode) {
           var outArr;
@@ -1753,6 +1903,11 @@
               case "/":
                 outBool = true;
                 break;
+
+              case "()":
+                outBool = true;
+                break;
+
               default:
                 outBool = false;
                 break;
@@ -1795,6 +1950,67 @@
           outOperatorNode = new math.OperatorNode(op, funcName, []);
 
           return outOperatorNode;
+        }
+
+        static specializedNodeForSymbolNode(symbolNode) {
+          var outSpecializedNode;
+
+          const op = symbolNode.name;
+
+          var funcName;
+          switch(op) {
+            case "+":
+              funcName = "add";
+              outSpecializedNode = new math.OperatorNode(op, funcName, []);
+              break;
+            case "-":
+              funcName = "subtract";
+              outSpecializedNode = new math.OperatorNode(op, funcName, []);
+              break;
+            case "×":
+              funcName = "multiply";
+              outSpecializedNode = new math.OperatorNode(op, funcName, []);
+              break;
+            case "/":
+              funcName = "divide";
+              outSpecializedNode = new math.OperatorNode(op, funcName, []);
+              break;
+
+            case "()":
+              const mathNode__placeholder = new math.SymbolNode("placeholder");
+              outSpecializedNode = new math.ParenthesisNode(mathNode__placeholder);   //SHU: ni propre, ni sale. Juste un peu dérangeant.
+              break;
+
+            default:
+              throw new Error("unsupported op symbol : " + op);
+            break;
+          }
+
+          return outSpecializedNode;
+        }
+
+        static arityForSymbolNode(symbolNode) {
+          var outInt;
+
+          const op = symbolNode.name;
+
+          var funcName;
+          switch(op) {
+            case "+":
+            case "-":
+            case "×":
+            case "/":
+              outInt = 2;
+              break;
+            case "()":
+              outInt = 1;
+              break;
+            default:
+              throw new Error("unsupported op symbol : " + op);
+            break;
+          }
+
+          return outInt;
         }
 
       }
@@ -4131,6 +4347,93 @@
 
         return greenMouseBox;
       }
+
+
+
+      createIcExoSkeleton(icObj__heart, exoSkeletonConfig) {
+        console.log("createIcExoSkeleton", icObj__heart, exoSkeletonConfig);
+
+        const infiniteCanvas = this;
+
+        function easyTrueRectWithTrueRect(trueRect, position_easy) {
+          var outTrueRect;
+
+          const trueRect_clone = Object.assign({}, trueRect);
+          switch(position_easy) {
+            case "left":
+              outTrueRect = trueRect_clone;
+              outTrueRect.x = outTrueRect.x - outTrueRect.width;
+              break;
+            case "right":
+              outTrueRect = trueRect_clone;
+              outTrueRect.x = outTrueRect.x + outTrueRect.width;
+              break;
+            case "top":
+              outTrueRect = trueRect_clone;
+              outTrueRect.y = outTrueRect.y - outTrueRect.height;
+              break;
+            case "bottom":
+              outTrueRect = trueRect_clone;
+              outTrueRect.y = outTrueRect.y + outTrueRect.height;
+              break;
+            case "center":
+              outTrueRect = trueRect_clone;
+              break;
+            default:
+              throw new Error("Unsupported position_easy: " + position_easy);
+              break;
+          }
+
+          return outTrueRect;
+        }
+
+        const trueRect__heart = {
+          x:      icObj__heart.position.x,
+          y:      icObj__heart.position.y,
+          width:  icObj__heart.size.width,
+          height: icObj__heart.size.height,
+        };
+
+
+        const icObj__display = icObj__heart.deepClone();
+        icObj__display.stroke      = "red";
+        icObj__display.strokeWidth = 5;
+
+
+
+        const icObj__grab   = infiniteCanvas.createIcRect(trueRect__heart);
+        icObj__grab.fill = "green";
+        const trueRect__grab = easyTrueRectWithTrueRect(trueRect__heart, exoSkeletonConfig.grab.position_easy);
+        icObj__grab.position = {
+          x: trueRect__grab.x,
+          y: trueRect__grab.y,
+        };
+
+        const icObj__contact = infiniteCanvas.createIcRect(trueRect__heart);
+        icObj__contact.fill  = "lightblue";
+        const trueRect__contact = easyTrueRectWithTrueRect(trueRect__heart, exoSkeletonConfig.contact.position_easy);
+        icObj__contact.position = {
+          x: trueRect__contact.x,
+          y: trueRect__contact.y,
+        };
+
+        const parts = {
+          heart:      icObj__heart,
+
+          display:    icObj__display,
+          grab:       icObj__grab,
+          contact:    icObj__contact,
+        };
+
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+
+        const icComposite = this.createIcComposite(trueRect__heart, parts, compositeConfig);
+        icComposite.cType = "exoSkeleton";
+
+        return icComposite;
+      }
+
+
 
 
 
@@ -12552,6 +12855,10 @@
           this.fObjForIcObj_dict = {};
 
 
+          //debug
+          {
+            this.isEnabled_supervessel = true;
+          }
 
           // this.debugFabric();
           this.synchronizeWithIcObjects(infiniteCanvas.icObjects);
@@ -12641,63 +12948,67 @@
           fabricCanvas.on('mouse:down:before', (e) => {
             logger.log("mouse:down:before", e);
 
-            const fObj__supervessel  = fabricIntegration.getFObj__supervessel();
-            const icObj__supervessel = fObj__supervessel.icObj;
+            if(this.isEnabled_supervessel) {  //SHU: debug clause
 
-            if(e.target != null) {
+              const fObj__supervessel  = fabricIntegration.getFObj__supervessel();
+              const icObj__supervessel = fObj__supervessel.icObj;
 
-              if(e.target == fObj__supervessel) {
-                //ignore
-                return;
-              }
+              if(e.target != null) {
 
-              const arr_part__supervessel = Object.values(icObj__supervessel.parts);
-              if(arr_part__supervessel.length > 0) {
+                if(e.target == fObj__supervessel) {
+                  //ignore
+                  return;
+                }
+
+                const arr_part__supervessel = Object.values(icObj__supervessel.parts);
+                if(arr_part__supervessel.length > 0) {
+
+                  const arr_part = Object.values(icObj__supervessel.parts);
+                  arr_part.forEach((part, i) => {
+                    icObj__supervessel.engine.awoken.removePart(part);
+                  });
+
+                }
+                // else {
+
+                  const fObj__clicked  = e.target;
+                  const icObj__clicked = fObj__clicked.icObj;
+                  // logger.log("fObj__clicked", fObj__clicked);
+                  // logger.log("icObj__clicked", icObj__clicked);
+
+
+                  logger.log("icObj__supervessel", icObj__supervessel);
+
+                  icObj__supervessel.zIndex = icObj__clicked.zIndex + 1;
+                  icObj__supervessel.position = {
+                    x: icObj__clicked.position.x,
+                    y: icObj__clicked.position.y,
+                  };
+
+
+                  fabricCanvas._setupCurrentTransform(e, fObj__supervessel);  //magic happens here
+
+                  fabricCanvas.setActiveObject(fObj__supervessel);
+
+                  icObj__supervessel.engine.awoken.addPart(icObj__clicked);
+
+                  const options = {
+                    selected: [fObj__supervessel],
+                  };
+                  selectionHandler__default(options);
+
+                // }
+
+              } else {
+                // const fObj__supervessel  = fabricIntegration.getFObj__supervessel();
+                // const icObj__supervessel = fObj__supervessel.icObj;
 
                 const arr_part = Object.values(icObj__supervessel.parts);
                 arr_part.forEach((part, i) => {
                   icObj__supervessel.engine.awoken.removePart(part);
                 });
-
               }
-              // else {
 
-                const fObj__clicked  = e.target;
-                const icObj__clicked = fObj__clicked.icObj;
-                // logger.log("fObj__clicked", fObj__clicked);
-                // logger.log("icObj__clicked", icObj__clicked);
-
-
-                logger.log("icObj__supervessel", icObj__supervessel);
-
-                icObj__supervessel.zIndex = icObj__clicked.zIndex + 1;
-                icObj__supervessel.position = {
-                  x: icObj__clicked.position.x,
-                  y: icObj__clicked.position.y,
-                };
-
-
-                fabricCanvas._setupCurrentTransform(e, fObj__supervessel);  //magic happens here
-
-                fabricCanvas.setActiveObject(fObj__supervessel);
-
-                icObj__supervessel.engine.awoken.addPart(icObj__clicked);
-
-                const options = {
-                  selected: [fObj__supervessel],
-                };
-                selectionHandler__default(options);
-
-              // }
-
-            } else {
-              // const fObj__supervessel  = fabricIntegration.getFObj__supervessel();
-              // const icObj__supervessel = fObj__supervessel.icObj;
-
-              const arr_part = Object.values(icObj__supervessel.parts);
-              arr_part.forEach((part, i) => {
-                icObj__supervessel.engine.awoken.removePart(part);
-              });
             }
 
           });
@@ -12817,6 +13128,11 @@
         }
 
 
+        setSupervesselEnabled(enabled) {
+          console.log("setSupervesselEnabled", enabled);
+          this.isEnabled_supervessel = enabled;
+          // this.fabricCanvas.requestRenderAll();
+        }
 
 
         // debugOriginalAxes() {
@@ -20834,6 +21150,10 @@
                   keyboardIntegration.fabricIntegration.setAntiAliasEnabled(isModeA);
               }),
 
+              "n": new KeyUpABToggle("n", KeyUpABToggle.defaultKeyUpFunc(["KeyN"]), (isModeA) => {
+                  keyboardIntegration.fabricIntegration.setSupervesselEnabled(isModeA);
+              }),
+
               "d": new KeyUpABToggle("d", KeyUpABToggle.defaultKeyUpFunc(["KeyD"]), (isModeA) => {
                   const infiniteCanvas = keyboardIntegration.infiniteCanvas;
                   if(!isModeA) {
@@ -21089,7 +21409,7 @@
 
               case "KeyN":
                 {
-                  keyboardIntegration.infiniteCanvas.addNewComposite();
+                  // keyboardIntegration.infiniteCanvas.addNewComposite();
                   // keyboardIntegration.infiniteCanvas.addNewGreenMouseWell();
                 }
                 break;
@@ -21149,8 +21469,12 @@
                   // const mathNode = random_mathNode_withDepth_and_nbSymbols(4,1);
 
                   // const mathNode = random_onion_mathNode(5);
-                  const mathNode = random_onion_mathNode(3);
                   // const mathNode = random_onion_mathNode(5, false);
+                  // const mathNode = random_onion_mathNode(3);
+
+                  // const mathNode = random_onion_mathNode(2);
+                  const mathNode = random_onion_mathNode(3);
+
 
                   mathNode.autoSimplify = false;
 
@@ -24767,11 +25091,12 @@
 
           //setup step generator
             //numbers
-          const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance1(infiniteCanvas, golfCourse, stepGeneratorFunc);
+          // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance1(infiniteCanvas, golfCourse, stepGeneratorFunc);
             //litterals
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance2(infiniteCanvas, golfCourse, stepGeneratorFunc);
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance3(infiniteCanvas, golfCourse, stepGeneratorFunc);
-          // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance4(infiniteCanvas, golfCourse, stepGeneratorFunc);
+          const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance4(infiniteCanvas, golfCourse, stepGeneratorFunc);
+            //equations
 
 
           //create first step
@@ -25049,8 +25374,8 @@
             return gmItem__operator;
           });
 
-          // const depth__initial    = 4;
-          const depth__initial    = 10;
+          const depth__initial    = 4;
+          // const depth__initial    = 10;
 
           const gmItem__initial   = GMMaker.createGMItemTarget__x_to_expr(gmItem__target, arr_gmItem_operator, depth__initial);
           const mathNode__initial = gmItem__initial.content;
@@ -25709,7 +26034,12 @@
           // this.debug_splitter_spf();
 
           // this.debug_composite_mutation();
-          this.debug_morpher();
+          // this.debug_morpher();
+
+          // this.debug_exoSkeleton();
+          this.debug_exoSkeleton2();
+
+          // this.debug_octomouse();
         }
 
         debug1() {
@@ -26118,6 +26448,122 @@
             const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect_3, "morpher__text_to_math");
             infiniteCanvas.addIcObject(gmOperator);
           }
+
+        }
+
+        debug_exoSkeleton() {
+
+          const infiniteCanvas = this.infiniteCanvas;
+
+          const trueRect_1 = {
+            x: 500,
+            y: 500,
+            width: 100,
+            height: 100,
+          };
+          // const icObj__heart = infiniteCanvas.createIcText(trueRect_1.x, trueRect_1.y, "heart");
+          const icObj__heart = infiniteCanvas.createIcRect(trueRect_1);
+          // infiniteCanvas.addIcObject(icText);
+
+
+          const exoSkeletonConfig = {
+            grab: {
+              position_easy: "right",
+            },
+            contact: {
+              position_easy: "bottom",
+            },
+            display: {
+              position_easy: "center",
+            },
+            // heartArea:
+          };
+
+          const icExoSkeleton = infiniteCanvas.createIcExoSkeleton(icObj__heart, exoSkeletonConfig);
+          infiniteCanvas.addIcObject(icExoSkeleton);
+
+
+          //create morpher
+          {
+            const trueRect_2 = {
+              x: 1000,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+            const gmOperator = infiniteCanvas.createIcGMOperator(trueRect_2, "+ 1");
+            infiniteCanvas.addIcObject(gmOperator);
+          }
+
+        }
+
+        debug_exoSkeleton2() {
+
+          const infiniteCanvas = this.infiniteCanvas;
+
+          const trueRect_1 = {
+            x: 500,
+            y: 500,
+            width: 100,
+            height: 100,
+          };
+
+          const icObj__member_1 = infiniteCanvas.createIcText(trueRect_1.x, trueRect_1.y, "2 + 2");
+          // const icObj__equals   = infiniteCanvas.createIcText(trueRect_1.x, trueRect_1.y, "=");
+          const icObj__member_2 = infiniteCanvas.createIcText(trueRect_1.x, trueRect_1.y, "5");
+
+          const internalsObj = {
+            "member_1": icObj__member_1,
+            // "equals": icObj__center,
+            "member_2": icObj__member_2,
+          };
+          // infiniteCanvas.addIcObject(icText);
+
+          const exoSkeletonConfig = {
+            internals: internalsObj,
+
+            grab: {
+              position_easy: "right2",
+            },
+
+            member_1: {
+              position_easy: "left",
+            },
+            contact_1: {
+              position_easy: "bottom_left",
+            },
+
+            member_2: {
+              position_easy: "right",
+            },
+            contact_2: {
+              position_easy: "bottom_right",
+            },
+
+
+          };
+
+          const icExoSkeleton = infiniteCanvas.createIcExoSkeleton(exoSkeletonConfig);
+          infiniteCanvas.addIcObject(icExoSkeleton);
+
+
+          //create operator
+          {
+            const trueRect_2 = {
+              x: 1000,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+            const gmOperator = infiniteCanvas.createIcGMOperator(trueRect_2, "+ 1");
+            infiniteCanvas.addIcObject(gmOperator);
+          }
+
+        }
+
+
+
+        debug_octoMouse() {
 
         }
 
