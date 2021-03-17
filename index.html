@@ -628,6 +628,26 @@
           return op__inverse;
         }
 
+
+        static multiply() {
+          var outOp;
+
+          const opConfig = dict_opConfig[2]["multiply"];
+          outOp = Operator.fromConfig(opConfig);
+
+          return outOp;
+        }
+
+        static divide() {
+          var outOp;
+
+          const opConfig = dict_opConfig[2]["divide"];
+          outOp = Operator.fromConfig(opConfig);
+
+          return outOp;
+        }
+
+
       }
 
       class Operation {
@@ -826,7 +846,7 @@
         };
       };
 
-      function random_operatorNodeFactoryFuncWrapper_binary(operatorParams) {
+      function random_operatorNodeFactoryFuncWrapper_binary(operatorParams, arr_op = null) {
         var outFuncWrapper;
 
         const arr_type__node_b = operatorParams.node_b.types;
@@ -836,7 +856,12 @@
 
 
         const arity = 2
-        const op    = random_op(arity);
+        var op;
+        if(arr_op != null) {
+          op = Utils.randomElementInArray(arr_op);
+        } else {
+          op = random_op(arity);
+        }
 
         var node_b = random_terminal_mathNode_withType_inArr(arr_type__node_b);
         // logger.log("random_operatorNodeFactoryFuncWrapper_binary, node_b", node_b);
@@ -1396,7 +1421,15 @@
 
         }
 
-        static simplify_top_layer() {
+        static simplify_top_layer(mathNode) {
+          var outMathNode;
+
+          outMathNode = standardOperation__simplify_top_layer(mathNode);
+
+          return outMathNode;
+        }
+
+        static simplify_full() {
 
         }
 
@@ -1619,6 +1652,54 @@
 
 
     </script>
+    <script>
+      class Rewriter {
+
+        constructor() {
+
+        }
+
+        static decomposition_product_primes(mathNode) {
+          var outNode;
+
+          switch(mathNode.type) {
+            case "ConstantNode":
+              const value = mathNode.value;
+              const arr_values = MathUtils.primeFactorization(value);
+
+              // const joinreduce = function(joinFunc, )
+              const value_first  = arr_values[0];
+              const arr_butfirst = arr_values.slice(1);
+              const mathNode_initial = new math.ConstantNode(value_first);
+              outNode = arr_butfirst.reduce((acc, x) => {
+                const mathNode_arg2 = new math.ConstantNode(x);
+                return new math.OperatorNode("×lol×", "multiply", [acc, mathNode_arg2]);
+              }, mathNode_initial);
+
+              break;
+            case "OperatorNode":
+              const operatorNode = mathNode;
+              logger.log("operatorNode", operatorNode);
+              // switch(operatorNode.op) {
+              //   case "/":
+              //   break;
+              // }
+              outNode = new math.OperatorNode(operatorNode.op, operatorNode.fn, operatorNode.args.map(Rewriter.decomposition_product_primes));
+              break;
+            default:
+              throw new Error("unsupported type: " + mathNode.type);
+              break;
+          }
+
+          return outNode;
+        }
+
+
+      }
+    </script>
+
+
+
     <script>
       class Splitter {
 
@@ -2015,6 +2096,30 @@
 
       }
     </script>
+    <script>
+      class MathUtils {
+
+        static primeFactorization(number, result) {
+          var result = (result || []);
+          var root = Math.sqrt(number);
+          var x = 2;
+
+          if (number % x) {
+            x = 3;
+
+            while ((number % x) && ((x = (x + 2)) < root)) {}
+          }
+
+          x = (x <= root) ? x : number;
+
+          result.push(x);
+
+          return (x === number) ? result : MathUtils.primeFactorization((number / x), result);
+        }
+
+      }
+    </script>
+
 
 
 
@@ -5273,6 +5378,32 @@
             }
             break;
 
+            case "decomposition__product_primes":
+            {
+              operatorConfig.name = "decomp:prpr";
+
+              const icObjTransformationFunc = (icObj) => {
+                var transformationOutput;
+
+                if(icObj.type == "mathNode") {
+                  const x = icObj.position.x;
+                  const y = icObj.position.y;
+                  const mathNode = icObj.mathNode;
+                  const mathNode_new = Rewriter.decomposition_product_primes(mathNode);
+
+                  const icObj__new = infiniteCanvas.createIcMathNode(x,y,mathNode_new);
+                  transformationOutput = new TransformationOutput("new", icObj__new, icObj);
+                } else {
+                  logger.log("icObj.type:", icObj.type);
+                  transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+                }
+
+                return transformationOutput;
+              };
+
+              operatorConfig.transformationFunc = icObjTransformationFunc;
+            }
+            break;
 
           }
 
@@ -5457,16 +5588,25 @@
         // };
 
         const canTouchFunc_valueWise = (above, below, context) => {
-          // logger.log("canTouchFunc_valueWise", above, below, context);
+          logger.log("canTouchFunc_valueWise", above, below, context);
           var outBool;
 
           // const touchSlot = below;
           const facade    = context.facade;
 
-          const mathNode__above = above.mathNode;
-          console.log("mathNode__above", mathNode__above);
+          var mathNode__above;
+          // const mathNode__above = above.mathNode;
+          // const mathNode__above = above.parts.facade.mathNode;
+          if(above.mathNode != null) {
+            mathNode__above = above.mathNode;
+          } else if(above.parts.facade.mathNode != null) {
+            mathNode__above = above.parts.facade.mathNode;
+          } else {
+            throw new Error("unsupported situation: canTouchFunc_valueWise");
+          }
+          logger.log("mathNode__above", mathNode__above);
           const mathNode__below = facade.mathNode;
-          console.log("mathNode__below", mathNode__below);
+          logger.log("mathNode__below", mathNode__below);
 
           function isSameValue(mathNode_1, mathNode_2) {
             var outBool;
@@ -5474,9 +5614,30 @@
             function isContainingSymbolNode(mathNode) {
               var outBool;
 
-              const arr_symbolNode = mathNode.filter(function (node) { return node.isSymbolNode; });
+              switch(mathNode.type) {
+                case "OperatorNode":
+                  const operatorNode = mathNode;
+                  outBool = Utils.early_break_reduce(operatorNode.args, (acc,x,i,arr) => {
+                    // logger.log("early_break_reduce", x.x);
 
-              outBool = (arr_symbolNode.length > 0);
+                    const isChildContainingSymbolNode = isContainingSymbolNode(x);
+
+                    return acc || isChildContainingSymbolNode;
+                  }, true, (acc, x, i, arr) => {
+                    return (acc == true);
+                  });
+                  break;
+                case "ParenthesisNode":
+                  const parenthesisNode = mathNode;
+                  outBool = isContainingSymbolNode(parenthesisNode.content);
+                  break;
+                case "SymbolNode":
+                  outBool = true;
+                  break;
+                default:
+                  outBool = false;
+                  break;
+                }
 
               return outBool;
             }
@@ -5504,7 +5665,7 @@
                 ];
 
                 //early break reduce
-                outBool = Utils.early_break_reduce(arr_test, (acc,x,i,arr) => {
+                outBool = Utils.early_break_reduce(arr_dict_subst, (acc,x,i,arr) => {
                   // logger.log("early_break_reduce", x.x);
 
                   const ev_1 = evaluateMathNode(mathNode_1, x);
@@ -5694,8 +5855,14 @@
 
 
         const canTouchFunc_geometryWise = (above, below, context) => {
-          const contactArea = above.parts.contactArea;
-          return Touch.canTouch(contactArea, below);
+          // logger.log("canTouchFunc_geometryWise", above);
+
+          // if(above.parts != null && above.parts.contactArea != null) {
+            const contactArea = above.parts.contactArea;
+            return Touch.canTouch(contactArea, below);
+          // } else {
+          //   return Touch.canTouch(above, below);                    //SHU: _temporary_ support for simple objects
+          // }
         };
 
         const canTouchFunc_valueWise = (above, below, context) => {
@@ -11012,7 +11179,7 @@
 
 
 
-              } else {
+              } else if(transformationOutput.type == "mutated") {
                 logger.log("transformationOutput:", transformationOutput);
                 //old version
                 // const mutationObj = transformationFunc(icObj__touched);
@@ -11023,10 +11190,12 @@
                     icObj__touched.mathNode = mutationObj.mathNode;
                     break;
                   default:
-                    throw new Error("unsupported transformationOutput.type: " + transformationOutput.type);
+                    // throw new Error("unsupported transformationOutput.type: " + transformationOutput.type);      //SHU: careful
                     Object.assign(icObj__touched, mutationObj);
                     break;
                 }
+
+              } else {
 
               }
 
@@ -12887,7 +13056,8 @@
 
           //debug
           {
-            this.isEnabled_supervessel = true;
+            // this.isEnabled_supervessel = true;
+            this.isEnabled_supervessel = false;
           }
 
           // this.debugFabric();
@@ -21417,7 +21587,9 @@
 
                   // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("equation__add1");
 
-                  keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("split__top_layer");
+                  // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("split__top_layer");
+                  keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("decomposition__product_primes");
+
                 }
               break;
 
@@ -24544,8 +24716,8 @@
               {
               const config = componentConfig.config;
               const value  = config.value;
-              // outIcObj = infiniteCanvas.createIcGMTargetTouchSlot(trueRect__component, value);
-              outIcObj = infiniteCanvas.createIcGMBoxTargetTouchSlot(trueRect__component, value);
+              outIcObj = infiniteCanvas.createIcGMTargetTouchSlot(trueRect__component, value);
+              // outIcObj = infiniteCanvas.createIcGMBoxTargetTouchSlot(trueRect__component, value);
               // outIcObj = infiniteCanvas.createIcGMBlob(trueRect__component, value);
               }
               break;
@@ -24988,13 +25160,14 @@
 
       }
     </script>
-    <script>
-      // const golfGame1 = GolfGame1.defaultInstance(infiniteCanvas);
-      // const golfGame1 = GolfGame1.debugInstance(infiniteCanvas);
-      // const golfGame1 = GolfGame1.seriousInstance(infiniteCanvas);
+    <!-- <script>
+      setTimeout(() => {    //SHU: wait for mathjax to finish loading
+        // const golfGame1 = GolfGame1.defaultInstance(infiniteCanvas);
+        // const golfGame1 = GolfGame1.debugInstance(infiniteCanvas);
+        const golfGame1 = GolfGame1.seriousInstance(infiniteCanvas);
+      }, 1000);
 
-
-    </script>
+    </script> -->
 
 
 
@@ -25051,6 +25224,16 @@
           this.specs       = specs;     //specific behavior (for example: does not accept symbolic input params)
         }
 
+        clone() {
+          var outItem;
+
+          outItem = new GMItem();
+          Object.assign(outItem, this);
+          outItem.content = this.content.cloneDeep();
+
+          return outItem;
+        }
+
         static value(content, name, description, specs = {}) {
           const type = "value";
           const item = new GMItem(type, content, name, description, specs);
@@ -25082,6 +25265,9 @@
 
           const mathNode__initial = gmItem__initial.content;
 
+          const mathNode__initial_clone = mathNode__initial.cloneDeep();
+          mathNode__initial_clone.autoSimplify = mathNode__initial.autoSimplify;
+
           const mathNode__target = arr_index.reduce((acc, x) => {
 
             const node_a = acc;
@@ -25090,10 +25276,17 @@
 
             const operatorNodeFactoryFunc = gmItem_operator.content;
 
-            const node_op = operatorNodeFactoryFunc(node_a);
+            var node_op = operatorNodeFactoryFunc(node_a);
+            if(node_a.autoSimplify) {
+              node_op = math.simplify(node_op);
+              // node_op = Simplifier.simplify(node_op);
+
+              node_op = Simplifier.simplify_top_layer(node_op);
+            }
+            node_op.autoSimplify = node_a.autoSimplify;
 
             return node_op;
-          }, mathNode__initial.clone());
+          }, mathNode__initial_clone);
 
           outItem = GMItem.value(mathNode__target, "target", "");
 
@@ -25126,8 +25319,15 @@
             //litterals
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance2(infiniteCanvas, golfCourse, stepGeneratorFunc);
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance3(infiniteCanvas, golfCourse, stepGeneratorFunc);
-          const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance4(infiniteCanvas, golfCourse, stepGeneratorFunc);
+          // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance4(infiniteCanvas, golfCourse, stepGeneratorFunc);
             //equations
+          //SHU TODO
+
+            //fractions
+          const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__frac_to_one(infiniteCanvas, golfCourse, stepGeneratorFunc);
+          // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__one_to_frac(infiniteCanvas, golfCourse, stepGeneratorFunc);
+          // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__frac_to_frac(infiniteCanvas, golfCourse, stepGeneratorFunc);
+
 
 
           //create first step
@@ -25443,6 +25643,94 @@
         }
 
 
+        //fractions
+
+        static random_challengeGMItemConfig__frac_to_one() {
+          // logger.log("random_challengeGMItemConfig__expr_to_x");
+
+          // const mathNode__target = new math.SymbolNode("x");
+          const mathNode__target = new math.ConstantNode(1);
+          // mathNode__initial.autoSimplify = true;
+          const gmItem__target = GMItem.value(mathNode__target, "target", "");
+
+
+          // const min__nb_operators = 2;
+          // const max__nb_operators = 5;
+          // const nb_operators      = Math.floor(Math.random() * (max__nb_operators - min__nb_operators)) + min__nb_operators;
+          const nb_operators = 4;
+
+          const arr_gmItem_operator = [...new Array(nb_operators).keys()].map(index => {
+
+            const operatorParams = {
+              node_b: {
+                types: ["ConstantNode"],
+                range: {
+                  min: +1,
+                  max: +10,
+                },
+              },
+            };
+
+            const op_multiply = Operator.multiply();
+            const op_divide   = Operator.divide();
+            const arr_op = [
+              // op_multiply,
+              op_divide,
+            ];
+
+            const operatorNodeFuncWrapper = random_operatorNodeFactoryFuncWrapper_binary(operatorParams, arr_op);
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+            const func = operatorNodeFuncWrapper.func;
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+            };
+            const gmItem__operator = GMItem.operator(func, name, "", specs);
+            return gmItem__operator;
+          });
+
+          const depth__initial    = 4;
+          // const depth__initial    = 10;
+
+          const gmItem__initial_seed = gmItem__target.clone();
+          gmItem__initial_seed.content.autoSimplify = true;
+          const gmItem__initial   = GMMaker.createGMItemTarget__x_to_expr(gmItem__initial_seed, arr_gmItem_operator, depth__initial);
+          const mathNode__initial = gmItem__initial.content;
+          mathNode__initial.autoSimplify = true;
+
+
+          const arr_gmItem_operator__inverse = arr_gmItem_operator.map((gmItem__operator) => {
+
+            const operatorNodeFuncWrapper = gmItem__operator.specs.funcWrapper.inverse;
+            // logger.log("operatorNodeFuncWrapper", operatorNodeFuncWrapper);
+
+            const operator__inverse = operatorNodeFuncWrapper.semantics.operator;
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+            const func = operatorNodeFuncWrapper.func;
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+            };
+
+            const gmItem__operator__inverse = GMItem.operator(func, name, "", specs);
+
+            return gmItem__operator__inverse;
+          });
+
+          const gmItemConfig = {
+            initial:    gmItem__initial,
+            target :    gmItem__target,
+
+            // operators:  arr_gmItem_operator,
+            operators: arr_gmItem_operator__inverse,
+          };
+
+          return gmItemConfig;
+        }
+
+
+
+
       }
 
 
@@ -25538,6 +25826,47 @@
           return step;
         }
 
+        //fractions
+
+        static randomInstance__frac_to_one(infiniteCanvas, golfCourse, stepGeneratorFunc) {
+
+          const challengeGMItemConfig = GolfGame__Endless_Practice.random_challengeGMItemConfig__frac_to_one();
+          const stepConfig = {
+            challengeGMItemConfig: challengeGMItemConfig,
+          };
+
+          const step = new GolfGameStep__Endless_Practice(infiniteCanvas, stepConfig, golfCourse, stepGeneratorFunc);
+
+          return step;
+        }
+
+
+        static randomInstance__one_to_frac(infiniteCanvas, golfCourse, stepGeneratorFunc) {
+
+          const challengeGMItemConfig = GolfGame__Endless_Practice.random_challengeGMItemConfig__one_to_frac();
+          const stepConfig = {
+            challengeGMItemConfig: challengeGMItemConfig,
+          };
+
+          const step = new GolfGameStep__Endless_Practice(infiniteCanvas, stepConfig, golfCourse, stepGeneratorFunc);
+
+          return step;
+        }
+
+
+        static randomInstance__frac_to_frac(infiniteCanvas, golfCourse, stepGeneratorFunc) {
+
+          const challengeGMItemConfig = GolfGame__Endless_Practice.random_challengeGMItemConfig__frac_to_frac();
+          const stepConfig = {
+            challengeGMItemConfig: challengeGMItemConfig,
+          };
+
+          const step = new GolfGameStep__Endless_Practice(infiniteCanvas, stepConfig, golfCourse, stepGeneratorFunc);
+
+          return step;
+        }
+
+
 
         configure(golfStepConfig) {
           // this.par = golfStepConfig.par;
@@ -25612,6 +25941,9 @@
 
           // const icObj = infiniteCanvas.createIcBornAgainGreenMouseBox(trueRect__ball, mathNode__initial);
           const icObj = infiniteCanvas.createIcGreenMouseBox(trueRect__ball, mathNode__initial);
+
+          // const icObj = infiniteCanvas.createIcMathNode(trueRect__ball.x, trueRect__ball.y, mathNode__initial);
+
           infiniteCanvas.addIcObject(icObj);
 
           const rep_free__ball = infiniteCanvas.getRepresented(icObj.id).r_free();
@@ -26016,11 +26348,11 @@
       }
 
     </script>
-    <!-- <script>
+    <script>
       setTimeout(() => {    //SHU: wait for mathjax to finish loading
         const golfGame__endless_practice = new GolfGame__Endless_Practice(infiniteCanvas);     //practice
       }, 1000);
-    </script> -->
+    </script>
 
 
 
@@ -26071,6 +26403,9 @@
           // this.debug_exoSkeleton2();
 
           // this.debug_octomouse();
+
+          //--fractions--
+          this.debug_decomp_product_prime();
         }
 
         debug1() {
@@ -26603,14 +26938,51 @@
         }
 
 
+        debug_decomp_product_prime() {
+
+          const infiniteCanvas = this.infiniteCanvas;
+
+          //create var
+          {
+            const trueRect_1 = {
+              x: 500,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+            // const mathNode = new math.ConstantNode(1/8);
+            const mathNode = new math.OperatorNode("/", "divide", [new math.ConstantNode(1), new math.ConstantNode(8)]);
+
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
+            icMathNode.isTouchable = true;
+            infiniteCanvas.addIcObject(icMathNode);
+          }
+
+
+          //create morpher
+          {
+            const trueRect_2 = {
+              x: 1000,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+            const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect_2, "decomposition__product_primes");
+            infiniteCanvas.addIcObject(gmOperator);
+          }
+
+
+        }
+
+
       }
 
     </script>
-    <script>
+    <!-- <script>
       setTimeout(() => {    //SHU: wait for mathjax to finish loading
         const atelier__X_X = new Atelier__X_X(infiniteCanvas);
       }, 1000);
-    </script>
+    </script> -->
 
 
 
