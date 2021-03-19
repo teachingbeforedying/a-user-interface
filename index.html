@@ -816,7 +816,7 @@
 
             if(node_in.autoSimplify) {
               // const node_simplified = math.simplify(node_unsimplified);
-              const node_simplified = standardOperation__simplify_top_layer(node_unsimplified);
+              const node_simplified = Simplifier.simplify_top_layer(node_unsimplified);
               outNode = node_simplified;
             } else {
               outNode = node_unsimplified;
@@ -1415,236 +1415,578 @@
 
     </script>
     <script>
+      /*
+      class InverseNode extends math.Node {   //ClassicInverseNode
+        constructor(node_in) {
+
+        }
+      }
+      math.InverseNode = InverseNode;                 //SHU: pas obligé mais pourquoi pas
+      */
+
+      class Inverser {
+        static inverse(mathNode) {
+          var outMathNode;
+
+          switch(mathNode.type) {
+            case "ConstantNode":
+            case "SymbolNode":
+            {
+              const mathNode_ONE = new math.ConstantNode(1);
+              const mathNode_clone = mathNode.cloneDeep();
+              outMathNode = new math.OperatorNode("/", "divide", [mathNode_ONE, mathNode_clone]);
+            }
+            break;
+
+            case "OperatorNode":
+            {
+              const operatorNode = mathNode;
+              switch(operatorNode.fn) {
+                case "divide":
+                {
+                  const mathNode_firstArg = operatorNode.args[0];
+                  if(mathNode_firstArg.type == "ConstantNode" && mathNode_firstArg.value == 1) {
+                    //'simplification'
+                    const mathNode_secondArg_clone = operatorNode.args[1].cloneDeep();
+                    outMathNode = mathNode_secondArg_clone;
+                  } else {
+                    const mathNode_clone = mathNode.cloneDeep();
+                    mathNode_clone.args = mathNode_clone.args.slice().reverse();
+                    outMathNode = mathNode_clone;
+                  }
+                }
+                break;
+                default:
+                {
+                  const mathNode_ONE = new math.ConstantNode(1);
+                  const mathNode_clone = mathNode.cloneDeep();
+                  outMathNode = new math.OperatorNode("/", "divide", [mathNode_ONE, mathNode_clone]);
+                }
+                break;
+              }
+            }
+            break;
+            case "ParenthesisNode":
+              throw new Error("unsupported type: " + mathNode.type);
+              break;
+
+
+            //maybe one day
+            case "BlockNode":
+            case "ObjectNode":
+            case "ConditionalNode":
+            case "FunctionNode":
+              throw new Error("unsupported type: " + mathNode.type);
+              break;
+
+            case "ArrayNode":
+            case "AssignmentNode":
+            case "FunctionAssignmentNode":
+            case "RelationalNode":
+              throw new Error("unsupported type: " + mathNode.type);
+              break;
+
+            default:
+              throw new Error("unsupported type: " + mathNode.type);
+              break;
+          }
+
+          return outMathNode;
+        }
+      }
+
+      /*
+      class GeneralInverseOperatorDuo extends math.OperatorNode {
+        constructor(, )
+      }
+      math.GeneralInverseNode = GeneralInverseNode;
+
+
+      class GeneralInverseNode extends math.OperatorNode {
+        constructor(operatorDuo, node) {
+
+        }
+      }
+      math.GeneralInverseNode = GeneralInverseNode;
+      */
+
+
       class Simplifier {
 
         constructor() {
 
         }
 
-        static simplify_top_layer(mathNode) {
-          var outMathNode;
+        static simplify_top_layer(node_in) {
+          var outNode;
 
-          outMathNode = standardOperation__simplify_top_layer(mathNode);
+          if(node_in.type == "OperatorNode") {
 
-          return outMathNode;
-        }
+            const depth = getDepth(node_in);
 
-        static simplify_full() {
+            if(depth > 2) {
+              console.log("___st A");
 
-        }
+              //'outermost first' simplify
 
-      }
+              const operator__layerN          = node_in;
+              const arr_child__layerN         = operator__layerN.args;
+              var terminal__layerN          = arr_child__layerN.filter(child => Simplifier.isTerminalType(child)).find(e => true);
+              terminal__layerN = Simplifier.getTerminalMathNode(terminal__layerN);
 
+              const operator__layerN_minus_1      = arr_child__layerN.filter(child => (child.type == "OperatorNode") ).find(e => true);
+              const arr_child__layerN_minus_1     = operator__layerN_minus_1.args;
+              // const terminal__layerN_minus_1      = arr_child__layerN_minus_1.filter(child => isTerminalType(child)).find(e => true);
+              var arr_terminal__layerN_minus_1  = arr_child__layerN_minus_1.filter(child => Simplifier.isTerminalType(child));
+              arr_terminal__layerN_minus_1 = arr_terminal__layerN_minus_1.map(mathNode => Simplifier.getTerminalMathNode(mathNode));
 
-
-      function standardOperation__simplify_top_layer(node_in) {
-        var outNode;
-
-        if(node_in.type == "OperatorNode") {
-
-          const depth = getDepth(node_in);
-
-          if(depth > 2) {
-            console.log("___st A");
-
-            //'outermost first' simplify
-
-            function isTerminalType(mathNode) {
-              var outBool;
-
-              const type = mathNode.type;
-
-              switch(type) {
-                case "ConstantNode":
-                case "SymbolNode":
-                  outBool = true;
-                  break;
-                case "ParenthesisNode":
-                  {
-                    //check content
-                    const mathNode__content = mathNode.content;
-                    outBool = isTerminalType(mathNode__content);
-                  }
-                  break;
-                default:
-                  outBool = false;
-                  break;
+              const sameTerminal = arr_terminal__layerN_minus_1.find(term__layerN_minus_1 => Simplifier.isSameTerminal(terminal__layerN, term__layerN_minus_1));
+              if(!sameTerminal) {
+                return node_in;
               }
 
-              return outBool;
+              const isInverseOperators_ = Simplifier.isInverseOperators(operator__layerN_minus_1, operator__layerN);
+              console.log("isInverseOperators_", isInverseOperators_);
+              if(!isInverseOperators_) {
+                return node_in;
+              }
+
+              const node__layerN_minus_2      = arr_child__layerN_minus_1.filter(child => child != sameTerminal).find(e => true);
+
+              //remove parentheses if any
+              // if(node__layerN_minus_2.type == "ParenthesisNode") {
+              //   const contentNode = node__layerN_minus_2.content;
+              //   outNode = contentNode;
+              // } else {
+              //   outNode = node__layerN_minus_2;
+              // }
+
+              outNode = node__layerN_minus_2;
+
+            } else {
+              console.log("___st B");
+
+              //simple simplify
+
+              const node_unsimplified = node_in;
+
+              const node_simplified = math.simplify(node_unsimplified);
+              node_simplified.isSimplified = true;
+
+              outNode = node_simplified;
+
             }
-
-            function getTerminalMathNode(mathNode) {
-              var outMathNode;
-
-              const type = mathNode.type;
-
-              switch(type) {
-                case "ConstantNode":
-                case "SymbolNode":
-                  outMathNode = mathNode;
-                  break;
-                case "ParenthesisNode":
-                  {
-                    //check content
-                    const mathNode__content = mathNode.content;
-                    outMathNode = getTerminalMathNode(mathNode__content);
-                  }
-                  break;
-                default:
-                  // outMathNode = null;
-                  throw new Error("no terminal node to fetch");
-                  break;
-              }
-
-              return outMathNode;
-            }
-
-            const operator__layerN          = node_in;
-            const arr_child__layerN         = operator__layerN.args;
-            var terminal__layerN          = arr_child__layerN.filter(child => isTerminalType(child)).find(e => true);
-            terminal__layerN = getTerminalMathNode(terminal__layerN);
-
-            const operator__layerN_minus_1      = arr_child__layerN.filter(child => (child.type == "OperatorNode") ).find(e => true);
-            const arr_child__layerN_minus_1     = operator__layerN_minus_1.args;
-            // const terminal__layerN_minus_1      = arr_child__layerN_minus_1.filter(child => isTerminalType(child)).find(e => true);
-            var arr_terminal__layerN_minus_1  = arr_child__layerN_minus_1.filter(child => isTerminalType(child));
-            arr_terminal__layerN_minus_1 = arr_terminal__layerN_minus_1.map(mathNode => getTerminalMathNode(mathNode));
-
-            function isSameTerminal(termNode1, termNode2) {
-              var outBool;
-
-              function isSameTerminalType(termNode1, termNode2) {
-                return (termNode1.type == termNode2.type);
-              }
-
-              const isSameTerminalType_ = isSameTerminalType(termNode1, termNode2);
-              console.log("isSameTerminalType_", isSameTerminalType_);
-
-              if(!isSameTerminalType_) {
-                return false;                 //j'aime pas trop ça mais bon...
-              }
-
-              function isSameTerminalContent(termNode1, termNode2) {
-                console.log("isSameTerminal", termNode1, termNode2);
-                var outBool;
-
-                switch(termNode1.type) {
-                  case "SymbolNode":
-                    outBool = (termNode1.name == termNode2.name);
-                  break;
-                  case "ConstantNode":
-                    outBool = (termNode1.value == termNode2.value);
-                  break;
-                  default:
-                    throw new Error("unsupported type", termNode1.type);
-                    break;
-                }
-
-                return outBool;
-              }
-
-              outBool = isSameTerminalContent(termNode1, termNode2);
-
-              return outBool;
-            }
-
-            const sameTerminal = arr_terminal__layerN_minus_1.find(term__layerN_minus_1 => isSameTerminal(terminal__layerN, term__layerN_minus_1));
-            if(!sameTerminal) {
-              return node_in;
-            }
-
-            function isInverseOperators(opNode1, opNode2) {
-              console.log("isInverseOperators", opNode1, opNode2);
-              var outBool;
-
-              const set_opFunc = new Set([opNode1.fn, opNode2.fn]);
-              console.log("set_opFunc", set_opFunc);
-
-              /*Set utils*/
-              function eqSet(as, bs) {
-                  return as.size === bs.size && all(isIn(bs), as);
-              }
-
-              function all(pred, as) {
-                  for (var a of as) if (!pred(a)) return false;
-                  return true;
-              }
-
-              function isIn(as) {
-                  return function (a) {
-                      return as.has(a);
-                  };
-              }
-              /**/
-
-
-
-              const arr_set_inverse = [
-                new Set(["multiply", "divide"]),
-                new Set(["add", "subtract"]),
-              ];
-
-              outBool = arr_set_inverse.reduce((acc, x) => {
-                if(eqSet(set_opFunc, x)) {
-                  acc = true;
-                }
-                return acc;
-              }, false);
-
-              return outBool;
-            }
-
-            const isInverseOperators_ = isInverseOperators(operator__layerN_minus_1, operator__layerN);
-            console.log("isInverseOperators_", isInverseOperators_);
-            if(!isInverseOperators_) {
-              return node_in;
-            }
-
-            const node__layerN_minus_2      = arr_child__layerN_minus_1.filter(child => child != sameTerminal).find(e => true);
-
-            //remove parentheses if any
-            // if(node__layerN_minus_2.type == "ParenthesisNode") {
-            //   const contentNode = node__layerN_minus_2.content;
-            //   outNode = contentNode;
-            // } else {
-            //   outNode = node__layerN_minus_2;
-            // }
-
-            outNode = node__layerN_minus_2;
 
           } else {
-            console.log("___st B");
+            console.log("___st C");
+            logger.log("node_in", node_in);
 
             //simple simplify
 
             const node_unsimplified = node_in;
 
-            const node_simplified = math.simplify(node_unsimplified);
+            const node_simplified = math.simplify(node_unsimplified);   //SHU: boom
             node_simplified.isSimplified = true;
 
             outNode = node_simplified;
 
           }
 
-        } else {
-          console.log("___st C");
-          logger.log("node_in", node_in);
+          outNode.autoSimplify = node_in.autoSimplify;
 
-          //simple simplify
+          return outNode;
+        }
 
-          const node_unsimplified = node_in;
+        static isOne(mathNode) {
+          return Simplifier.isOne_strict(mathNode) || Simplifier.isOne_wide(mathNode);
+        }
 
-          const node_simplified = math.simplify(node_unsimplified);   //SHU: boom
-          node_simplified.isSimplified = true;
+        static isOne_strict(mathNode) {
+          return (mathNode.type == "ConstantNode") && (mathNode.value == 1);
+        }
 
-          outNode = node_simplified;
+        static isOne_wide(mathNode) {
+          // return (mathNode.type == "ConstantNode") && (mathNode.value == 1);
+          return false;
+        }
+
+        static simplify_singleOperatorize_topPriorityShell(mathNode, operatorFn = "multiply") {
+          var outMathNode;
+
+          switch(mathNode.type) {
+            case "OperatorNode":
+            {
+              const operatorNode = mathNode;
+
+              if(operatorFn == "multiply") {
+                switch(operatorNode.fn) {
+                  case "multiply":
+                  {
+                    //1. transform children
+                    const arr_child = operatorNode.args.map(mathNode_child => Simplifier.simplify_singleOperatorize_topPriorityShell(mathNode_child, operatorFn));
+
+                    //2. merge (~aggregate, ~flatten)
+                    const arr_child2 = arr_child.reduce((acc, x) => {
+
+                      switch(x.type) {
+                        case "OperatorNode":
+                        {
+                          switch(operatorNode.fn) {
+                            case "multiply":
+                            {
+                              acc.push(...x.args);
+                            }
+                            break;
+                            default:
+                              acc.push(x);
+                              break;
+                          }
+                        }
+                        break;
+                        default:
+                          acc.push(x);
+                        break;
+                      }
+
+                      return acc;
+                    }, []);
+
+                    //3. filter out ONEs
+                    const arr_child3 = arr_child2.filter(mathNode => {
+                      const isOne = Simplifier.isOne(mathNode);
+                      return !isOne;
+                    });
+
+                    if(arr_child3.length > 1) {
+                      outMathNode = new math.OperatorNode("x", "multiply", arr_child3);
+                    } else {
+                      outMathNode = arr_child3.find(e => true);
+                    }
+
+                  }
+                  break;
+                  case "divide":
+                  {
+                    // const mathNode_firstArg = operatorNode.args[0];
+                    // if(mathNode_firstArg.type == "ConstantNode" && mathNode_firstArg.value == 1) {
+                    //   //'simplification'
+                    //   const mathNode_secondArg_clone = operatorNode.args[1].cloneDeep();
+                    //   outMathNode = mathNode_secondArg_clone;
+                    // } else {
+                    //   const mathNode_clone = mathNode.cloneDeep();
+                    //   mathNode_clone.args = mathNode_clone.args.slice().reverse();
+                    //   outMathNode = mathNode_clone;
+                    // }
+
+
+                    //1. transform children
+                      //transform numerator   (left side)
+                    const mathNode_numerator               = operatorNode.args[0];
+                    const mathNode_numerator_transformed   = Simplifier.simplify_singleOperatorize_topPriorityShell(mathNode_numerator, operatorFn);
+                      //transform denominator (right side)
+                    const mathNode_denominator             = operatorNode.args[1];
+                    const mathNode_denominator_transformed = Simplifier.simplify_singleOperatorize_topPriorityShell(mathNode_denominator, operatorFn);
+
+                    //2.transform into multiplication
+                    var arr_mathNode_denominator;
+                    switch(mathNode_denominator_transformed.type) {
+                      case "OperatorNode":
+                      {
+                        const operatorNode = mathNode_denominator_transformed;
+                        switch(operatorNode.fn) {
+                          case "multiply":
+                          {
+                            arr_mathNode_denominator = operatorNode.args;
+                          }
+                          break;
+                          default:
+                          {
+                            arr_mathNode_denominator = [mathNode_denominator_transformed];
+                          }
+                          break;
+                        }
+                      }
+                      break;
+                      default:
+                      {
+                        arr_mathNode_denominator = [mathNode_denominator_transformed];
+                      }
+                      break;
+                    }
+
+                    const arr_factor = [mathNode_numerator_transformed, ...arr_mathNode_denominator.map(Inverser.inverse)];
+
+                    outMathNode = new math.OperatorNode("x", "multiply", arr_factor);
+
+                  }
+                  break;
+                  default:
+                    outMathNode = mathNode;
+                    break;
+                }
+              } else {
+                throw new Error("unsupported operatorFn: " + operatorFn);
+              }
+
+            }
+            break;
+            case "ParenthesisNode":
+            {
+              const parenthesisNode = mathNode;
+              //check content
+              const mathNode__content = parenthesisNode.content;
+              outMathNode = Simplifier.simplify_singleOperatorize_topPriorityShell(mathNode__content, operatorFn);
+            }
+            break;
+            default:
+              outMathNode = mathNode;
+              break;
+          }
+
+          return outMathNode;
+        }
+
+        static simplify_top_priorityShell(node_in) {
+          var outNode;
+
+          const mathNode = node_in;
+
+          switch(node_in.type) {
+            case "OperatorNode":
+            {
+              // const depth = getDepth(node_in);
+              // if(depth > 2) {
+
+                //1. singleOperatorize
+                const node_singleOperatorized = Simplifier.simplify_singleOperatorize_topPriorityShell(node_in);
+                logger.log("node_singleOperatorized", node_singleOperatorized);
+
+                //2. look for inverse matches : plus and minus
+                const arr_mathNode_factor_all = node_singleOperatorized.args;
+                logger.log("arr_mathNode_factor_all", arr_mathNode_factor_all);
+
+                const obj_factors = arr_mathNode_factor_all.reduce((acc, mathNode_factor) => {
+
+                  var value;
+                  var multiplicity;
+
+                  const isInverse = (mathNode_factor.type == "OperatorNode") && (mathNode_factor.fn == "divide");
+                  if(isInverse) {
+                    const mathNode_inverse = mathNode_factor;
+                    const mathNode_denominator = mathNode_inverse.args[1];
+                    const mathNode_averse = mathNode_denominator;
+                    value = mathNode_averse.value;
+                    multiplicity = -1;
+                  } else {
+                    const mathNode_averse = mathNode_factor;
+                    value = mathNode_averse.value;
+                    multiplicity = +1;
+                  }
+
+                  if(acc[value] == null) {
+                    acc[value] = 0;
+                  }
+
+                  acc[value] += multiplicity;
+
+                  return acc;
+                }, {});
+                logger.log("obj_factors", obj_factors);   //SHU: acc[value] stringifies value
+
+                const arr_mathNode_factor_simplified = Object.entries(obj_factors)
+                                              .filter(([valueStr, multiplicity]) => multiplicity != 0)
+                                              .map(([valueStr, multiplicity]) => {
+                                                var outArr;
+
+                                                const value = Number(valueStr);
+
+                                                if(multiplicity > 0) {
+                                                  outArr = [...Array(multiplicity).keys()].map(index => {
+                                                    const mathNode_averse = new math.ConstantNode(value);
+                                                    return mathNode_averse;
+                                                  });
+                                                } else {
+                                                  outArr = [...Array(multiplicity).keys()].map(index => {
+                                                    const mathNode_averse = new math.ConstantNode(value);
+                                                    const mathNode_inverse = Inverser.inverse(mathNode_averse);
+                                                    return mathNode_inverse;
+                                                  });
+                                                }
+
+                                                return outArr;
+                                              })
+                                              .flat();
+
+                logger.log("arr_mathNode_factor_simplified", arr_mathNode_factor_simplified);
+
+
+                const nb_factors = arr_mathNode_factor_simplified.length;
+                if(nb_factors == 0) {
+                  outNode = new math.ConstantNode(1);
+                } else if(nb_factors == 1) {
+                  const mathNode_a = arr_mathNode_factor_simplified.find(e => true);
+                  outNode = mathNode_a;
+                } else {
+                  outNode = new math.OperatorNode("x", "multiply", arr_mathNode_factor_simplified);
+                }
+
+              // } else {
+              //   // throw new Error("depth <= 2");
+              //   outNode = node_in;
+              // }
+            }
+            break;
+            case "ParenthesisNode":
+            {
+              const parenthesisNode = mathNode;
+              const contentNode = parenthesisNode.content;
+              outNode = simplify_top_priority_shell(contentNode);
+            }
+            break;
+            default:
+              outNode = mathNode;
+              break;
+          }
+
+          outNode.autoSimplify = node_in.autoSimplify;
+
+          return outNode;
+        }
+
+        static simplify_full() {
 
         }
 
-        outNode.autoSimplify = node_in.autoSimplify;
+        static isTerminalType(mathNode) {
+          var outBool;
 
-        return outNode;
+          const type = mathNode.type;
+
+          switch(type) {
+            case "ConstantNode":
+            case "SymbolNode":
+              outBool = true;
+              break;
+            case "ParenthesisNode":
+              {
+                //check content
+                const mathNode__content = mathNode.content;
+                outBool = isTerminalType(mathNode__content);
+              }
+              break;
+            default:
+              outBool = false;
+              break;
+          }
+
+          return outBool;
+        }
+
+        static getTerminalMathNode(mathNode) {
+          var outMathNode;
+
+          const type = mathNode.type;
+
+          switch(type) {
+            case "ConstantNode":
+            case "SymbolNode":
+              outMathNode = mathNode;
+              break;
+            case "ParenthesisNode":
+              {
+                //check content
+                const mathNode__content = mathNode.content;
+                outMathNode = getTerminalMathNode(mathNode__content);
+              }
+              break;
+            default:
+              // outMathNode = null;
+              throw new Error("no terminal node to fetch");
+              break;
+          }
+
+          return outMathNode;
+        }
+
+        static isSameTerminal(termNode1, termNode2) {
+          var outBool;
+
+          function isSameTerminalType(termNode1, termNode2) {
+            return (termNode1.type == termNode2.type);
+          }
+
+          const isSameTerminalType_ = isSameTerminalType(termNode1, termNode2);
+          console.log("isSameTerminalType_", isSameTerminalType_);
+
+          if(!isSameTerminalType_) {
+            return false;                 //j'aime pas trop ça mais bon...
+          }
+
+          function isSameTerminalContent(termNode1, termNode2) {
+            console.log("isSameTerminal", termNode1, termNode2);
+            var outBool;
+
+            switch(termNode1.type) {
+              case "SymbolNode":
+                outBool = (termNode1.name == termNode2.name);
+              break;
+              case "ConstantNode":
+                outBool = (termNode1.value == termNode2.value);
+              break;
+              default:
+                throw new Error("unsupported type", termNode1.type);
+                break;
+            }
+
+            return outBool;
+          }
+
+          outBool = isSameTerminalContent(termNode1, termNode2);
+
+          return outBool;
+        }
+
+        static isInverseOperators(opNode1, opNode2) {
+          console.log("isInverseOperators", opNode1, opNode2);
+          var outBool;
+
+          const set_opFunc = new Set([opNode1.fn, opNode2.fn]);
+          console.log("set_opFunc", set_opFunc);
+
+          /*Set utils*/
+          function eqSet(as, bs) {
+              return as.size === bs.size && all(isIn(bs), as);
+          }
+
+          function all(pred, as) {
+              for (var a of as) if (!pred(a)) return false;
+              return true;
+          }
+
+          function isIn(as) {
+              return function (a) {
+                  return as.has(a);
+              };
+          }
+          /**/
+
+
+
+          const arr_set_inverse = [
+            new Set(["multiply", "divide"]),
+            new Set(["add", "subtract"]),
+          ];
+
+          outBool = arr_set_inverse.reduce((acc, x) => {
+            if(eqSet(set_opFunc, x)) {
+              acc = true;
+            }
+            return acc;
+          }, false);
+
+          return outBool;
+        }
+
       }
 
 
@@ -5186,7 +5528,7 @@
                 //   return outNode;
                 // }
 
-                const operation = standardOperation__simplify_top_layer;
+                const operation = Simplifier.simplify_top_layer;
 
                 if(node_a.isEquation) {
                   console.log("node_a", node_a);
@@ -5404,6 +5746,91 @@
               operatorConfig.transformationFunc = icObjTransformationFunc;
             }
             break;
+
+
+            case "inverse":
+            {
+              operatorConfig.name = "inverse";
+
+              const icObjTransformationFunc = (icObj) => {
+                var transformationOutput;
+
+                if(icObj.type == "mathNode") {
+                  const x = icObj.position.x;
+                  const y = icObj.position.y;
+                  const mathNode = icObj.mathNode;
+                  const mathNode_new = Inverser.inverse(mathNode);
+
+                  const icObj__new = infiniteCanvas.createIcMathNode(x,y,mathNode_new);
+                  transformationOutput = new TransformationOutput("new", icObj__new, icObj);
+                } else {
+                  logger.log("icObj.type:", icObj.type);
+                  transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+                }
+
+                return transformationOutput;
+              };
+
+              operatorConfig.transformationFunc = icObjTransformationFunc;
+            }
+            break;
+
+            case "singleOperatorize":
+            {
+              operatorConfig.name = "s:singleOperatorize";
+
+              const icObjTransformationFunc = (icObj) => {
+                var transformationOutput;
+
+                if(icObj.type == "mathNode") {
+                  const x = icObj.position.x;
+                  const y = icObj.position.y;
+                  const mathNode = icObj.mathNode;
+                  const mathNode_new = Simplifier.simplify_singleOperatorize_topPriorityShell(mathNode);
+
+                  const icObj__new = infiniteCanvas.createIcMathNode(x,y,mathNode_new);
+                  transformationOutput = new TransformationOutput("new", icObj__new, icObj);
+                } else {
+                  logger.log("icObj.type:", icObj.type);
+                  transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+                }
+
+                return transformationOutput;
+              };
+
+              operatorConfig.transformationFunc = icObjTransformationFunc;
+            }
+            break;
+
+            case "simplify__topPriorityShell":
+            {
+              operatorConfig.name = "s:tpsh";
+
+              const icObjTransformationFunc = (icObj) => {
+                var transformationOutput;
+
+                if(icObj.type == "mathNode") {
+                  const x = icObj.position.x;
+                  const y = icObj.position.y;
+                  const mathNode = icObj.mathNode;
+                  const mathNode_new = Simplifier.simplify_top_priorityShell(mathNode);
+
+                  const icObj__new = infiniteCanvas.createIcMathNode(x,y,mathNode_new);
+                  transformationOutput = new TransformationOutput("new", icObj__new, icObj);
+                } else {
+                  logger.log("icObj.type:", icObj.type);
+                  transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+                }
+
+                return transformationOutput;
+              };
+
+              operatorConfig.transformationFunc = icObjTransformationFunc;
+            }
+            break;
+
+
+
 
           }
 
@@ -26348,11 +26775,11 @@
       }
 
     </script>
-    <script>
+    <!-- <script>
       setTimeout(() => {    //SHU: wait for mathjax to finish loading
         const golfGame__endless_practice = new GolfGame__Endless_Practice(infiniteCanvas);     //practice
       }, 1000);
-    </script>
+    </script> -->
 
 
 
@@ -26405,7 +26832,11 @@
           // this.debug_octomouse();
 
           //--fractions--
-          this.debug_decomp_product_prime();
+          // this.debug_decomp_product_primes();
+          // this.debug_inverse();
+          // this.debug_simplify_singleoperatorize();
+          this.debug_simplify_topPriorityShell();
+
         }
 
         debug1() {
@@ -26938,9 +27369,27 @@
         }
 
 
-        debug_decomp_product_prime() {
+        debug_decomp_product_primes() {
 
           const infiniteCanvas = this.infiniteCanvas;
+
+          //debug: multi factor
+          {
+            const trueRect_1 = {
+              x: 500,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+            // const mathNode = new math.ConstantNode(1/8);
+            // const mathNode = new math.OperatorNode("x", "multiply", [new math.ConstantNode(7), new math.ConstantNode(7), new math.ConstantNode(7)]);
+            const mathNode = new math.OperatorNode("x", "multiply", [new math.ConstantNode(120), new math.ConstantNode(7), new math.ConstantNode(7)]);
+
+
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
+            icMathNode.isTouchable = true;
+            infiniteCanvas.addIcObject(icMathNode);
+          }
 
           //create var
           {
@@ -26974,15 +27423,162 @@
 
         }
 
+        debug_inverse() {
+
+          const infiniteCanvas = this.infiniteCanvas;
+
+          //debug: multi factor
+          {
+            const trueRect_1 = {
+              x: 500,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+            // const mathNode = new math.ConstantNode(1/8);
+            // const mathNode = new math.OperatorNode("x", "multiply", [new math.ConstantNode(7), new math.ConstantNode(7), new math.ConstantNode(7)]);
+            const mathNode = new math.OperatorNode("x", "multiply", [new math.ConstantNode(120), new math.ConstantNode(7), new math.ConstantNode(7)]);
+
+
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
+            icMathNode.isTouchable = true;
+            infiniteCanvas.addIcObject(icMathNode);
+          }
+
+          //create var
+          {
+            const trueRect_1 = {
+              x: 500,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+            // const mathNode = new math.ConstantNode(1/8);
+            const mathNode = new math.OperatorNode("/", "divide", [new math.ConstantNode(1), new math.ConstantNode(8)]);
+
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
+            icMathNode.isTouchable = true;
+            infiniteCanvas.addIcObject(icMathNode);
+          }
+
+
+          //create morpher
+          {
+            const trueRect_2 = {
+              x: 1000,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+            const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect_2, "inverse");
+            infiniteCanvas.addIcObject(gmOperator);
+          }
+
+        }
+
+        debug_simplify_singleoperatorize() {
+
+          const infiniteCanvas = this.infiniteCanvas;
+
+          //debug: multi factor
+          {
+            const trueRect_1 = {
+              x: 500,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+            // const mathNode = new math.ConstantNode(1/8);
+            // const mathNode = new math.OperatorNode("x", "multiply", [new math.ConstantNode(7), new math.ConstantNode(7), new math.ConstantNode(7)]);
+            const mathNode = new math.OperatorNode("x", "multiply", [new math.ConstantNode(120), new math.ConstantNode(7), new math.ConstantNode(7)]);
+
+
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
+            icMathNode.isTouchable = true;
+            infiniteCanvas.addIcObject(icMathNode);
+          }
+
+          //create var
+          {
+            const trueRect_1 = {
+              x: 500,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+            // const mathNode = new math.ConstantNode(1/8);
+            const mathNode = new math.OperatorNode("/", "divide", [new math.ConstantNode(1), new math.ConstantNode(8)]);
+
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
+            icMathNode.isTouchable = true;
+            infiniteCanvas.addIcObject(icMathNode);
+          }
+
+
+          //create morpher
+          {
+            const trueRect_2 = {
+              x: 1000,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+            const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect_2, "singleOperatorize");
+            infiniteCanvas.addIcObject(gmOperator);
+          }
+
+        }
+
+        debug_simplify_topPriorityShell() {
+
+          const infiniteCanvas = this.infiniteCanvas;
+
+          //debug: multi factor
+          {
+            const trueRect_1 = {
+              x: 500,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+            // const mathNode = new math.ConstantNode(1/8);
+            // const mathNode = new math.OperatorNode("x", "multiply", [new math.ConstantNode(7), new math.ConstantNode(7), new math.ConstantNode(7)]);
+
+            const mathNode_a = new math.ConstantNode(4);
+            const mathNode_b = new math.ConstantNode(7);
+
+            const mathNode = new math.OperatorNode("x", "multiply", [mathNode_a, mathNode_b, Inverser.inverse(mathNode_a), Inverser.inverse(mathNode_b)]);
+
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
+            icMathNode.isTouchable = true;
+            infiniteCanvas.addIcObject(icMathNode);
+          }
+
+
+          //create morpher
+          {
+            const trueRect_2 = {
+              x: 1000,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+            const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect_2, "simplify__topPriorityShell");
+            infiniteCanvas.addIcObject(gmOperator);
+          }
+
+        }
+
+
 
       }
 
     </script>
-    <!-- <script>
+    <script>
       setTimeout(() => {    //SHU: wait for mathjax to finish loading
         const atelier__X_X = new Atelier__X_X(infiniteCanvas);
       }, 1000);
-    </script> -->
+    </script>
 
 
 
