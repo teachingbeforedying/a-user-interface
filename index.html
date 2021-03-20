@@ -1746,6 +1746,34 @@
           return outMathNode;
         }
 
+
+        static isConstant(mathNode) {
+          return (mathNode.type == "ConstantNode");
+        }
+
+        static isConstantOrInverse(mathNode) {
+          return Simplifier.isConstant(mathNode) || Simplifier.isInverse(mathNode);
+        }
+
+        static isInverse(mathNode) {
+          var outBool;
+
+          const isDivide = (mathNode.type == "OperatorNode") && (mathNode.fn == "divide");
+          if(isDivide) {
+            const mathNode_numerator    = mathNode.args[0];
+            const isNumeratorOne        = Simplifier.isOne_strict(mathNode_numerator);
+
+            const mathNode_denominator  = mathNode.args[1];
+            const isDenominatorConstant = Simplifier.isConstant(mathNode_denominator);
+
+            outBool = isNumeratorOne && isDenominatorConstant;
+          } else {
+            outBool = false;
+          }
+
+          return outBool;
+        }
+
         static simplify_top_priorityShell(node_in) {
           var outNode;
 
@@ -1765,48 +1793,64 @@
                 const arr_mathNode_factor_all = node_singleOperatorized.args;
                 logger.log("arr_mathNode_factor_all", arr_mathNode_factor_all);
 
-                const obj_factors = arr_mathNode_factor_all.reduce((acc, mathNode_factor) => {
+                const obj_factors = arr_mathNode_factor_all.reduce((acc, mathNode_factor, index) => {
 
                   var value;
                   var multiplicity;
 
-                  const isInverse = (mathNode_factor.type == "OperatorNode") && (mathNode_factor.fn == "divide");
-                  if(isInverse) {
-                    const mathNode_inverse = mathNode_factor;
-                    const mathNode_denominator = mathNode_inverse.args[1];
-                    const mathNode_averse = mathNode_denominator;
-                    value = mathNode_averse.value;
-                    multiplicity = -1;
+                  const isConstantOrInverse = Simplifier.isConstantOrInverse(mathNode_factor);
+                  if(isConstantOrInverse) {
+
+                    const isInverse = (mathNode_factor.type == "OperatorNode") && (mathNode_factor.fn == "divide");
+                    if(isInverse) {
+                      const mathNode_inverse = mathNode_factor;
+                      const mathNode_denominator = mathNode_inverse.args[1];
+                      const mathNode_averse = mathNode_denominator;
+                      value = mathNode_averse.value;
+                      multiplicity = -1;
+                    } else {
+                      const mathNode_averse = mathNode_factor;
+                      value = mathNode_averse.value;
+                      multiplicity = +1;
+                    }
+
+                    const valueStr = "" + value;
+
+                    if(acc.portion_valued[valueStr] == null) {
+                      acc.portion_valued[valueStr] = 0;
+                    }
+
+                    acc.portion_valued[valueStr] += multiplicity;
+
                   } else {
-                    const mathNode_averse = mathNode_factor;
-                    value = mathNode_averse.value;
-                    multiplicity = +1;
+                    acc.portion_indexed[index] = mathNode_factor;
                   }
-
-                  if(acc[value] == null) {
-                    acc[value] = 0;
-                  }
-
-                  acc[value] += multiplicity;
 
                   return acc;
-                }, {});
+                }, {
+                  portion_valued:  {},
+                  portion_indexed: {},
+                });
                 logger.log("obj_factors", obj_factors);   //SHU: acc[value] stringifies value
 
-                const arr_mathNode_factor_simplified = Object.entries(obj_factors)
+                const arr_mathNode_factor_simplified = Object.entries(obj_factors.portion_valued)
                                               .filter(([valueStr, multiplicity]) => multiplicity != 0)
                                               .map(([valueStr, multiplicity]) => {
                                                 var outArr;
 
+                                                logger.log("valueStr, multiplicity", valueStr, multiplicity);
+
                                                 const value = Number(valueStr);
 
+                                                const multiplicity_abs = math.abs(multiplicity);
+
                                                 if(multiplicity > 0) {
-                                                  outArr = [...Array(multiplicity).keys()].map(index => {
+                                                  outArr = [...Array(multiplicity_abs).keys()].map(index => {
                                                     const mathNode_averse = new math.ConstantNode(value);
                                                     return mathNode_averse;
                                                   });
                                                 } else {
-                                                  outArr = [...Array(multiplicity).keys()].map(index => {
+                                                  outArr = [...Array(multiplicity_abs).keys()].map(index => {
                                                     const mathNode_averse = new math.ConstantNode(value);
                                                     const mathNode_inverse = Inverser.inverse(mathNode_averse);
                                                     return mathNode_inverse;
@@ -1816,18 +1860,21 @@
                                                 return outArr;
                                               })
                                               .flat();
-
                 logger.log("arr_mathNode_factor_simplified", arr_mathNode_factor_simplified);
 
 
-                const nb_factors = arr_mathNode_factor_simplified.length;
+                const arr_mathNode_factor_simplified_merged = [...arr_mathNode_factor_simplified, ...Object.values(obj_factors.portion_indexed)];
+                logger.log("arr_mathNode_factor_simplified_merged", arr_mathNode_factor_simplified_merged);
+
+
+                const nb_factors = arr_mathNode_factor_simplified_merged.length;
                 if(nb_factors == 0) {
                   outNode = new math.ConstantNode(1);
                 } else if(nb_factors == 1) {
-                  const mathNode_a = arr_mathNode_factor_simplified.find(e => true);
+                  const mathNode_a = arr_mathNode_factor_simplified_merged.find(e => true);
                   outNode = mathNode_a;
                 } else {
-                  outNode = new math.OperatorNode("x", "multiply", arr_mathNode_factor_simplified);
+                  outNode = new math.OperatorNode("x", "multiply", arr_mathNode_factor_simplified_merged);
                 }
 
               // } else {
@@ -1852,6 +1899,29 @@
 
           return outNode;
         }
+
+        static simplify_fraction_into_product(mathNode_fraction) {
+          var outMathNode;
+
+          outMathNode = Rewriter.decomposition_product_primes(mathNode_fraction);
+          outMathNode = Simplifier.simplify_top_priorityShell(outMathNode);
+
+          return outMathNode;
+        }
+
+        static simplify_fraction(mathNode_fraction) {
+          var outMathNode;
+
+          // outMathNode = Rewriter.decomposition_product_primes(mathNode_fraction);
+          // outMathNode = Simplifier.simplify_top_priorityShell(outMathNode);
+          // outMathNode = math.simplify(outMathNode);
+
+          //SHU: ou plus simplement ---___---
+          outMathNode = math.simplify(mathNode_fraction);
+
+          return outMathNode;
+        }
+
 
         static simplify_full() {
 
@@ -24989,6 +25059,60 @@
               },
             // },
 
+            "operatorWallPlaceholder1": {
+              type: "placeholder",
+              zIndex: 55,
+              config: {
+                fill: "gray",
+              },
+              rect_rel: {
+                l: 0.15,
+                r: 0.25,
+                t: 0.10,
+                b: 0.20,
+              },
+            },
+            "operatorWallPlaceholder2": {
+              type: "placeholder",
+              zIndex: 56,
+              config: {
+                fill: "gray",
+              },
+              rect_rel: {
+                l: 0.35,
+                r: 0.45,
+                t: 0.10,
+                b: 0.20,
+              },
+            },
+            "operatorWallPlaceholder3": {
+              type: "placeholder",
+              zIndex: 57,
+              config: {
+                fill: "gray",
+              },
+              rect_rel: {
+                l: 0.55,
+                r: 0.65,
+                t: 0.10,
+                b: 0.20,
+              },
+            },
+            "operatorWallPlaceholder4": {
+              type: "placeholder",
+              zIndex: 58,
+              config: {
+                fill: "gray",
+              },
+              rect_rel: {
+                l: 0.75,
+                r: 0.85,
+                t: 0.10,
+                b: 0.20,
+              },
+            },
+
+
             "hole": {
               type: "gm_targetTouchSlot",
               zIndex: 10,
@@ -25178,6 +25302,19 @@
             //   outIcObj.fill = fill;
             //   }
             //   break;
+
+            case "placeholder":
+              {
+              // const config = componentConfig.config;
+              // const fill   = config.fill;
+              // outIcObj = infiniteCanvas.createIcRect(trueRect__component);
+              // outIcObj.fill = fill;
+              const operatorString = "x 1";
+              outIcObj = infiniteCanvas.createIcGMOperator(trueRect__component, operatorString);
+
+              outIcObj.isPlaceholder = true;
+              }
+              break;
 
 
             default:
@@ -25708,7 +25845,8 @@
               node_op = math.simplify(node_op);
               // node_op = Simplifier.simplify(node_op);
 
-              node_op = Simplifier.simplify_top_layer(node_op);
+              // node_op = Simplifier.simplify_top_layer(node_op);
+              // node_op = Simplifier.simplify_top_priorityShell(node_op);
             }
             node_op.autoSimplify = node_a.autoSimplify;
 
@@ -25719,6 +25857,7 @@
 
           return outItem;
         }
+
 
       }
 
@@ -25751,8 +25890,8 @@
           //SHU TODO
 
             //fractions
-          const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__frac_to_one(infiniteCanvas, golfCourse, stepGeneratorFunc);
-          // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__one_to_frac(infiniteCanvas, golfCourse, stepGeneratorFunc);
+          // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__frac_to_one(infiniteCanvas, golfCourse, stepGeneratorFunc);
+          const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__one_to_frac(infiniteCanvas, golfCourse, stepGeneratorFunc);
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__frac_to_frac(infiniteCanvas, golfCourse, stepGeneratorFunc);
 
 
@@ -25775,10 +25914,10 @@
           //add "Impossible" button
           {
             const rect_rel__button = {
-              l: 0.75,
-              r: 0.95,
-              t: 0.10,
-              b: 0.20,
+              l: 0.80,
+              r: 0.90,
+              t: 0.02,
+              b: 0.08,
             };
             const trueRect__button = Geometry.rectForRectRel(golfCourse.rect, rect_rel__button);
 
@@ -26073,7 +26212,7 @@
         //fractions
 
         static random_challengeGMItemConfig__frac_to_one() {
-          // logger.log("random_challengeGMItemConfig__expr_to_x");
+          // logger.log("random_challengeGMItemConfig__frac_to_one");
 
           // const mathNode__target = new math.SymbolNode("x");
           const mathNode__target = new math.ConstantNode(1);
@@ -26101,17 +26240,34 @@
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
             const arr_op = [
-              // op_multiply,
+              op_multiply,
               op_divide,
             ];
 
             const operatorNodeFuncWrapper = random_operatorNodeFactoryFuncWrapper_binary(operatorParams, arr_op);
 
             const name = operatorNodeFuncWrapper.semantics.name;
+
             const func = operatorNodeFuncWrapper.func;
+            // const func_decorated = function(mathNode_in) {
+            //   logger.log("func_decorated, mathNode_in", mathNode_in);
+            //   var outMathNode;
+            //
+            //   //legacy
+            //   outMathNode = func(mathNode_in);
+            //
+            //   //decoration
+            //   outMathNode = Simplifier.simplify_fraction(outMathNode);
+            //   logger.log("func_decorated, outMathNode", outMathNode);
+            //
+            //
+            //   return outMathNode;
+            // };
+
             const specs = {
               funcWrapper: operatorNodeFuncWrapper,
             };
+
             const gmItem__operator = GMItem.operator(func, name, "", specs);
             return gmItem__operator;
           });
@@ -26135,11 +26291,26 @@
 
             const name = operatorNodeFuncWrapper.semantics.name;
             const func = operatorNodeFuncWrapper.func;
+            const func_decorated = function(mathNode_in) {
+              logger.log("func_decorated, mathNode_in", mathNode_in);
+              var outMathNode;
+
+              //legacy
+              outMathNode = func(mathNode_in);
+
+              //decoration
+              outMathNode = Simplifier.simplify_fraction(outMathNode);
+              logger.log("func_decorated, outMathNode", outMathNode);
+
+
+              return outMathNode;
+            };
+
             const specs = {
               funcWrapper: operatorNodeFuncWrapper,
             };
 
-            const gmItem__operator__inverse = GMItem.operator(func, name, "", specs);
+            const gmItem__operator__inverse = GMItem.operator(func_decorated, name, "", specs);
 
             return gmItem__operator__inverse;
           });
@@ -26155,6 +26326,117 @@
           return gmItemConfig;
         }
 
+
+        static random_challengeGMItemConfig__one_to_frac() {
+          // logger.log("random_challengeGMItemConfig__one_to_frac");
+
+          const mathNode__initial = new math.ConstantNode(1);
+          mathNode__initial.autoSimplify = true;
+          const gmItem__initial = GMItem.value(mathNode__initial, "initial", "");
+
+
+          // const min__nb_operators = 2;
+          // const max__nb_operators = 5;
+          // const nb_operators      = Math.floor(Math.random() * (max__nb_operators - min__nb_operators)) + min__nb_operators;
+          const nb_operators = 4;
+
+          const arr_gmItem_operator = [...new Array(nb_operators).keys()].map(index => {
+
+            const operatorParams = {
+              node_b: {
+                types: ["ConstantNode"],
+                range: {
+                  min: +1,
+                  max: +10,
+                },
+              },
+            };
+
+            const op_multiply = Operator.multiply();
+            const op_divide   = Operator.divide();
+            const arr_op = [
+              op_multiply,
+              op_divide,
+            ];
+
+            const operatorNodeFuncWrapper = random_operatorNodeFactoryFuncWrapper_binary(operatorParams, arr_op);
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+
+            const func = operatorNodeFuncWrapper.func;
+            const func_decorated = function(mathNode_in) {
+              logger.log("func_decorated, mathNode_in", mathNode_in);
+              var outMathNode;
+
+              //legacy
+              outMathNode = func(mathNode_in);
+
+              //decoration
+              outMathNode = Simplifier.simplify_fraction(outMathNode);
+              logger.log("func_decorated, outMathNode", outMathNode);
+
+              return outMathNode;
+            };
+
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+            };
+
+            const gmItem__operator = GMItem.operator(func_decorated, name, "", specs);
+            return gmItem__operator;
+          });
+
+
+          const arr_gmItem_operator__inverse = arr_gmItem_operator.map((gmItem__operator) => {
+
+            const operatorNodeFuncWrapper = gmItem__operator.specs.funcWrapper.inverse;
+            // logger.log("operatorNodeFuncWrapper", operatorNodeFuncWrapper);
+
+            const operator__inverse = operatorNodeFuncWrapper.semantics.operator;
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+            const func = operatorNodeFuncWrapper.func;
+            const func_decorated = function(mathNode_in) {
+              logger.log("func_decorated, mathNode_in", mathNode_in);
+              var outMathNode;
+
+              //legacy
+              outMathNode = func(mathNode_in);
+
+              //decoration
+              outMathNode = Simplifier.simplify_fraction(outMathNode);
+              logger.log("func_decorated, outMathNode", outMathNode);
+
+              return outMathNode;
+            };
+
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+            };
+
+            const gmItem__operator__inverse = GMItem.operator(func_decorated, name, "", specs);
+
+            return gmItem__operator__inverse;
+          });
+
+
+          const depth__target    = 4;
+
+          const gmItem__target   = GMMaker.createGMItemTarget__x_to_expr(gmItem__initial, arr_gmItem_operator, depth__target);
+          const mathNode__target = gmItem__target.content;
+          mathNode__target.autoSimplify = true;
+
+
+          const gmItemConfig = {
+            initial:    gmItem__initial,
+            target :    gmItem__target,
+
+            operators:           arr_gmItem_operator,
+            operators__inverse:  arr_gmItem_operator__inverse,
+          };
+
+          return gmItemConfig;
+        }
 
 
 
@@ -26418,7 +26700,7 @@
               step.rep_free__score_valueLabel  = rep_free__score_valueLabel;
               step.rep_free__score_value       = rep_free__score_valueLabel.parts["value"];
             }
-            addLabel_score();
+            // addLabel_score();
 
               //add label/value: par
             function addLabelValue_par() {
@@ -26448,7 +26730,7 @@
                 };
               }, 20);   //SHU TODO: remove this ugliness
             }
-            addLabelValue_par();
+            // addLabelValue_par();
 
 
               //add ball:
@@ -26482,64 +26764,132 @@
           const mathNode__target       = step.challengeGMItemConfig.target.content;
           step.rep_free__hole.parts.facade.mathNode = mathNode__target;
           step.rep_free__hole.parts.touchSlot.fill  = "";
+
+
             //operators
-          const arr_gm_operator = Object.values(golfCourse.components).filter(component => component.type == "gm_operator");
-          const arr_rep_free__operator = arr_gm_operator.map((gm_operator, i) => {
-            const icObj__rep_free = gm_operator.icObj;
-            return icObj__rep_free;
-          });
-          const arr_gmItem_operator = step.challengeGMItemConfig.operators;
+          {
+            const arr_gm_operator = Object.values(golfCourse.components).filter(component => component.type == "gm_operator");
+            const arr_rep_free__operator = arr_gm_operator.map((gm_operator, i) => {
+              const icObj__rep_free = gm_operator.icObj;
+              return icObj__rep_free;
+            });
+            const arr_gmItem_operator = step.challengeGMItemConfig.operators;
 
-          const zip = (a, b) => a.map((k, i) => [k, b[i]]);
+            const zip = (a, b) => a.map((k, i) => [k, b[i]]);
 
-          const arr_zipped = zip(arr_rep_free__operator, arr_gmItem_operator);
+            const arr_zipped = zip(arr_rep_free__operator, arr_gmItem_operator);
 
-          arr_zipped.forEach(([rep_free__operator, gmItem_operator], i) => {
-
-
-            //touchSlot
-            const rep_free__touchSlot = rep_free__operator.parts["touchSlot"];
-
-            const mathNodeTransformationFunc = gmItem_operator.content;
-            const icObjTransformationFunc = (icObj) => {
-              // logger.log("icObjTransformationFunc", icObj);
-              var outIcObj;
+            arr_zipped.forEach(([rep_free__operator, gmItem_operator], i) => {
 
 
+              //touchSlot
+              const rep_free__touchSlot = rep_free__operator.parts["touchSlot"];
 
-              outIcObj = icObj.clone();
-              // logger.log("outIcObj", outIcObj);
-
-              if(outIcObj.mathNode) {
-                delete outIcObj.mathNode;     //SHU666: true sadness
-              }
+              const mathNodeTransformationFunc = gmItem_operator.content;
+              const icObjTransformationFunc = (icObj) => {
+                // logger.log("icObjTransformationFunc", icObj);
+                var outIcObj;
 
 
 
-              if(icObj.cType == "gm_box") {
-                // logger.log("gm_box");
+                outIcObj = icObj.clone();
+                // logger.log("outIcObj", outIcObj);
 
-                const facade = icObj.parts.facade;
-                outIcObj.parts.facade.mathNode = mathNodeTransformationFunc(facade.mathNode);
-              }
-
-              // if(icObj.mathNode != null) {
-              //   // logger.log("icObj.mathNode", icObj.mathNode);
-              //   outIcObj.mathNode = mathNodeTransformationFunc(icObj.mathNode);
-              // }
-
-              return outIcObj;
-            };
-            rep_free__touchSlot.touchSlotConfig.transformationFunc = icObjTransformationFunc;
+                if(outIcObj.mathNode) {
+                  delete outIcObj.mathNode;     //SHU666: true sadness
+                }
 
 
-            //facade
-            const rep_free__facade = rep_free__operator.parts["facade"];
-            rep_free__facade.text = gmItem_operator.name;
 
-            rep_free__facade.originX = "center";
+                if(icObj.cType == "gm_box") {
+                  // logger.log("gm_box");
 
-          });
+                  const facade = icObj.parts.facade;
+                  outIcObj.parts.facade.mathNode = mathNodeTransformationFunc(facade.mathNode);
+                }
+
+                // if(icObj.mathNode != null) {
+                //   // logger.log("icObj.mathNode", icObj.mathNode);
+                //   outIcObj.mathNode = mathNodeTransformationFunc(icObj.mathNode);
+                // }
+
+                return outIcObj;
+              };
+              rep_free__touchSlot.touchSlotConfig.transformationFunc = icObjTransformationFunc;
+
+
+              //facade
+              const rep_free__facade = rep_free__operator.parts["facade"];
+              rep_free__facade.text = gmItem_operator.name;
+
+              rep_free__facade.originX = "center";
+
+            });
+          }
+
+
+            //operators__inverse
+          {
+            const arr_gm_operator__inverse = Object.values(golfCourse.components).filter(component => component.type == "placeholder");
+            const arr_rep_free__operator__inverse = arr_gm_operator__inverse.map((gm_operator, i) => {
+              const icObj__rep_free = gm_operator.icObj;
+              return icObj__rep_free;
+            });
+            const arr_gmItem_operator__inverse = step.challengeGMItemConfig.operators__inverse;
+
+            const zip = (a, b) => a.map((k, i) => [k, b[i]]);
+
+            const arr_zipped = zip(arr_rep_free__operator__inverse, arr_gmItem_operator__inverse);
+
+            arr_zipped.forEach(([rep_free__operator, gmItem_operator], i) => {
+
+
+              //touchSlot
+              const rep_free__touchSlot = rep_free__operator.parts["touchSlot"];
+
+              const mathNodeTransformationFunc = gmItem_operator.content;
+              const icObjTransformationFunc = (icObj) => {
+                // logger.log("icObjTransformationFunc", icObj);
+                var outIcObj;
+
+
+
+                outIcObj = icObj.clone();
+                // logger.log("outIcObj", outIcObj);
+
+                if(outIcObj.mathNode) {
+                  delete outIcObj.mathNode;     //SHU666: true sadness
+                }
+
+
+
+                if(icObj.cType == "gm_box") {
+                  // logger.log("gm_box");
+
+                  const facade = icObj.parts.facade;
+                  outIcObj.parts.facade.mathNode = mathNodeTransformationFunc(facade.mathNode);
+                }
+
+                // if(icObj.mathNode != null) {
+                //   // logger.log("icObj.mathNode", icObj.mathNode);
+                //   outIcObj.mathNode = mathNodeTransformationFunc(icObj.mathNode);
+                // }
+
+                return outIcObj;
+              };
+              rep_free__touchSlot.touchSlotConfig.transformationFunc = icObjTransformationFunc;
+
+
+              //facade
+              const rep_free__facade = rep_free__operator.parts["facade"];
+              rep_free__facade.text = gmItem_operator.name;
+
+              rep_free__facade.originX = "center";
+
+            });
+          }
+
+
 
 
           // step.infiniteCanvas.redrawCanvas(RedrawOccasion.forceRedraw);   //SHU666:pour éviter les bugs de non rafraîchissement des teXFObj //ce n'est pas la panacée
@@ -26775,11 +27125,11 @@
       }
 
     </script>
-    <!-- <script>
+    <script>
       setTimeout(() => {    //SHU: wait for mathjax to finish loading
         const golfGame__endless_practice = new GolfGame__Endless_Practice(infiniteCanvas);     //practice
       }, 1000);
-    </script> -->
+    </script>
 
 
 
@@ -27574,11 +27924,11 @@
       }
 
     </script>
-    <script>
+    <!-- <script>
       setTimeout(() => {    //SHU: wait for mathjax to finish loading
         const atelier__X_X = new Atelier__X_X(infiniteCanvas);
       }, 1000);
-    </script>
+    </script> -->
 
 
 
