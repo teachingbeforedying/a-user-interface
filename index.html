@@ -2562,6 +2562,28 @@
           return;
         }
 
+        static isFraction(mathNode) {
+          var outBool;
+
+          if(mathNode.type == "OperatorNode" && mathNode.fn == "divide") {
+
+            const operatorNode = mathNode;
+
+            const mathNode__numerator         = operatorNode.args[0];
+            const isTerminalNode__numerator   = Simplifier.isTerminalType(mathNode__numerator);
+
+            const mathNode__denominator       = operatorNode.args[1];
+            const isTerminalNode__denominator = Simplifier.isTerminalType(mathNode__denominator);
+
+            outBool = isTerminalNode__numerator && isTerminalNode__denominator;
+
+          } else {
+            outBool = false;
+          }
+
+          return outBool;
+        }
+
       }
     </script>
 
@@ -4366,7 +4388,7 @@
       }
 
 
-      createIcDropTouchSlot(trueRect, touchSlotConfig_in = null) {
+      createIcDropTouchSlot(trueRect, touchSlotConfig_in = null, engine_in = null) {
         console.log("createIcTouchSlot", trueRect, touchSlotConfig);
 
         const infiniteCanvas = this;
@@ -4410,7 +4432,12 @@
         const icDropTouchSlot = Object.assign(icObj, icDropTouchSlot_spec);
 
 
-        const engine = new DropTouchSlotEngine();
+        var engine;
+        if(engine_in != null) {
+          engine = engine_in;
+        } else {
+          engine = new DropTouchSlotEngine();
+        }
         const eType  = "dropTouchSlot";
 
         const icEngined = infiniteCanvas.createIcEngined(icDropTouchSlot, eType, engine);
@@ -4726,11 +4753,22 @@
 
         const infiniteCanvas = this;
 
-        const icDropTouchSlot = infiniteCanvas.createIcDropTouchSlot(trueRect);
-
         const parts__terrace           = {};
         const compositeConfig__terrace = Compositer.defaultCompositeConfig(parts__terrace, false);
         const icComposite__terrace     = infiniteCanvas.createIcComposite(trueRect, parts__terrace, compositeConfig__terrace);
+
+
+        const dropTouchSlotEngine__platformEdition = new DropTouchSlotEngine();
+        dropTouchSlotEngine__platformEdition.isObjectIgnored = function(incomingObj) {
+          logger.log("dropTouchSlotEngine__platformEdition.isObjectIgnored", incomingObj);
+          // return false;
+          const isTerrace = (incomingObj.id != icComposite__terrace.id);
+          return !isTerrace;
+        };
+        dropTouchSlotEngine__platformEdition.virgin = Object.assign({}, dropTouchSlotEngine__platformEdition);  //virgin == not bound
+
+        const icDropTouchSlot = infiniteCanvas.createIcDropTouchSlot(trueRect, null, dropTouchSlotEngine__platformEdition);
+
 
         const parts = {
           dropTouchSlot: icDropTouchSlot,       //landing
@@ -4792,77 +4830,165 @@
       }
 
 
-      createIcConductiveOperator(trueRect, operatorString_in = null) {
+      createIcConductiveOperator(trueRect, mathOperatorSymbol_in = "+", isRetaining = false) {
         console.log("createIcConductiveOperator", trueRect);
 
-        var operatorConfig;
-        if(operatorString_in == null) {
-          const rank     = this.getNextTouchSlotRank();
-          operatorConfig = GMOperatorMama.operatorConfigForRank(rank);
-        } else {
-          const text_in = operatorString_in;
-          const transformationFunc = (new GMOperatorTextChangeEngine()).transformationFuncForText(text_in);
-
-          operatorConfig = new OperatorConfig(text_in, transformationFunc);
-        }
+        const icPlatform = infiniteCanvas.createIcPlatform(trueRect);
+        infiniteCanvas.addIcObject(icPlatform);                         //SHU: workaround.  One day, find out how to create fresh composite containing fresh composite
 
         const touchSlotConfig = {
-          transformationFunc: operatorConfig.transformationFunc,
+          transformationFunc: function(icObj) {
+            // logger.log("transformationFunc, default", icObj);
+            return new TransformationOutput("mutated", icObj, icObj);
+            // return icObj;
+          },
         };
 
         const touchSlot    = infiniteCanvas.createIcTouchSlot(trueRect, touchSlotConfig);
         touchSlot.fill     = "";
         // touchSlot.isMobile = false;
 
-        const text         = operatorConfig.name;
+
+
+        const text         = mathOperatorSymbol_in;
         const facade       = infiniteCanvas.createIcText(trueRect.x, trueRect.y, text);
         facade.backgroundColor = "blanchedalmond";
         // facade.isMobile    = false;
         // facade.isTouchable = false;
 
-        const conductiveArea = infiniteCanvas.createIcRect(trueRect.x, trueRect.y, text);
-        facade.backgroundColor = "lightgray";
-
         const parts = {
+          "platform":       icPlatform,
           "touchSlot":      touchSlot,
           "facade":         facade,
-          "conductiveArea": conductiveArea,
         };
 
         const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
-
-        const icComposite = this.createIcComposite(trueRect, parts, compositeConfig);
-        icComposite.cType = "conductive_operator";
-
+        const icComposite     = this.createIcComposite(trueRect, parts, compositeConfig);
+        icComposite.cType     = "conductive_operator";
         // icComposite.isTouchable = false;
 
 
+        const icConductiveOperator = icComposite;
+
         //rework
-        infiniteCanvas.onceOnAddRepresentedForIcObject((icComposite) => {
+        infiniteCanvas.onceOnAddRepresentedForIcObject(icConductiveOperator, (icConductiveOperator) => {
 
+          const rep_free__conductiveOperator = infiniteCanvas.getRepresented(icConductiveOperator.id).r_free();
 
-          const icObjTransformationFunc = (icObj) => {
-            var outIcObj;
+          // const rep_free__platform = rep_free__conductiveOperator.parts.platform;
+          // logger.log("rep_free__platform", rep_free__platform);
 
-            outIcObj = icObj.clone();
+          const rep_free__touchSlot = rep_free__conductiveOperator.parts.touchSlot;
 
-            const arr_conducted =
+          const gmOperatorTextChangeEngine = new GMOperatorTextChangeEngine();
+          const mathOperatorSymbol   = mathOperatorSymbol_in;
+          const mathOperatorFuncName = gmOperatorTextChangeEngine.mathOperatorFuncNameForSymbol(mathOperatorSymbol);
 
-            // logger.log("icObj.mathNode", icObj.mathNode);
-            outIcObj.mathNode = transformationFunc(icObj.mathNode);
+          const transformationFunc = (icObj) => {
+            var transformationOutput;
 
-            return outIcObj;
+            logger.log("transformationFunc__touch", icObj);
+
+            const rep_free__platform = rep_free__conductiveOperator.parts.platform;
+            logger.log("rep_free__platform", rep_free__platform);
+
+            // const icObj__sadness = icObjToIcObjFunc(icObj);
+
+            const conducted_operands = rep_free__platform.parts.terrace.parts;
+            const arr_conducted_operands = Object.values(conducted_operands);
+
+            if(arr_conducted_operands.length > 0) {
+
+              if(icObj.type == "mathNode") {
+
+                //check if transformation is allowed
+                function isTransformationAllowed_atomic(mathNode_a, mathNode_b) {
+                  var outBool;
+
+                  //fractions mode
+                  if(MathUtils.isFraction(mathNode_a) && MathUtils.isFraction(mathNode_b)) {
+
+                    const mathNode__denominator_a = mathNode_a.args[1];
+                    const mathNode__denominator_b = mathNode_b.args[1];
+
+                    const isSameDenominator = (mathNode__denominator_a.value == mathNode__denominator_b.value);   //SHU: this should be improved (symbols, parentheses...)
+
+                    outBool = isSameDenominator;
+
+                  } else {
+                    outBool = true;
+                  }
+
+                  return outBool;
+                }
+
+                const arr_conducted_mathNodes = arr_conducted_operands.filter(icObj => icObj.type == "mathNode").map(icObj => icObj.mathNode);
+                logger.log("arr_conducted_mathNodes", arr_conducted_mathNodes);
+
+                const mathNode__initial = icObj.mathNode.cloneDeep();
+                mathNode__initial.autoSimplify = icObj.mathNode.autoSimplify;
+
+                const isTransformationAllowed = Utils.early_break_reduce(arr_conducted_mathNodes, (acc,x,i,arr) => {
+                  return acc && isTransformationAllowed_atomic(mathNode__initial, x);
+                }, true, (acc, x, i, arr) => {
+                  return (acc == false);
+                });
+
+                if(isTransformationAllowed) {
+
+                  // const mathNode__new = arr_conducted_mathNodes.reduce((acc, mathNode_conducted) => {
+                  const mathNode__new = arr_conducted_operands.reduce((acc, icObj_conducted) => {
+
+                    const mathNode_conducted = icObj_conducted.mathNode;
+
+                    if(!isRetaining) {
+                      rep_free__platform.parts.terrace.engine.awoken.removePart(icObj_conducted);
+                      icObj_conducted.im_dying_now = true;
+                    }
+
+                    const transformationFunc   = gmOperatorTextChangeEngine.createTransformationFunc(mathOperatorSymbol, mathOperatorFuncName, mathNode_conducted);
+                    const transformationFunc__decorated = function(mathNode) {
+                      var outMathNode;
+
+                      outMathNode = transformationFunc(mathNode);
+                      outMathNode = Simplifier.simplify_fraction(outMathNode);
+
+                      return outMathNode;
+                    };
+
+                    acc = transformationFunc__decorated(acc);
+
+                    return acc;
+                  }, mathNode__initial);
+                  logger.log("mathNode__new", mathNode__new);
+
+                  const icObj__new = icObj.clone();
+                  icObj__new.mathNode = mathNode__new;
+
+                  transformationOutput = new TransformationOutput("mutated", icObj__new, icObj);
+
+                } else {
+                  transformationOutput = new TransformationOutput("old", icObj, icObj);
+                }
+
+              } else {
+                transformationOutput = new TransformationOutput("old", icObj, icObj);
+              }
+
+            } else {
+              icObj.fill = Color.randomColor();
+              // icObj.mathNode = new math.ConstantNode(42);
+              transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+            }
+
+            return transformationOutput;
           };
 
-          const touchSlotConfig = {
-            transformationFunc: icObjTransformationFunc,
-          };
-
-
+          rep_free__touchSlot.touchSlotConfig.transformationFunc = transformationFunc;
 
         });
 
-        return icComposite;
+        return icConductiveOperator;
       }
 
 
@@ -11942,14 +12068,18 @@
                   }
                 }
                 break;
+                case "old":
+                {
+                  //do nothing: object has not changed
+                }
+                break;
                 case "mutated":
                 {
                   logger.log("transformationOutput:", transformationOutput);
 
-                  const mutationObj = transformationOutput;
+                  const mutationObj = transformationOutput.value;
                   // icObj__touched.mathNode = mutationObj.mathNode;
                   Object.assign(icObj__touched, mutationObj);
-
                 }
                 break;
                 // case "displaced":
@@ -12029,7 +12159,7 @@
           // this.r_official_update_handler = (icObj_slot, icObj_piece, outerUpdatesDict) => {
           this.r_official_update_handler = function(icObj_slot, icObj_piece, outerUpdatesDict) {
 
-            logger.log("r_official_update_handler", icObj_piece);
+            // logger.log("r_official_update_handler", icObj_piece);
 
             const touchState = icObj_piece.touchStateDict[icObj_slot.id];
             console.log("touchState", touchState);
@@ -12291,6 +12421,11 @@
                   }
                 }
                 break;
+                case "old":
+                {
+                  //do nothing: object has not changed
+                }
+                break;
                 case "mutated":
                 {
                   logger.log("transformationOutput:", transformationOutput);
@@ -12444,6 +12579,11 @@
                   }
                 }
                 break;
+                case "old":
+                {
+                  //do nothing: object has not changed
+                }
+                break;
                 case "mutated":
                 {
                   logger.log("transformationOutput:", transformationOutput);
@@ -12510,6 +12650,12 @@
 
           };
 
+          this.isObjectIgnored = function(incomingObj) {  // Platform should override this function
+                                                          // to allow platform to transport intangible objects
+              //ignore: incomingObj is intangible         //  while not allowing 'standard' dropTouchSlot to touch intangible objects
+              return !incomingObj.isTouchable;
+          };
+
           // this.r_official_update_handler2 = (rep_official_incoming, outerUpdatesDict) => {
           this.r_official_update_handler2 = function(rep_official_incoming, outerUpdatesDict) {   //SHU: when using func.bind(myObj), be sure not to use arrow functions
 
@@ -12537,9 +12683,8 @@
 
             if(incomingObj != touchSlot) { //don't touch oneself
 
-              if(!incomingObj.isTouchable) {
-                //ignore: incomingObj is intangible
-              } else {
+              const isObjectIgnored_ = this.isObjectIgnored(incomingObj);
+              if(!isObjectIgnored_) {
                 this.r_official_update_handler(touchSlot, incomingObj, outerUpdatesDict);
               }
 
@@ -12548,6 +12693,8 @@
             }
 
           };
+
+
 
 
           this.start = function() {
@@ -13466,6 +13613,7 @@
             const parts           = handle__rep_free.parts;
             const arr_parts_all   = Object.values(parts);
             arr_parts_all.forEach((part__rep_free, i) => {
+              // logger.log("part__rep_free", part__rep_free);
 
               //'activate' listeners
               const part__listener = this.listeners[part__rep_free.id];
@@ -29009,8 +29157,8 @@
           // this.debug_simplify_topPriorityShell();
 
           // this.debug_dropTouchSlot();
-          this.debug_platform();
-          // this.debug_conductive_operator();
+          // this.debug_platform();
+          this.debug_conductive_operator();
 
         }
 
@@ -29863,6 +30011,36 @@
             infiniteCanvas.addIcObject(icMathNode);
           }
 
+          //rect1
+          {
+            const trueRect_3 = {
+              x: 200,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+
+            const icRect = infiniteCanvas.createIcRect(trueRect_3);
+            icRect.fill = "lime";
+            icRect.isTouchable = true;
+            infiniteCanvas.addIcObject(icRect);
+          }
+
+
+          //create platform2
+          {
+            const trueRect_2 = {
+              x: 1000,
+              y: 800,
+              width: 200,
+              height: 200,
+            };
+            const icPlatform = infiniteCanvas.createIcPlatform(trueRect_2);
+            icPlatform.fill = "orange";
+            // conductiveOperator.zIndex = -50;
+            infiniteCanvas.addIcObject(icPlatform);
+          }
+
         }
 
 
@@ -29883,18 +30061,31 @@
             infiniteCanvas.addIcObject(conductiveOperator);
           }
 
+          //create conductiveOperator2
+          {
+            const trueRect_2 = {
+              x: 1000,
+              y: 200,
+              width: 200,
+              height: 200,
+            };
+            const conductiveOperator = infiniteCanvas.createIcConductiveOperator(trueRect_2, "-");
+            // conductiveOperator.zIndex = -50;
+            infiniteCanvas.addIcObject(conductiveOperator);
+          }
 
 
           //mathNode1
           {
             const trueRect_1 = {
-              x: 500,
+              x: 300,
               y: 500,
               width: 100,
               height: 100,
             };
 
             const mathNode = new math.ConstantNode(4);
+            mathNode.autoSimplify = true;
 
             const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
             icMathNode.isTouchable = true;
@@ -29904,13 +30095,14 @@
           //mathNode2
           {
             const trueRect_2 = {
-              x: 500,
+              x: 300,
               y: 700,
               width: 100,
               height: 100,
             };
 
             const mathNode = new math.ConstantNode(7);
+            mathNode.autoSimplify = true;
 
             const icMathNode = infiniteCanvas.createIcMathNode(trueRect_2.x, trueRect_2.y, mathNode);
             icMathNode.isTouchable = true;
@@ -29918,7 +30110,56 @@
           }
 
 
+          //mathNode3
+          {
+            const trueRect_2 = {
+              x: 600,
+              y: 400,
+              width: 100,
+              height: 100,
+            };
 
+            const mathNode = math.parse("4/11");
+            mathNode.autoSimplify = true;
+
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_2.x, trueRect_2.y, mathNode);
+            icMathNode.isTouchable = true;
+            infiniteCanvas.addIcObject(icMathNode);
+          }
+
+          //mathNode4
+          {
+            const trueRect_2 = {
+              x: 600,
+              y: 700,
+              width: 100,
+              height: 100,
+            };
+
+            const mathNode = math.parse("7/11");
+            mathNode.autoSimplify = true;
+
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_2.x, trueRect_2.y, mathNode);
+            icMathNode.isTouchable = true;
+            infiniteCanvas.addIcObject(icMathNode);
+          }
+
+          //mathNode5
+          {
+            const trueRect_2 = {
+              x: 600,
+              y: 100,
+              width: 100,
+              height: 100,
+            };
+
+            const mathNode = math.parse("8/13");
+            mathNode.autoSimplify = true;
+
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_2.x, trueRect_2.y, mathNode);
+            icMathNode.isTouchable = true;
+            infiniteCanvas.addIcObject(icMathNode);
+          }
 
 
         }
