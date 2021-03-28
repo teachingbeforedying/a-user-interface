@@ -647,6 +647,38 @@
           return outOp;
         }
 
+        static fromString_binary(opString) {
+          var outOp;
+
+          function fnString_for_opString(opString) {
+            var outString;
+
+            switch(opString) {
+              case "+":
+                outString = "plus";
+                break;
+              case "-":
+                outString = "minus";
+                break;
+              case "x":
+                outString = "multiply";
+                break;
+              case "/":
+                outString = "divide";
+                break;
+            }
+
+            return outString;
+          }
+
+          const fnString = fnString_for_opString(opString);
+
+          const opConfig = dict_opConfig[2][fnString];
+          outOp = Operator.fromConfig(opConfig);
+
+          return outOp;
+        }
+
 
       }
 
@@ -893,6 +925,14 @@
           }
 
         }
+
+        outFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b, isShuffled);
+
+        return outFuncWrapper;
+      }
+
+      function operatorNodeFactoryFuncWrapper_binary(op, node_b, isShuffled = false) {
+        var outFuncWrapper;
 
         const func = createMathNodeTransformationFunc_binary(op.op, op.name, node_b, isShuffled);
 
@@ -4992,6 +5032,108 @@
       }
 
 
+      createIcFractionOneOperator(trueRect, operatorNodeFactoryFuncWrapper_in = null, isSimplifying = true) {
+
+        var operatorNodeFactoryFuncWrapper;
+        if(operatorNodeFactoryFuncWrapper_in != null) {
+          operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_in;
+        } else {
+          const op     = Operator.fromString_binary("x");
+          const node_b = new math.ConstantNode(2);
+          operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
+        }
+
+        const touchSlotConfig = {
+          transformationFunc: function(icObj) {
+            var transformationOutput;
+
+            if(icObj.type == "mathNode") {
+
+              var mathNode__input = icObj.mathNode;
+
+              // const isFraction = MathUtils.isFraction(mathNode__input);
+              const isFraction = mathNode__input.type == "OperatorNode" && mathNode__input.fn == "divide";
+              if(!isFraction) {
+                mathNode__input = new math.OperatorNode("/", "divide", [mathNode__input, new math.ConstantNode(1)]);
+              }
+
+              const mathNode__input__numerator   = mathNode__input.args[0];
+              const mathNode__input__denominator = mathNode__input.args[1];
+
+              const operatorNodeFunc = operatorNodeFactoryFuncWrapper.func;
+
+              // var mathNode__output__numerator   = new math.OperatorNode("x", "multiply", [mathNode__input__numerator,   mathNode__factor]);
+              var mathNode__output__numerator   = operatorNodeFunc(mathNode__input__numerator);
+              if(isSimplifying) {
+                mathNode__output__numerator = Simplifier.simplify_fraction(mathNode__output__numerator);
+              }
+
+              // var mathNode__output__denominator = new math.OperatorNode("x", "multiply", [mathNode__input__denominator, mathNode__factor]);
+              var mathNode__output__denominator   = operatorNodeFunc(mathNode__input__denominator);
+              if(isSimplifying) {
+                mathNode__output__denominator = Simplifier.simplify_fraction(mathNode__output__denominator);
+              }
+
+              var mathNode__output = new math.OperatorNode("/", "divide", [mathNode__output__numerator, mathNode__output__denominator]);
+              if(isSimplifying) {
+                if(mathNode__output__denominator.value == 1) {
+                  mathNode__output = mathNode__output__numerator;
+                }
+              }
+
+              const icObj__new = icObj.clone();
+              icObj__new.mathNode = mathNode__output;
+
+              transformationOutput = new TransformationOutput("mutated", icObj__new, icObj);
+
+            } else {
+              transformationOutput = new TransformationOutput("old", icObj, icObj);
+            }
+
+            return transformationOutput;
+          },
+        };
+
+        const touchSlot    = infiniteCanvas.createIcTouchSlot(trueRect, touchSlotConfig);
+        touchSlot.fill     = "";
+        // touchSlot.isMobile = false;
+
+
+        // const value = mathNode__factor.value;
+        const operation = operatorNodeFactoryFuncWrapper.semantics.name;
+
+        // const text         = "x" + "(" + value + "/" + value + ")";
+        // const facade       = infiniteCanvas.createIcText(trueRect.x, trueRect.y, text);
+        // const tex = '\\times \\frac{' + value +  '}{' + value + '}';
+        const tex = '\\frac{\\ '  + operation +  '}{\\ ' + operation + '}';
+
+        const facade = infiniteCanvas.createIcTex(trueRect.x, trueRect.y, tex);
+        facade.size = {
+          width:  100,
+          height: 100,
+        };
+
+        facade.backgroundColor = "orange";
+        // facade.isMobile    = false;
+        // facade.isTouchable = false;
+
+        const parts = {
+          "touchSlot":      touchSlot,
+          "facade":         facade,
+        };
+        // touchSlot.zIndex = facade.zIndex - 1;
+
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+        const icComposite     = this.createIcComposite(trueRect, parts, compositeConfig);
+        icComposite.cType     = "fractionOne_operator";
+        // icComposite.isTouchable = false;
+
+        const icFractionOneOperator = icComposite;
+
+        return icFractionOneOperator;
+      }
+
+
 
 
       createIcGMClickWell(trueRect, value_in = -48) {
@@ -5623,6 +5765,74 @@
       mutateGreenMouseWell__addReactivePart(icGreenMouseWell) {
 
       }
+
+
+      createIcGMSafetyZone(trueRect) {
+        logger.log("createIcGMSafetyZone", trueRect);
+
+        const touchSlotConfig = {
+          transformationFunc__touch: function(icObj) {
+            var transformationOutput;
+
+            logger.log("icGMSafetyZone, transformationFunc__touch", icObj);
+            //debug
+            // icObj.fill = Color.randomColor();
+
+            const isGreenMouse = (icObj.die != null);
+
+            if(isGreenMouse) {
+
+              const rep_free__greenMouse = icObj;
+
+              const bornAgainFunc = rep_free__greenMouse.bornAgainFunc;
+              if(bornAgainFunc) {
+                rep_free__greenMouse.did["die"].off(bornAgainFunc);
+              }
+
+              transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+            } else {
+              transformationOutput = new TransformationOutput("old", icObj, icObj);
+            }
+
+            return transformationOutput;
+          },
+          transformationFunc__untouch: function(icObj) {
+            var transformationOutput;
+
+            logger.log("icGMSafetyZone, transformationFunc__untouch", icObj);
+            //debug
+            // icObj.fill = Color.randomColor();
+
+            const isGreenMouse = (icObj.die != null);
+
+            if(isGreenMouse) {
+
+              const rep_free__greenMouse = icObj;
+
+              const bornAgainFunc = rep_free__greenMouse.bornAgainFunc;
+              if(bornAgainFunc) {
+                rep_free__greenMouse.did["die"].on(bornAgainFunc);
+              }
+
+              transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+            } else {
+              transformationOutput = new TransformationOutput("old", icObj, icObj);
+            }
+
+            return transformationOutput;
+          },
+        };
+
+        const touchSlot    = infiniteCanvas.createIcTouchSlot(trueRect, touchSlotConfig);
+        touchSlot.fill     = "honeydew";
+        // touchSlot.isMobile = false;
+
+        const icGMSafetyZone = touchSlot;
+
+        return icGMSafetyZone;
+      }
+
+
 
       createIcGMOperator(trueRect, operatorString_in = null) {
         console.log("createIcGMOperator", trueRect);
@@ -6475,8 +6685,12 @@
             throw new Error("unsupported situation: canTouchFunc_valueWise");
           }
           logger.log("mathNode__above", mathNode__above);
+          // logger.log("mathNode__above.value", mathNode__above.value);
+
           const mathNode__below = facade.mathNode;
           logger.log("mathNode__below", mathNode__below);
+          // logger.log("mathNode__below.value", mathNode__below.value);
+
 
           function isSameValue(mathNode_1, mathNode_2) {
             var outBool;
@@ -8809,7 +9023,25 @@
       }
 
 
+      addNewGMSafetyZone() {
+        const true_cursor = this.getTrueCursor();
 
+        const left = true_cursor.x;
+        const top  = true_cursor.y;
+
+        const width  = 150;   //"information" size
+        const height = 150;
+
+        const trueRect = {
+          x: left,
+          y: top,
+          width: width,
+          height: height,
+        };
+
+        const icGMSafetyZone = this.createIcGMSafetyZone(trueRect);
+        this.addNewIcObject(icGMSafetyZone);
+      }
 
       addNewGMOperator() {
         const true_cursor = this.getTrueCursor();
@@ -11998,13 +12230,16 @@
             // }
             // else
 
-            {
+            var transformationFunc = icTouchSlot.touchSlotConfig.transformationFunc;
+            if(transformationFunc == null) {
+              transformationFunc = icTouchSlot.touchSlotConfig.transformationFunc__touch;
+            }
+
+            if(transformationFunc != null) {
               console.log("&&&touch");
               console.log("icTouchSlot", icTouchSlot);
 
-              const transformationFunc = icTouchSlot.touchSlotConfig.transformationFunc;
-
-              var icObj__touched = rep_free;
+              const icObj__touched = rep_free;
 
               ////temporary
               //// {
@@ -12105,8 +12340,9 @@
                   break;
               }
 
+            } else {
+              throw new Error("touch: transformationFunc == null");
             }
-
 
 
           };
@@ -12146,10 +12382,115 @@
           this.untouch = function(icObj_slot, icObj_piece) {
             console.log("untouch", icObj_piece);
 
-            const rep_free     = icObj_piece;   //SHU: this is probably false
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+
+            // const rep_free     = icObj_piece;   //SHU: this is probably false
+            const rep_free = infiniteCanvas.getRepresented(icObj_piece.id).r_free();
 
             const represented  = icObj_piece.represented;
             const rep_official = represented.getRepresentation("official");
+
+
+            const icTouchSlot = this.scopeObj.engineCarrier;
+
+            const transformationFunc__untouch = icTouchSlot.touchSlotConfig.transformationFunc__untouch;
+            if(transformationFunc__untouch != null) {
+
+              const transformationFunc = transformationFunc__untouch;
+
+              const icObj__untouched = rep_free;
+              logger.log("icObj__untouched", icObj__untouched);
+
+              const transformationOutput = transformationFunc(icObj__untouched);
+              switch(transformationOutput.type) {
+                case "new":
+                {
+                  const icTouchSlot = this.scopeObj.infiniteCanvas;
+
+                  const rep_free__supervessel = infiniteCanvas.getSupervessel();
+
+                  rep_free__supervessel.engine.awoken.removePart(icObj__untouched);
+
+                  //remove old
+                  {
+                    // infiniteCanvas.removeIcObject(icObj__untouched);
+                    icObj__untouched.im_dying_now = true;
+                  }
+
+                  //add new
+
+                  function addNew(icObj__new) {
+                    icObj__new.isTouchable = true;
+                    icObj__new.touchStateDict[icObj_slot.id] = TouchState.Touched;
+                    if(icObj__new.type == "composite") {
+                      icObj__new.parts.forEach((part, i) => {
+                        part.touchStateDict[icObj_slot.id] = TouchState.Touched;
+                      });
+                    }
+
+                    infiniteCanvas.addIcObject(icObj__new);
+
+                    const rep_free__new = infiniteCanvas.getRepresented(icObj__new.id).r_free();
+                    rep_free__supervessel.engine.awoken.addPart(rep_free__new);
+
+                  }
+
+                  if(transformationOutput.value instanceof IcObject) {
+
+                    const icObj__new = transformationOutput.value;
+                    logger.log("icObj__new", icObj__new);
+
+                    addNew(icObj__new);
+
+                  } else if(transformationOutput.value instanceof Array) {
+
+                    transformationOutput.value.forEach((icObj__new, i) => {
+                      addNew(icObj__new);
+                    });
+
+                  } else {
+                    throw new Error("unsupported transformationOutput.value: " + transformationOutput.value);
+                  }
+                }
+                break;
+                case "old":
+                {
+                  //do nothing: object has not changed
+                }
+                break;
+                case "mutated":
+                {
+                  logger.log("transformationOutput:", transformationOutput);
+
+                  const mutationObj = transformationOutput.value;
+                  // icObj__touched.mathNode = mutationObj.mathNode;
+                  Object.assign(icObj__untouched, mutationObj);
+                }
+                break;
+                // case "displaced":
+                // {
+                //
+                // }
+                // break;
+                case "sadness":
+                {
+                  icObj__untouched.mathNode = transformationOutput.value.mathNode;
+                }
+                break;
+
+                case "mathNode":     //SHU: horror code   il serait bon un jour d'harmoniser: tout le monde doit utiliser TransformationOutput
+                case "composite":    //SHU: horror code
+                // {
+                //   // icObj__touched.mathNode = transformationOutput.mathNode;
+                // }
+                break;
+
+                default:
+                  throw new Error("unsupported transformationOutput type: " + transformationOutput.type);
+                  break;
+              }
+
+            }
 
             rep_official.touchStateDict[icObj_slot.id] = TouchState.Untouched;
           };
@@ -12524,7 +12865,7 @@
 
               const transformationFunc = icTouchSlot.touchSlotConfig.transformationFunc__untouch;
 
-              var icObj__untouched = rep_free;
+              const icObj__untouched = rep_free;
 
               const transformationOutput = transformationFunc(icObj__untouched);
               logger.log("transformationOutput", transformationOutput);
@@ -15540,6 +15881,7 @@
               fObj.refreshTex_p()
               .then((fObj) => {
                 fabricCanvas.renderAll();
+                standardRedraw(fObj);         //SHU: rajouté pour que les TeX (tout simples) spawnent correctement
               });
             }
             else if(icObj.type == "htmlElt") {
@@ -16403,6 +16745,8 @@
                 width:  icObj.size.width,
                 height: icObj.size.height,
               });
+              */
+
 
               function adapt_child() {
                 const width  = icObj.size.width;
@@ -16418,8 +16762,8 @@
                 });
               }
 
-              // adapt_child();
-              */
+              adapt_child();
+
 
               return fObj;
             });
@@ -23509,8 +23853,9 @@
                   // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("equation__add1");
 
                   // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("split__top_layer");
-                  keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("decomposition__product_primes");
+                  // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("decomposition__product_primes");
 
+                  keyboardIntegration.infiniteCanvas.addNewGMSafetyZone();
                 }
               break;
 
@@ -26048,7 +26393,7 @@
             //steps
           // logger.log("golfGame1Config.steps", golfGame1Config.steps);
           this.steps = Object.entries(golfGame1Config.steps)
-                       .filter(([stepName, stepConfig]) => (stepName != "begin" && stepName != "end"))
+                       // .filter(([stepName, stepConfig]) => (stepName != "begin" && stepName != "end"))
                        .reduce((acc, [stepName, stepConfig], i) => {
 
                           const golfCourseName = stepConfig.golfCourseName;
@@ -26062,8 +26407,6 @@
 
                           return acc;
                         }, {});
-
-
 
         }
 
@@ -26089,14 +26432,14 @@
             name: "Parcours entiers relatifs",
             challenges: [
               "11,+ 5,- 2,x 7,/ 2,78;4",
-              "19,+ 1,- 9,x 6,/ 4,30;3",
-              "24,+ 1,- 1,x 7,/ 2,90;5",
-              "51,+ (-1),- (-1),x (-7),/ 4,-91;3",
-              "-9,+ 8,- 5,x (-3),/ (-2),46;5",
-              "20,+ 1,- 7,x 9,/ 3,42;4",
-              "1,+ 2,- 5,x 7,/ 2,-7;4",
-              "20,+ 4,- 6,x 6,/ 4,21;3",
-              "64,+ 8,- 2,x 5,/ 2,85;5",
+              // "19,+ 1,- 9,x 6,/ 4,30;3",
+              // "24,+ 1,- 1,x 7,/ 2,90;5",
+              // "51,+ (-1),- (-1),x (-7),/ 4,-91;3",
+              // "-9,+ 8,- 5,x (-3),/ (-2),46;5",
+              // "20,+ 1,- 7,x 9,/ 3,42;4",
+              // "1,+ 2,- 5,x 7,/ 2,-7;4",
+              // "20,+ 4,- 6,x 6,/ 4,21;3",
+              // "64,+ 8,- 2,x 5,/ 2,85;5",
             ],
           };
         }
@@ -26110,8 +26453,8 @@
           const arr_golfStepMiniString = mini_gameConfig_9.challenges;
           // const arr_golfCourseString = GolfGame1.arr_game_9().map(str => str.split(";")[0]);
 
-          const courseConfig_begin = GolfCourseConfig.instance_begin();
-          const courseConfig_end   = GolfCourseConfig.instance_end();
+          // const courseConfig_begin = GolfCourseConfig.instance_begin();
+          // const courseConfig_end   = GolfCourseConfig.instance_end();
 
           const config = arr_golfStepMiniString.reduce((acc, golfStepMiniString, index) => {
 
@@ -26120,10 +26463,13 @@
             const golfStepConfigMiniString = arr_str_components[1];
 
             const courseConfig = GolfCourseConfig.challengeCourseConfig_fromMiniString(golfCourseMiniString);
-            courseConfig.rect.x = (courseConfig_begin.rect.x + 2000) + index * 2000;
+            courseConfig.rect.x = /*(courseConfig_begin.rect.x + 2000) +*/ index * 2000;
 
             const courseName = "" + index;
             acc.golfCourses[courseName] = courseConfig;
+
+
+
 
 
             const par = golfStepConfigMiniString;
@@ -26132,7 +26478,10 @@
                 ammo: 8,        //SHU: tee ammo ^^
               },
             };
-            const stepConfig = new GolfStepConfig("challenge", courseName, par, componentSpecs);
+
+            const gmItemConfig = GolfGame1.challengeGMItemConfig(courseConfig);
+
+            const stepConfig = new GolfStepConfig("challenge", courseName, par, componentSpecs, gmItemConfig);
 
             acc.steps[index] = stepConfig;
 
@@ -26140,12 +26489,12 @@
           }, {
             name: name,
             golfCourses: {
-              "begin": courseConfig_begin,
-              "end":   courseConfig_end,
+              // "begin": courseConfig_begin,
+              // "end":   courseConfig_end,
             },
             steps: {
-              "begin": GolfStepConfig.step_begin("begin"),
-              "end":   GolfStepConfig.step_end("end"),
+              // "begin": GolfStepConfig.step_begin("begin"),
+              // "end":   GolfStepConfig.step_end("end"),
             },
           });
 
@@ -26159,7 +26508,7 @@
           //   "end":   GolfStepConfig.step_end("end"),
           // };
 
-          config.golfCourses["end"].rect.x = config.golfCourses["8"].rect.x + 2000;   //SHU: buark
+          // config.golfCourses["end"].rect.x = config.golfCourses["8"].rect.x + 2000;   //SHU: buark
 
 
           outConfig = config;
@@ -26171,10 +26520,65 @@
           var out;
 
           const golfGame1Config = GolfGame1.gameConfig_9();
+          // const golfGame1Config = GolfGame1.gameConfig_9__frac();
 
           out = new GolfGame1(infiniteCanvas, golfGame1Config);
 
           return out;
+        }
+
+
+        static challengeGMItemConfig(courseConfig) {
+          // logger.log("random_challengeGMItemConfig");
+
+          // const mathNode__initial = random_terminal_mathNode_withType_inArr(["ConstantNode"]);
+          logger.log("courseConfig", courseConfig);
+          // throw new Error("please die here");
+          const value__initial    = courseConfig.initial;
+          const mathNode__initial = new math.ConstantNode(value__initial);
+          mathNode__initial.autoSimplify = true;
+          const gmItem__initial = GMItem.value(mathNode__initial, "initial", "");
+
+          // const mathNode__target  = random_terminal_mathNode_withType_inArr(["ConstantNode"]);
+          const value__target    = courseConfig.components.hole.config.value;
+          const mathNode__target = new math.ConstantNode(value__target);
+          const gmItem__target = GMItem.value(mathNode__target, "target", "");
+
+
+          // const min__nb_operators = 2;
+          // const max__nb_operators = 5;
+          // const nb_operators      = Math.floor(Math.random() * (max__nb_operators - min__nb_operators)) + min__nb_operators;
+          // const nb_operators = 4;
+
+          // const arr_gmItem_operator = [...new Array(nb_operators).keys()].map(index => {
+          const arr_gmItem_operator = Object.values(courseConfig.components)
+                                            .filter(component => component.type == "gm_operator")
+                                            .map(component => {
+
+            const operatorMiniString = component.config.operatorString;
+            const arr_split_operatorMiniString = operatorMiniString.split(" ");
+            const opString       = arr_split_operatorMiniString[0];
+            const valueString_b  = arr_split_operatorMiniString[1];
+            const value_b        = Number(valueString_b);
+
+            const op     = Operator.fromString_binary(opString);
+            const node_b = new math.ConstantNode(value_b);
+
+            const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+            const func = operatorNodeFuncWrapper.func;
+            const gmItem__operator = GMItem.operator(func, name, "");
+            return gmItem__operator;
+          });
+
+          const gmItemConfig = {
+            initial:    gmItem__initial,
+            target :    gmItem__target,
+            operators:  arr_gmItem_operator,
+          };
+
+          return gmItemConfig;
         }
 
       }
@@ -26483,6 +26887,129 @@
               },
             // },
 
+
+
+
+            "hole": {
+              type: "gm_targetTouchSlot",
+              zIndex: 10,
+              config: {
+                value: -48,
+              },
+              rect_rel: {
+                l: 0.85,
+                r: 0.95,
+                t: 0.40,
+                b: 0.50,
+              },
+            },
+          };
+
+          const config = {
+            rect: {
+              x:           0,
+              y:           0,
+              width:    1600,
+              height:   1000,
+            },
+            components: components,
+          };
+
+          outConfig = config;
+
+          return outConfig;
+        }
+
+        static template_challenge_with_placeholders() {
+          var outConfig;
+
+          const components = {
+            "bg": {
+              type: "rect",
+              zIndex: -10,
+              config: {
+                // fill: "green",
+                // fill: "lightgreen",
+                // fill: "orange",
+                fill: "lightyellow",
+              },
+              rect_rel: {
+                l: 0.0,
+                r: 1.0,
+                t: 0.0,
+                b: 1.0,
+              },
+            },
+
+            "tee": {
+              type: "rect",
+              zIndex: 100,
+              config: {
+                fill: "lightgreen",
+              },
+              rect_rel: {
+                l: 0.05,
+                r: 0.15,
+                t: 0.40,
+                b: 0.50,
+              },
+            },
+
+            // "bumpers": {
+              "bumper1": {
+                type: "gm_operator",
+                zIndex: 51,
+                config: {
+                  operatorString: "+ 1",
+                },
+                rect_rel: {
+                  l: 0.15,
+                  r: 0.25,
+                  t: 0.80,
+                  b: 0.90,
+                },
+              },
+              "bumper2": {
+                type: "gm_operator",
+                zIndex: 52,
+                config: {
+                  operatorString: "+ 10",
+                },
+                rect_rel: {
+                  l: 0.35,
+                  r: 0.45,
+                  t: 0.80,
+                  b: 0.90,
+                },
+              },
+              "bumper3": {
+                type: "gm_operator",
+                zIndex: 53,
+                config: {
+                  operatorString: "x 2",
+                },
+                rect_rel: {
+                  l: 0.55,
+                  r: 0.65,
+                  t: 0.80,
+                  b: 0.90,
+                },
+              },
+              "bumper4": {
+                type: "gm_operator",
+                zIndex: 54,
+                config: {
+                  operatorString: "x (-1)",
+                },
+                rect_rel: {
+                  l: 0.75,
+                  r: 0.85,
+                  t: 0.80,
+                  b: 0.90,
+                },
+              },
+            // },
+
             "operatorWallPlaceholder1": {
               type: "placeholder",
               zIndex: 55,
@@ -26568,6 +27095,210 @@
         }
 
 
+        static template_challenge__fraction_add() {
+          var outConfig;
+
+          const components = {
+            "bg": {
+              type: "rect",
+              zIndex: -10,
+              config: {
+                // fill: "green",
+                // fill: "lightgreen",
+                // fill: "orange",
+                fill: "lightyellow",
+              },
+              rect_rel: {
+                l: 0.0,
+                r: 1.0,
+                t: 0.0,
+                b: 1.0,
+              },
+            },
+
+            "tee1": {
+              type: "rect",
+              zIndex: 100,
+              config: {
+                fill: "lightgreen",
+              },
+              rect_rel: {
+                l: 0.05,
+                r: 0.15,
+                t: 0.30,
+                b: 0.40,
+              },
+            },
+
+            "tee2": {
+              type: "rect",
+              zIndex: 100,
+              config: {
+                fill: "lightgreen",
+              },
+              rect_rel: {
+                l: 0.05,
+                r: 0.15,
+                t: 0.50,
+                b: 0.60,
+              },
+            },
+
+            // "bumpers": {
+              "bumper1": {
+                type: "gm_fractionOne_operator",
+                zIndex: 51,
+                config: {
+                  operatorString: "fractionOne:x 2",
+                },
+                rect_rel: {
+                  l: 0.15,
+                  r: 0.25,
+                  t: 0.80,
+                  b: 0.90,
+                },
+              },
+              "bumper2": {
+                type: "gm_fractionOne_operator",
+                zIndex: 52,
+                config: {
+                  operatorString: "fractionOne:x 3",
+                },
+                rect_rel: {
+                  l: 0.35,
+                  r: 0.45,
+                  t: 0.80,
+                  b: 0.90,
+                },
+              },
+              "bumper3": {
+                type: "gm_fractionOne_operator",
+                zIndex: 53,
+                config: {
+                  operatorString: "fractionOne:x 5",
+                },
+                rect_rel: {
+                  l: 0.55,
+                  r: 0.65,
+                  t: 0.80,
+                  b: 0.90,
+                },
+              },
+              "bumper4": {
+                type: "gm_fractionOne_operator",
+                zIndex: 54,
+                config: {
+                  operatorString: "fractionOne:x 7",
+                },
+                rect_rel: {
+                  l: 0.75,
+                  r: 0.85,
+                  t: 0.80,
+                  b: 0.90,
+                },
+              },
+            // },
+
+            "conductiveOp": {
+              type: "gm_conductive_operator",
+              zIndex: 55,
+              config: {
+                operatorString: "+",
+              },
+              rect_rel: {
+                l: 0.45,
+                r: 0.65,
+                t: 0.30,
+                b: 0.60,
+              },
+            },
+
+
+            // "operatorWallPlaceholder1": {
+            //   type: "placeholder",
+            //   zIndex: 55,
+            //   config: {
+            //     fill: "gray",
+            //   },
+            //   rect_rel: {
+            //     l: 0.15,
+            //     r: 0.25,
+            //     t: 0.10,
+            //     b: 0.20,
+            //   },
+            // },
+            // "operatorWallPlaceholder2": {
+            //   type: "placeholder",
+            //   zIndex: 56,
+            //   config: {
+            //     fill: "gray",
+            //   },
+            //   rect_rel: {
+            //     l: 0.35,
+            //     r: 0.45,
+            //     t: 0.10,
+            //     b: 0.20,
+            //   },
+            // },
+            // "operatorWallPlaceholder3": {
+            //   type: "placeholder",
+            //   zIndex: 57,
+            //   config: {
+            //     fill: "gray",
+            //   },
+            //   rect_rel: {
+            //     l: 0.55,
+            //     r: 0.65,
+            //     t: 0.10,
+            //     b: 0.20,
+            //   },
+            // },
+            // "operatorWallPlaceholder4": {
+            //   type: "placeholder",
+            //   zIndex: 58,
+            //   config: {
+            //     fill: "gray",
+            //   },
+            //   rect_rel: {
+            //     l: 0.75,
+            //     r: 0.85,
+            //     t: 0.10,
+            //     b: 0.20,
+            //   },
+            // },
+
+
+            "hole": {
+              type: "gm_targetTouchSlot",
+              zIndex: 10,
+              config: {
+                value: -48,
+              },
+              rect_rel: {
+                l: 0.85,
+                r: 0.95,
+                t: 0.40,
+                b: 0.50,
+              },
+            },
+          };
+
+          const config = {
+            rect: {
+              x:           0,
+              y:           0,
+              width:    1600,
+              height:   1000,
+            },
+            components: components,
+          };
+
+          outConfig = config;
+
+          return outConfig;
+        }
+
+
 
         static challengeCourseConfigMiniObj_fromMiniString(challengeCourseMiniString) {
 
@@ -26611,6 +27342,8 @@
           const courseConfig = GolfCourseConfig.template_challenge();
 
           // courseConfig.components.ball.config.value = courseConfigMiniObj.initial;
+          courseConfig.initial = courseConfigMiniObj.initial;
+
           courseConfig.components.hole.config.value = courseConfigMiniObj.target;
 
           //SHU TODO: remove this ugliness
@@ -26687,6 +27420,22 @@
               outIcObj = infiniteCanvas.createIcGMOperator(trueRect__component, operatorString);
               }
               break;
+
+            case "gm_fractionOne_operator":
+              {
+              // const config         = componentConfig.config;
+              // const operatorString = config.operatorString;
+              outIcObj = infiniteCanvas.createIcFractionOneOperator(trueRect__component);
+              }
+              break;
+            case "gm_conductive_operator":
+              {
+              const config         = componentConfig.config;
+              const operatorString = config.operatorString;
+              outIcObj = infiniteCanvas.createIcConductiveOperator(trueRect__component);
+              }
+              break;
+
             case "gm_targetTouchSlot":
               {
               const config = componentConfig.config;
@@ -26824,26 +27573,27 @@
       }
 
       class GolfStepConfig {
-        constructor(type, golfCourseName, par, componentSpecs) {
+        constructor(type, golfCourseName, par, componentSpecs, gmItemConfig) {
           this.type = type;
 
           this.golfCourseName = golfCourseName;
           this.par = par;
 
           this.componentSpecs = componentSpecs;
+          this.gmItemConfig   = gmItemConfig;
         }
 
-        static step_begin(golfCourseName) {
-          const type = "begin";
-          const stepConfig = new GolfStepConfig(type, golfCourseName);
-          return stepConfig;
-        }
+        // static step_begin(golfCourseName) {
+        //   const type = "begin";
+        //   const stepConfig = new GolfStepConfig(type, golfCourseName);
+        //   return stepConfig;
+        // }
 
-        static step_end(golfCourseName) {
-          const type = "end";
-          const stepConfig = new GolfStepConfig(type, golfCourseName);
-          return stepConfig
-        }
+        // static step_end(golfCourseName) {
+        //   const type = "end";
+        //   const stepConfig = new GolfStepConfig(type, golfCourseName);
+        //   return stepConfig
+        // }
 
       }
 
@@ -26861,18 +27611,61 @@
 
           this.invest(golfCourse);
 
-          this.possess(golfCourse);
+          // this.possess(golfCourse);
         }
 
         configure(golfStepConfig) {
           this.par = golfStepConfig.par;
+          this.challengeGMItemConfig = golfStepConfig.gmItemConfig;
+        }
+
+        addNewBall() {
+          const step = this;
+          const infiniteCanvas = this.infiniteCanvas;
+          const golfCourse = this.golfCourse;
+
+
+          const icObj__tee = golfCourse.components["tee"].icObj;
+          const trueRect__ball = {
+            x:      icObj__tee.position.x,
+            y:      icObj__tee.position.y,
+            width:  50,
+            height: 50,
+          };
+
+          // const value = 0;
+          //debug
+          const mathNode__initial = step.challengeGMItemConfig.initial.content;
+          // const value = mathNode__initial.value;
+
+          // const icObj = infiniteCanvas.createIcBornAgainGreenMouseBox(trueRect__ball, mathNode__initial);
+          const icObj = infiniteCanvas.createIcGreenMouseBox(trueRect__ball, mathNode__initial);
+          // const icObj = infiniteCanvas.createIcMathNode(trueRect__ball.x, trueRect__ball.y, mathNode__initial);
+
+          // const icObj = infiniteCanvas.createIcMathNode(trueRect__ball.x, trueRect__ball.y, mathNode__initial);
+
+          infiniteCanvas.addIcObject(icObj);
+
+          //"exo curse"
+          const rep_free__ball = infiniteCanvas.getRepresented(icObj.id).r_free();
+          Hooker.installHooks(rep_free__ball, "die");
+          rep_free__ball.did["die"].on(() => {
+            // logger.log("did die");
+
+            rep_free__ball.parts.facade.im_dying_now      = true;
+            rep_free__ball.parts.contactArea.im_dying_now = true;
+
+            step.addNewBall();
+          });
+
+          step.rep_free__ball  = rep_free__ball;
         }
 
         invest(golfCourse) {
 
           const step = this;
 
-          //add objects
+          //furnish: add objects
           {
             const infiniteCanvas = this.infiniteCanvas;
 
@@ -26929,14 +27722,82 @@
 
 
               //add button: restart
+
+              //add ball:
+              step.addNewBall();
           }
 
 
           //invest: "this is mine now"
           {
-            step.rep_free__ball = golfCourse.components["ball"].icObj;
+            // step.rep_free__ball = golfCourse.components["ball"].icObj;
+
             // this.rep_free__ball = golfCourse.components["ball"].icObj;
             step.rep_free__hole = golfCourse.components["hole"].icObj;
+          }
+
+
+          //employ: now you do X
+
+            //operators
+          {
+            const arr_gm_operator = Object.values(golfCourse.components).filter(component => component.type == "gm_operator");
+            const arr_rep_free__operator = arr_gm_operator.map((gm_operator, i) => {
+              const icObj__rep_free = gm_operator.icObj;
+              return icObj__rep_free;
+            });
+            const arr_gmItem_operator = step.challengeGMItemConfig.operators;
+
+            const zip = (a, b) => a.map((k, i) => [k, b[i]]);
+
+            const arr_zipped = zip(arr_rep_free__operator, arr_gmItem_operator);
+
+            arr_zipped.forEach(([rep_free__operator, gmItem_operator], i) => {
+
+
+              //touchSlot
+              const rep_free__touchSlot = rep_free__operator.parts["touchSlot"];
+
+              const mathNodeTransformationFunc = gmItem_operator.content;
+              const icObjTransformationFunc = (icObj) => {
+                // logger.log("icObjTransformationFunc", icObj);
+                var outIcObj;
+
+
+
+                outIcObj = icObj.clone();
+                // logger.log("outIcObj", outIcObj);
+
+                if(outIcObj.mathNode) {
+                  delete outIcObj.mathNode;     //SHU666: true sadness
+                }
+
+
+
+                if(icObj.cType == "gm_box") {
+                  // logger.log("gm_box");
+
+                  const facade = icObj.parts.facade;
+                  outIcObj.parts.facade.mathNode = mathNodeTransformationFunc(facade.mathNode);
+                }
+
+                // if(icObj.mathNode != null) {
+                //   // logger.log("icObj.mathNode", icObj.mathNode);
+                //   outIcObj.mathNode = mathNodeTransformationFunc(icObj.mathNode);
+                // }
+
+                return outIcObj;
+              };
+              rep_free__touchSlot.touchSlotConfig.transformationFunc = icObjTransformationFunc;
+
+
+              //facade
+              const rep_free__facade = rep_free__operator.parts["facade"];
+              rep_free__facade.text = gmItem_operator.name;
+
+              rep_free__facade.originX = "center";
+
+            });
           }
 
         }
@@ -26971,77 +27832,77 @@
 
         setupAttemptListeners(golfCourse) {   //SHU: this is where BigBrother sneaked in from
 
-          const step = this;
-
-          function waitForNewAttempt() {
-            const ball__rep_free = golfCourse.components["ball"].icObj;
-
-            const createAttemptFunc = () => {
-
-                const attempt = new GolfStepAttempt();
-
-                step.arr_attempt.push(attempt);
-
-                ball__rep_free.offHold(createAttemptFunc);
-            };
-
-            ball__rep_free.onHold(createAttemptFunc);
-          }
-
-          //gm.onHold(create attempt)
-          {
-            waitForNewAttempt();
-          }
-
-          //gm.onTouched(add event to attempt)
-          {
-
-          }
-
-          //gm.onRelease(finalize attempt)
-          {
-            const ball__rep_free = golfCourse.components["ball"].icObj;
-
-            ball__rep_free.onRelease(waitForNewAttempt);
-          }
-
-          //create attempt
-
-
-
-
-
-
-          //course use listeners
-
-          function listenToOperatorTouches(icObj__rep_free) {
-
-            const touchSlot__rep_free  = icObj__rep_free.parts["touchSlot"];
-            // logger.log("touchSlot__rep_free", touchSlot__rep_free);
-
-            const touchSlotEngine = touchSlot__rep_free.engine;
-
-            Hooker.installHooks(touchSlotEngine.awoken, "touch");
-            touchSlotEngine.awoken.did["touch"].on((...args) => {
-              // logger.log("did touch", ...args);
-
-              // counter += 1
-              const attempt = step.getCurrentAttempt();
-              // logger.log("attempt", attempt);
-              attempt.manoeuvre.nb_touched += 1;
-
-              //debug
-              step.rep_free__score_value.text = "" + attempt.manoeuvre.nb_touched;
-            });
-
-          }
-
-          const arr_gm_operator = Object.values(golfCourse.components).filter(component => component.type == "gm_operator");
-
-          arr_gm_operator.forEach((gm_operator, i) => {
-            const icObj__rep_free = gm_operator.icObj;
-            listenToOperatorTouches(icObj__rep_free);
-          });
+          // const step = this;
+          //
+          // function waitForNewAttempt() {
+          //   const ball__rep_free = golfCourse.components["ball"].icObj;
+          //
+          //   const createAttemptFunc = () => {
+          //
+          //       const attempt = new GolfStepAttempt();
+          //
+          //       step.arr_attempt.push(attempt);
+          //
+          //       ball__rep_free.offHold(createAttemptFunc);
+          //   };
+          //
+          //   ball__rep_free.onHold(createAttemptFunc);
+          // }
+          //
+          // //gm.onHold(create attempt)
+          // {
+          //   waitForNewAttempt();
+          // }
+          //
+          // //gm.onTouched(add event to attempt)
+          // {
+          //
+          // }
+          //
+          // //gm.onRelease(finalize attempt)
+          // {
+          //   const ball__rep_free = golfCourse.components["ball"].icObj;
+          //
+          //   ball__rep_free.onRelease(waitForNewAttempt);
+          // }
+          //
+          // //create attempt
+          //
+          //
+          //
+          //
+          //
+          //
+          // //course use listeners
+          //
+          // function listenToOperatorTouches(icObj__rep_free) {
+          //
+          //   const touchSlot__rep_free  = icObj__rep_free.parts["touchSlot"];
+          //   // logger.log("touchSlot__rep_free", touchSlot__rep_free);
+          //
+          //   const touchSlotEngine = touchSlot__rep_free.engine;
+          //
+          //   Hooker.installHooks(touchSlotEngine.awoken, "touch");
+          //   touchSlotEngine.awoken.did["touch"].on((...args) => {
+          //     // logger.log("did touch", ...args);
+          //
+          //     // counter += 1
+          //     const attempt = step.getCurrentAttempt();
+          //     // logger.log("attempt", attempt);
+          //     attempt.manoeuvre.nb_touched += 1;
+          //
+          //     //debug
+          //     step.rep_free__score_value.text = "" + attempt.manoeuvre.nb_touched;
+          //   });
+          //
+          // }
+          //
+          // const arr_gm_operator = Object.values(golfCourse.components).filter(component => component.type == "gm_operator");
+          //
+          // arr_gm_operator.forEach((gm_operator, i) => {
+          //   const icObj__rep_free = gm_operator.icObj;
+          //   listenToOperatorTouches(icObj__rep_free);
+          // });
 
         }
 
@@ -27054,11 +27915,13 @@
           const touchSlotEngine = touchSlot__rep_free.engine;
 
           Hooker.installHooks(touchSlotEngine.awoken, "touch");
-          touchSlotEngine.awoken.did["touch"].on((...args) => {
-            // logger.log("did touch", ...args);
+          const listener_targetDidTouch = (...args) => {
+            logger.log("listener_targetDidTouch", ...args);
 
             this.nowCompleted();
-          });
+          };
+          this.listener_targetDidTouch = listener_targetDidTouch;
+          touchSlotEngine.awoken.did["touch"].on(listener_targetDidTouch);
 
         }
 
@@ -27066,7 +27929,7 @@
 
           const step = this;
 
-          this.onCompleted((golfStep) => {
+          this.listener_onCompleted = (golfStep) => {
             // console.log("step, onCompleted", golfStep);
             // logger.log("step, onCompleted", golfStep);
 
@@ -27075,9 +27938,13 @@
             golfCourse.mutateIntoScoreLabel(score);
             */
 
-            step.segue.play(golfStep);
-          });
+            step.offCompleted(step.listener_onCompleted);
+            step.end();
 
+            step.segue.play(golfStep);
+          };
+
+          this.onCompleted(this.listener_onCompleted);
         }
 
         getCurrentAttempt() {
@@ -27152,7 +28019,7 @@
       setTimeout(() => {    //SHU: wait for mathjax to finish loading
         // const golfGame1 = GolfGame1.defaultInstance(infiniteCanvas);
         // const golfGame1 = GolfGame1.debugInstance(infiniteCanvas);
-        const golfGame1 = GolfGame1.seriousInstance(infiniteCanvas);
+        const golfGame1 = GolfGame1.seriousInstance(infiniteCanvas);        //truegolf
       }, 1000);
 
     </script> -->
@@ -27296,7 +28163,9 @@
           this.infiniteCanvas = infiniteCanvas;
 
           //create golfCourse
-          const golfCourseConfig = GolfCourseConfig.template_challenge();
+          // const golfCourseConfig = GolfCourseConfig.template_challenge_with_placeholders();
+          const golfCourseConfig = GolfCourseConfig.template_challenge__fraction_add();
+
           const golfCourse       = new GolfCourse(infiniteCanvas, golfCourseConfig);
           this.golfCourse = golfCourse;
 
@@ -27309,7 +28178,7 @@
             //litterals
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance2(infiniteCanvas, golfCourse, stepGeneratorFunc);
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance3(infiniteCanvas, golfCourse, stepGeneratorFunc);
-          // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance4(infiniteCanvas, golfCourse, stepGeneratorFunc);
+          // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance4(infiniteCanvas, golfCourse, stepGeneratorFunc); //broken
             //equations
           //SHU TODO
 
@@ -27318,12 +28187,14 @@
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__one_to_frac(infiniteCanvas, golfCourse, stepGeneratorFunc);
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__frac_to_frac(infiniteCanvas, golfCourse, stepGeneratorFunc);
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__frac_to_frac__decomp(infiniteCanvas, golfCourse, stepGeneratorFunc);
-          const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__frac_to_frac__decomp_simple(infiniteCanvas, golfCourse, stepGeneratorFunc);
+          // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__frac_to_frac__decomp_simple(infiniteCanvas, golfCourse, stepGeneratorFunc);
 
 
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__one_to_frac__decomp(infiniteCanvas, golfCourse, stepGeneratorFunc);
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__one_to_frac__mixed(infiniteCanvas, golfCourse, stepGeneratorFunc);
 
+
+          const stepGeneratorFunc = () => GolfGameStep__Endless_Practice__frac_add.randomInstance__frac_add(infiniteCanvas, golfCourse, stepGeneratorFunc);
 
 
           //create first step
@@ -28358,6 +29229,83 @@
         }
 
 
+        static random_challengeGMItemConfig__frac_add() {
+          // logger.log("random_challengeGMItemConfig__one_to_frac");
+
+          // const mathNode__one = new math.ConstantNode(1);
+          // mathNode__one.autoSimplify = true;
+          // const gmItem__one = GMItem.value(mathNode__one, "one", "");
+
+          function createInitialGMItem(index) {
+
+            const mathNode__numerator   = new math.ConstantNode(1);
+            const value__denominator    = Utils.randomElementInArray([2,3,4,5,6,7,8,9]);
+            const mathNode__denominator = new math.ConstantNode(value__denominator);
+
+            const mathNode__initial = new math.OperatorNode("/", "divide", [mathNode__numerator, mathNode__denominator]);
+
+            const gmItem__initial   = GMItem.value(mathNode__initial, "initial_" + index, "");
+            gmItem__initial.content = Rewriter.decomposition_product_primes(mathNode__initial);
+            gmItem__initial.content.autoSimplify = true;
+
+            return gmItem__initial;
+          }
+
+          const nb_initial = 2;
+          const arr_gmItem_initial = [...Array(nb_initial).keys()].map(createInitialGMItem);
+          const arr_mathNode_initial = arr_gmItem_initial.map(gmItem => gmItem.content);
+
+          const arr_factor = [2,3,5,7];
+          const arr_gmItem_operator = arr_factor.map(factor => {
+
+            const op     = Operator.fromString_binary("x");
+            const node_b = new math.ConstantNode(factor);
+            const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+
+            const func = operatorNodeFuncWrapper.func;
+            const func_decorated = function(mathNode_in) {
+              logger.log("func_decorated, mathNode_in", mathNode_in);
+              var outMathNode;
+
+              //legacy
+              outMathNode = func(mathNode_in);
+
+              //decoration
+              // outMathNode = Simplifier.simplify_fraction(outMathNode);
+              // outMathNode = Rewriter.decomposition_product_primes(outMathNode);
+              // logger.log("func_decorated, outMathNode", outMathNode);
+
+              return outMathNode;
+            };
+
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+            };
+
+            const gmItem__operator = GMItem.operator(func_decorated, name, "", specs);
+            return gmItem__operator;
+          });
+
+          const depth__target    = 4;
+
+          const mathNode__target = new math.OperatorNode("+", "add", arr_mathNode_initial);
+          const gmItem__target   = GMItem.value(mathNode__target, "target", "");
+          // gmItem__target.content = Rewriter.decomposition_product_primes(mathNode__target);
+          // mathNode__target.autoSimplify = true;
+
+
+          const gmItemConfig = {
+            initial: arr_gmItem_initial,
+            target : gmItem__target,
+
+            operators:  arr_gmItem_operator,
+            // operators__inverse:  arr_gmItem_operator__inverse,
+          };
+
+          return gmItemConfig;
+        }
 
 
       }
@@ -28519,6 +29467,31 @@
           return step;
         }
 
+        static randomInstance__frac_to_frac__letters(infiniteCanvas, golfCourse, stepGeneratorFunc) {
+
+          const challengeGMItemConfig = GolfGame__Endless_Practice.random_challengeGMItemConfig__frac_to_frac__letters();
+          const stepConfig = {
+            challengeGMItemConfig: challengeGMItemConfig,
+          };
+
+          const step = new GolfGameStep__Endless_Practice(infiniteCanvas, stepConfig, golfCourse, stepGeneratorFunc);
+
+          return step;
+        }
+
+        // static randomInstance__frac_add(infiniteCanvas, golfCourse, stepGeneratorFunc) {
+        //
+        //   const challengeGMItemConfig = GolfGame__Endless_Practice.random_challengeGMItemConfig__frac_add();
+        //   const stepConfig = {
+        //     challengeGMItemConfig: challengeGMItemConfig,
+        //     challengeType: "frac_add",
+        //   };
+        //
+        //   const step = new GolfGameStep__Endless_Practice(infiniteCanvas, stepConfig, golfCourse, stepGeneratorFunc);
+        //
+        //   return step;
+        // }
+
 
         static randomInstance__one_to_frac__decomp(infiniteCanvas, golfCourse, stepGeneratorFunc) {
 
@@ -28552,6 +29525,7 @@
 
           // this.challengeMathNodeConfig = golfStepConfig.challengeMathNodeConfig;
           this.challengeGMItemConfig = golfStepConfig.challengeGMItemConfig;
+          this.challengeType = golfStepConfig.challengeType;
         }
 
         start() {
@@ -29093,6 +30067,533 @@
 
       }
 
+
+      class GolfGameStep__Endless_Practice__frac_add {
+
+        constructor(infiniteCanvas, golfStepConfig, golfCourse, stepGeneratorFunc) {
+
+          this.infiniteCanvas = infiniteCanvas;
+          // this.golfStepConfig = golfStepConfig;
+          this.golfCourse     = golfCourse;
+
+          this.stepGeneratorFunc = stepGeneratorFunc;
+
+          this.configure(golfStepConfig);
+
+        }
+
+        static randomInstance__frac_add(infiniteCanvas, golfCourse, stepGeneratorFunc) {
+
+          const challengeGMItemConfig = GolfGame__Endless_Practice.random_challengeGMItemConfig__frac_add();
+          const stepConfig = {
+            challengeGMItemConfig: challengeGMItemConfig,
+            // challengeType: "frac_add",
+          };
+
+          const step = new GolfGameStep__Endless_Practice__frac_add(infiniteCanvas, stepConfig, golfCourse, stepGeneratorFunc);
+
+          return step;
+        }
+
+
+
+        configure(golfStepConfig) {
+          // this.par = golfStepConfig.par;
+          this.nb_attempts = 0;
+
+          // this.challengeMathNodeConfig = golfStepConfig.challengeMathNodeConfig;
+          this.challengeGMItemConfig = golfStepConfig.challengeGMItemConfig;
+          // this.challengeType = golfStepConfig.challengeType;
+        }
+
+        start() {
+          const golfCourse        = this.golfCourse;
+          const stepGeneratorFunc = this.stepGeneratorFunc;
+
+          this.invest(golfCourse);
+
+          this.possess(golfCourse);
+
+          this.recurse(stepGeneratorFunc);
+
+          // this.infiniteCanvas.redrawCanvas(RedrawOccasion.forceRedraw);   //SHU666:pour éviter les bugs de non rafraîchissement des teXFObj //ce n'est pas la panacée
+        }
+
+        end() {
+          // this.golfCourse.fillHole();
+          const step = this;
+          const infiniteCanvas = this.infiniteCanvas;
+
+          step.rep_free__hole.parts.touchSlot.fill  = "yellow";
+
+          //destroy ball
+          const arr_rep_free_ball = [
+            step["rep_free__ball" + 0],
+            step["rep_free__ball" + 1],
+          ];
+
+          arr_rep_free_ball.forEach((rep_free__ball, i) => {
+
+              //end curses
+            rep_free__ball.parts.facade.curse_greenMouse_end();
+
+              //remove "die" hooks listeners
+            rep_free__ball.will["die"].listeners = [];
+
+              //remove
+            rep_free__ball.im_dying_now = true;
+            rep_free__ball.parts.facade.im_dying_now      = true;
+            rep_free__ball.parts.contactArea.im_dying_now = true;
+          });
+
+          //remove all listeners
+          const touchSlot__rep_free       = step.rep_free__hole.parts.touchSlot;
+          const touchSlotEngine           = touchSlot__rep_free.engine;
+          touchSlotEngine.awoken.did["touch"].off(this.listener_targetDidTouch);
+
+        }
+
+        addNewBall(index) {
+          const step = this;
+          const infiniteCanvas = this.infiniteCanvas;
+          const golfCourse = this.golfCourse;
+
+          // logger.log("golfCourse.components", golfCourse.components);
+          const name__tee = "tee" + (index + 1);
+          const icObj__tee = golfCourse.components[name__tee].icObj;
+          const trueRect__ball = {
+            x:      icObj__tee.position.x,
+            y:      icObj__tee.position.y,
+            width:  50,
+            height: 50,
+          };
+
+          // const value = 0;
+          //debug
+          const gmItem__initial   = step.challengeGMItemConfig.initial[index];
+          const mathNode__initial = gmItem__initial.content;
+          // const value = mathNode__initial.value;
+
+          // const icObj = infiniteCanvas.createIcBornAgainGreenMouseBox(trueRect__ball, mathNode__initial);
+          const icObj = infiniteCanvas.createIcGreenMouseBox(trueRect__ball, mathNode__initial);
+
+          // const icObj = infiniteCanvas.createIcMathNode(trueRect__ball.x, trueRect__ball.y, mathNode__initial);
+
+          infiniteCanvas.addIcObject(icObj);
+
+          const rep_free__ball = infiniteCanvas.getRepresented(icObj.id).r_free();
+          Hooker.installHooks(rep_free__ball, "die");
+
+          const bornAgainFunc = () => {
+            logger.log("did die");
+
+            rep_free__ball.parts.facade.im_dying_now      = true;
+            rep_free__ball.parts.contactArea.im_dying_now = true;
+
+            step.addNewBall(index);
+          };
+          rep_free__ball.did["die"].on(bornAgainFunc);
+          rep_free__ball.bornAgainFunc = bornAgainFunc;
+
+          step["rep_free__ball" + index] = rep_free__ball;
+        }
+
+        invest(golfCourse) {
+
+          const step           = this;
+          const infiniteCanvas = this.infiniteCanvas;
+
+          //clear: remove objects
+
+
+
+          //furnish: add objects
+          {
+            const infiniteCanvas = this.infiniteCanvas;
+
+              //add label/value: score
+            function addLabel_score() {
+              const rect__score = golfCourse.rect;
+              rect__score.width  = 300;
+              rect__score.height = 150;
+
+              const string__score = "score:";
+              const value__score  = 0;
+
+              const icObj__score  = infiniteCanvas.createIcLabelValue(rect__score, string__score, value__score);
+              icObj__score.zIndex = 200;
+
+              infiniteCanvas.addIcObject(icObj__score);
+
+              const rep_free__score_valueLabel = infiniteCanvas.getRepresented(icObj__score.id).r_free();
+              step.rep_free__score_valueLabel  = rep_free__score_valueLabel;
+              step.rep_free__score_value       = rep_free__score_valueLabel.parts["value"];
+            }
+            // addLabel_score();
+
+              //add label/value: par
+            function addLabelValue_par() {
+              const rect__par = {
+                x: step.rep_free__score_valueLabel.position.x,
+                y: step.rep_free__score_valueLabel.position.y + 120,
+                width:  300,
+                height: 150,
+              };
+
+              const string__par = "par:";
+              const value__par  = step.par;
+
+              const icObj__par = infiniteCanvas.createIcLabelValue(rect__par, string__par, value__par);
+              icObj__par.zIndex = 201;
+
+              infiniteCanvas.addIcObject(icObj__par);
+
+              const rep_free__par_valueLabel = infiniteCanvas.getRepresented(icObj__par.id).r_free();
+              step.rep_free__par_valueLabel  = rep_free__par_valueLabel;
+              step.rep_free__par_value       = rep_free__par_valueLabel.parts["value"];
+
+              setTimeout(() => {
+                step.rep_free__par_value.position = {
+                  x: step.rep_free__score_value.position.x,
+                  y: step.rep_free__par_value.position.y,
+                };
+              }, 20);   //SHU TODO: remove this ugliness
+            }
+            // addLabelValue_par();
+
+
+              //add balls:
+              step.addNewBall(0);
+              step.addNewBall(1);
+
+
+              //add button: restart
+
+
+              //add button: impossible
+
+          }
+
+
+          //invest: "this is mine now"
+          {
+            // step.rep_free__ball = golfCourse.components["ball"].icObj;
+            step.rep_free__hole = golfCourse.components["hole"].icObj;
+          }
+
+
+          //employ: now you do X
+            //initial
+          const arr_initial = step.challengeGMItemConfig.initial;
+          arr_initial.forEach((gmItem__initial, index) => {
+            const mathNode__initial      = gmItem__initial.content;
+            // logger.log("mathNode__initial", mathNode__initial);
+            step["rep_free__ball" + index].mathNode = mathNode__initial;
+          });
+
+            //target
+          const mathNode__target = step.challengeGMItemConfig.target.content;
+          step.rep_free__hole.parts.facade.mathNode = mathNode__target;
+          step.rep_free__hole.parts.touchSlot.fill  = "";
+
+
+            //operators
+          {
+            const arr_gm_operator = Object.values(golfCourse.components).filter(component => component.type == "gm_fractionOne_operator");
+            const arr_rep_free__operator = arr_gm_operator.map((gm_operator, i) => {
+              const icObj__rep_free = gm_operator.icObj;
+              return icObj__rep_free;
+            });
+            const arr_gmItem_operator = step.challengeGMItemConfig.operators;
+
+            const zip = (a, b) => a.map((k, i) => [k, b[i]]);
+
+            const arr_zipped = zip(arr_rep_free__operator, arr_gmItem_operator);
+
+            arr_zipped.forEach(([rep_free__operator, gmItem_operator], i) => {
+
+
+              //touchSlot
+              const rep_free__touchSlot = rep_free__operator.parts["touchSlot"];
+
+              const mathNodeTransformationFunc = gmItem_operator.content;
+              const icObjTransformationFunc = (icObj) => {
+                // logger.log("icObjTransformationFunc", icObj);
+                var outIcObj;
+
+
+
+                outIcObj = icObj.clone();
+                // logger.log("outIcObj", outIcObj);
+
+                if(outIcObj.mathNode) {
+                  delete outIcObj.mathNode;     //SHU666: true sadness
+                }
+
+
+
+                if(icObj.cType == "gm_box") {
+                  // logger.log("gm_box");
+
+                  const facade = icObj.parts.facade;
+                  outIcObj.parts.facade.mathNode = mathNodeTransformationFunc(facade.mathNode);
+                }
+
+                // if(icObj.mathNode != null) {
+                //   // logger.log("icObj.mathNode", icObj.mathNode);
+                //   outIcObj.mathNode = mathNodeTransformationFunc(icObj.mathNode);
+                // }
+
+                return outIcObj;
+              };
+              rep_free__touchSlot.touchSlotConfig.transformationFunc = icObjTransformationFunc;
+
+
+              //facade
+              const rep_free__facade = rep_free__operator.parts["facade"];
+              rep_free__facade.text = gmItem_operator.name;
+
+              rep_free__facade.originX = "center";
+
+            });
+          }
+
+            //conductive operator
+          {
+            // rep_free__ball.did["die"].on(bornAgainFunc);
+            // rep_free__ball.bornAgainFunc = bornAgainFunc;
+
+            const arr_component_conductive_operator = Object.values(golfCourse.components).filter(component => component.type == "gm_conductive_operator");
+            const component__conductive_operator = arr_component_conductive_operator.find(e => true);
+
+            const rep_free__conductive_operator = component__conductive_operator.icObj;
+
+            logger.log("rep_free__conductive_operator", rep_free__conductive_operator);
+
+            const rep_free__dropTouchSlot = rep_free__conductive_operator.parts.platform.parts.dropTouchSlot;
+
+            const transformationFunc__touch = rep_free__dropTouchSlot.touchSlotConfig.transformationFunc__touch;
+            const transformationFunc__touch__decorated = (icObj) => {
+              var transformationOutput;
+
+              logger.log("rep_free__dropTouchSlot, touch__decorated", icObj);
+
+              // const rep_free__ball = icObj;
+              // const bornAgainFunc = rep_free__ball.bornAgainFunc;
+              // rep_free__ball.did["die"].off(bornAgainFunc);
+
+              transformationOutput = transformationFunc__touch(icObj);
+
+              return transformationOutput;
+            };
+            rep_free__dropTouchSlot.touchSlotConfig.transformationFunc__touch = transformationFunc__touch__decorated;
+
+            const transformationFunc__untouch = rep_free__dropTouchSlot.touchSlotConfig.transformationFunc__untouch;
+            const transformationFunc__untouch__decorated = (icObj) => {
+              var transformationOutput;
+
+              logger.log("rep_free__dropTouchSlot, untouch__decorated", icObj);
+
+              transformationOutput = transformationFunc__untouch(icObj);
+
+              // const rep_free__ball = icObj;
+              // const bornAgainFunc = rep_free__ball.bornAgainFunc;
+              // rep_free__ball.did["die"].on(bornAgainFunc);
+
+              return transformationOutput;
+            };
+            rep_free__dropTouchSlot.touchSlotConfig.transformationFunc__untouch = transformationFunc__untouch__decorated;
+
+
+          }
+
+
+        }
+
+        possess(golfCourse) {
+          this.initializeCompletionListeners();
+
+          this.setupAttemptListeners(golfCourse);
+
+          this.setupCompletionTrigger(golfCourse);
+          this.addCompletionListener(golfCourse);
+        }
+
+        recurse(stepGeneratorFunc) {
+          const step = this;
+
+          const segueConfig = {};
+          const step_from   = step;
+
+          const golfCourse_to = step_from.golfCourse;
+
+          const segue = new GolfGameSegue__Endless_Practice(infiniteCanvas, segueConfig, step_from, golfCourse_to, stepGeneratorFunc);
+
+          this.segue = segue;
+        }
+
+
+        initializeCompletionListeners() {
+          // this.nb_attempts = 0;
+          this.arr_attempt = [];
+
+          this.listeners_completed = [];
+
+          this.onCompleted  = (listener) => {
+            this.listeners_completed.push(listener);
+          };
+          this.offCompleted = (listener) => {
+            this.listeners_completed = Utils.arrayByRemovingElement(this.listeners_completed, listener);
+          };
+          this.nowCompleted = () => {
+            this.listeners_completed.forEach((listener, i) => {
+              listener(this);
+            });
+          };
+        }
+
+        setupAttemptListeners(golfCourse) {   //SHU: this is where BigBrother sneaked in from
+
+          const step = this;
+
+          // function waitForNewAttempt() {
+          //   const ball__rep_free = golfCourse.components["ball"].icObj;
+          //
+          //   const createAttemptFunc = () => {
+          //
+          //       const attempt = new GolfStepAttempt();
+          //
+          //       step.arr_attempt.push(attempt);
+          //
+          //       ball__rep_free.offHold(createAttemptFunc);
+          //   };
+          //
+          //   ball__rep_free.onHold(createAttemptFunc);
+          // }
+          //
+          // //gm.onHold(create attempt)
+          // {
+          //   waitForNewAttempt();
+          // }
+          //
+          // //gm.onTouched(add event to attempt)
+          // {
+          //
+          // }
+          //
+          // //gm.onRelease(finalize attempt)
+          // {
+          //   const ball__rep_free = golfCourse.components["ball"].icObj;
+          //
+          //   ball__rep_free.onRelease(waitForNewAttempt);
+          // }
+
+          //create attempt
+
+
+
+
+
+
+          //course use listeners
+
+          function listenToOperatorTouches(icObj__rep_free) {
+
+            const touchSlot__rep_free  = icObj__rep_free.parts["touchSlot"];
+            // logger.log("touchSlot__rep_free", touchSlot__rep_free);
+
+            const touchSlotEngine = touchSlot__rep_free.engine;
+
+            Hooker.installHooks(touchSlotEngine.awoken, "touch");
+            touchSlotEngine.awoken.did["touch"].on((...args) => {
+              // logger.log("did touch", ...args);
+
+              // // counter += 1
+              // const attempt = step.getCurrentAttempt();
+              // logger.log("attempt", attempt);
+              // attempt.manoeuvre.nb_touched += 1;
+              //
+              // //debug
+              // step.rep_free__score_value.text = "" + attempt.manoeuvre.nb_touched;
+
+
+
+              // const rep_free__curseFacade = step.rep_free__hole.parts.curseFacade;
+              const rep_free__curseFacade = step.rep_free__hole.parts.curseFacade;
+              if(rep_free__curseFacade != null) {
+                const rep_free__facade      = step.rep_free__hole.parts.facade;
+                rep_free__facade.curse_metamorphosis.curseTrigger.impulse();
+              }
+
+
+            });
+
+          }
+
+          const arr_gm_operator = Object.values(golfCourse.components).filter(component => component.type == "gm_operator");
+
+          arr_gm_operator.forEach((gm_operator, i) => {
+            const icObj__rep_free = gm_operator.icObj;
+            listenToOperatorTouches(icObj__rep_free);
+          });
+
+        }
+
+        setupCompletionTrigger(golfCourse) {
+
+          const targetTouchSlot__rep_free = golfCourse.components["hole"].icObj;
+
+          const touchSlot__rep_free = targetTouchSlot__rep_free.parts["touchSlot"];
+
+          const touchSlotEngine = touchSlot__rep_free.engine;
+
+          Hooker.installHooks(touchSlotEngine.awoken, "touch");
+          const listener_targetDidTouch = (...args) => {
+            // logger.log("did touch", ...args);
+
+            this.nowCompleted();
+          };
+          this.listener_targetDidTouch = listener_targetDidTouch;
+          touchSlotEngine.awoken.did["touch"].on(listener_targetDidTouch);
+
+        }
+
+        addCompletionListener(golfCourse) {
+
+          const step = this;
+
+          this.listener_onCompleted = (golfStep) => {
+            // console.log("step, onCompleted", golfStep);
+            // logger.log("step, onCompleted", golfStep);
+
+            /*
+            const score = golfStep.arr_attempts.length;
+            golfCourse.mutateIntoScoreLabel(score);
+            */
+
+            step.offCompleted(step.listener_onCompleted);
+            step.end();
+
+            step.segue.play(golfStep);
+          };
+
+          this.onCompleted(this.listener_onCompleted);
+        }
+
+        getCurrentAttempt() {
+          return this.arr_attempt[this.arr_attempt.length - 1];
+        }
+
+
+
+
+
+
+
+      }
+
+
+
     </script>
     <!-- <script>
       setTimeout(() => {    //SHU: wait for mathjax to finish loading
@@ -29158,7 +30659,10 @@
 
           // this.debug_dropTouchSlot();
           // this.debug_platform();
-          this.debug_conductive_operator();
+          // this.debug_conductive_operator();
+          // this.debug_fractionOne_operator();
+          this.debug_gmSafetyZone();
+
 
         }
 
@@ -30165,13 +31669,118 @@
         }
 
 
+        debug_fractionOne_operator() {
+
+          const infiniteCanvas = this.infiniteCanvas;
+
+          //create operator
+          {
+            const trueRect_2 = {
+              x: 1000,
+              y: 500,
+              width: 200,
+              height: 200,
+            };
+            const icFractionOneOperator = infiniteCanvas.createIcFractionOneOperator(trueRect_2);
+            // conductiveOperator.zIndex = -50;
+            infiniteCanvas.addIcObject(icFractionOneOperator);
+          }
+
+          //create operator2
+          {
+            const trueRect_2 = {
+              x: 1000,
+              y: 200,
+              width: 200,
+              height: 200,
+            };
+
+            const op     = Operator.fromString_binary("/");
+            const node_b = new math.ConstantNode(2);
+            const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
+
+            const icFractionOneOperator = infiniteCanvas.createIcFractionOneOperator(trueRect_2, operatorNodeFactoryFuncWrapper);
+            // conductiveOperator.zIndex = -50;
+            infiniteCanvas.addIcObject(icFractionOneOperator);
+          }
+
+
+          //mathNode1
+          {
+            const trueRect_1 = {
+              x: 500,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+
+            const mathNode = new math.ConstantNode(4);
+
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
+            icMathNode.isTouchable = true;
+            infiniteCanvas.addIcObject(icMathNode);
+          }
+
+
+          //create conductiveOperator
+          {
+            const trueRect_2 = {
+              x: 1500,
+              y: 300,
+              width: 200,
+              height: 200,
+            };
+            const conductiveOperator = infiniteCanvas.createIcConductiveOperator(trueRect_2, "+");
+            // conductiveOperator.zIndex = -50;
+            infiniteCanvas.addIcObject(conductiveOperator);
+          }
+
+        }
+
+
+        debug_gmSafetyZone() {
+
+          const infiniteCanvas = this.infiniteCanvas;
+
+          //create safetyZone
+          {
+            const trueRect_2 = {
+              x: 1000,
+              y: 500,
+              width: 200,
+              height: 200,
+            };
+            const icGMSafetyZone = infiniteCanvas.createIcGMSafetyZone(trueRect_2);
+            // conductiveOperator.zIndex = -50;
+            infiniteCanvas.addIcObject(icGMSafetyZone);
+          }
+
+          //create greenMouse
+          {
+            const trueRect_1 = {
+              x: 500,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+
+            const mathNode = new math.ConstantNode(4);
+
+            const icBornAgainGreenMouse = infiniteCanvas.createIcBornAgainGreenMouse(trueRect_1, mathNode);
+            icBornAgainGreenMouse.isTouchable = true;
+            infiniteCanvas.addIcObject(icBornAgainGreenMouse);
+          }
+
+
+        }
+
 
       }
 
     </script>
     <script>
       setTimeout(() => {    //SHU: wait for mathjax to finish loading
-        const atelier__X_X = new Atelier__X_X(infiniteCanvas);
+        const atelier__X_X = new Atelier__X_X(infiniteCanvas);          //atelier
       }, 1000);
     </script>
 
