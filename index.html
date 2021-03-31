@@ -165,18 +165,42 @@
       //setup
       MathJax = {
         loader: {
-          load: ['[tex]/color']
+          load: [
+            '[tex]/color',
+            '[tex]/newcommand',
+          ],
         },
         tex: {
-          packages: {'[+]': ['color']},
+          packages: {
+            '[+]': [
+              'color',
+              'newcommand'
+            ],
+          },
         },
         startup: {
           ready: () => {
             logger.log('MathJax is loaded, but not yet initialized');
             MathJax.startup.defaultReady();
             logger.log('MathJax is initialized, and the initial typeset is queued');
+            // logger.log("MathJax", MathJax);
 
-            const mathJaxContainer_svg = MathJax.tex2svg("{\\color(red) 13}");
+            //newcommand
+              //discovery
+            MathJax.tex2svg("\\newcommand{\\braket}[1]{\\langle #1 \\rangle}");
+
+              //centernot / fsl(Feynman slash)
+            // MathJax.tex2svg("\\newcommand{\\fsl}[1]{\\ensuremath{\\mathrlap{\\!\\not{\\phantom{#1}}}#1}}");
+            // MathJax.tex2svg("\\newcommand{\\fsl}[1]{{\\ooalign{\\(#1\\)\\cr\\hidewidth\\(/\\)\\hidewidth\\cr}}");
+            // MathJax.tex2svg("\\newcommand{\\fsl}[1]{{\\centernot{#1}}}");
+
+              //colored operation
+            MathJax.tex2svg("\\newcommand{\\redbraket}[1]{\\color{red}{\\langle} \\color{black}{#1} \\color{red}{\\rangle}}");
+            // MathJax.tex2svg("\\newcommand{\\colorbraket}[2]{\\color{#1}{\\langle} #2 \\color{#1}{\\rangle}}");
+            // MathJax.tex2svg("\\newcommand{\\blueoline}[1]{\\colorlet{temp}{.}\\color{blue}\\overline{\\color{temp}#1}\\color{temp}}");
+            // MathJax.tex2svg("\\newcommand{\\colorbraket}[2]{\\colorlet{temp}{.} \\color{#1}{\\langle} \\color{temp}{#2} \\color{#1}{\\rangle} \\color{temp}}");
+
+            const mathJaxContainer_svg = MathJax.tex2svg("{\\color{red} 13}");
             logger.log("mathJaxContainer_svg", mathJaxContainer_svg);
           },
         },
@@ -331,6 +355,37 @@
     <script src='lib/decimal.min.js' type='text/javascript'></script>
 
     <script src='lib/math.js' type='text/javascript'></script>
+    <script>
+      //customization
+
+      class MySummerNode extends math.ConstantNode {
+
+        // toTex() {
+        //   if(this.value == 1) {
+        //     // return "un";
+        //     return "\\not{1}";
+        //   }
+        //   return super.toTex();
+        // }
+
+        toTex() {
+          var outTex;
+
+          const tex__legacy = super.toTex();
+
+          if(this.isSlashed) {
+            return "\\not{" + tex__legacy + "}";
+          } else {
+            outTex = tex__legacy;
+          }
+
+          return outTex;
+        }
+
+      }
+    </script>
+
+
     <!-- <script src='lib/algebra-0.2.6.min.js' type='text/javascript'></script> -->
     <!-- <script>
 
@@ -4979,6 +5034,7 @@
                   // const mathNode__new = arr_conducted_mathNodes.reduce((acc, mathNode_conducted) => {
                   const mathNode__new = arr_conducted_operands.reduce((acc, icObj_conducted) => {
 
+                    const mathNode__acc      = acc;
                     const mathNode_conducted = icObj_conducted.mathNode;
 
                     if(!isRetaining) {
@@ -4990,8 +5046,17 @@
                     const transformationFunc__decorated = function(mathNode) {
                       var outMathNode;
 
-                      outMathNode = transformationFunc(mathNode);
-                      outMathNode = Simplifier.simplify_fraction(outMathNode);
+                      // outMathNode = transformationFunc(mathNode);
+                      // outMathNode = Simplifier.simplify_fraction(outMathNode);
+
+                      const mathNode_numerator__acc       = mathNode__acc.args[0];
+                      const mathNode_numerator__conducted = mathNode_conducted.args[0];
+
+                      const value__numerator      = mathNode_numerator__acc.value + mathNode_numerator__conducted.value;
+                      const mathNode__numerator   = new math.ConstantNode(value__numerator);
+                      const mathNode__denominator = mathNode__acc.args[1];
+
+                      outMathNode = new math.OperatorNode("/", "divide", [mathNode__numerator, mathNode__denominator]);
 
                       return outMathNode;
                     };
@@ -6385,6 +6450,71 @@
                   const y = icObj.position.y;
                   const mathNode = icObj.mathNode;
                   const mathNode_new = Rewriter.decomposition_product_primes(mathNode);
+
+                  const icObj__new = infiniteCanvas.createIcMathNode(x,y,mathNode_new);
+                  transformationOutput = new TransformationOutput("new", icObj__new, icObj);
+                } else {
+                  logger.log("icObj.type:", icObj.type);
+                  transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+                }
+
+                return transformationOutput;
+              };
+
+              operatorConfig.transformationFunc = icObjTransformationFunc;
+            }
+            break;
+
+            case "mark__slash_simplifiable":
+            {
+              operatorConfig.name = "mark:slash";
+
+              const icObjTransformationFunc = (icObj) => {
+                var transformationOutput;
+
+                if(icObj.type == "mathNode") {
+                  const x = icObj.position.x;
+                  const y = icObj.position.y;
+                  const mathNode = icObj.mathNode;
+
+                  //SHU741852
+                  const analysisOutput = Analyzer.analyze_simplifiable(mathNode);
+
+                  const mathNode__initial = new math.OperatorNode("x", "multiply", []);
+                  const mathNode_new = analysisOutput.arr_simplifiable_pair.reduce((acc, x) => {
+
+                    acc.args.push(x);
+
+                  }, mathNode__initial);
+
+                  const icObj__new = infiniteCanvas.createIcMathNode(x,y,mathNode_new);
+                  transformationOutput = new TransformationOutput("new", icObj__new, icObj);
+
+                } else {
+                  logger.log("icObj.type:", icObj.type);
+                  transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+                }
+
+                return transformationOutput;
+              };
+
+              operatorConfig.transformationFunc = icObjTransformationFunc;
+            }
+            break;
+
+
+            case "simplify__fraction":
+            {
+              operatorConfig.name = "sf";
+
+              const icObjTransformationFunc = (icObj) => {
+                var transformationOutput;
+
+                if(icObj.type == "mathNode") {
+                  const x = icObj.position.x;
+                  const y = icObj.position.y;
+                  const mathNode = icObj.mathNode;
+                  const mathNode_new = Simplifier.simplify_fraction(mathNode);
 
                   const icObj__new = infiniteCanvas.createIcMathNode(x,y,mathNode_new);
                   transformationOutput = new TransformationOutput("new", icObj__new, icObj);
@@ -15230,8 +15360,8 @@
             // backgroundColor: 'rgb(100,200,100)',
             // backgroundColor: 'rgb(100,100,100)',
             // backgroundColor: 'rgb(200,200,200)',      //it is important to choose a nice bgColor to stay motivated during dev
-            // backgroundColor: 'rgb(230,240,240)',
-            backgroundColor: 'rgb(100,100,100)',
+            backgroundColor: 'rgb(210,240,240)',
+            // backgroundColor: 'rgb(100,100,100)',
 
 
             selectionColor:  'blue',
@@ -23258,7 +23388,7 @@
 
 
           this.colorProperties = {
-            activeIndex : 0,
+            activeIndex : 5,
             list: [
               "lime",
 
@@ -23805,42 +23935,49 @@
 
               case "Digit6":
                 {
-                  // const html_elt = document.getElementById("debug_nbObjects");
-                  // const html_elt = document.body;
 
+                  // {
+                  //   // const html_elt = document.getElementById("debug_nbObjects");
+                  //   // const html_elt = document.body;
+                  //
+                  //
+                  //   const input = document.createElement("INPUT");
+                  //   input.setAttribute("type", "text");
+                  //   // input.setAttribute("text", "lolilol");
+                  //
+                  //   input.style.backgroundColor = "yellow";
+                  //   document.body.appendChild(input);
+                  //
+                  //   const html_elt = input;
+                  //
+                  //
+                  //   /*
+                  //   const div = document.createElement("DIV");
+                  //   div.style.backgroundColor = "yellow";
+                  //   div.style.width  = "200px";
+                  //   div.style.height = "200px";
+                  //
+                  //   // div.style.visibility = "hidden";
+                  //   // div.style.display = "none";
+                  //
+                  //   document.body.appendChild(div);
+                  //
+                  //   const html_elt = div;
+                  //   */
+                  //
+                  //   keyboardIntegration.infiniteCanvas.addNewHtmlElt(html_elt);
+                  // }
 
-                  const input = document.createElement("INPUT");
-                  input.setAttribute("type", "text");
-                  // input.setAttribute("text", "lolilol");
+                  keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("mark__slash_simplifiable");
 
-                  input.style.backgroundColor = "yellow";
-                  document.body.appendChild(input);
-
-                  const html_elt = input;
-
-
-                  /*
-                  const div = document.createElement("DIV");
-                  div.style.backgroundColor = "yellow";
-                  div.style.width  = "200px";
-                  div.style.height = "200px";
-
-                  // div.style.visibility = "hidden";
-                  // div.style.display = "none";
-
-                  document.body.appendChild(div);
-
-                  const html_elt = div;
-                  */
-
-                  keyboardIntegration.infiniteCanvas.addNewHtmlElt(html_elt);
                 }
               break;
 
 
               case "Digit5":
                 {
-                  keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__remove_parentheses");
+                  // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__remove_parentheses");
+                  keyboardIntegration.infiniteCanvas.addNewText("=");
                 }
               break;
 
@@ -23853,9 +23990,9 @@
                   // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("equation__add1");
 
                   // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("split__top_layer");
-                  // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("decomposition__product_primes");
+                  keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("decomposition__product_primes");
 
-                  keyboardIntegration.infiniteCanvas.addNewGMSafetyZone();
+                  // keyboardIntegration.infiniteCanvas.addNewGMSafetyZone();
                 }
               break;
 
@@ -30661,7 +30798,11 @@
           // this.debug_platform();
           // this.debug_conductive_operator();
           // this.debug_fractionOne_operator();
-          this.debug_gmSafetyZone();
+          // this.debug_fractionOne_operator__showcase();
+
+          this.debug__fraction_simplification__edudemo1();
+          // this.debug__fraction_simplification__edudemo2();
+          // this.debug_gmSafetyZone();
 
 
         }
@@ -31733,6 +31874,434 @@
             const conductiveOperator = infiniteCanvas.createIcConductiveOperator(trueRect_2, "+");
             // conductiveOperator.zIndex = -50;
             infiniteCanvas.addIcObject(conductiveOperator);
+          }
+
+        }
+
+        debug_fractionOne_operator__showcase() {
+
+          const infiniteCanvas = this.infiniteCanvas;
+
+          // //create operator  [x1]
+          // {
+          //   const trueRect_2 = {
+          //     x: 400,
+          //     y: 700,
+          //     width:  150,
+          //     height: 150,
+          //   };
+          //
+          //   const op     = Operator.fromString_binary("x");
+          //   const node_b = new math.ConstantNode(2);
+          //   const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
+          //
+          //   const icFractionOneOperator = infiniteCanvas.createIcFractionOneOperator(trueRect_2, operatorNodeFactoryFuncWrapper);
+          //   icFractionOneOperator.fill = "ivory";
+          //   // conductiveOperator.zIndex = -50;
+          //   infiniteCanvas.addIcObject(icFractionOneOperator);
+          // }
+
+          //create operator  [x2 / x2]
+          {
+            const trueRect_2 = {
+              x: 400,
+              y: 700,
+              width:  150,
+              height: 150,
+            };
+
+            const op     = Operator.fromString_binary("x");
+            const node_b = new math.ConstantNode(2);
+            const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
+
+            const icFractionOneOperator = infiniteCanvas.createIcFractionOneOperator(trueRect_2, operatorNodeFactoryFuncWrapper);
+            icFractionOneOperator.fill = "ivory";
+            // conductiveOperator.zIndex = -50;
+            infiniteCanvas.addIcObject(icFractionOneOperator);
+          }
+
+          //create operator  [/2 / /2]
+          {
+            const trueRect_2 = {
+              x: 400,
+              y: 100,
+              width:  150,
+              height: 150,
+            };
+
+            const op     = Operator.fromString_binary("/");
+            const node_b = new math.ConstantNode(2);
+            const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
+
+            const icFractionOneOperator = infiniteCanvas.createIcFractionOneOperator(trueRect_2, operatorNodeFactoryFuncWrapper);
+            icFractionOneOperator.fill = "ivory";
+            // conductiveOperator.zIndex = -50;
+            infiniteCanvas.addIcObject(icFractionOneOperator);
+          }
+
+
+          //create operator  [x3 / x3]
+          {
+            const trueRect_2 = {
+              x: 700,
+              y: 700,
+              width:  150,
+              height: 150,
+            };
+
+            const op     = Operator.fromString_binary("x");
+            const node_b = new math.ConstantNode(3);
+            const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
+
+            const icFractionOneOperator = infiniteCanvas.createIcFractionOneOperator(trueRect_2, operatorNodeFactoryFuncWrapper);
+            icFractionOneOperator.fill = "ivory";
+            // conductiveOperator.zIndex = -50;
+            infiniteCanvas.addIcObject(icFractionOneOperator);
+          }
+
+          //create operator  [/3 / /3]
+          {
+            const trueRect_2 = {
+              x: 700,
+              y: 100,
+              width:  150,
+              height: 150,
+            };
+
+            const op     = Operator.fromString_binary("/");
+            const node_b = new math.ConstantNode(3);
+            const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
+
+            const icFractionOneOperator = infiniteCanvas.createIcFractionOneOperator(trueRect_2, operatorNodeFactoryFuncWrapper);
+            icFractionOneOperator.fill = "ivory";
+            // conductiveOperator.zIndex = -50;
+            infiniteCanvas.addIcObject(icFractionOneOperator);
+          }
+
+          //create operator  [x5 / x5]
+          {
+            const trueRect_2 = {
+              x: 1000,
+              y: 700,
+              width:  150,
+              height: 150,
+            };
+
+            const op     = Operator.fromString_binary("x");
+            const node_b = new math.ConstantNode(5);
+            const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
+
+            const icFractionOneOperator = infiniteCanvas.createIcFractionOneOperator(trueRect_2, operatorNodeFactoryFuncWrapper);
+            icFractionOneOperator.fill = "ivory";
+            // conductiveOperator.zIndex = -50;
+            infiniteCanvas.addIcObject(icFractionOneOperator);
+          }
+
+          //create operator  [/5 / /5]
+          {
+            const trueRect_2 = {
+              x: 1000,
+              y: 100,
+              width:  150,
+              height: 150,
+            };
+
+            const op     = Operator.fromString_binary("/");
+            const node_b = new math.ConstantNode(5);
+            const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
+
+            const icFractionOneOperator = infiniteCanvas.createIcFractionOneOperator(trueRect_2, operatorNodeFactoryFuncWrapper);
+            icFractionOneOperator.fill = "ivory";
+            // conductiveOperator.zIndex = -50;
+            infiniteCanvas.addIcObject(icFractionOneOperator);
+          }
+
+          //create operator  [x7 / x7]
+          {
+            const trueRect_2 = {
+              x: 1300,
+              y: 700,
+              width:  150,
+              height: 150,
+            };
+
+            const op     = Operator.fromString_binary("x");
+            const node_b = new math.ConstantNode(7);
+            const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
+
+            const icFractionOneOperator = infiniteCanvas.createIcFractionOneOperator(trueRect_2, operatorNodeFactoryFuncWrapper);
+            icFractionOneOperator.fill = "ivory";
+            // conductiveOperator.zIndex = -50;
+            infiniteCanvas.addIcObject(icFractionOneOperator);
+          }
+
+          //create operator  [/7 / /7]
+          {
+            const trueRect_2 = {
+              x: 1300,
+              y: 100,
+              width:  150,
+              height: 150,
+            };
+
+            const op     = Operator.fromString_binary("/");
+            const node_b = new math.ConstantNode(7);
+            const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
+
+            const icFractionOneOperator = infiniteCanvas.createIcFractionOneOperator(trueRect_2, operatorNodeFactoryFuncWrapper);
+            icFractionOneOperator.fill = "ivory";
+            // conductiveOperator.zIndex = -50;
+            infiniteCanvas.addIcObject(icFractionOneOperator);
+          }
+
+
+
+          //create conductiveOperator
+          {
+            const trueRect_2 = {
+              x: 1500,
+              y: 300,
+              width: 300,
+              height: 300,
+            };
+            const conductiveOperator = infiniteCanvas.createIcConductiveOperator(trueRect_2, "+");
+            // conductiveOperator.zIndex = -50;
+            infiniteCanvas.addIcObject(conductiveOperator);
+          }
+
+          //create operator decomp:prpr
+          {
+            const trueRect_2 = {
+              x: 2100,
+              y: 300,
+              width: 200,
+              height: 200,
+            };
+            const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect_2, "decomposition__product_primes");
+            // conductiveOperator.zIndex = -50;
+            infiniteCanvas.addIcObject(icGMOperator);
+          }
+
+          //create operator simplify_fraction
+          {
+            const trueRect_2 = {
+              x: 2500,
+              y: 650,
+              width: 200,
+              height: 200,
+            };
+            const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect_2, "simplify__fraction");
+            // conductiveOperator.zIndex = -50;
+            infiniteCanvas.addIcObject(icGMOperator);
+          }
+
+
+          const arr_primes = [2,3,5,7];
+
+          const str__frac1 = "" + Utils.randomElementInArray(arr_primes) + "/" + Utils.randomElementInArray(arr_primes);
+          const mathNode__frac1 = math.parse(str__frac1);
+
+          const str__frac2 = "" + Utils.randomElementInArray(arr_primes) + "/" + Utils.randomElementInArray(arr_primes);
+          const mathNode__frac2 = math.parse(str__frac2);
+
+          //mathNode1
+          {
+            const trueRect_1 = {
+              x: 100,
+              y: 300,
+              width: 100,
+              height: 100,
+            };
+
+            const mathNode = mathNode__frac1.cloneDeep();
+
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
+            icMathNode.isTouchable = true;
+            infiniteCanvas.addIcObject(icMathNode);
+          }
+
+          //mathNode2
+          {
+            const trueRect_1 = {
+              x: 100,
+              y: 600,
+              width: 100,
+              height: 100,
+            };
+
+            const mathNode = mathNode__frac2.cloneDeep();
+
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
+            icMathNode.isTouchable = true;
+            infiniteCanvas.addIcObject(icMathNode);
+          }
+
+
+
+
+          //mathNode1 display
+          {
+
+            {
+              const trueRect_1 = {
+                x: 1600,
+                y: 1000,
+                width: 100,
+                height: 100,
+              };
+
+              const mathNode = mathNode__frac1.cloneDeep();
+
+              const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
+              icMathNode.isTouchable = true;
+              infiniteCanvas.addIcObject(icMathNode);
+            }
+
+            {
+              const trueRect_plus = {
+                x: 1650,
+                y: 1050,
+                width: 100,
+                height: 100,
+              };
+
+              const icText__plus = infiniteCanvas.createIcText(trueRect_plus.x, trueRect_plus.y, "+");
+              infiniteCanvas.addIcObject(icText__plus);
+            }
+
+            {
+              const trueRect_2 = {
+                x: 1800,
+                y: 1000,
+                width: 100,
+                height: 100,
+              };
+
+              const mathNode = mathNode__frac2.cloneDeep();
+
+              const icMathNode = infiniteCanvas.createIcMathNode(trueRect_2.x, trueRect_2.y, mathNode);
+              icMathNode.isTouchable = true;
+              infiniteCanvas.addIcObject(icMathNode);
+            }
+
+            {
+              const trueRect_equals = {
+                x: 1900,
+                y: 1050,
+                width: 100,
+                height: 100,
+              };
+
+              const icText__equals = infiniteCanvas.createIcText(trueRect_equals.x, trueRect_equals.y, "=");
+              infiniteCanvas.addIcObject(icText__equals);
+            }
+
+
+
+          }
+
+
+
+
+        }
+
+
+        debug__fraction_simplification__edudemo1() {
+
+          //create operator decomp:prpr
+          {
+            const trueRect_2 = {
+              x: 50,
+              y: 200,
+              width: 200,
+              height: 200,
+            };
+            const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect_2, "decomposition__product_primes");
+
+            infiniteCanvas.onceOnAddRepresentedForIcObject(icGMOperator, (icGMOperator) => {
+
+              const rep_free__operator = infiniteCanvas.getRepresented(icGMOperator.id).r_free();
+              const rep_free__facade   = rep_free__operator.parts.facade;
+              rep_free__facade.text = "Décomposer";
+
+            });
+
+            // conductiveOperator.zIndex = -50;
+            infiniteCanvas.addIcObject(icGMOperator);
+          }
+
+          //create operator simplify_fraction
+          {
+            const trueRect_2 = {
+              x: 1000,
+              y: 200,
+              width: 200,
+              height: 200,
+            };
+            const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect_2, "simplify__fraction");
+
+            infiniteCanvas.onceOnAddRepresentedForIcObject(icGMOperator, (icGMOperator) => {
+
+              const rep_free__operator = infiniteCanvas.getRepresented(icGMOperator.id).r_free();
+              const rep_free__facade   = rep_free__operator.parts.facade;
+              rep_free__facade.text = "Simplifier";
+
+            });
+
+            // conductiveOperator.zIndex = -50;
+            infiniteCanvas.addIcObject(icGMOperator);
+          }
+        }
+
+
+        debug__fraction_simplification__edudemo2() {
+
+          {
+            const trueRect_2 = {
+              x: 300,
+              y: 300,
+              width: 100,
+              height: 100,
+            };
+
+            const mathNode = new MySummerNode(1);
+            logger.log("mathNode", mathNode);
+            mathNode.isSlashed = true;
+
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_2.x, trueRect_2.y, mathNode);
+            icMathNode.isTouchable = true;
+            infiniteCanvas.addIcObject(icMathNode);
+          }
+
+          {
+            const trueRect_2 = {
+              x: 300,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+
+            const mathNode = new MySummerNode(3);
+
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_2.x, trueRect_2.y, mathNode);
+            icMathNode.isTouchable = true;
+            infiniteCanvas.addIcObject(icMathNode);
+          }
+
+
+
+          //create icTex with strikethrough
+          {
+            const trueRect_tex = {
+              x: 500,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+
+            const icTex = infiniteCanvas.createIcTex(trueRect_tex.x, trueRect_tex.y, "\\not {2}");
+
+            infiniteCanvas.addIcObject(icTex);
           }
 
         }
