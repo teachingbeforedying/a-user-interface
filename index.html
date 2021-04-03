@@ -4062,6 +4062,66 @@
       // }
 
 
+      createIcMNReictangle(left, top, mathNode, length_unit = 30) {
+        console.log("createIcMNReictangle", left, top, mathNode);
+
+        const type      = "mnrei_rectangle";
+        const position  = Geometry.createPoint(left, top);
+
+        const value = mathNode.evaluate({});
+
+        const width  = length_unit * value;
+        // const height = length_unit * 1;
+        const height = 30;
+
+        const size      = Geometry.createSize(width, height);
+
+        const homeScale = Object.assign({}, this.scale);
+
+        const icObj = this.createIcObject(type, position, size, homeScale);
+        // icMNReictangle.fill = "orange";
+
+        const icMNReictangle_spec = {
+          mathNode: mathNode,
+          length_unit: length_unit,
+        };
+
+        const icMNReictangle = Object.assign(icObj, icMNReictangle_spec);
+
+        const infiniteCanvas = this;
+        infiniteCanvas.onceOnAddRepresentedForIcObject(icMNReictangle, (icMNReictangle) => {
+
+          const rep_free = infiniteCanvas.getRepresented(icMNReictangle.id).r_free();
+
+          rep_free.onInnerUpdate((rep_free, propName, oldValue, newValue) => {
+
+            if(propName == "mathNode") {
+              logger.log("icMNReictangle.onInnerUpdate, mathNode", propName, newValue);
+
+              const mathNode = newValue;
+
+              const value = mathNode.evaluate({});
+              logger.log("value", value);
+
+              const length_unit = rep_free.length_unit;
+
+              const width  = length_unit * value;
+              // const height = length_unit * 1;
+              const height = 30;
+
+              const size = Geometry.createSize(width, height);
+
+              rep_free.size = size;
+            }
+
+          });
+
+        });
+
+        return icMNReictangle;
+      }
+
+
       createIcHtmlElt(left, top, html_elt) {
         console.log("createIcHtmlElt", left, top, html_elt);
         const infiniteCanvas = this;
@@ -4635,6 +4695,26 @@
 
 
         return icComposite;
+      }
+
+
+      createIcBloom(trueRect, core, facets, compositeConfig) {
+        console.log("createIcBloom", trueRect, core, facets, compositeConfig);
+
+        const infiniteCanvas = this;
+
+        const parts = [core, ...facets];
+        const icComposite = infiniteCanvas.createIcComposite(trueRect, parts, compositeConfig);
+        icComposite.cType = "bloom";
+
+        const icBloom_spec = {
+          core:   core,
+          facets: facets,
+        };
+
+        const icBloom = Object.assign(icComposite, icBloom_spec);
+
+        return icBloom;
       }
 
 
@@ -5908,7 +5988,16 @@
           operatorConfig = GMOperatorMama.operatorConfigForRank(rank);
         } else {
           const text_in = operatorString_in;
-          const transformationFunc = (new GMOperatorTextChangeEngine()).transformationFuncForText(text_in);
+          const transformationFunc_oldStyle = (new GMOperatorTextChangeEngine()).transformationFuncForText(text_in);
+
+          const transformationFunc = function(icObj) {
+            var transformationOutput;
+
+            const icObj__mutated = transformationFunc_oldStyle(icObj);
+            transformationOutput = new TransformationOutput("mutated", icObj__mutated, icObj);
+
+            return transformationOutput;
+          };
 
           operatorConfig = new OperatorConfig(text_in, transformationFunc);
         }
@@ -8619,6 +8708,18 @@
 
         const icMathNode = this.createIcMathNode(left, top, mathNode);
         this.addNewIcObject(icMathNode);
+      }
+
+      addNewMNReictangle(mathNode) {
+
+        const true_cursor = this.getTrueCursor();
+
+        const left = true_cursor.x;
+        const top  = true_cursor.y;
+
+        const icMNReictangle = this.createIcMNReictangle(left, top, mathNode);
+        icMNReictangle.isTouchable = true;
+        this.addNewIcObject(icMNReictangle);
       }
 
       addNewHtmlElt(html_elt) {
@@ -12458,14 +12559,15 @@
                 }
                 break;
 
-                case "mathNode":     //SHU: horror code   il serait bon un jour d'harmoniser: tout le monde doit utiliser TransformationOutput
-                case "composite":    //SHU: horror code
-                // {
-                //   // icObj__touched.mathNode = transformationOutput.mathNode;
-                // }
-                break;
+                // case "mathNode":     //SHU: horror code   il serait bon un jour d'harmoniser: tout le monde doit utiliser TransformationOutput
+                // case "composite":    //SHU: horror code
+                // // {
+                // //   // icObj__touched.mathNode = transformationOutput.mathNode;
+                // // }
+                // break;
 
                 default:
+                  logger.log("transformationOutput", transformationOutput);
                   throw new Error("unsupported transformationOutput type: " + transformationOutput.type);
                   break;
               }
@@ -12608,12 +12710,12 @@
                 }
                 break;
 
-                case "mathNode":     //SHU: horror code   il serait bon un jour d'harmoniser: tout le monde doit utiliser TransformationOutput
-                case "composite":    //SHU: horror code
-                // {
-                //   // icObj__touched.mathNode = transformationOutput.mathNode;
-                // }
-                break;
+                // case "mathNode":     //SHU: horror code   il serait bon un jour d'harmoniser: tout le monde doit utiliser TransformationOutput
+                // case "composite":    //SHU: horror code
+                // // {
+                // //   // icObj__touched.mathNode = transformationOutput.mathNode;
+                // // }
+                // break;
 
                 default:
                   throw new Error("unsupported transformationOutput type: " + transformationOutput.type);
@@ -15360,8 +15462,10 @@
             // backgroundColor: 'rgb(100,200,100)',
             // backgroundColor: 'rgb(100,100,100)',
             // backgroundColor: 'rgb(200,200,200)',      //it is important to choose a nice bgColor to stay motivated during dev
-            backgroundColor: 'rgb(210,240,240)',
+            // backgroundColor: 'rgb(210,240,240)',
             // backgroundColor: 'rgb(100,100,100)',
+            backgroundColor: 'rgb(255,255,255)',
+
 
 
             selectionColor:  'blue',
@@ -15824,6 +15928,17 @@
                 });
               }
 
+              switch(icObj.type) {
+                case "mnrei_rectangle":
+                  fObj.set({
+                    width:  icObj.size.width,
+                    height: icObj.size.height,
+                  });
+                  break;
+                default:
+                  break;
+              }
+
               fabricIntegration.updateFabricObject_size_default(fObj);
               fabricIntegration.updateFabricObject_position_default(fObj);
 
@@ -15917,10 +16032,13 @@
                       || propName == "mathNode"
                       || propName == "richMathNode") {
 
-                fObj.refreshTex_p()
-                .then((fObj) => {
-                  standardRedraw(fObj);
-                });
+                if(fObj.refreshTex_p != null) {
+                  fObj.refreshTex_p()
+                  .then((fObj) => {
+                    standardRedraw(fObj);
+                  });
+                }
+
               }
               else if(propName == "htmlElt") {
                 fObj.refreshScreenshot_p()
@@ -15965,10 +16083,13 @@
                       || propName == "mathNode"
                       || propName == "richMathNode") {
 
-                fObj.refreshTex_p()
-                .then((fObj) => {
-                  standardRedraw(fObj);
-                });
+                if(fObj.refreshTex_p != null) {
+                  fObj.refreshTex_p()
+                  .then((fObj) => {
+                    standardRedraw(fObj);
+                  });
+                }
+
               }
               else if(propName == "htmlElt") {
                 fObj.refreshScreenshot_p()
@@ -16008,11 +16129,15 @@
             if(   icObj.type == "tex"
                || icObj.type == "mathNode"
                || icObj.type == "richMathNode") {
-              fObj.refreshTex_p()
-              .then((fObj) => {
-                fabricCanvas.renderAll();
-                standardRedraw(fObj);         //SHU: rajouté pour que les TeX (tout simples) spawnent correctement
-              });
+
+              if(fObj.refreshTex_p != null) {
+                fObj.refreshTex_p()
+                .then((fObj) => {
+                  fabricCanvas.renderAll();
+                  standardRedraw(fObj);         //SHU: rajouté pour que les TeX (tout simples) spawnent correctement
+                });
+              }
+
             }
             else if(icObj.type == "htmlElt") {
               fObj.refreshScreenshot_p()
@@ -16120,6 +16245,13 @@
             case "richMathNode":
               {
               const fObj = this.createFabricRichMathNodeWithIcObj(icObj);
+              fObj_p = Promise.resolve(fObj);
+              }
+              break;
+
+            case "mnrei_rectangle":
+              {
+              const fObj = this.createFabricRectWithIcObj(icObj);
               fObj_p = Promise.resolve(fObj);
               }
               break;
@@ -16333,6 +16465,13 @@
             // trueRect : trueRect,
             icObj : icObj,
           });
+
+          if(icObj.isSharpRect) {
+            fObj.set({
+              rx: 0,
+              ry: 0,
+            });
+          }
 
           // console.log("----", "fObj", fObj);
 
@@ -22042,6 +22181,85 @@
 
       class RxSubscriptionEngine {
 
+
+
+
+      }
+
+
+      class FacetEngine {
+
+        constructor() {
+
+          this.initialized = false;
+
+          this.initialize = function(scopeObj) {
+
+            //"wake up":
+            //bind all funcs
+            // function isFunction(functionToCheck) {
+            //   return functionToCheck && {}.toString.call(functionToCheck) === '[object Function]';
+            // }
+            const isFunction = value => value && (Object.prototype.toString.call(value) === "[object Function]" || "function" === typeof value || value instanceof Function);
+
+            this.awoken = {
+              'i_am': "awoken",
+            };
+            console.log("this.virgin", this.virgin);
+            Object.entries(this.virgin)
+                  .filter(([propName, prop]) => isFunction(prop))
+                  .forEach(([propName, prop], i) => {
+                    this.awoken[propName] = prop.bind(this.awoken);
+                  });
+
+            // this.scopeObj  = scopeObj;
+              //engineCarrier,
+              //infiniteCanvas,
+            this.awoken.scopeObj = scopeObj;
+
+            this.initialized = true;
+          }
+
+
+          this.react = function(nextObj) {
+
+            const engineCarrier = this.scopeObj.engineCarrier;
+
+            const reactFunc = engineCarrier.reactFunc;
+
+            const result = reactFunc(engineCarrier, nextObj);
+
+            return result;
+          };
+
+
+          this.start = function() {
+            console.log("FacetEngine::start, this", this);
+            console.log("FacetEngine::start", "this.scopeObj", this.scopeObj);
+
+            const engineCarrier = this.scopeObj.engineCarrier;
+            // const core          = engineCarrier.core;
+
+            const rxObservable  = engineCarrier.rxObservable;
+
+            this.rxsub = rxObservable.subscribe({
+              next: (obj) => {
+                this.react(obj);
+              },
+            });
+
+          };
+
+          this.stop = function() {
+            this.rxsub.unsubscribe();
+          };
+
+
+
+          this.virgin = Object.assign({}, this);  //virgin == not bound
+
+        }
+
       }
 
 
@@ -22641,7 +22859,7 @@
           this.clipboardIntegration = clipboardIntegration;
 
           document.onpaste = function(event) {
-            console.log("onpaste", "event", event);
+            logger.log("onpaste", "event", event);
             clipboardIntegration.rx_outerPaste.next(event);
           };
 
@@ -23134,6 +23352,7 @@
                 outVal = icObj;
 
               } else {
+                logger.log("timestamp_inner >= timestamp_outer");
                 outVal = clipboardIntegration.outerToInner(clipboardEvent);
               }
 
@@ -23275,12 +23494,12 @@
           // get text representation of clipboard
           var text = (clipboardEvent.originalEvent || clipboardEvent).clipboardData.getData('text/plain');
           if(text) {
-            console.log("text", text);
+            logger.log("text", text);
             fileIntegration.onPasteTextListeners.forEach((listener, i) => {
               listener(text);
             });
           } else {
-            console.log("not a text");
+            logger.log("not a text");
 
             FileIntegration.getPastedFile_p(clipboardEvent)
             .then(FileIntegration.createImage_p)
@@ -23970,6 +24189,14 @@
 
                   keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("mark__slash_simplifiable");
 
+                }
+              break;
+
+              case "Digit3":
+                {
+                  // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__remove_parentheses");
+                  const mathNode = math.parse("3*2");
+                  keyboardIntegration.infiniteCanvas.addNewMNReictangle(mathNode);
                 }
               break;
 
@@ -28300,8 +28527,8 @@
           this.infiniteCanvas = infiniteCanvas;
 
           //create golfCourse
-          // const golfCourseConfig = GolfCourseConfig.template_challenge_with_placeholders();
-          const golfCourseConfig = GolfCourseConfig.template_challenge__fraction_add();
+          const golfCourseConfig = GolfCourseConfig.template_challenge_with_placeholders();
+          // const golfCourseConfig = GolfCourseConfig.template_challenge__fraction_add();
 
           const golfCourse       = new GolfCourse(infiniteCanvas, golfCourseConfig);
           this.golfCourse = golfCourse;
@@ -28324,14 +28551,14 @@
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__one_to_frac(infiniteCanvas, golfCourse, stepGeneratorFunc);
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__frac_to_frac(infiniteCanvas, golfCourse, stepGeneratorFunc);
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__frac_to_frac__decomp(infiniteCanvas, golfCourse, stepGeneratorFunc);
-          // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__frac_to_frac__decomp_simple(infiniteCanvas, golfCourse, stepGeneratorFunc);
+          const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__frac_to_frac__decomp_simple(infiniteCanvas, golfCourse, stepGeneratorFunc);
 
 
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__one_to_frac__decomp(infiniteCanvas, golfCourse, stepGeneratorFunc);
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__one_to_frac__mixed(infiniteCanvas, golfCourse, stepGeneratorFunc);
 
 
-          const stepGeneratorFunc = () => GolfGameStep__Endless_Practice__frac_add.randomInstance__frac_add(infiniteCanvas, golfCourse, stepGeneratorFunc);
+          // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice__frac_add.randomInstance__frac_add(infiniteCanvas, golfCourse, stepGeneratorFunc);
 
 
           //create first step
@@ -30800,10 +31027,13 @@
           // this.debug_fractionOne_operator();
           // this.debug_fractionOne_operator__showcase();
 
-          this.debug__fraction_simplification__edudemo1();
+          // this.debug__fraction_simplification__edudemo1();
           // this.debug__fraction_simplification__edudemo2();
           // this.debug_gmSafetyZone();
 
+          // this.debug_number_reification();
+          this.debug_bloom();
+          // this.debug_bloom__fraction_bar_bloom();
 
         }
 
@@ -32340,6 +32570,290 @@
             infiniteCanvas.addIcObject(icBornAgainGreenMouse);
           }
 
+
+        }
+
+        debug_number_reification() {
+
+          //create operator
+          {
+            const trueRect_2 = {
+              x: 1000,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+            const gmOperator = infiniteCanvas.createIcGMOperator(trueRect_2, "+ 1");
+            infiniteCanvas.addIcObject(gmOperator);
+          }
+
+          //create operator
+          {
+            const trueRect_2 = {
+              x: 1000,
+              y: 800,
+              width: 100,
+              height: 100,
+            };
+            const gmOperator = infiniteCanvas.createIcGMOperator(trueRect_2, "x 2");
+            infiniteCanvas.addIcObject(gmOperator);
+          }
+
+          //create MNReictangle
+          {
+            const trueRect_2 = {
+              x: 500,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+            const mathNode = new math.ConstantNode(1);
+            const mnReictangle = infiniteCanvas.createIcMNReictangle(trueRect_2.x, trueRect_2.y, mathNode);
+            infiniteCanvas.addIcObject(mnReictangle);
+          }
+
+        }
+
+        debug_bloom() {
+
+          //create operator
+          {
+            const trueRect_2 = {
+              x: 1000,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+            const gmOperator = infiniteCanvas.createIcGMOperator(trueRect_2, "+ 1");
+            infiniteCanvas.addIcObject(gmOperator);
+          }
+
+          //create operator
+          {
+            const trueRect_2 = {
+              x: 1000,
+              y: 800,
+              width: 100,
+              height: 100,
+            };
+            const gmOperator = infiniteCanvas.createIcGMOperator(trueRect_2, "x 2");
+            infiniteCanvas.addIcObject(gmOperator);
+          }
+
+
+          //create bloom
+          {
+            // const mathNode = new math.ConstantNode(1);
+            const mathNode = math.parse("1");
+            mathNode.autoSimplify = true;
+
+            const rxSubject = new Subject(mathNode);
+
+            //create icMathNode
+            const trueRect_1 = {
+              x: 500,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
+
+            infiniteCanvas.onceOnAddRepresentedForIcObject(icMathNode, (icMathNode) => {
+
+              const rep_free = infiniteCanvas.getRepresented(icMathNode.id).r_free();
+
+              rep_free.onInnerUpdate((rep_free, propName, oldValue, newValue) => {
+                logger.log("icMathNode, rep_free.onInnerUpdate", propName);
+
+                if(propName == "mathNode") {
+                  logger.log("icMathNode.onInnerUpdate, mathNode", propName, newValue);
+
+                  const mathNode = newValue;
+                  rxSubject.next(mathNode);
+                }
+
+              });
+
+            });
+
+            // infiniteCanvas.addIcObject(icMathNode);
+
+
+
+            //create MNReictangle
+            const trueRect_2 = {
+              x: 500,
+              y: 600,
+              width: 100,
+              height: 100,
+            };
+            const length_unit = 100;
+            const icMNReictangle = infiniteCanvas.createIcMNReictangle(trueRect_2.x, trueRect_2.y, mathNode, length_unit);
+            // icMNReictangle.isTouchable = true;
+            icMNReictangle.fill        = "orange";
+            icMNReictangle.isSharpRect = true;
+
+            // infiniteCanvas.addIcObject(icMNReictangle);
+
+
+            const engine = new FacetEngine();
+            const eType  = "facet_mnrei_rectangle";
+            const icEngined = infiniteCanvas.createIcEngined(icMNReictangle, eType, engine);
+
+            // const rxSubject = new Subject(mathNode);
+            icEngined.rxObservable = rxSubject.asObservable();
+            icEngined.reactFunc = function(facet, nextObj) {
+              logger.log("reactFunc", nextObj);
+              facet.mathNode = nextObj.clone();
+            };
+            // infiniteCanvas.addIcObject(icEngined);
+
+
+
+            //create MNReictangle
+            const trueRect_3 = {
+              x: 500,
+              y: 630,
+              width: 100,
+              height: 100,
+            };
+            const icMNReictangle__unit = infiniteCanvas.createIcMNReictangle(trueRect_3.x, trueRect_3.y, mathNode, length_unit);
+            // icMNReictangle.isTouchable = true;
+            icMNReictangle__unit.fill        = "black";
+            icMNReictangle__unit.isSharpRect = true;
+
+
+
+            //makeshift bloom
+            const parts = {
+              "mathNode":        icMathNode,
+              "reictangle":      icEngined,
+              "reictangle_unit": icMNReictangle__unit,
+            };
+
+            const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+
+            const icComposite = infiniteCanvas.createIcComposite(trueRect_1, parts, compositeConfig);
+            icComposite.cType = "makeshiftBloom";
+            icComposite.fill  = "";
+
+            infiniteCanvas.addIcObject(icComposite);
+
+          }
+
+        }
+
+        debug_bloom__fraction_bar_bloom() {
+
+          //create operator
+          {
+            const trueRect_2 = {
+              x: 1000,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+            const gmOperator = infiniteCanvas.createIcGMOperator(trueRect_2, "+ 1");
+            infiniteCanvas.addIcObject(gmOperator);
+          }
+
+          //create operator
+          {
+            const trueRect_2 = {
+              x: 1000,
+              y: 800,
+              width: 100,
+              height: 100,
+            };
+            const gmOperator = infiniteCanvas.createIcGMOperator(trueRect_2, "x 2");
+            infiniteCanvas.addIcObject(gmOperator);
+          }
+
+
+          //create bloom
+          {
+            // const mathNode = new math.ConstantNode(1);
+            const mathNode = math.parse("1/7");
+            mathNode.autoSimplify = true;
+
+            const rxSubject = new Subject(mathNode);
+
+            //create icMathNode
+            const trueRect_1 = {
+              x: 500,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
+
+            infiniteCanvas.onceOnAddRepresentedForIcObject(icMathNode, (icMathNode) => {
+
+              const rep_free = infiniteCanvas.getRepresented(icMathNode.id).r_free();
+
+              rep_free.onInnerUpdate((rep_free, propName, oldValue, newValue) => {
+                logger.log("icMathNode, rep_free.onInnerUpdate", propName);
+
+                if(propName == "mathNode") {
+                  logger.log("icMathNode.onInnerUpdate, mathNode", propName, newValue);
+
+                  const mathNode = newValue;
+                  rxSubject.next(mathNode);
+                }
+
+              });
+
+            });
+
+            // infiniteCanvas.addIcObject(icMathNode);
+
+
+
+            //create MNReictangle
+            const trueRect_2 = {
+              x: 454,
+              y: 579,
+              width: 100,
+              height: 100,
+            };
+            const length_unit = 73;
+            const icMNReictangle = infiniteCanvas.createIcMNReictangle(trueRect_2.x, trueRect_2.y, mathNode, length_unit);
+            // icMNReictangle.isTouchable = true;
+            icMNReictangle.fill        = "orange";
+            icMNReictangle.isSharpRect = true;
+
+            // infiniteCanvas.addIcObject(icMNReictangle);
+
+
+            const engine = new FacetEngine();
+            const eType  = "facet_mnrei_rectangle";
+            const icEngined = infiniteCanvas.createIcEngined(icMNReictangle, eType, engine);
+
+            // const rxSubject = new Subject(mathNode);
+            icEngined.rxObservable = rxSubject.asObservable();
+            icEngined.reactFunc = function(facet, nextObj) {
+              logger.log("reactFunc", nextObj);
+              facet.mathNode = nextObj.clone();
+            };
+            // infiniteCanvas.addIcObject(icEngined);
+
+
+
+            //makeshift bloom
+            const parts = {
+              "mathNode":   icMathNode,
+              "reictangle": icMNReictangle,
+            };
+
+            const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+
+            const icComposite = infiniteCanvas.createIcComposite(trueRect_1, parts, compositeConfig);
+            icComposite.cType = "makeshiftBloom";
+            icComposite.fill  = "";
+
+            infiniteCanvas.addIcObject(icComposite);
+
+          }
 
         }
 
