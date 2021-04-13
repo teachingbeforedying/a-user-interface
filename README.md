@@ -17,6 +17,11 @@ Math objects
 ## Video
 https://tube.nocturlab.fr/videos/watch/eb01a9d6-8786-48e3-8035-4add6ec17cce
 
+## Try it !
+1. Download project : [Code] (green button) > [Download ZIP]
+2. Open index.html
+3. Mess around with objects and keyboard shortcuts
+
 ## Vision
 A ton of ideas still remain in ![still_shute](./still_shute.txt)    
 Some are written in english and some in french.     
