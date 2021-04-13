@@ -1,5 +1,3 @@
-infinishute: initial repo for infinite canvas stuff
-
 ![Logo](./ic_better_logo2.png)
 
 ## About
