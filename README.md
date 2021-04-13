@@ -34,4 +34,4 @@ Ideas rating: from *** (very good idea) to * (nice idea)
 3 tabs in Atom:   
 programmashute: day-to-day low-level technical issues and progresses  
 index.html:     code  
-still_shute:    important ideas  
+still_shute:    "ideas worth coding"  
