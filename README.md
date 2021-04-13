@@ -23,7 +23,8 @@ https://tube.nocturlab.fr/videos/watch/eb01a9d6-8786-48e3-8035-4add6ec17cce
 ## Vision
 A ton of ideas still remain in ![still_shute](./still_shute.txt)    
 Some are written in English and some in French.     
-Ideas rating: from *** (very good idea) to * (nice idea)
+Ideas rating: from *** (very good idea) to * (nice idea)  
+<br/> Interested by an idea? Go on and code it yourself!
  
 <br/>
 <br/>   
