@@ -1,7 +1,7 @@
 ![Logo](./ic_better_logo2.png)
 
 ## About
-This is an infinite whiteboard with interactive elements.   
+Infinite whiteboard with interactive elements.   
 Originally designed for students to manipulate math objects.  
 Can be used for presentations or games or both at the same time.  
 Open for any kind of improvement, or degeneration.  
