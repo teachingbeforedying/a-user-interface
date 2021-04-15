@@ -2,7 +2,8 @@
 
 ## About
 This is an infinite whiteboard with interactive elements.   
-Originally designed for students to manipulate math objects.    
+Originally designed for students to manipulate math objects.  
+Can be used for presentations or games or both at the same time.  
 Open for any kind of improvement, or degeneration.  
 
 ## Key features
@@ -25,6 +26,8 @@ A ton of ideas still remain in ![still_shute](./still_shute.txt)
 Some are written in English and some in French.     
 Ideas rating: from *** (very good idea) to * (nice idea)  
 <br/> Interested by an idea? Go on and code it yourself!
+
+<br/>There is some (huge) refactoring to do (Reduce loc nb, create lib(s) with separate files, improve performance, ...)
  
 <br/>
 <br/>   
