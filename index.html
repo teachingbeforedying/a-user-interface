@@ -16497,8 +16497,8 @@
             selectionColor:  'blue',
             selectionLineWidth: 2,
 
-            width:  canvas.width,
-            height: canvas.height,
+            // width:  canvas.width,
+            // height: canvas.height,
 
 
             imageSmoothingEnabled: true,
@@ -21555,9 +21555,14 @@
 
           brush.width = 20;
 
-          const rgbColor = this.inputProperties.getActiveColor();
-          const opacity  = this.inputProperties.getActiveOpacity();
+          // const rgbColor = this.inputProperties.getActiveColor();
+          // const opacity  = this.inputProperties.getActiveOpacity();
           const rgbaColorString = this.inputProperties.getActiveRgbaColorString();
+
+          const fColor = new fabric.Color(rgbaColorString);
+          logger.log("fColor", fColor);
+          const rgbColor = fColor.toRgb();
+          const opacity  = fColor.getAlpha();
 
           // brush.color   = this.inputProperties.getActiveColor();
           brush.color = rgbaColorString;
@@ -21610,6 +21615,137 @@
             this.fabricCanvas.remove(fObj);
           });
 
+        }
+
+
+        getFColor__under_cursor_p() {
+          var out_p;
+
+          const fabricIntegration = this;
+
+          const fabricCanvas   = fabricIntegration.fabricCanvas;
+          const infiniteCanvas = fabricIntegration.infiniteCanvas;
+          const cursor         = infiniteCanvas.cursor;
+
+          logger.log("fabricCanvas", fabricCanvas);
+
+          // //global     //SHU: this is working
+          // {
+          //   const html_elt = document.body;
+          //   logger.log("html_elt", html_elt);
+          //
+          //   const canvasElt_p = html2canvas(html_elt);
+          //
+          //   const magicValue = 0.75; //SHU: ugliness is my co-pilot
+          //   const pos = {
+          //     x: Math.floor(cursor.x * magicValue),
+          //     y: Math.floor(cursor.y * magicValue),
+          //   };
+          //
+          //   const color_p = canvasElt_p
+          //   // .then((canvasElt) => {
+          //   //
+          //   //   const dataURL = canvasElt.toDataURL('png');
+          //   //   logger.log("dataURL", dataURL);
+          //   //   FileIntegration.save_image(dataURL, "canvas_debug");
+          //   //
+          //   //   return canvasElt;
+          //   // })
+          //   .then((canvasElt) => {
+          //     logger.log("canvasElt", canvasElt);
+          //
+          //     return fabricIntegration.getFColor__atPos(canvasElt, pos);
+          //   });
+          //
+          //   out_p = color_p;
+          // }
+
+          //local 1
+          {
+            const canvasElt = fabricCanvas;
+            // const canvasElt = fabricCanvas.lowerCanvasEl;
+            // const canvasElt = fabricCanvas.upperCanvasEl;
+
+
+            // const width__viewport = 0;
+            // const width__canvas   = 0;
+            const magicValue = 0.75; //SHU: ugliness is my co-pilot
+            const pos = {
+              x: Math.floor(cursor.x * magicValue),
+              y: Math.floor(cursor.y * magicValue),
+            };
+
+            const canvasElt_p = Promise.resolve(canvasElt);
+
+            const color_p = canvasElt_p
+            // .then((canvasElt) => {
+            //
+            //   const dataURL = canvasElt.toDataURL('png');
+            //   logger.log("dataURL", dataURL);
+            //   FileIntegration.save_image(dataURL, "canvas_debug");
+            //
+            //   return canvasElt;
+            // })
+            .then((canvasElt) => {
+              logger.log("canvasElt", canvasElt);
+
+              return fabricIntegration.getFColor__atPos(canvasElt, pos);
+            });
+
+            out_p = color_p;
+
+            // const fColor = fabricIntegration.getFColor__atPos(canvasElt, cursor);
+            // logger.log("fColor", fColor);
+            // out_p = Promise.resolve(fColor);
+          }
+
+          // //local 2
+          // {
+          //   //get fObj under cursor
+          //
+          //   //render fObj only
+          //
+          //   //get color
+          // }
+
+          return out_p;
+        }
+
+        getFColor__atPos(canvas, pos) {
+          var outFColor;
+
+          logger.log("pos", pos.x, pos.y);
+
+          const ctx = canvas.getContext("2d");
+          logger.log("ctx", ctx);
+
+          const px = ctx.getImageData(pos.x, pos.y, 1, 1).data;
+          //debug
+          // const px = ctx.getImageData(180, 180, 1, 1).data;
+          // const px = ctx.getImageData(252, 297, 1, 1).data;
+          // const px = ctx.getImageData(260, 297, 1, 1).data;
+
+          logger.log("px", px);
+
+          // const dataURL = canvas.toDataURL('png');
+          // const fImg = new fabric.Image(dataUrl);
+
+          const r = px[0];
+          const g = px[1];
+          const b = px[2];
+          var a;
+          if(px.length == 4) {
+            a = px[3]/255.0;
+          } else {
+            a = 1;
+          }
+
+          const rgbaString = 'rgba(' + [r,g,b,a].join(",") + ')';
+          logger.log("rgbaString", rgbaString);
+
+          outFColor = new fabric.Color(rgbaString);
+
+          return outFColor;
         }
 
 
@@ -24137,6 +24273,16 @@
         }
 
 
+        static save_image(dataURL, imageName = "image") {
+          const filename = "image.png";
+
+          var a = document.createElement("a");
+          a.href     = dataURL;
+          a.download = imageName;
+          a.click();
+        }
+
+
         // static objByConvertingImagesToBase64_p(obj) {
         //
         //   const zimages_raw = obj.zimages;
@@ -24655,6 +24801,9 @@
           this.opacity = 1.0;
           const screment = 0;
           this.setNextOpacity(screment);
+
+
+          this.fColor__working = null;
         }
 
         setScrollStep(value) {
@@ -24670,6 +24819,10 @@
 
 
         getActiveColor() {
+          //debug
+          // if(this.color__working != null) {
+          //   return this.color__working;
+          // }
           return this.colorProperties.list[this.colorProperties.activeIndex];
         }
 
@@ -24686,9 +24839,33 @@
 
           this.colorProperties.activeIndex = index;
 
+          {
+            const color   = this.getActiveColor();
+            const opacity = this.getActiveOpacity();
+
+            const fColor = new fabric.Color(color);
+            fColor.setAlpha(opacity);
+
+            this.setFColor__working(fColor);
+          }
+
+
+
           //debug
           debug.setActiveColor(this.getActiveRgbaColorString());
         }
+
+        setFColor__working(fColor) {
+          this.fColor__working = fColor;
+
+          // this.color__working = new fabric.Color(fColor.toRgb());
+          this.opacity = fColor.getAlpha();
+        }
+
+        // setWorkingOpacity(color) {
+        //
+        // }
+
 
 
         getActiveOpacity() {
@@ -24706,19 +24883,31 @@
           const opacity_bounded  = Math.min(1.0, Math.max(0.0, opacity_prev + screment_opacity));
           this.opacity = opacity_bounded;
 
+          if(this.fColor__working != null) {
+            this.fColor__working.setAlpha(opacity_bounded);
+          }
+
           //debug
           debug.setActiveColor(this.getActiveRgbaColorString());
         }
 
         getActiveRgbaColorString() {
-          const color   = this.getActiveColor();
-          const opacity = this.getActiveOpacity();
+          var outString;
 
-          const fColor = new fabric.Color(color);
-          fColor.setAlpha(opacity);
-          const rgbaColorString = fColor.toRgba();
+          if(this.fColor__working != null) {
+            outString = this.fColor__working.toRgba();
+          } else {
+            const color   = this.getActiveColor();
+            const opacity = this.getActiveOpacity();
 
-          return rgbaColorString;
+            const fColor = new fabric.Color(color);
+            fColor.setAlpha(opacity);
+            const rgbaColorString = fColor.toRgba();
+
+            outString = rgbaColorString;
+          }
+
+          return outString;
         }
 
       }
@@ -25103,7 +25292,7 @@
 
               case "KeyE":
                 {
-                  const cursor =
+                  const cursor = null;
                   fabricIntegration.activateObjectAtCursor();
                 }
                 break;
@@ -25495,6 +25684,25 @@
                     var win = window.open(url, '_blank');
                   }
                   openUrlInNewTab("https://www.qwant.com/?l=fr");
+                }
+                break;
+
+              case "KeyC":
+                {
+                  if(keyboardIntegration.keyDownToggles.backquote.isActive) {
+                    const fColor__cursor_p = fabricIntegration.getFColor__under_cursor_p();
+
+                    fColor__cursor_p.then((fColor) => {
+
+                      logger.log("fColor__cursor", fColor);
+                      keyboardIntegration.inputProperties.setFColor__working(fColor);
+
+                      //refresh current brush color               //SHU: this does not work
+                      // fabricIntegration.leaveFreeDrawing();
+                      // fabricIntegration.enterFreeDrawing();
+                    });
+
+                  }
                 }
                 break;
 
