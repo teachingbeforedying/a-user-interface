@@ -12,6 +12,7 @@ Z-scroll: resize your elements in a blink
 Z-index: bring this in front of that    
 Interactive objects     
 Math objects    
+...and many others, scattered here and there    
 
 ## Video
 https://tube.nocturlab.fr/videos/watch/eb01a9d6-8786-48e3-8035-4add6ec17cce
