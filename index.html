@@ -158,7 +158,28 @@
 
     <!-- UI -->
     <script src='lib/fabric.min.js'      type='text/javascript'></script>
+      <!-- "tool canvas" -->
+    <!-- <canvas id="canvas__tool" style="visibility:hidden;">Your browser does not support HTML5 canvas</canvas>
+    <script>
+      const canvas__tool = document.getElementById("canvas__tool");
+      canvas__tool.width  = window.innerWidth;
+      canvas__tool.height = window.innerHeight;
+    </script> -->
+    <script>
+      const canvas__tool = document.createElement("canvas");
+      canvas__tool.id = "canvas__tool";
+      canvas__tool.width  = window.innerWidth;
+      canvas__tool.height = window.innerHeight;
+    </script>
+    <script>
+      const fabricCanvas__tool = new fabric.Canvas(canvas__tool.id, {
+        backgroundColor: 'rgba(0,0,0,0)',
+        // backgroundColor: 'rgb(0,0,0)',
+      });
+    </script>
+
     <script src='lib/anime.min.js'       type='text/javascript'></script>
+
 
       <!-- MathJax -->
     <script>
@@ -9921,26 +9942,41 @@
         const rep_free__cargo_1 = arr_cargo.find(e => true);
 
         //split
-        const arr_components = infiniteCanvas.splitObject(rep_free__cargo_1);
+        function processSplitOutput(arr_components) {
+          var outBool;
+
+          if(arr_components.length > 0) {
+            //remove original part
+            rep_free__supervessel.engine.awoken.removePart(rep_free__cargo_1);
+
+            //add parts: components
+            arr_components.forEach((component, i) => {
+              //add to infiniteCanvas
+              infiniteCanvas.addIcObject(component);
+
+              //get rep_free
+              const rep_free__component = infiniteCanvas.getRepresented(component.id).r_free();
+
+              //add to supervessel
+              rep_free__supervessel.engine.awoken.addPart(rep_free__component);
+            });
+
+            outBool = true;
+          } else {
+            outBool = false;
+          }
+
+          return outBool;
+        }
 
         //if split was successful: perform replacement in supervessel
-        if(arr_components.length > 0) {
-          //remove original part
-          rep_free__supervessel.engine.awoken.removePart(rep_free__cargo_1);
+        // const arr_components = infiniteCanvas.splitObject(rep_free__cargo_1);
+        // processSplitOutput(arr_components);
 
-          //add parts: components
-          arr_components.forEach((component, i) => {
-            //add to infiniteCanvas
-            infiniteCanvas.addIcObject(component);
-
-            //get rep_free
-            const rep_free__component = infiniteCanvas.getRepresented(component.id).r_free();
-
-            //add to supervessel
-            rep_free__supervessel.engine.awoken.addPart(rep_free__component);
-          });
-
-        }
+        infiniteCanvas.splitObject_p(rep_free__cargo_1)
+        .then((arr_components) => {
+          processSplitOutput(arr_components);
+        });
 
       }
 
@@ -9987,7 +10023,21 @@
             break;
 
           case "image":
-            //SHU TODO: un puzzle en quelques pressions
+            {
+              // const img = icObj.img;
+              // // const fObj = icObj;
+              //
+              // const arr_img = infiniteCanvas.splitImage(img);
+              //
+              // outArr = arr_img.map((img__component, i) => {
+              //   const position = {
+              //     x: icObj.position.x + 50 * i,
+              //     y: icObj.position.y + 50 * i,
+              //   };
+              //   const icImage = infiniteCanvas.createIcImage(position.x, position.y, img__component);
+              //   return icImage;
+              // });
+            }
             break;
 
           case "bag":
@@ -9999,6 +10049,209 @@
         }
 
         return outArr;
+      }
+
+      splitObject_p(icObj) {
+        var out_p;
+
+        const infiniteCanvas = this;
+
+        switch(icObj.type) {
+          case "mathNode":
+            {
+              const mathNode = icObj.mathNode;
+
+              const arr_components = Splitter.split_full(mathNode);
+
+              const arr_icObj = arr_components.map((mathNode__component, i) => {
+                const position = {
+                  x: icObj.position.x + 50 * i,
+                  y: icObj.position.y + 50 * i,
+                };
+                const icMathNode = infiniteCanvas.createIcMathNode(position.x, position.y, mathNode__component);
+                return icMathNode;
+              });
+
+              out_p = Promise.resolve(arr_icObj);
+
+            }
+            break;
+
+          case "text":
+            {
+              const text = icObj.text;
+              const arr_components = text.split("");
+
+              const arr_icObj = arr_components.map((str__component, i) => {
+                const position = {
+                  x: icObj.position.x + 50 * i,
+                  y: icObj.position.y + 50 * i,
+                };
+                const icText = infiniteCanvas.createIcText(position.x, position.y, str__component);
+                return icText;
+              });
+
+              out_p = Promise.resolve(arr_icObj);
+            }
+            break;
+
+          case "image":
+            {
+              const img = icObj.img;
+              // const fObj = icObj;
+
+              out_p = infiniteCanvas.splitImage_p(img)
+                      .then((arr_img) => {
+
+                        const arr_icObj = arr_img.map((img__component, i) => {
+                          const position = {
+                            x: icObj.position.x + 50 * i,
+                            y: icObj.position.y + 50 * i,
+                          };
+                          const icImage = infiniteCanvas.createIcImage(position.x, position.y, img__component);
+                          return icImage;
+                        });
+
+                        return arr_icObj;
+                      })
+                      .catch((e) => {
+                        logger.log(e);
+                      });
+            }
+            break;
+
+          // case "bag":
+          //   break;
+          default:
+            out_p = Promise.reject(new Error("splitObject_p, unsupported icObj.type: " + icObj.type));
+            break;
+        }
+
+        return out_p;
+      }
+
+      splitImage_p(img) {
+        var out_p;
+
+        // logger.log("splitImage_p, img", img);
+        // logger.log("img.src", img.src);
+
+        // img.setAttribute("crossOrigin", "Anonymous");
+        // img.crossOrigin = 'Anonymous';
+
+        function createDataURL__img_p(img) {
+          var out_p;
+
+          const isSimpleURL = img.src.startsWith("file://")
+                            ||img.src.startsWith("http://")
+                            ||img.src.startsWith("https://");
+
+          if(isSimpleURL) {
+            out_p = FileIntegration.dataUrlForImgViaCanvas_p(img);
+          } else {
+            out_p = Promise.resolve(img.src);
+          }
+
+          return out_p;
+        }
+
+        function createFObj_p(dataURL__img) {
+          var out_p;
+
+          logger.log("dataURL__img", dataURL__img);
+
+          out_p = new Promise((resolve, reject) => {
+            fabric.Image.fromURL(dataURL__img, function(fObj, isError) {
+                if(isError) {
+                  const error = new Error("fabric.Image.fromURL, error");
+                  reject(error);
+                }
+                resolve(fObj);
+            }, {crossOrigin: 'Anonymous'});
+          });
+
+          return out_p;
+        }
+
+        function dataURLForRect(fObjOrfCanvas, rect__print) {
+          var outDataURL;
+
+          const printOptions = Object.assign({}, rect__print);
+          outDataURL = fObjOrfCanvas.toDataURL(printOptions);
+
+          return outDataURL;
+        }
+
+        function splitFObj_p(fObj) {
+          var out_p;
+
+          const fObjOrfCanvas = fObj;
+
+          const rect__top = {
+            left:   0,
+            top:    0,
+            width:  width,
+            height: height__half,
+          };
+          const dataURL__top = dataURLForRect(fObjOrfCanvas, rect__top);
+          // logger.log("dataURL__top", dataURL__top);
+          const img__top_p = FileIntegration.imageFromImgSrc_p(dataURL__top);
+
+          const rect__bottom = {
+            left:   0,
+            top:    height__half,
+            width:  width,
+            height: height__half,
+          };
+          const dataURL__bottom = dataURLForRect(fObjOrfCanvas, rect__bottom);
+          // logger.log("dataURL__bottom", dataURL__bottom);
+          const img__bottom_p = FileIntegration.imageFromImgSrc_p(dataURL__bottom);
+
+          const arr_p = [img__top_p, img__bottom_p];
+          out_p = Promise.all(arr_p)
+          .then((arr_img) => {
+
+            //clean canvas
+            // fabricCanvas__tool.remove(fObj);
+            // fabricCanvas__tool.renderAll();
+
+            return arr_img;
+
+            // const arr_img__custom = arr_img.map(img => {
+            //   img.setAttribute("crossorigin", "anonymous");
+            //   return img;
+            // });
+            // return arr_img__custom;
+          });
+
+          return out_p;
+        }
+
+
+
+
+        const width  = img.width;
+        const height = img.height;
+        const height__half = height / 2.0;
+
+        const fObj_p = createDataURL__img_p(img)
+        .then((dataURL__img) => {
+          return createFObj_p(dataURL__img);
+        });
+        // const fCanvas_p = fObj_p.then((fObj) => {
+        //   //prepare canvas
+        //   fabricCanvas__tool.add(fObj);
+        //   fabricCanvas__tool.renderAll();
+        //
+        //   return fabricCanvas__tool;
+        // });
+
+        out_p = fObj_p.then((fObj) => {
+          logger.log("fObj", fObj);
+          return splitFObj_p(fObj);
+        });
+
+        return out_p;
       }
 
       operateOnActiveObject__join() {
@@ -21618,6 +21871,161 @@
         }
 
 
+        enterSlicing() {
+          const fabricIntegration = this;
+
+          const brush = this.fabricCanvas.freeDrawingBrush;
+
+          brush.width = 20;
+
+          // const rgbColor = this.inputProperties.getActiveColor();
+          // const opacity  = this.inputProperties.getActiveOpacity();
+          const rgbaColorString = this.inputProperties.getActiveRgbaColorString();
+
+          const fColor = new fabric.Color(rgbaColorString);
+          logger.log("fColor", fColor);
+          const rgbColor = fColor.toRgb();
+          const opacity  = fColor.getAlpha();
+
+          // brush.color   = this.inputProperties.getActiveColor();
+          brush.color = rgbaColorString;
+
+          this.fabricCanvas.isDrawingMode = true;
+
+          this.current_freeDrawing_objects = [];
+          function freeDrawing_objectAdded(e) {
+            console.log("freeDrawing_objectAdded",e);
+
+            const fObj = e.target;
+            fObj.set({
+              stroke:  rgbColor,
+              opacity: opacity,
+            });
+
+            fabricIntegration.current_freeDrawing_objects.push(e.target);
+            // console.log("fabricIntegration.current_freeDrawing_objects", fabricIntegration.current_freeDrawing_objects);
+          }
+
+          this.freeDrawing_objectAdded = freeDrawing_objectAdded;
+          this.fabricCanvas.on('object:added', this.freeDrawing_objectAdded);
+
+        }
+
+        leaveSlicing() {
+          this.fabricCanvas.isDrawingMode = false;
+          this.fabricCanvas.off('object:added', this.freeDrawing_objectAdded);
+
+          //get newly created fabric objects
+          // var last = canvas_objects[canvas_objects.length -1]; //Get last object
+          const freeDrawing_objects_created = [...this.current_freeDrawing_objects];
+          this.current_freeDrawing_objects = [];
+
+          this.manageSlicing(freeDrawing_objects_created);
+
+        }
+
+        manageSlicing(arr_fObj) {
+          console.log("manageSlicing", arr_fObj);
+
+          if(arr_fObj.length != 1) {
+            throw new Error("slicing requires one stroke only");
+          }
+
+          //get fObj under stroke
+
+          //top part:    exclude sawcut
+          //bottom part: include sawcut
+
+
+          //create output objects
+
+
+
+          //remove strokes
+          arr_fObj.forEach((fObj) => {
+            this.fabricCanvas.remove(fObj);
+          });
+
+        }
+
+        getPart(fObj__src, fObj__sliceStroke, isTopLeft = true) {
+          var outfObj;
+
+          return outFObj;
+        }
+
+
+        enterInnerPainting() {
+          const fabricIntegration = this;
+
+          const brush = this.fabricCanvas.freeDrawingBrush;
+
+          brush.width = 20;
+
+          // const rgbColor = this.inputProperties.getActiveColor();
+          // const opacity  = this.inputProperties.getActiveOpacity();
+          const rgbaColorString = this.inputProperties.getActiveRgbaColorString();
+
+          const fColor = new fabric.Color(rgbaColorString);
+          logger.log("fColor", fColor);
+          const rgbColor = fColor.toRgb();
+          const opacity  = fColor.getAlpha();
+
+          // brush.color   = this.inputProperties.getActiveColor();
+          brush.color = rgbaColorString;
+
+          this.fabricCanvas.isDrawingMode = true;
+
+          this.current_freeDrawing_objects = [];
+          function freeDrawing_objectAdded(e) {
+            console.log("freeDrawing_objectAdded",e);
+
+            const fObj = e.target;
+            fObj.set({
+              stroke:  rgbColor,
+              opacity: opacity,
+            });
+
+            fabricIntegration.current_freeDrawing_objects.push(e.target);
+            // console.log("fabricIntegration.current_freeDrawing_objects", fabricIntegration.current_freeDrawing_objects);
+          }
+
+          this.freeDrawing_objectAdded = freeDrawing_objectAdded;
+          this.fabricCanvas.on('object:added', this.freeDrawing_objectAdded);
+
+        }
+
+        leaveInnerPainting() {
+          this.fabricCanvas.isDrawingMode = false;
+          this.fabricCanvas.off('object:added', this.freeDrawing_objectAdded);
+
+          //get newly created fabric objects
+          // var last = canvas_objects[canvas_objects.length -1]; //Get last object
+          const freeDrawing_objects_created = [...this.current_freeDrawing_objects];
+          this.current_freeDrawing_objects = [];
+
+          this.manageCreatedFreeDrawingObjects(freeDrawing_objects_created);
+
+        }
+
+        manageInnerPainting(arr_fObj) {
+          console.log("manageInnerPainting", arr_fObj);
+
+          //group newly created fabric objects (or not (for easy delete))
+
+          //create icObj from fObj
+          arr_fObj.forEach((fObj) => {
+            const icObj = this.infiniteCanvas.createIcFreeDrawing_from_freeDrawingFObj(fObj);
+            this.infiniteCanvas.addNewIcObject(icObj);
+
+            //SHU: HERE WE COULD HAVE RECYCLED ALREADY CREATED FOBJ AND AVOID RECREATING A NEW ONE
+            this.fabricCanvas.remove(fObj);
+          });
+
+        }
+
+
+
         getFColor__under_cursor_p() {
           var out_p;
 
@@ -25118,6 +25526,26 @@
                   fabricIntegration.enterFreeDrawing();
                 } else {
                   fabricIntegration.leaveFreeDrawing();
+                }
+                /**/
+              }),
+
+              digit1: new KeyDownToggle("digit1", KeyDownToggle.defaultKeyDownFunc(["Digit1"]), (isActive) => {
+                /**/
+                if(isActive) {
+                  fabricIntegration.enterSlicing();
+                } else {
+                  fabricIntegration.leaveSlicing();
+                }
+                /**/
+              }),
+
+              digit2: new KeyDownToggle("digit2", KeyDownToggle.defaultKeyDownFunc(["Digit2"]), (isActive) => {
+                /**/
+                if(isActive) {
+                  fabricIntegration.enterInnerPainting();
+                } else {
+                  fabricIntegration.leaveInnerPainting();
                 }
                 /**/
               }),
@@ -32574,8 +33002,9 @@
 
           // this.debug_simplify_litexp();
 
-          this.debug_edudemo_mario_and_mushrooms();
+          // this.debug_edudemo_mario_and_mushrooms();
 
+          this.debug_slice_image();
         }
 
         debug1() {
@@ -34531,7 +34960,27 @@
 
         }
 
+        debug_slice_image() {
 
+          //create image
+          {
+            const trueRect_2 = {
+              x: 350,
+              y: 350,
+              width: 200,
+              height: 200,
+            };
+            const img_p = FileIntegration.imageFromImgSrc_p("img/monokuma.png");
+            // const img_p = FileIntegration.createImage_p("img/monokuma.png");
+            img_p.then(img => {
+              const icObj_front = infiniteCanvas.createIcImage(trueRect_2.x, trueRect_2.y, img);
+              // icMathNode.isTouchable = true;
+              infiniteCanvas.addIcObject(icObj_front);
+            });
+
+          }
+
+        }
 
       }
 
