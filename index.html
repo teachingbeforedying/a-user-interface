@@ -152,15 +152,13 @@
       logger.log("s", s);
     </script> -->
 
-
-
     <!-- <script src='lib/base64.js' type='text/javascript'></script> -->
 
     <!-- UI -->
     <script src='lib/fabric.min.js'      type='text/javascript'></script>
       <!-- "tool canvas" -->
-    <!-- <canvas id="canvas__tool" style="visibility:hidden;">Your browser does not support HTML5 canvas</canvas>
-    <script>
+    <!-- <canvas id="canvas__tool" style="visibility:hidden;">Your browser does not support HTML5 canvas</canvas> -->
+    <!-- <script>
       const canvas__tool = document.getElementById("canvas__tool");
       canvas__tool.width  = window.innerWidth;
       canvas__tool.height = window.innerHeight;
@@ -168,15 +166,165 @@
     <script>
       const canvas__tool = document.createElement("canvas");
       canvas__tool.id = "canvas__tool";
-      canvas__tool.width  = window.innerWidth;
-      canvas__tool.height = window.innerHeight;
+      canvas__tool.width  = 1000;
+      canvas__tool.height = 1000;
+      // canvas__tool.style.visibility = 'hidden';
+      // document.body.appendChild(canvas__tool);
     </script>
-    <script>
+    <!-- <script>
       const fabricCanvas__tool = new fabric.Canvas(canvas__tool.id, {
         backgroundColor: 'rgba(0,0,0,0)',
         // backgroundColor: 'rgb(0,0,0)',
+
+        width:  canvas__tool.width,
+        height: canvas__tool.height,
       });
+      logger.log("fabricCanvas__tool", fabricCanvas__tool);
+    </script> -->
+    <script>
+      class ImageUtils {
+
+        static boundingBox__pixelWise(imageData, w, h) {
+          var outBoundingBox;
+
+          const arr_x = [...Array(w).keys()];
+          const arr_y = [...Array(h).keys()];
+
+          const mat_xy = arr_x.map(x => {
+            return arr_y.map(y => {
+              const point = {
+                x: x,
+                y: y,
+              };
+              return point;
+            });
+          }).flat();
+
+          outBoundingBox = mat_xy.reduce((acc, point) => {
+
+            const x = point.x;
+            const y = point.y;
+
+            const arr_rgba = ImageUtils.getPixelArrRgba(imageData, w, h, x, y);
+
+            const r = arr_rgba[0];
+            const g = arr_rgba[1];
+            const b = arr_rgba[2];
+            const a = arr_rgba[3];
+
+            const isRgbNonZero   = (r != 0) || (g != 0) || (b != 0);
+            const isAlphaNonZero = (a != 0);
+
+            const isNonEmpty = isRgbNonZero && isAlphaNonZero;
+            if(isNonEmpty) {
+              // logger.log("x", x, "y", y);
+              // logger.log("arr_rgba", arr_rgba);
+
+              acc.x1 = Math.min(acc.x1, point.x);
+              acc.y1 = Math.min(acc.y1, point.y);
+              acc.x2 = Math.max(acc.x2, point.x);
+              acc.y2 = Math.max(acc.y2, point.y);
+            }
+
+            return acc;
+          }, {
+            x1: w - 1,
+            y1: h - 1,
+            x2: 0,
+            y2: 0,
+          });
+
+          return outBoundingBox;
+        }
+
+        static getImageDataObj(dataUrl) {
+
+          const ctx = canvas__tool.getContext("2d");
+          logger.log("ctx", ctx);
+          ctx.width  = canvas__tool.width;
+          ctx.height = canvas__tool.height;
+
+          //clear context
+          ctx.clearRect(0, 0, ctx.width, ctx.width);
+
+        	return new Promise(function(resolve, reject) {
+          	if (dataUrl == null) return reject();
+
+            var image = new Image();
+            image.addEventListener('load', function() {
+              const w = image.width;
+              const h = image.height;
+
+              var width__ctx_old = ctx.width;
+              if(w > ctx.width) {
+                ctx.width = w;
+              }
+              var height__ctx_old = ctx.height;
+              if(h > ctx.height) {
+                ctx.height = h;
+              }
+
+              ctx.drawImage(image, 0, 0, w, h);
+
+              // const imageData = ctx.getImageData(0, 0, w, h).data.buffer;
+              const imageData = ctx.getImageData(0, 0, w, h);
+
+              const imageDataObj = {
+                data: imageData,
+                w: w,
+                h: h,
+              };
+
+              ctx.width  = width__ctx_old;
+              ctx.height = height__ctx_old;
+
+        			resolve(imageDataObj, false);
+            });
+            image.src = dataUrl;
+        	});
+
+        }
+
+        static getPixelArrRgba(imageData, w, h, x, y) {
+          // logger.log("getPixel", imageData, w, h, x, y);
+
+          // const data = new Uint32Array(imageData);
+          // logger.log("data.length", data.length);
+          // logger.log("w * h", w * h);
+
+          // const index__pixel = y * w + x;
+          // const value__pixel = data[index__pixel];
+          // return value__pixel;
+
+          const data = imageData.data;
+          const index__pixel  = y * w + x;
+          const index__pixel4 = index__pixel * 4;
+
+          const index__r = index__pixel4;
+          const index__g = index__pixel4 + 1;
+          const index__b = index__pixel4 + 2;
+          const index__a = index__pixel4 + 3;
+
+          const r = data[index__r];
+          const g = data[index__g];
+          const b = data[index__b];
+          const a = data[index__a];
+
+          return [r,g,b,a];
+        }
+
+        static getPixelRgbaColorString(imageData, w, h, x, y) {
+          const arr_rgba = ImageUtils.getPixelArrRgba(imageData, w, h, x, y);
+
+          const rgbaColorString = "rgba(" + arr_rgba.join(",") + ")";
+
+          return rgbaColorString;
+        }
+
+      }
+
     </script>
+
 
     <script src='lib/anime.min.js'       type='text/javascript'></script>
 
@@ -10100,7 +10248,8 @@
               const img = icObj.img;
               // const fObj = icObj;
 
-              out_p = infiniteCanvas.splitImage_p(img)
+              // out_p = infiniteCanvas.splitImage_p(img)
+              out_p = infiniteCanvas.splitImage2_p(img)
                       .then((arr_img) => {
 
                         const arr_icObj = arr_img.map((img__component, i) => {
@@ -10182,10 +10331,12 @@
           return outDataURL;
         }
 
-        function splitFObj_p(fObj) {
+        function splitFObj_p(fObj, width, height) {
           var out_p;
 
           const fObjOrfCanvas = fObj;
+
+          const height__half = height / 2.0;
 
           const rect__top = {
             left:   0,
@@ -10232,7 +10383,6 @@
 
         const width  = img.width;
         const height = img.height;
-        const height__half = height / 2.0;
 
         const fObj_p = createDataURL__img_p(img)
         .then((dataURL__img) => {
@@ -10248,11 +10398,153 @@
 
         out_p = fObj_p.then((fObj) => {
           logger.log("fObj", fObj);
-          return splitFObj_p(fObj);
+          return splitFObj_p(fObj, width, height);
         });
 
         return out_p;
       }
+
+      splitImage2_p(img) {
+        var out_p;
+
+        // logger.log("splitImage_p, img", img);
+        // logger.log("img.src", img.src);
+
+        // img.setAttribute("crossOrigin", "Anonymous");
+        // img.crossOrigin = 'Anonymous';
+
+        function createDataURL__img_p(img) {
+          var out_p;
+
+          const isSimpleURL = img.src.startsWith("file://")
+                            ||img.src.startsWith("http://")
+                            ||img.src.startsWith("https://");
+
+          if(isSimpleURL) {
+            out_p = FileIntegration.dataUrlForImgViaCanvas_p(img);
+          } else {
+            out_p = Promise.resolve(img.src);
+          }
+
+          return out_p;
+        }
+
+        function createFObj_p(dataURL__img) {
+          var out_p;
+
+          logger.log("dataURL__img", dataURL__img);
+
+          out_p = new Promise((resolve, reject) => {
+            fabric.Image.fromURL(dataURL__img, function(fObj, isError) {
+                if(isError) {
+                  const error = new Error("fabric.Image.fromURL, error");
+                  reject(error);
+                }
+                resolve(fObj);
+            }, {crossOrigin: 'Anonymous'});
+          });
+
+          return out_p;
+        }
+
+        function dataURLForClipPath(fObjOrfCanvas, clipPath) {
+          var outDataURL;
+
+          fObjOrfCanvas.clipPath = clipPath;
+
+          //get pixelwise bounding rect     //SHU: TODO
+
+          // const printOptions = Object.assign({}, rect__print);
+          const printOptions = {};
+          outDataURL = fObjOrfCanvas.toDataURL(printOptions);
+
+          return outDataURL;
+        }
+
+        function splitFObj_p(fObj, width, height) {
+          var out_p;
+
+          const fObjOrfCanvas = fObj;
+
+          const pointA = Geometry.createPoint(0, 0.2 * height);
+          const pointB = Geometry.createPoint(width - 1, 0.7 * height);
+          const lineAB = Geometry.createLine(pointA, pointB);
+
+          const pointTL = Geometry.createPoint(0,0);
+          const pointTR = Geometry.createPoint(width,0);
+          const pointBL = Geometry.createPoint(0,height);
+          const pointBR = Geometry.createPoint(width,height);
+
+          const polygon__top = new fabric.Polygon([
+            pointTL,
+            pointTR,
+            pointB,
+            pointA,
+          ]);
+          polygon__top.absolutePositioned = true;
+
+          const dataURL__top = dataURLForClipPath(fObjOrfCanvas, polygon__top);
+          // logger.log("dataURL__top", dataURL__top);
+          const img__top_p = FileIntegration.imageFromImgSrc_p(dataURL__top);
+
+          const polygon__bottom = new fabric.Polygon([
+            pointA,
+            pointB,
+            pointBR,
+            pointBL,
+          ]);
+          polygon__bottom.absolutePositioned = true;
+
+          const dataURL__bottom = dataURLForClipPath(fObjOrfCanvas, polygon__bottom);
+          // logger.log("dataURL__top", dataURL__top);
+          const img__bottom_p = FileIntegration.imageFromImgSrc_p(dataURL__bottom);
+
+          const arr_p = [img__top_p, img__bottom_p];
+          out_p = Promise.all(arr_p)
+          .then((arr_img) => {
+
+            //clean canvas
+            // fabricCanvas__tool.remove(fObj);
+            // fabricCanvas__tool.renderAll();
+
+            return arr_img;
+
+            // const arr_img__custom = arr_img.map(img => {
+            //   img.setAttribute("crossorigin", "anonymous");
+            //   return img;
+            // });
+            // return arr_img__custom;
+          });
+
+          return out_p;
+        }
+
+
+
+
+        const width  = img.width;
+        const height = img.height;
+
+        const fObj_p = createDataURL__img_p(img)
+        .then((dataURL__img) => {
+          return createFObj_p(dataURL__img);
+        });
+        // const fCanvas_p = fObj_p.then((fObj) => {
+        //   //prepare canvas
+        //   fabricCanvas__tool.add(fObj);
+        //   fabricCanvas__tool.renderAll();
+        //
+        //   return fabricCanvas__tool;
+        // });
+
+        out_p = fObj_p.then((fObj) => {
+          logger.log("fObj", fObj);
+          return splitFObj_p(fObj, width, height);
+        });
+
+        return out_p;
+      }
+
 
       operateOnActiveObject__join() {
 
@@ -16754,9 +17046,90 @@
             // height: canvas.height,
 
 
-            imageSmoothingEnabled: true,
+            // imageSmoothingEnabled: true,
+            imageSmoothingEnabled: false,
+
             preserveObjectStacking: true,
           });
+
+          //debug
+          function install_boundingboxing() {
+
+            fabricCanvas.on('after:render', function() {
+
+            	fabricCanvas.forEachObject(function(fObj) {
+
+                if(fObj.icObj.isSupervessel) {
+                  //ignore
+                  return;
+                }
+
+                const dataURL   = fObj.toDataURL();
+                const isDataURL = dataURL.startsWith("data");
+                if(isDataURL) {
+                  ImageUtils.getImageDataObj(dataURL)
+                    .then(function(dataObj) {
+                      const data = dataObj.data;
+                      const w    = dataObj.w;
+                      const h    = dataObj.h;
+
+                      logger.log("w", w);
+                      logger.log("h", h);
+
+                      logger.log("fObj", fObj);
+
+                      var boundRect = fObj.getBoundingRect();
+                      logger.log("boundRect", boundRect);
+                      fabricCanvas.contextContainer.strokeStyle = 'blue';
+                      fabricCanvas.contextContainer.strokeRect(
+                        boundRect.left,
+                        boundRect.top,
+                        boundRect.width,
+                        boundRect.height,
+                      );
+
+                      // const point__pixel_check = {
+                      //   x: 452,
+                      //   y: 670,
+                      // };
+                      // const rgbaColorString__pixel_check = ImageUtils.getPixelRgbaColorString(data, w, h, point__pixel_check.x, point__pixel_check.y);
+                      // logger.log("rgbaColorString__pixel_check", rgbaColorString__pixel_check);
+                      //
+                      // if(rgbaColorString__pixel_check != "rgba(255,0,255,255)") {
+                      //   throw new Error("pixel check failed");
+                      // } else {
+                      //   logger.log("pixel check ok");
+                      // }
+
+                      const realBound = ImageUtils.boundingBox__pixelWise(data, w, h);
+
+                      const rect__realBound = {
+                        left:   realBound.x1,
+                        top:    realBound.y1,
+                        width:  realBound.x2 - realBound.x1,
+                        height: realBound.y2 - realBound.y1,
+                      };
+
+                      fabricCanvas.contextContainer.strokeStyle = 'red';
+                      fabricCanvas.contextContainer.strokeRect(
+                        (boundRect.left + 10) + rect__realBound.left,
+                        (boundRect.top  + 10) + rect__realBound.top,
+                        rect__realBound.width,
+                        rect__realBound.height,
+                      );
+
+                  });
+
+                }
+
+            	});
+
+            });
+
+          }
+
+          // install_boundingboxing();
+
 
           this.fabricCanvas = fabricCanvas;
           this.context      = fabricCanvas.getContext("2d");
@@ -24551,6 +24924,8 @@
             img.onload  =      () => resolve(img);
             img.onerror = (error) => reject(error);
 
+            // img.crossOrigin = 'Anonymous';
+
             img.src = imgSrc;
           });
         }
@@ -24864,9 +25239,58 @@
             imgAux.onerror = (error) => reject(error);
 
             imgAux.src = src;
+          })
+          .catch((e) => {
+            logger.log("dataUrlForImgViaCanvas_p", e);
           });
 
         }
+
+        static dataUrlForImgViaCanvas2_p(img) {   //SHU: tried to create workaround for local files but "Tainted canvases may not be exported"
+          var out_p;
+
+          function createFObj_p(img) {
+            const fObj = new fabric.Image(img);
+            return Promise.resolve(fObj);
+          }
+
+          function dataURLForRect(fObjOrfCanvas, rect__print) {
+            var outDataURL;
+
+            const printOptions = Object.assign({}, rect__print);
+            outDataURL = fObjOrfCanvas.toDataURL(printOptions);
+
+            return outDataURL;
+          }
+
+          out_p = createFObj_p(img)
+          .then((fObj) => {
+            //prepare canvas
+            fabricCanvas__tool.add(fObj);
+            fabricCanvas__tool.renderAll();
+
+            return fabricCanvas__tool;
+          }).then((fCanvas) => {
+
+            const width  = img.width;
+            const height = img.height;
+
+            const rect__print = {
+              left : 0,
+              height: 0,
+              width: width,
+              height: height,
+            };
+
+            const dataURL = dataURLForRect(fCanvas, rect__print);
+
+            return dataURL;
+          });
+
+          return out_p;
+        }
+
+
 
       }
 
@@ -34965,13 +35389,23 @@
           //create image
           {
             const trueRect_2 = {
-              x: 350,
-              y: 350,
+              x: 0,
+              y: 0,
               width: 200,
               height: 200,
             };
-            const img_p = FileIntegration.imageFromImgSrc_p("img/monokuma.png");
-            // const img_p = FileIntegration.createImage_p("img/monokuma.png");
+
+            const img__file_p = FileIntegration.imageFromImgSrc_p("img/monokuma.png");
+            // const dataURL_p = img__file_p.then((img) => {
+            //   return FileIntegration.dataUrlForImgViaCanvas2_p(img);
+            // });
+            // const img__data_p = dataURL_p.then((dataURL) => {
+            //   return FileIntegration.imageFromImgSrc_p(dataURL);
+            // });
+
+            // const img_p = img__data_p;
+            const img_p = img__file_p;
+
             img_p.then(img => {
               const icObj_front = infiniteCanvas.createIcImage(trueRect_2.x, trueRect_2.y, img);
               // icMathNode.isTouchable = true;
@@ -34985,11 +35419,11 @@
       }
 
     </script>
-    <script>
+    <!-- <script>
       setTimeout(() => {    //SHU: wait for mathjax to finish loading
         const atelier__X_X = new Atelier__X_X(infiniteCanvas);          //atelier
       }, 1000);
-    </script>
+    </script> -->
 
 
 
