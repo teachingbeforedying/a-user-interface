@@ -9766,6 +9766,37 @@
 
       }
 
+      addNewToggleRect() {
+        const true_cursor = this.getTrueCursor();
+
+        const left = true_cursor.x;
+        const top  = true_cursor.y;
+
+        const width  = 100;   //"information" size
+        const height = 100;
+
+        const trueRect = {
+          x: left,
+          y: top,
+          width:  width,
+          height: height,
+        };
+
+        const activeCfg   = {
+          fill: "green",
+          opacity: 1.0,
+        };
+        const inactiveCfg = {
+          fill: "red",
+          opacity: 0.3,
+        };
+
+        const isActive = false;
+
+        const icToggleRect = this.createIcToggleRect(trueRect, activeCfg, inactiveCfg, isActive);
+        this.addNewIcObject(icToggleRect);
+      }
+
       // addPurePoint(point) {
       //   const icPoint = this.createIcPoint(point);
       //   this.addPureIcObject(icPoint);
@@ -16980,8 +17011,8 @@
           fabric.Object.prototype.padding     = 10;
 
 
-          fabric.Rect.prototype.rx = 5;
-          fabric.Rect.prototype.ry = 5;
+          // fabric.Rect.prototype.rx = 5;    //shuxylo
+          // fabric.Rect.prototype.ry = 5;
 
 
           fabric.Object.prototype.getFObjZIndex = function() {
@@ -17159,7 +17190,7 @@
 
           // this.debugOriginalAxes();
 
-          this.initializeSelectionMgmt();
+          this.initializeSelectionMgmt();  //shuxylo
 
           this.initializeFreeDrawing();
 
@@ -18847,7 +18878,8 @@
         createFabricMathNodeWithIcObj(icObj) {
           // logger.log("createFabricMathNodeWithIcObj", icObj);
 
-          const fabricCanvas = this.fabricCanvas;
+          const fabricIntegration = this;
+          const fabricCanvas      = this.fabricCanvas;
 
           const fObj = new fabric.Group();
 
@@ -18963,8 +18995,8 @@
               //add svg image as child
               fObj.child_tex = fObj_child;
 
-              fObj.add(fObj_child);
-              // fObj.addWithUpdate(fObj_child);        //this updates group's size to fit children
+              // fObj.add(fObj_child);
+              fObj.addWithUpdate(fObj_child);        //this updates group's size to fit children    //SHU: this seems to solve the out-of-bounds drawing issue
               console.log("fObj, added child:", fObj_child);
 
               return fObj;
@@ -19422,17 +19454,24 @@
             icObj : icObj,
           });
 
-          configureWithIsActive(fObj, icObj.isActive);
+          setTimeout(() => {  //SHU: golden hammer? setTimeout!
+            configureWithIsActive(fObj, icObj.isActive);
+          }, 0);
 
           function configureWithIsActive(fObj, isActive) {
+            logger.log("configureWithIsActive", fObj, isActive);
 
             const cfg = isActive ? fObj.icObj.activeCfg : fObj.icObj.inactiveCfg;
+            logger.log("cfg", cfg);
 
             fObj.set({
               fill:    cfg.fill,
               opacity: cfg.opacity,
             });
 
+            logger.log("fObj", fObj);
+
+            fObj.dirty = true;
           }
 
           fObj.hasControls = false;
@@ -22835,45 +22874,45 @@
 
 
 
-        syncWithIcObj(icObj) {
-          const fObj = this.getFObjForIcObj(icObj);
-          this.updateFObjWithIcObj(fObj, icObj);
-
-          this.fabricCanvas.requestRenderAll();
-          // this.fabricCanvas.renderAll();
-        }
-
-        getFObjForIcObj(icObj) {
-          const fObj = this.fObjForIcObj_dict[icObj.id];
-
-          if(!fObj) {
-            console.log("icObj", icObj);
-            console.log("this.fObjForIcObj_dict", this.fObjForIcObj_dict);
-            throw new Error("fObj not found for icObj.id: "+ icObj.id);
-          }
-
-          return fObj;
-        }
-
-        updateFObjWithIcObj(fObj, icObj) {
-          console.log("updateFObjWithIcObj", fObj, icObj);
-
-          function configureWithIsActive(fObj, isActive) {
-
-            const cfg = isActive ? fObj.icObj.activeCfg : fObj.icObj.inactiveCfg;
-
-            fObj.set({
-              fill:    cfg.fill,
-              opacity: cfg.opacity,
-            });
-
-            fObj.set("dirty", true);
-          }
-
-          configureWithIsActive(fObj, icObj.isActive);
-
-          // fObj.setCoords();
-        }
+        // syncWithIcObj(icObj) {
+        //   const fObj = this.getFObjForIcObj(icObj);
+        //   this.updateFObjWithIcObj(fObj, icObj);
+        //
+        //   this.fabricCanvas.requestRenderAll();
+        //   // this.fabricCanvas.renderAll();
+        // }
+        //
+        // getFObjForIcObj(icObj) {
+        //   const fObj = this.fObjForIcObj_dict[icObj.id];
+        //
+        //   if(!fObj) {
+        //     console.log("icObj", icObj);
+        //     console.log("this.fObjForIcObj_dict", this.fObjForIcObj_dict);
+        //     throw new Error("fObj not found for icObj.id: "+ icObj.id);
+        //   }
+        //
+        //   return fObj;
+        // }
+        //
+        // updateFObjWithIcObj(fObj, icObj) {
+        //   logger.log("updateFObjWithIcObj", fObj, icObj);
+        //
+        //   function configureWithIsActive(fObj, isActive) {
+        //
+        //     const cfg = isActive ? fObj.icObj.activeCfg : fObj.icObj.inactiveCfg;
+        //
+        //     fObj.set({
+        //       fill:    cfg.fill,
+        //       opacity: cfg.opacity,
+        //     });
+        //
+        //     fObj.set("dirty", true);
+        //   }
+        //
+        //   configureWithIsActive(fObj, icObj.isActive);
+        //
+        //   // fObj.setCoords();
+        // }
 
 
       }
@@ -26264,8 +26303,13 @@
               case "Digit3":
                 {
                   // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__remove_parentheses");
-                  const mathNode = math.parse("3*2");
-                  keyboardIntegration.infiniteCanvas.addNewMNReictangle(mathNode);
+
+                  // const mathNode = math.parse("3*2");
+                  // keyboardIntegration.infiniteCanvas.addNewMNReictangle(mathNode);
+
+                  // const sandBox_doubleObjects = new SandBox_doubleObjects(keyboardIntegration.infiniteCanvas);
+
+                  keyboardIntegration.infiniteCanvas.addNewToggleRect();
                 }
               break;
 
@@ -26381,11 +26425,11 @@
                   // const mathNode = random_onion_mathNode(3);
 
                   // const mathNode = random_onion_mathNode(2);
-                  // const mathNode = random_onion_mathNode(3);
+                  const mathNode = random_onion_mathNode(3);
                   // mathNode.autoSimplify = false;
 
-                  const mathNode = random_terminal_mathNode_withType_inArr(["ConstantNode"]);
-                  mathNode.autoSimplify = true;
+                  // const mathNode = random_terminal_mathNode_withType_inArr(["ConstantNode"]);
+                  // mathNode.autoSimplify = true;
 
                   keyboardIntegration.infiniteCanvas.addNewMathNode(mathNode);
                   // keyboardIntegration.infiniteCanvas.addNewGreenMouseBox(mathNode);
@@ -27676,37 +27720,37 @@
 
           //zone-dedicated objects
 
-          //number text
-          {
-            const trueRect = this.xylophoneTowers[0].trueRect;
-
-            const icText = infiniteCanvas.createIcText(trueRect.x, trueRect.y, "lol");
-            icText.canBeMoved    = false;
-            icText.canBeRotated  = false;
-            icText.canBeResized  = false;
-            icText.canBeSelected = false;
-
-            const scaleFactor = (this.base ** this.exponent);
-            console.log("number text, scaleFactor", scaleFactor);
-
-            icText.homeScale = {
-              X: icText.homeScale.X / scaleFactor     * 50,
-              Y: icText.homeScale.Y / scaleFactor     * 50,
-            };
-
-            icText.fill = "yellow";
-
-            this.icObjects["numberDisplay"] = icText;
-
-            infiniteCanvas.addIcObject(icText);
-
-
-            this.didUpdateListeners.push((xyloZone) => {
-              const activeNumberString = xyloZone.activeNumber.toFixed();
-              icText.text = activeNumberString;
-              // infiniteCanvas.requestViewUpdateForIcObj(icText); //SHU666
-            });
-          }
+          // //number text
+          // {
+          //   const trueRect = this.xylophoneTowers[0].trueRect;
+          //
+          //   const icText = infiniteCanvas.createIcText(trueRect.x, trueRect.y, "lol");
+          //   icText.canBeMoved    = false;
+          //   icText.canBeRotated  = false;
+          //   icText.canBeResized  = false;
+          //   icText.canBeSelected = false;
+          //
+          //   const scaleFactor = (this.base ** this.exponent);
+          //   console.log("number text, scaleFactor", scaleFactor);
+          //
+          //   icText.homeScale = {
+          //     X: icText.homeScale.X / scaleFactor     * 50,
+          //     Y: icText.homeScale.Y / scaleFactor     * 50,
+          //   };
+          //
+          //   icText.fill = "yellow";
+          //
+          //   this.icObjects["numberDisplay"] = icText;
+          //
+          //   infiniteCanvas.addIcObject(icText);
+          //
+          //
+          //   this.didUpdateListeners.push((xyloZone) => {
+          //     const activeNumberString = xyloZone.activeNumber.toFixed();
+          //     icText.text = activeNumberString;
+          //     // infiniteCanvas.requestViewUpdateForIcObj(icText); //SHU666
+          //   });
+          // }
 
 
         }
@@ -27728,7 +27772,7 @@
         }
 
         updateWithXylophoneTowerViewUpdate(chosenXylophoneTower) {
-          console.log("updateWithXylophoneTowerViewUpdate", chosenXylophoneTower.mantissa);
+          logger.log("updateWithXylophoneTowerViewUpdate", chosenXylophoneTower.mantissa);
 
           //deactivate all others
           const towers_to_deactivate = Object.values(this.xylophoneTowers).filter(xylophoneTower => xylophoneTower != chosenXylophoneTower);
@@ -28228,6 +28272,12 @@
     }
     </script>
     <!-- <script>
+      //SHU: comment //shuxylo line for xylophone to work
+
+      const xylophone = new Xylophone(infiniteCanvas, 10);
+      // const xylophone = null;
+      // const xylophone = new Xylophone(infiniteCanvas, 2);    //always a bit confusing
+
       if(xylophone != null) {
         const xyloWrite = new XylophoneGame1_xyloWrite(xylophone, xyloGameHUD);
       }
@@ -28252,60 +28302,97 @@
           initialize() {
             const infiniteCanvas = this.infiniteCanvas;
 
-            this.initialize_doubleObjects(infiniteCanvas);
+            this.create_doubleObjects_p(infiniteCanvas)
+            .then((arr_doubleObject) => {
 
-            const arr_doubleObject = Object.values(this.doubleObjects);
-            arr_doubleObject.forEach((doubleObject, i) => {
-              this.materialize_doubleObject(doubleObject, infiniteCanvas);
+              const dict_doubleObject = Object.fromEntries(arr_doubleObject.map(dO => [dO.id, dO]));
+              Object.assign(this.doubleObjects, dict_doubleObject);
+
+              arr_doubleObject.forEach((doubleObject, i) => {
+                this.materialize_doubleObject(doubleObject, infiniteCanvas);
+              });
+
             });
 
           }
 
-          initialize_doubleObjects(infiniteCanvas) {
+          create_doubleObjects_p(infiniteCanvas) {
+            var out_p;
 
-            //double object #1
-            {
-              const dO_id        = "dO#1"
-              const dO_homeScale = {
-                X:2.0,
-                Y:2.0,
-              };
-
-              const icRect_front = infiniteCanvas.createIcRect_withLTWH(0, 0, 100, 100);
-              icRect_front.fill  = "red";
-              icRect_front.homeScale = dO_homeScale;
-
-              const icRect_back = infiniteCanvas.createIcRect_withLTWH(0, 0, 100, 100);
-              icRect_back.fill = "blue";
-              icRect_back.homeScale = dO_homeScale;
-
-              const doubleObject = new DoubleObject(dO_id, icRect_front, icRect_back);
-
-              this.doubleObjects[doubleObject.id] = doubleObject;
-            }
+            // //double object #1
+            // {
+            //   const dO_id        = "dO#1"
+            //   const dO_homeScale = {
+            //     X:2.0,
+            //     Y:2.0,
+            //   };
+            //
+            //   const icRect_front = infiniteCanvas.createIcRect_withLTWH(0, 0, 100, 100);
+            //   icRect_front.fill  = "red";
+            //   icRect_front.homeScale = dO_homeScale;
+            //
+            //   const icRect_back = infiniteCanvas.createIcRect_withLTWH(0, 0, 100, 100);
+            //   icRect_back.fill = "blue";
+            //   icRect_back.homeScale = dO_homeScale;
+            //
+            //   const doubleObject = new DoubleObject(dO_id, icRect_front, icRect_back);
+            //
+            //   this.doubleObjects[doubleObject.id] = doubleObject;
+            // }
 
             //double object #2
-            {
-              const dO_id        = "dO#2"
-              const dO_homeScale = {
-                X:2.0,
-                Y:2.0,
-              };
+            const trueRect__dO2 = {
+              x: 500,
+              y: 500,
+              width:1,
+              height:1,
+            };
+            const id__dO2        = "dO#2";
+            const homeScale__dO2 = {
+              X:2.0,
+              Y:2.0,
+            };
 
-              const img_front_p = FileIntegration.imageFromImgSrc_p("");
-              const img_back_p  = FileIntegration.imageFromImgSrc_p("");
+            const imgPath__front = "img/double/window_closed.png";
+            const imgPath__back  = "img/double/window_open.png";
 
-              const icObj_front = infiniteCanvas.createIcImage(500, 500, img_front);
-              icObj_front.homeScale = dO_homeScale;
+            const do2_p = this.createDoubleObject__imageBased_p(trueRect__dO2, homeScale__dO2, id__dO2, imgPath__front, imgPath__back);
 
-              const icObj_back = infiniteCanvas.createIcRect_withLTWH(500, 500, 100, 100);
-              icObj_back.homeScale = dO_homeScale;
+            const arr_p = [do2_p];
 
-              const doubleObject = new DoubleObject(dO_id, icObj_front, icObj_back);
+            out_p = Promise.all(arr_p);
 
-              this.doubleObjects[doubleObject.id] = doubleObject;
-            }
+            return out_p;
+          }
 
+          createDoubleObject__imageBased_p(trueRect, homeScale_dO, id_dO, imgPath__front, imgPath__back) {
+            var out_p;
+
+            const icObj__front_p = FileIntegration.imageFromImgSrc_p(imgPath__front)
+              .then((img__front) => {
+                const icObj__front = infiniteCanvas.createIcImage(trueRect.x, trueRect.y, img__front);
+                // icObj__front.homeScale = homeScale_dO;
+                return icObj__front;
+              });
+            const icObj__back_p  = FileIntegration.imageFromImgSrc_p(imgPath__back)
+              .then((img__back) => {
+                const icObj__back = infiniteCanvas.createIcImage(trueRect.x, trueRect.y, img__back);
+                // img__back.homeScale = homeScale_dO;
+                return icObj__back;
+              });
+
+            const arr_p = [icObj__front_p, icObj__back_p];
+            // const arr_p = [icObj__back_p, icObj__front_p];
+
+            out_p = Promise.all(arr_p)
+            .then((arr_icObj) => {
+              const icObj__front = arr_icObj[0];
+              const icObj__back  = arr_icObj[1];
+              const doubleObject = new DoubleObject(id_dO, icObj__front, icObj__back);
+              return doubleObject;
+            })
+
+            return out_p;
           }
 
           materialize_doubleObject(doubleObject, infiniteCanvas) {
@@ -28318,7 +28405,16 @@
 
             doubleObject.didUpdateListeners.push((icObj_old, icObj_new) => {
               // infiniteCanvas.requestViewUpdateForIcObj(icObj);
-              infiniteCanvas.removeIcObject(icObj_old);
+
+              // logger.log("icObj_old", icObj_old);
+              // logger.log("icObj_new", icObj_new);
+
+              // infiniteCanvas.removeIcObject(icObj_old);
+              // infiniteCanvas.addIcObject(icObj_new);
+
+              const rep_free__old = infiniteCanvas.getRepresented(icObj_old.id).r_free();
+              rep_free__old.im_dying_now = true;
+
               infiniteCanvas.addIcObject(icObj_new);
             });
 
@@ -28333,6 +28429,8 @@
 
             this.icObj_front = icObj_front;
             this.icObj_back  = icObj_back;
+
+            logger.log("icObj_front", icObj_front);
 
             const factor_scaleToggle = 0.90;
             this.scale_toggle = {
@@ -28351,7 +28449,7 @@
           }
 
           updateWithObservationScale(scale_obs) {
-            console.log("updateWithObservationScale", scale_obs);
+            logger.log("updateWithObservationScale", scale_obs);
 
             const icObj_active = this.getIcObjectForObservationScale(scale_obs);
 
@@ -28361,7 +28459,11 @@
           getIcObjectForObservationScale(scale_obs) {
             var outIcObj;
 
+            // logger.log("scale_obs.X",    scale_obs.X);
+            // logger.log("this.scale_toggle.X", this.scale_toggle.X);
+
             const isFar = scale_obs.X < this.scale_toggle.X && scale_obs.Y < this.scale_toggle.Y;
+            // logger.log("isFar", isFar);
 
             if(isFar) {
               outIcObj = this.icObj_front;
