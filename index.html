@@ -6670,8 +6670,10 @@
         return icComposite;
       }
 
-      createIcGMOperator_withType(trueRect, gmOperatorType) {
+      createIcGMOperator_withType(trueRect, gmOperatorType, cfg = {}) {
         console.log("createIcGMOperator_withType", trueRect, gmOperatorType);
+
+        const infiniteCanvas = this;
 
         function operatorConfigForType(gmOperatorType) {
 
@@ -7537,6 +7539,158 @@
 
 
 
+            //object transformations
+
+            case "o:clone":
+            {
+              const nb_clones = cfg.nb_clones;
+              // const nb_clones = 2;
+
+              const string__easy  = "clone" + "(" + cfg.nb_clones + ")";
+              operatorConfig.name = string__easy;
+
+              const icObjTransformationFunc = (icObj) => {
+                var transformationOutput;
+
+                logger.log("o:clone");
+
+                const arr_clone = [...Array(nb_clones).keys()].map((index) => {
+                  const icObj_clone = icObj.deepClone();
+                  const id__clone = infiniteCanvas.generateIcObjectId();
+                  icObj_clone.id = id__clone;
+
+                  icObj_clone.fill = "yellow";
+                  const width__icObj   = icObj.size.width;
+                  const width__spacing = 50;
+                  const offset__x      = index * (width__icObj + width__spacing);
+                  icObj_clone.position.x = icObj.position.x + offset__x;
+
+                  return icObj_clone;
+                });
+
+                const arr_icObj = [icObj, ...arr_clone];
+                // const arr_icObj = [icObj];
+                // const arr_icObj = arr_clone;
+                logger.log("arr_icObj", arr_icObj);
+
+                transformationOutput = new TransformationOutput("new", arr_icObj, icObj);
+
+                return transformationOutput;
+              };
+
+              operatorConfig.transformationFunc = icObjTransformationFunc;
+            }
+            break;
+
+            case "o:scale":
+            {
+              const string__mode_and_operation = cfg.mode + " " + cfg.operation;
+              // operatorConfig.name = gmOperatorType + "(" + string__mode_and_operation + ")";
+              operatorConfig.name = string__mode_and_operation;
+
+              const string__mode           = cfg.mode;
+              const string__operation      = cfg.operation;
+
+              function createMutationFunc(string__mode, string__operation) {
+                var outFunc;
+
+                //create a mathNode operator
+                const arr_components   = string__operation.split(" ");
+                const string__opSymbol = arr_components[0];
+                const string__operand  = arr_components[1];
+
+                const value__operand = Number(string__operand);
+                logger.log("value__operand", value__operand);
+
+                const op     = Operator.fromString_binary(string__opSymbol);
+                const node_b = new math.ConstantNode(value__operand);
+                // const node_b = math.parse(string__operand);
+                const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
+
+                outFunc = function(icObj) {
+                  var outIcObj;
+
+                  var mathNode__in;
+                  switch(string__mode) {
+                    case "horiz":
+                    mathNode__in = new math.ConstantNode(icObj.scale.X);
+                    break;
+                    case "vert":
+                    mathNode__in = new math.ConstantNode(icObj.scale.Y);
+                    break;
+                  }
+
+                  const mathNode__out = operatorNodeFuncWrapper.func(mathNode__in);
+                  logger.log("mathNode__out", mathNode__out);
+
+                  const value__out = mathNode__out.evaluate({});
+                  logger.log("value__out", value__out);
+
+                  outIcObj = icObj;
+
+                  switch(string__mode) {
+                    case "horiz":
+                    outIcObj.scale.X = value__out;
+                    break;
+                    case "vert":
+                    outIcObj.scale.Y = value__out;
+                    break;
+                  }
+
+                  return outIcObj;
+                };
+
+                return outFunc;
+              }
+
+              const icObjTransformationFunc = (icObj) => {
+                var transformationOutput;
+
+                if(icObj.type == "image") {
+
+                  const opString     = gmOperatorType;
+                  const mutationFunc = createMutationFunc(string__mode, string__operation);
+
+                  const icObj__mutated = mutationFunc(icObj);
+                  logger.log("icObj__mutated", icObj__mutated);
+
+                  transformationOutput = new TransformationOutput("mutated", icObj__mutated, icObj);
+
+                  // const icObj__new =
+                  // transformationOutput = new TransformationOutput("new", icObj__new, icObj);
+                } else {
+                  logger.log("icObj.type:", icObj.type);
+                  transformationOutput = new TransformationOutput("old", icObj, icObj);
+                }
+
+                return transformationOutput;
+              };
+
+              operatorConfig.transformationFunc = icObjTransformationFunc;
+            }
+            break;
+
+            case "o:ucscale":
+            {
+
+            }
+            break;
+
+            case "o:ucconvert":
+            {
+
+            }
+            break;
+
+
+
+
+            //image transformations
+            case "i:scale":   //== pxscale (mutate image bitmap)
+            {
+
+            }
+            break;
 
           }
 
@@ -10658,6 +10812,26 @@
 
         return outIcObj;
       }
+
+      scaledObject(icObj, mode, factor) {
+        var outIcObj;
+
+
+
+        return outIcObj;
+      }
+
+      unitCloneScaledObject(icObj, mode, factor) {
+        var outIcObj;
+
+
+
+
+        return outIcObj;
+      }
+
+
+
 
       createTypeDescription(arr_icObj) {
         var outTypeDesc = {};
@@ -14113,6 +14287,8 @@
                     addNew(icObj__new);
 
                   } else if(transformationOutput.value instanceof Array) {
+
+                    logger.log("transformationOutput.value instanceof Array");
 
                     transformationOutput.value.forEach((icObj__new, i) => {
                       addNew(icObj__new);
@@ -33529,8 +33705,10 @@
           // this.debug_simplify_litexp();
 
           // this.debug_edudemo_mario_and_mushrooms();
+          this.debug_clone();
+          // this.debug_unitCloneScale();
 
-          this.debug_slice_image();
+          // this.debug_slice_image();
         }
 
         debug1() {
@@ -35430,7 +35608,6 @@
               height: 200,
             };
             const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect_2, "simplify__topPriorityShell");
-            // conductiveOperator.zIndex = -50;
             infiniteCanvas.addIcObject(icGMOperator);
           }
 
@@ -35455,36 +35632,234 @@
 
         debug_edudemo_mario_and_mushrooms() {
 
-          //create operator simplify_fraction
+          //create image
           {
             const trueRect_2 = {
-              x: 2500,
-              y: 650,
-              width: 200,
-              height: 200,
-            };
-            const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect_2, "simplify__topPriorityShell");
-            // conductiveOperator.zIndex = -50;
-            infiniteCanvas.addIcObject(icGMOperator);
-          }
-
-          //mathNode1
-          {
-            const trueRect_1 = {
               x: 100,
               y: 300,
               width: 100,
               height: 100,
             };
 
-            const mathNode = math.parse("(((x + 1) * 2) / 3) / 2");
+            const img__file_p = FileIntegration.imageFromImgSrc_p("img/m&m/mario_standing__boxed.png");
+            const img_p = img__file_p;
 
-            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
-            icMathNode.isTouchable = true;
-            infiniteCanvas.addIcObject(icMathNode);
+            img_p.then(img => {
+              const icObj_front = infiniteCanvas.createIcImage(trueRect_2.x, trueRect_2.y, img);
+              icObj_front.isTouchable = true;
+
+              infiniteCanvas.addIcObject(icObj_front);
+            });
+          }
+
+          //create x2 vert operator
+          {
+            const trueRect = {
+              x: 500,
+              y: 1000,
+              width: 100,
+              height: 100,
+            };
+
+            const cfg = {
+              mode: "vert",
+              operation: "x 2",
+            };
+            const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect, "o:scale", cfg);
+            infiniteCanvas.addIcObject(icGMOperator);
+          }
+
+          //create /2 vert operator
+          {
+            const trueRect = {
+              x: 500,
+              y: 300,
+              width: 100,
+              height: 100,
+            };
+
+            const cfg = {
+              mode: "vert",
+              operation: "/ 2",
+            };
+            const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect, "o:scale", cfg);
+            infiniteCanvas.addIcObject(icGMOperator);
+          }
+
+
+          //create x2 horiz operator
+          {
+            const trueRect = {
+              x: 1300,
+              y: 1000,
+              width: 100,
+              height: 100,
+            };
+
+            const cfg = {
+              mode: "horiz",
+              operation: "x 2",
+            };
+            const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect, "o:scale", cfg);
+            infiniteCanvas.addIcObject(icGMOperator);
+          }
+
+          //create /2 horiz operator
+          {
+            const trueRect = {
+              x: 1300,
+              y: 300,
+              width: 100,
+              height: 100,
+            };
+
+            const cfg = {
+              mode: "horiz",
+              operation: "/ 2",
+            };
+            const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect, "o:scale", cfg);
+            infiniteCanvas.addIcObject(icGMOperator);
+          }
+
+
+        }
+
+        debug_clone() {
+
+          //create rect
+          {
+            const trueRect = {
+              x: 100,
+              y: 300,
+              width: 100,
+              height: 100,
+            };
+            const icObj = infiniteCanvas.createIcRect(trueRect);
+            icObj.fill = "magenta";
+            icObj.isTouchable = true;
+
+            infiniteCanvas.addIcObject(icObj);
+          }
+
+          //create clone operator
+          {
+            const trueRect = {
+              x: 500,
+              y: 1000,
+              width: 100,
+              height: 100,
+            };
+
+            const cfg = {
+              nb_clones: 1,
+            };
+            const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect, "o:clone", cfg);
+            infiniteCanvas.addIcObject(icGMOperator);
           }
 
         }
+
+        debug_unitCloneScale() {
+
+          //create image
+          {
+            const trueRect_2 = {
+              x: -100,
+              y: 300,
+              width: 100,
+              height: 100,
+            };
+
+            const img__file_p = FileIntegration.imageFromImgSrc_p("img/m&m/mario_standing__boxed.png");
+            const img_p = img__file_p;
+
+            img_p.then(img => {
+              const icObj_front = infiniteCanvas.createIcImage(trueRect_2.x, trueRect_2.y, img);
+              icObj_front.isTouchable = true;
+
+              infiniteCanvas.addIcObject(icObj_front);
+            });
+          }
+
+          //create x3.77 horiz operator
+          {
+            const trueRect = {
+              x: 500,
+              y: 1000,
+              width: 100,
+              height: 100,
+            };
+
+            const cfg = {
+              mode: "horiz",
+              operation: "x 3.77",
+            };
+            const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect, "o:ucscale", cfg);
+
+            // conductiveOperator.zIndex = -50;
+            infiniteCanvas.addIcObject(icGMOperator);
+          }
+
+          //create /3.77 horiz operator
+          {
+            const trueRect = {
+              x: 500,
+              y: 300,
+              width: 100,
+              height: 100,
+            };
+
+            const cfg = {
+              mode: "horiz",
+              operation: "/ 3.77",
+            };
+            const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect, "o:ucscale", cfg);
+
+            // conductiveOperator.zIndex = -50;
+            infiniteCanvas.addIcObject(icGMOperator);
+          }
+
+
+          //create x(-1.59) vert operator
+          {
+            const trueRect = {
+              x: 1300,
+              y: 1000,
+              width: 100,
+              height: 100,
+            };
+
+            const cfg = {
+              mode: "vert",
+              operation: "x (-1.59)",
+            };
+            const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect, "o:ucscale", cfg);
+            // conductiveOperator.zIndex = -50;
+            infiniteCanvas.addIcObject(icGMOperator);
+          }
+
+          //create /(-1.59) vert operator
+          {
+            const trueRect = {
+              x: 1300,
+              y: 300,
+              width: 100,
+              height: 100,
+            };
+
+            const cfg = {
+              mode: "vert",
+              operation: "/ (-1.59)",
+            };
+            const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect, "o:ucscale", cfg);
+
+            // conductiveOperator.zIndex = -50;
+            infiniteCanvas.addIcObject(icGMOperator);
+          }
+
+
+        }
+
 
         debug_slice_image() {
 
@@ -35521,11 +35896,11 @@
       }
 
     </script>
-    <!-- <script>
+    <script>
       setTimeout(() => {    //SHU: wait for mathjax to finish loading
         const atelier__X_X = new Atelier__X_X(infiniteCanvas);          //atelier
       }, 1000);
-    </script> -->
+    </script>
 
 
 
