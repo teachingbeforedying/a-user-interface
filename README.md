@@ -15,7 +15,7 @@ Math objects
 ...and many others, scattered here and there    
 
 ## Video
-https://tube.nocturlab.fr/videos/watch/eb01a9d6-8786-48e3-8035-4add6ec17cce
+https://tube.nocturlab.fr/videos/watch/playlist/285cab9f-8601-439b-aa6d-15ad3a4f23a7?playlistPosition=1     
 
 ## Try it !
 1. Download project : [Code] (green button) > [Download ZIP]  
@@ -23,6 +23,8 @@ https://tube.nocturlab.fr/videos/watch/eb01a9d6-8786-48e3-8035-4add6ec17cce
 (3. Mess around with objects and keyboard shortcuts)
 
 ## Vision
+The vision is to create a galaxy of interactive objects to teach/learn differently.    
+
 A ton of ideas still remain in ![still_shute](./still_shute.txt)    
 Some are written in English and some in French.     
 Ideas rating: from *** (very good idea) to * (nice idea)  
@@ -38,4 +40,4 @@ Ideas rating: from *** (very good idea) to * (nice idea)
 3 tabs in Atom:   
 programmashute: day-to-day low-level technical issues and progresses  
 index.html:     code  
-still_shute:    "ideas worth coding"  
+![still_shute](./still_shute.txt):    "ideas worth coding"  
