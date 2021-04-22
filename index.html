@@ -7085,6 +7085,42 @@
             }
             break;
 
+            case "simplify:force":
+            {
+              operatorConfig.name = "simplify";
+
+              const icObjTransformationFunc = (icObj) => {
+                var transformationOutput;
+
+                if(icObj.type == "mathNode") {
+                  const x = icObj.position.x;
+                  const y = icObj.position.y;
+
+                  const mathNode__in = icObj.mathNode;
+
+                  const mathNode__clone = mathNode__in.cloneDeep();
+                  // logger.log("mathNode__clone", mathNode__clone);
+
+                  const value__out = mathNode__clone.evaluate({});
+                  // logger.log("value__out", value__out);
+                  const mathNode__out = math.parse(value__out);
+
+                  const icObj__new = infiniteCanvas.createIcMathNode(x,y,mathNode__out);
+                  icObj__new.isTouchable = true;
+
+                  transformationOutput = new TransformationOutput("new", icObj__new, icObj);
+                } else {
+                  logger.log("icObj.type:", icObj.type);
+                  transformationOutput = new TransformationOutput("old", icObj, icObj);
+                }
+
+                return transformationOutput;
+              };
+
+              operatorConfig.transformationFunc = icObjTransformationFunc;
+            }
+            break;
+
 
 
             case "split__top_layer":
@@ -7112,7 +7148,6 @@
               };
 
               const icObjTransformationFunc = (icObj) => {
-                var outIcObj;
 
                 logger.log("icObj.mathNode", icObj.mathNode);
                 const arr_mathNodes = transformationFunc(icObj.mathNode);
@@ -7315,7 +7350,7 @@
 
             case "morpher__math_to_text":
             {
-              operatorConfig.name = "morph: m→t";
+              operatorConfig.name = "morph: math→text";
 
               const icObjTransformationFunc = (icObj) => {
                 var transformationOutput;
@@ -7340,7 +7375,7 @@
 
             case "morpher__text_to_math":
             {
-              operatorConfig.name = "morph: t→m";
+              operatorConfig.name = "morph: text→math";
 
               const icObjTransformationFunc = (icObj) => {
                 var transformationOutput;
@@ -7348,7 +7383,10 @@
                 if(icObj.type == "text") {
                   const x = icObj.position.x;
                   const y = icObj.position.y;
+
                   const mathNode = math.parse(icObj.text);
+                  mathNode.autoSimplify = true;
+
                   const icObj__new = infiniteCanvas.createIcMathNode(x,y,mathNode);
                   transformationOutput = new TransformationOutput("new", icObj__new, icObj);
                 } else {
@@ -7689,6 +7727,55 @@
             case "i:scale":   //== pxscale (mutate image bitmap)
             {
 
+            }
+            break;
+
+
+            //text transformations
+            case "t:append":
+            {
+              const string__ingredient = cfg.text;
+
+              const string__mode_and_operation = cfg.mode + " " + cfg.operation;
+              // operatorConfig.name = gmOperatorType + "(" + string__mode_and_operation + ")";
+              operatorConfig.name = "append(" + "\"" + string__ingredient + "\"" + ")";
+
+              function createMutationFunc(string__ingredient) {
+                var outFunc;
+
+                outFunc = function(icObj) {
+                  var outIcObj;
+
+                  outIcObj = icObj;
+                  outIcObj.text = outIcObj.text + string__ingredient;
+
+                  return outIcObj;
+                };
+
+                return outFunc;
+              }
+
+              const icObjTransformationFunc = (icObj) => {
+                var transformationOutput;
+
+                if(icObj.type == "text") {
+
+                  const mutationFunc = createMutationFunc(string__ingredient);
+
+                  const icObj__mutated = mutationFunc(icObj);
+                  logger.log("icObj__mutated", icObj__mutated);
+
+                  transformationOutput = new TransformationOutput("mutated", icObj__mutated, icObj);
+
+                } else {
+                  logger.log("icObj.type:", icObj.type);
+                  transformationOutput = new TransformationOutput("old", icObj, icObj);
+                }
+
+                return transformationOutput;
+              };
+
+              operatorConfig.transformationFunc = icObjTransformationFunc;
             }
             break;
 
@@ -33704,8 +33791,8 @@
 
           // this.debug_simplify_litexp();
 
-          // this.debug_edudemo_mario_and_mushrooms();
-          this.debug_clone();
+          this.debug_edudemo_mario_and_mushrooms();
+          // this.debug_clone();
           // this.debug_unitCloneScale();
 
           // this.debug_slice_image();
@@ -34128,7 +34215,7 @@
               width: 100,
               height: 100,
             };
-            const mathNode = new math.SymbolNode("12");
+            const mathNode = new math.ConstantNode(9);
             const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
             icMathNode.isTouchable = true;
             infiniteCanvas.addIcObject(icMathNode);
@@ -34138,8 +34225,8 @@
           //create morpher
           {
             const trueRect_2 = {
-              x: 1000,
-              y: 500,
+              x: 1500,
+              y: 100,
               width: 100,
               height: 100,
             };
@@ -34148,12 +34235,47 @@
           }
           {
             const trueRect_3 = {
-              x: 1000,
-              y: 800,
+              x: 1500,
+              y: 600,
               width: 100,
               height: 100,
             };
             const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect_3, "morpher__text_to_math");
+            infiniteCanvas.addIcObject(gmOperator);
+          }
+
+          //create operators
+          {
+            const trueRect_2 = {
+              x: 1500,
+              y: 300,
+              width: 100,
+              height: 100,
+            };
+            const cfg__op = {
+              text: "123",
+            };
+            const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect_2, "t:append", cfg__op);
+            infiniteCanvas.addIcObject(gmOperator);
+          }
+          {
+            const trueRect_2 = {
+              x: 1500,
+              y: 800,
+              width: 100,
+              height: 100,
+            };
+            const gmOperator = infiniteCanvas.createIcGMOperator(trueRect_2, "× 10");
+            infiniteCanvas.addIcObject(gmOperator);
+          }
+          {
+            const trueRect_2 = {
+              x: 1500,
+              y: 1000,
+              width: 100,
+              height: 100,
+            };
+            const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect_2, "simplify:force");
             infiniteCanvas.addIcObject(gmOperator);
           }
 
@@ -34191,7 +34313,7 @@
           infiniteCanvas.addIcObject(icExoSkeleton);
 
 
-          //create morpher
+          //create operator
           {
             const trueRect_2 = {
               x: 1000,
@@ -34319,7 +34441,7 @@
           }
 
 
-          //create morpher
+          //create operator
           {
             const trueRect_2 = {
               x: 1000,
@@ -34373,7 +34495,7 @@
           }
 
 
-          //create morpher
+          //create operator
           {
             const trueRect_2 = {
               x: 1000,
@@ -34426,7 +34548,7 @@
           }
 
 
-          //create morpher
+          //create operator
           {
             const trueRect_2 = {
               x: 1000,
@@ -34466,7 +34588,7 @@
           }
 
 
-          //create morpher
+          //create operator
           {
             const trueRect_2 = {
               x: 1000,
