@@ -25122,6 +25122,7 @@
 
           document.onpaste = function(event) {
             logger.log("onpaste", "event", event);
+
             clipboardIntegration.rx_outerPaste.next(event);
           };
 
@@ -25655,22 +25656,36 @@
           const rx_outerPaste = new Subject();
           this.rx_outerPaste  = rx_outerPaste;
 
+          const timestamp__start = Date.now();
+
           const clipboardIntegration = this;
           // const rx_mixedPaste = Rx.combineLatest(rx_outerPaste, rx_innerCopy)
           const rx_mixedPaste = rx_outerPaste.pipe(Rx_operators.withLatestFrom(rx_innerCopy))
-            .pipe(Rx_operators.map(([clipboardEvent, innerCopyEvent]) => {
-              var outVal;
+            // .pipe(Rx_operators.map(([clipboardEvent, innerCopyEvent]) => {
+              // var outVal;
+            .pipe(Rx_operators.mergeMap(([outerPasteEvent, innerCopyEvent]) => {
+
+              var out_p;
+              var outObservable;
 
               console.log("rx_mixedPaste");
-              console.log("clipboardEvent", clipboardEvent);
-              console.log("innerCopyEvent", innerCopyEvent);
+              console.log("outerPasteEvent", outerPasteEvent);
+              console.log("innerCopyEvent",  innerCopyEvent);
 
-              const timestamp_outer = clipboardEvent.timeStamp;
-              const timestamp_inner = Date.now() - innerCopyEvent.timestamp;
-              console.log("timestamp_outer", timestamp_outer);
-              console.log("timestamp_inner", timestamp_inner);
+              const timestamp_outerPaste = outerPasteEvent.timeStamp;
+              const timestamp_innerCopy  = innerCopyEvent.timestamp - timestamp__start;
 
-              if(timestamp_inner < timestamp_outer) {
+              logger.log("timestamp_outerPaste", timestamp_outerPaste);
+              logger.log("timestamp_innerCopy",  timestamp_innerCopy);
+
+              // const isInnerMostRecent = timestamp_inner > timestamp_outer;
+
+                //SHU: ok, so i am not able to get "outerCopyEvent.timestamp"
+                //so i'll do a workaround
+              const isInnerMostRecent = timestamp_outerPaste - timestamp_innerCopy < 5000;       //SHU: you have 5 seconds to inner paste after inner copying
+              logger.log("isInnerMostRecent", isInnerMostRecent);
+
+              if(isInnerMostRecent) {
                 const icObj = innerCopyEvent.clipboardObject.content;
                 icObj.id += 1000;
 
@@ -25684,14 +25699,46 @@
                 clipboardIntegration.manageInnerCopy("fabric.general", cloned);
                 //}
 
-                outVal = icObj;
+                // outVal = icObj;
+                out_p = Promise.resolve(icObj);
 
               } else {
-                logger.log("timestamp_inner >= timestamp_outer");
-                outVal = clipboardIntegration.outerToInner(clipboardEvent);
+                out_p = clipboardIntegration.outerToInner_p(outerPasteEvent);
+
+                //inner to ic
+                // const infiniteCanvas = this.infiniteCanvas;
+
+                out_p = out_p.then(content => {
+                  var outIcObj;
+
+                  logger.log("content", content);
+
+                  const true_cursor = infiniteCanvas.getTrueCursor();
+                  const trueRect = {
+                    x:        true_cursor.x,
+                    y:        true_cursor.y,
+                    width:  100,
+                    height: 100,
+                  };
+
+                  if(typeof content == "string") {
+                    const text = content;
+                    outIcObj = infiniteCanvas.createIcText(trueRect.x, trueRect.y, text);
+                  } else if(content instanceof Image) {
+                    const img = content;
+                    outIcObj = infiniteCanvas.createIcImage(trueRect.x, trueRect.y, img);
+                  } else {
+                    outIcObj = infiniteCanvas.createIcRect(trueRect);
+                  }
+
+                  return outIcObj;
+                });
               }
 
-              return outVal;
+              // return outVal;
+              // return out_p;
+              outObservable = Rx.from(out_p);
+              return outObservable;
             }));
 
           this.rx_mixedPaste = rx_mixedPaste;
@@ -25820,34 +25867,37 @@
 
         }
 
-        manageOuterPaste(clipboardEvent) {
-          this.rx_outerPaste.next(clipboardEvent);
-        }
+        // manageOuterPaste(clipboardEvent) {
+        //   this.rx_outerPaste.next(clipboardEvent);
+        // }
 
-        outerToInner(clipboardEvent) {
+        outerToInner_p(clipboardEvent) {
+          var out_p;
+          logger.log("outerToInner_p, clipboardEvent");
 
           // get text representation of clipboard
           var text = (clipboardEvent.originalEvent || clipboardEvent).clipboardData.getData('text/plain');
           if(text) {
             logger.log("text", text);
-            fileIntegration.onPasteTextListeners.forEach((listener, i) => {
-              listener(text);
-            });
+            // fileIntegration.onPasteTextListeners.forEach((listener, i) => {
+            //   listener(text);
+            // });
+            out_p = Promise.resolve(text);
           } else {
             logger.log("not a text");
 
+            out_p =
             FileIntegration.getPastedFile_p(clipboardEvent)
-            .then(FileIntegration.createImage_p)
-            .then(img => {
-              fileIntegration.onPasteImageListeners.forEach((listener, i) => {
-                listener(img);
-              });
-            });
+            .then(FileIntegration.createImage_p);
+            // .then(img => {
+            //   fileIntegration.onPasteImageListeners.forEach((listener, i) => {
+            //     listener(img);
+            //   });
+            // });
 
           }
 
-          return
-
+          return out_p;
         }
 
         innerToOuter(icObj) {
@@ -27402,9 +27452,12 @@
       const infiniteCanvas      = new InfiniteCanvas(canvas, inputProperties);
       clipboardIntegration.rx_mixedPaste.subscribe({
         next: (icObj) => {
-          console.log("rx_mixedPaste, next:", icObj);
+          logger.log("rx_mixedPaste, next:", icObj);
           infiniteCanvas.addPastedIcObject(icObj);
         },
+        error: (e) => {
+          logger.log("rx_mixedPaste, error:", e);
+        }
       });
 
 
