@@ -1,4 +1,4 @@
-![Logo](./ic_better_logo2.png)
+![Logo](./img/ic_better_logo2.png)
 
 ## About
 Infinite whiteboard with interactive elements.   
