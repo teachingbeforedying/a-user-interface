@@ -20,7 +20,10 @@ https://tube.nocturlab.fr/videos/watch/playlist/285cab9f-8601-439b-aa6d-15ad3a4f
 ## Try it !
 1. Download project : [Code] (green button) > [Download ZIP]  
 2. Open index.html  
-(3. Mess around with objects and keyboard shortcuts)
+(3. Mess around with objects and keyboard shortcuts)   
+   
+For math stuff: go to /challenges/maths and open *.html   
+<br/>
 
 ## Vision
 The vision is to create a galaxy of interactive objects to teach/learn differently.    
