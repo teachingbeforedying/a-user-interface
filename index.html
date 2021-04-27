@@ -7629,7 +7629,8 @@
               const string__mode           = cfg.mode;
               const string__operation      = cfg.operation;
 
-              function createMutationFunc(string__mode, string__operation) {
+              function createStandardTransformationFunc(string__mode, string__operation) {
+
                 var outFunc;
 
                 //create a mathNode operator
@@ -7664,16 +7665,23 @@
                   const value__out = mathNode__out.evaluate({});
                   logger.log("value__out", value__out);
 
-                  outIcObj = icObj;
+
+
+                  const icObj_clone = icObj.deepClone();
+                  const id__clone = infiniteCanvas.generateIcObjectId();
+                  icObj_clone.id = id__clone;
 
                   switch(string__mode) {
                     case "horiz":
-                    outIcObj.scale.X = value__out;
+                    icObj_clone.scale.X = value__out;
                     break;
                     case "vert":
-                    outIcObj.scale.Y = value__out;
+                    icObj_clone.scale.Y = value__out;
                     break;
                   }
+
+
+                  outIcObj = icObj_clone;    //shu: return functional(my life)
 
                   return outIcObj;
                 };
@@ -7681,24 +7689,49 @@
                 return outFunc;
               }
 
-              const icObjTransformationFunc = (icObj) => {
+              function icObjTransformationFunc(icObj) {
                 var transformationOutput;
 
-                if(icObj.type == "image") {
+                logger.log("o:scale", "icObjTransformationFunc", "icObj.type", icObj.type);
+                switch(icObj.type) {
+                  case "composite":
+                  {
+                    const arr_entry__part_mutated = Object.entries(icObj.parts).map(([partName, icObj__part]) => {
+                      const transformationOutput__part = icObjTransformationFunc(icObj__part);
+                      const icObj__part__transformed = transformationOutput__part.value;
+                      return [partName, icObj__part__transformed];
+                    });
 
-                  const opString     = gmOperatorType;
-                  const mutationFunc = createMutationFunc(string__mode, string__operation);
+                    const parts__mutated = Object.fromEntries(arr_entry__part_mutated);
+                    logger.log("parts__mutated", parts__mutated);
 
-                  const icObj__mutated = mutationFunc(icObj);
-                  logger.log("icObj__mutated", icObj__mutated);
 
-                  transformationOutput = new TransformationOutput("mutated", icObj__mutated, icObj);
+                    // const icObj__new = icObj.deepClone();
+                    // icObj__new.parts = parts__mutated;
 
-                  // const icObj__new =
-                  // transformationOutput = new TransformationOutput("new", icObj__new, icObj);
-                } else {
-                  logger.log("icObj.type:", icObj.type);
-                  transformationOutput = new TransformationOutput("old", icObj, icObj);
+                    const compositeConfig  = Compositer.defaultCompositeConfig(parts__mutated, true);
+                    const icComposite__new = infiniteCanvas.createIcComposite(trueRect, parts__mutated, compositeConfig);
+                    const icObj__new       = icComposite__new;
+
+                    transformationOutput = new TransformationOutput("new", icObj__new, icObj);
+                  }
+                  break;
+                  default:
+                  {
+                    const opString              = gmOperatorType;
+                    const stdTransformationFunc = createStandardTransformationFunc(string__mode, string__operation);
+
+                    const icObj__new = stdTransformationFunc(icObj);
+                    logger.log("icObj__new", icObj__new);
+
+                    transformationOutput = new TransformationOutput("new", icObj__new, icObj);
+                  }
+                  // {
+                  //   logger.log("icObj.type:", icObj.type);
+                  //   transformationOutput = new TransformationOutput("old", icObj, icObj);
+                  // }
+                  break;
+
                 }
 
                 return transformationOutput;
@@ -10938,7 +10971,8 @@
         return outTypeDesc;
       }
 
-      operateOnActiveObject__executeScript() {
+
+      getActiveObject() {
         const infiniteCanvas = this;
 
         //get supervessel
@@ -10952,7 +10986,16 @@
           return;
         }
 
-        const icObj    = arr_cargo.find(e => true);
+        const icObj = arr_cargo.find(e => true);
+
+        return icObj;
+      }
+
+      operateOnActiveObject__executeScript() {
+        const infiniteCanvas = this;
+
+        const icObj = infiniteCanvas.getActiveObject();
+
         const isIcText = icObj.type == "text";
         if(isIcText) {
           const icText = icObj;
@@ -11017,6 +11060,49 @@
         }
 
         return transformationOutput;
+      }
+
+
+      operateOnActiveObject__toggleProperty(propName) {
+
+        const infiniteCanvas = this;
+
+        const icObj = infiniteCanvas.getActiveObject();
+
+        const value = icObj[propName];
+        if(value != null) {
+          if(typeof value == "boolean") {
+            icObj[propName] = !value;
+          } else {
+            throw new Error("icObj[propName] is not boolean");
+          }
+        } else {
+          throw new Error("icObj[propName] == null");
+        }
+
+      }
+
+      operateOnActiveObject__poopSameHomeScaleClone() {
+        const infiniteCanvas = this;
+
+        const icObj__mould = infiniteCanvas.getActiveObject();
+
+        const icObj__clone = icObj__mould.deepClone();
+        const id__clone = infiniteCanvas.generateIcObjectId();
+        icObj__clone.id = id__clone;
+
+        icObj__clone.position = Object.assign({}, icObj__mould.position);
+        icObj__clone.position.x = icObj__clone.position.x * 1.10;
+        icObj__clone.position.y = icObj__clone.position.y * 1.10;
+
+        infiniteCanvas.onceOnAddRepresentedForIcObject(icObj__clone, (icObj__clone) => {
+          const rep_free__clone = infiniteCanvas.getRepresented(icObj__clone.id).r_free();
+          rep_free__clone.homeScale = Object.assign({}, icObj__mould.homeScale);
+
+          logger.log("rep_free__clone.id", rep_free__clone.id);
+        });
+
+        infiniteCanvas.addIcObject(icObj__clone);
       }
 
 
@@ -13075,7 +13161,7 @@
           Y: this.homeScale.Y,
         };
 
-        const icObj_clone = new IcObject(id, type, position, size, homeScale);
+        const icObj__deepClone = new IcObject(id, type, position, size, homeScale);
 
         // Object.entries(this).forEach(([key, value], i) => {
         //   // if(icObj_clone[key] == null) {
@@ -13100,14 +13186,44 @@
         })
         .forEach(([key, value], i) => {
           // if(icObj_clone[key] == null) {
-            // const valueDeepCopy = JSON.parse(JSON.stringify(value));
-            // icObj_clone[key] = valueDeepCopy;
-            const valueCopy  = value;
-            icObj_clone[key] = valueCopy;
+          // const valueDeepCopy = JSON.parse(JSON.stringify(value));
+          // icObj_clone[key] = valueDeepCopy;
           // }
+          logger.log("deepClone", key, value);
+
+          switch(key) {
+            case "scale":
+            {
+              const scale = value;
+              const scale__deepClone = Object.assign({}, scale);
+              icObj__deepClone[key] = scale__deepClone;
+            }
+            break;
+            case "img":
+            {
+              const img = value;
+              const img__deepClone = img.cloneNode(true);
+              icObj__deepClone[key] = img__deepClone;
+            }
+            break;
+            case "mathNode":
+            {
+              const mathNode = value;
+              const mathNode__deepClone = mathNode.cloneDeep();
+              icObj__deepClone[key] = mathNode__deepClone;
+            }
+            break;
+            default:
+            {
+              const valueCopy  = value;
+              icObj__deepClone[key] = valueCopy;
+            }
+            break;
+          }
+
         });
 
-        return icObj_clone;
+        return icObj__deepClone;
       }
 
 
@@ -14360,19 +14476,34 @@
                   rep_free__supervessel.engine.awoken.removePart(icObj__touched);
 
                   //remove old
+                  function removeOld(icObj__old)
                   {
                     // infiniteCanvas.removeIcObject(icObj__touched);
-                    icObj__touched.im_dying_now = true;
+                    switch(icObj__old.type) {
+                      case "composite":
+                      {
+                        Object.entries(icObj__old.parts).forEach(([partName, icObj__part], i) => {
+                          icObj__old.engine.awoken.removePart(icObj__part);
+                          icObj__part.im_dying_now = true;
+                        });
+                      }
+                      break;
+                      default:
+                        break;
+                    }
+
+                    icObj__old.im_dying_now = true;
                   }
 
-                  //add new
+                  removeOld(icObj__touched);
 
+                  //add new
                   function addNew(icObj__new) {
                     icObj__new.isTouchable = true;
                     icObj__new.touchStateDict[icObj_slot.id] = TouchState.Touched;
                     if(icObj__new.type == "composite") {
-                      icObj__new.parts.forEach((part, i) => {
-                        part.touchStateDict[icObj_slot.id] = TouchState.Touched;
+                      Object.entries(icObj__new.parts).forEach(([partName, icObj__part], i) => {
+                        icObj__part.touchStateDict[icObj_slot.id] = TouchState.Touched;
                       });
                     }
 
@@ -14617,7 +14748,7 @@
           // this.r_official_update_handler2 = (rep_official_incoming, outerUpdatesDict) => {
           this.r_official_update_handler2 = function(rep_official_incoming, outerUpdatesDict) {   //SHU: when using func.bind(myObj), be sure not to use arrow functions
 
-            logger.log("r_official_update_handler2", rep_official_incoming);
+            // logger.log("r_official_update_handler2", rep_official_incoming);
 
             // console.log("engine::r_official_update_handler2, this", this);
             // console.log("this.scopeObj", this.scopeObj);
@@ -15079,7 +15210,7 @@
           // this.r_official_update_handler = (icObj_slot, icObj_piece, outerUpdatesDict) => {
           this.r_official_update_handler = function(icObj_slot, icObj_piece, outerUpdatesDict) {
 
-            logger.log("r_official_update_handler", icObj_piece);
+            // logger.log("r_official_update_handler", icObj_piece);
 
             const touchState = icObj_piece.touchStateDict[icObj_slot.id];
             logger.log("touchState", touchState);
@@ -15106,7 +15237,7 @@
             if(outerUpdatesDict.isHeld == null || outerUpdatesDict.isHeld.new == true) {    //this line filters out anything but drop, be it inside or outside
               return;
             } else {
-              logger.log("r_official_update_handler2", rep_official_incoming, outerUpdatesDict);
+              // logger.log("r_official_update_handler2", rep_official_incoming, outerUpdatesDict);
             }
 
             // console.log("engine::r_official_update_handler2, this", this);
@@ -15608,7 +15739,7 @@
           };
 
           this.r_official_update_handler2 = function(rep_official_incoming, outerUpdatesDict) {
-            console.log("r_official_update_handler2", rep_official_incoming);
+            // console.log("r_official_update_handler2", rep_official_incoming);
 
             const infiniteCanvas = this.scopeObj.infiniteCanvas;
             const icSnapSlot     = this.scopeObj.engineCarrier;
@@ -17344,9 +17475,9 @@
             // backgroundColor: 'rgb(100,200,100)',
             // backgroundColor: 'rgb(100,100,100)',
             // backgroundColor: 'rgb(200,200,200)',      //it is important to choose a nice bgColor to stay motivated during dev
-            backgroundColor: 'rgb(210,240,240)',
+            // backgroundColor: 'rgb(210,240,240)',
             // backgroundColor: 'rgb(100,100,100)',
-            // backgroundColor: 'rgb(255,255,255)',
+            backgroundColor: 'rgb(255,255,255)',
 
 
 
@@ -20524,15 +20655,16 @@
 
         addInteraction_resize2(fObj) {
 
-          const infiniteCanvas = this.infiniteCanvas;
-          const fabricCanvas   = this.fabricCanvas;
+          const fabricIntegration = this;
+
+          const infiniteCanvas = fabricIntegration.infiniteCanvas;
+          const fabricCanvas   = fabricIntegration.fabricCanvas;
 
           var isScaling = false;
           var original_homeScale = null;
           var original_scale     = null;
-          fObj.on('scaling', function(options) {
-            console.log("scaling", "options", options);
 
+          function doResize(fObj, options) {
 
             const original = options.transform.original;
             const target   = options.transform.target;
@@ -20544,8 +20676,6 @@
 
               isScaling = true;
             }
-
-
 
             const scaleFactorX = target.scaleX / original.scaleX;
             const scaleFactorY = target.scaleY / original.scaleY;
@@ -20710,8 +20840,25 @@
 
             }
 
+          }
 
+          const icObj = fObj.icObj;
 
+          fObj.on('scaling', function(options) {
+            console.log("scaling", "options", options);
+
+            switch(icObj.type) {
+              case "composite":
+                doResize(fObj, options);
+                Object.values(icObj.parts).forEach((icObj__part, i) => {
+                  const fObj__part = fabricIntegration.getFObjForIcObj(icObj__part);
+                  doResize(fObj__part, options);
+                });
+              break;
+              default:
+                doResize(fObj, options);
+              break;
+            }
 
           });
           fObj.on('scaled', function(options) {
@@ -22860,6 +23007,12 @@
 
           function deleteFObj(fObj_to_delete) {
             const icObj = fObj_to_delete.icObj;
+
+            if(icObj.isSupervessel) {
+              //ignore
+              return;
+            }
+
             icObj.delete_p()
             .then(() => {
               fabricIntegration.removeFabricObject(fObj_to_delete);
@@ -23150,7 +23303,17 @@
 
 
 
+        getFObjForIcObj(icObj) {
+          const fObj = this.fObjForIcObj_dict[icObj.id];
 
+          if(!fObj) {
+            console.log("icObj", icObj);
+            console.log("this.fObjForIcObj_dict", this.fObjForIcObj_dict);
+            throw new Error("fObj not found for icObj.id: "+ icObj.id);
+          }
+
+          return fObj;
+        }
 
 
 
@@ -23162,17 +23325,7 @@
         //   // this.fabricCanvas.renderAll();
         // }
         //
-        // getFObjForIcObj(icObj) {
-        //   const fObj = this.fObjForIcObj_dict[icObj.id];
-        //
-        //   if(!fObj) {
-        //     console.log("icObj", icObj);
-        //     console.log("this.fObjForIcObj_dict", this.fObjForIcObj_dict);
-        //     throw new Error("fObj not found for icObj.id: "+ icObj.id);
-        //   }
-        //
-        //   return fObj;
-        // }
+
         //
         // updateFObjWithIcObj(fObj, icObj) {
         //   logger.log("updateFObjWithIcObj", fObj, icObj);
@@ -26584,6 +26737,12 @@
                 }
                 break;
 
+              case "KeyX":
+                {
+                  keyboardIntegration.infiniteCanvas.operateOnActiveObject__poopSameHomeScaleClone();
+                }
+                break;
+
               case "KeyU":
                 {
                   // keyboardIntegration.infiniteCanvas.addNewTouchSlot();
@@ -26690,8 +26849,9 @@
                   // keyboardIntegration.infiniteCanvas.addNewTouchSlot();
                   // keyboardIntegration.infiniteCanvas.addNewGMTargetSlot();
 
-                  keyboardIntegration.infiniteCanvas.addNewGMTargetTouchSlot();
+                  // keyboardIntegration.infiniteCanvas.addNewGMTargetTouchSlot();
 
+                  keyboardIntegration.infiniteCanvas.operateOnActiveObject__toggleProperty("isTouchable");
                 }
               break;
 
@@ -35847,16 +36007,60 @@
               height: 100,
             };
 
+            const img__file_p = FileIntegration.imageFromImgSrc_p("img/m&m/peach_detouree_cellshadee.png");
+            const img_p = img__file_p;
+
+            img_p.then(img => {
+              const icObj_front = infiniteCanvas.createIcImage(trueRect_2.x, trueRect_2.y, img);
+              // icObj_front.scale.X = 1.5;
+              // icObj_front.scale.Y = 1.5;
+
+              icObj_front.isTouchable = false;
+
+              infiniteCanvas.addIcObject(icObj_front);
+            });
+          }
+
+
+          //create image
+          {
+            const trueRect_2 = {
+              x: 300,
+              y: 300,
+              width: 100,
+              height: 100,
+            };
+
             const img__file_p = FileIntegration.imageFromImgSrc_p("img/m&m/mario_standing__boxed.png");
             const img_p = img__file_p;
 
             img_p.then(img => {
               const icObj_front = infiniteCanvas.createIcImage(trueRect_2.x, trueRect_2.y, img);
-              icObj_front.isTouchable = true;
+              icObj_front.scale.X = 0.25;
+              icObj_front.scale.Y = 0.25;
+
+              icObj_front.isTouchable = false;
 
               infiniteCanvas.addIcObject(icObj_front);
             });
           }
+
+          //create rect
+          {
+            const trueRect_2 = {
+              x: 100,
+              y: 800,
+              width: 100,
+              height: 100,
+            };
+
+            const icObj_front = infiniteCanvas.createIcRect(trueRect_2);
+            icObj_front.isTouchable = false;
+            icObj_front.fill = "lightgreen";
+
+            infiniteCanvas.addIcObject(icObj_front);
+          }
+
 
           //create x2 vert operator
           {
