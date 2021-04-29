@@ -908,11 +908,9 @@
 
       class Operation {
 
-        constructor(operator, arr_rest) {
-
+        constructor(transformationFunc) {
+          this.transformationFunc = transformationFunc;
         }
-
-
 
       }
 
@@ -3321,8 +3319,6 @@
     </script>
 
 
-
-
     <!-- icObj transformation stuff -->
     <script>
       class Combiner {
@@ -5619,6 +5615,8 @@
           const transformationFunc__touch = (icObj) => {
             // const icObj__sadness = icObjToIcObjFunc(icObj);
 
+            logger.log("transformationFunc__touch", icObj);
+
             rep_free__platform.parts.terrace.engine.awoken.addPart(icObj);
 
             const transformationOutput = new TransformationOutput("displaced", icObj, icObj);
@@ -5915,6 +5913,94 @@
 
         return icFractionOneOperator;
       }
+
+
+
+
+      createIcConductiveCompositingOperator(trueRect) {
+        logger.log("createIcConductiveCompositingOperator", trueRect);
+
+        const icPlatform = infiniteCanvas.createIcPlatform(trueRect);
+        infiniteCanvas.addIcObject(icPlatform);                         //SHU: workaround.  One day, find out how to create fresh composite containing fresh composite
+
+        const touchSlotConfig = {
+          transformationFunc: function(icObj) {
+            // logger.log("transformationFunc, default", icObj);
+            return new TransformationOutput("mutated", icObj, icObj);
+            // return icObj;
+          },
+        };
+
+        const touchSlot    = infiniteCanvas.createIcTouchSlot(trueRect, touchSlotConfig);
+        touchSlot.fill     = "";
+        // touchSlot.isMobile = false;
+
+        const parts = {
+          "platform":       icPlatform,
+          "touchSlot":      touchSlot,
+        };
+
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+        const icComposite     = this.createIcComposite(trueRect, parts, compositeConfig);
+        icComposite.cType     = "conductive_compositing_operator";
+        // icComposite.isTouchable = false;
+
+
+        const icConductiveCompositingOperator = icComposite;
+
+        //rework
+        infiniteCanvas.onceOnAddRepresentedForIcObject(icConductiveCompositingOperator, (icConductiveCompositingOperator) => {
+
+          const rep_free__conductiveCompositingOperator = infiniteCanvas.getRepresented(icConductiveCompositingOperator.id).r_free();
+
+          const rep_free__touchSlot = rep_free__conductiveCompositingOperator.parts.touchSlot;
+
+          const transformationFunc = (icObj) => {
+            var transformationOutput;
+
+            logger.log("transformationFunc__touch", icObj);
+
+            const rep_free__platform = rep_free__conductiveCompositingOperator.parts.platform;
+            logger.log("rep_free__platform", rep_free__platform);
+
+            const dict__conducted_operators = rep_free__platform.parts.terrace.parts;
+            const arr__conducted_operators  = Object.values(dict__conducted_operators);
+
+            transformationOutput = new TransformationOutput("old", icObj, icObj);
+
+            if(arr__conducted_operators.length > 0) {
+
+              const arr__operations = arr__conducted_operators.map(icObj__operator => {
+                logger.log("icObj__operator", icObj__operator);
+                const operation = icObj__operator.operation;
+                return operation;
+              });
+
+              transformationOutput = arr__operations.reduce((acc, operation) => {
+                var transformationOutput__step;
+
+                logger.log("operation", operation);
+                const transformationOutput__previousStep = acc;
+                const input = transformationOutput__previousStep.value;
+
+                transformationOutput__step = operation.transformationFunc(input);
+
+                return transformationOutput__step;
+              }, transformationOutput);
+
+              logger.log("transformationOutput", transformationOutput);
+            }
+
+            return transformationOutput;
+          };
+
+          rep_free__touchSlot.touchSlotConfig.transformationFunc = transformationFunc;
+
+        });
+
+        return icConductiveCompositingOperator;
+      }
+
 
 
 
@@ -6664,6 +6750,9 @@
 
         const icComposite = this.createIcComposite(trueRect, parts, compositeConfig);
         icComposite.cType = "gm_operator";
+
+        const operation = new Operation(operatorConfig.transformationFunc);
+        icComposite.operation = operation;
 
         // icComposite.isTouchable = false;
 
@@ -7680,7 +7769,6 @@
                     break;
                   }
 
-
                   outIcObj = icObj_clone;    //shu: return functional(my life)
 
                   return outIcObj;
@@ -7812,6 +7900,49 @@
             }
             break;
 
+
+
+
+            //text transformations
+            case "comp":
+            {
+              const string__name  = cfg.name;
+              operatorConfig.name = string__name;
+
+              const dict_op_part = cfg.parts; //this dict contains Operation instances
+
+              switch(cfg.mode) {
+                case "sequential":
+                {
+                  const icObjTransformationFunc = (icObj) => {
+                    var transformationOutput;
+
+                    const transformationOutput__identity = new TransformationOutput("old", icObj, icObj);
+
+                    transformationOutput = Object.entries(dict_op_part).reduce((acc, [name__op_part, op_part]) => {
+                      var out;
+
+                      const input = acc.value;
+
+                      const transformationOutput__step = op_part.transformationFunc(input);
+
+                      return transformationOutput__step;
+                    }, transformationOutput__identity);
+
+                    return transformationOutput;
+                  };
+                }
+                break;
+                case "parallel":                  //SHU: for parallel operations, we need to promisify all this
+                throw new Error("parallel operations not supported yet");
+                break;
+              }
+
+              operatorConfig.transformationFunc = icObjTransformationFunc;
+            }
+            break;
+
+
           }
 
           return operatorConfig;
@@ -7848,6 +7979,11 @@
 
         return icComposite;
       }
+
+
+
+
+
 
       createIcGMOperator_editable(trueRect, text_in) {
         console.log("createIcGMOperator", trueRect, text_in);
@@ -14854,7 +14990,7 @@
 
 
           this.attemptTouching = function(icObj_slot, icObj_piece) {
-            logger.log("attemptTouching", icObj_slot, icObj_piece);
+            // logger.log("DropTouchSlotEngine::attemptTouching", icObj_slot, icObj_piece);
 
             const canTouch = this.checkCanTouch(icObj_slot, icObj_piece);
 
@@ -14885,7 +15021,7 @@
           };
 
           this.checkCanTouch = function(icObj_slot, icObj_piece) {
-            logger.log("checkCanTouch", icObj_piece);
+            // logger.log("DropTouchSlotEngine::checkCanTouch", icObj_piece);
             var outBool;
 
             // outBool = Touch.canTouch(icObj_piece, icObj_slot);
@@ -14904,7 +15040,7 @@
 
 
           this.touch = function(icObj_slot, icObj_piece) {
-            logger.log("touch", icObj_piece);
+            logger.log("DropTouchSlotEngine::touch", icObj_piece);
 
             const icTouchSlot = this.scopeObj.engineCarrier;
 
@@ -15213,7 +15349,7 @@
             // logger.log("r_official_update_handler", icObj_piece);
 
             const touchState = icObj_piece.touchStateDict[icObj_slot.id];
-            logger.log("touchState", touchState);
+            // logger.log("touchState", touchState);
 
             if(touchState == TouchState.Untouched) {
               this.attemptTouching(icObj_slot, icObj_piece);
@@ -17422,8 +17558,8 @@
           fabric.Object.prototype.padding     = 10;
 
 
-          // fabric.Rect.prototype.rx = 5;    //shuxylo
-          // fabric.Rect.prototype.ry = 5;
+          fabric.Rect.prototype.rx = 5;    //shuxylo
+          fabric.Rect.prototype.ry = 5;
 
 
           fabric.Object.prototype.getFObjZIndex = function() {
@@ -34028,6 +34164,8 @@
           // this.debug_fractionOne_operator();
           // this.debug_fractionOne_operator__showcase();
 
+          // this.debug_conductive_compositing();
+
           // this.debug__fraction_simplification__edudemo1();
           // this.debug__fraction_simplification__edudemo2();
           // this.debug_gmSafetyZone();
@@ -34043,7 +34181,7 @@
 
           // this.debug_simplify_litexp();
 
-          // this.debug_edudemo_mario_and_mushrooms();
+          // this.debug_edudemo_mario_and_mushrooms();    //mario
           // this.debug_clone();
           // this.debug_unitCloneScale();
 
@@ -35528,6 +35666,96 @@
         }
 
 
+        debug_conductive_compositing() {
+
+
+          //create conductiveCompositingOperator
+          {
+            const trueRect_2 = {
+              x: 1000,
+              y: 300,
+              width: 200,
+              height: 200,
+            };
+            const conductiveCompositingOperator = infiniteCanvas.createIcConductiveCompositingOperator(trueRect_2);
+            infiniteCanvas.addIcObject(conductiveCompositingOperator);
+          }
+
+
+
+
+          //create operator
+          {
+            const trueRect_2 = {
+              x: 1000,
+              y: 700,
+              width: 100,
+              height: 100,
+            };
+            const gmOperator = infiniteCanvas.createIcGMOperator(trueRect_2, "+ 1");
+            gmOperator.isTouchable = false;
+            Object.values(gmOperator.parts).forEach((icObj__part, i) => {
+              logger.log("icObj__part:", icObj__part);
+              icObj__part.isTouchable = false;
+            });
+
+            infiniteCanvas.addIcObject(gmOperator);
+          }
+
+          //create operator
+          {
+            const trueRect_2 = {
+              x: 1200,
+              y: 700,
+              width: 100,
+              height: 100,
+            };
+            const gmOperator = infiniteCanvas.createIcGMOperator(trueRect_2, "x 2");
+            infiniteCanvas.addIcObject(gmOperator);
+          }
+
+
+
+          // //create conductiveOperator
+          // {
+          //   const trueRect_2 = {
+          //     x: 1500,
+          //     y: 300,
+          //     width: 300,
+          //     height: 300,
+          //   };
+          //   const conductiveOperator = infiniteCanvas.createIcConductiveOperator(trueRect_2, "+");
+          //   // conductiveOperator.zIndex = -50;
+          //   infiniteCanvas.addIcObject(conductiveOperator);
+          // }
+
+
+
+          //mathNode2
+          {
+            const trueRect_2 = {
+              x: 500,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+
+            const mathNode = new math.ConstantNode(7);
+
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_2.x, trueRect_2.y, mathNode);
+            icMathNode.isTouchable = true;
+            infiniteCanvas.addIcObject(icMathNode);
+          }
+
+
+
+        }
+
+
+
+
+
+
         debug__fraction_simplification__edudemo1() {
 
           //create operator decomp:prpr
@@ -36141,6 +36369,76 @@
             infiniteCanvas.addIcObject(icGMOperator);
           }
 
+          //create /2 prop operator
+          {
+            const trueRect = {
+              x: 1800,
+              y: 300,
+              width: 100,
+              height: 100,
+            };
+
+            const cfg = {
+              mode: "prop",
+              operation: "/ 2",
+            };
+            const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect, "o:scale", cfg);
+            infiniteCanvas.addIcObject(icGMOperator);
+          }
+
+          //create x2 prop operator
+          {
+            const trueRect = {
+              x: 1800,
+              y: 1000,
+              width: 100,
+              height: 100,
+            };
+
+            const cfg = {
+              mode: "prop",
+              operation: "x 2",
+            };
+            const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect, "o:scale", cfg);
+            infiniteCanvas.addIcObject(icGMOperator);
+          }
+
+
+
+          //Thales
+          //create x1.37 vert operator
+          {
+            const trueRect = {
+              x: 500,
+              y: 2500,
+              width: 100,
+              height: 100,
+            };
+
+            const cfg = {
+              mode: "vert",
+              operation: "x 1.414",
+            };
+            const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect, "o:scale", cfg);
+            infiniteCanvas.addIcObject(icGMOperator);
+          }
+
+          //create x1.37 horiz operator
+          {
+            const trueRect = {
+              x: 1300,
+              y: 2500,
+              width: 100,
+              height: 100,
+            };
+
+            const cfg = {
+              mode: "horiz",
+              operation: "x 1.414",
+            };
+            const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect, "o:scale", cfg);
+            infiniteCanvas.addIcObject(icGMOperator);
+          }
 
         }
 
