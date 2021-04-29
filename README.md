@@ -10,7 +10,8 @@ Open for any kind of improvement, or degeneration.
 Infinite canvas: space is not constrained in width, height, or depth    
 Z-scroll: resize your elements in a blink   
 Z-index: bring this in front of that    
-Interactive objects (_Operators_)      
+Interactive objects     
+Operators      
 _Math objects_    
 _Composites_          
 ...and many others, scattered here and there    
