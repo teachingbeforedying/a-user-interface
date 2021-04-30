@@ -116,7 +116,7 @@
           constructor() {
             this.initialize();
 
-            // this.hush(this);
+            this.hush(this);
           }
 
           initialize() {
@@ -12332,7 +12332,8 @@
         this.scale       = json.scale;
         this.orientation = json.orientation;
 
-        this.counter = json.counter;
+        // this.counter = json.counter;
+        this.counter = Math.max(this.counter, json.counter);
 
         const infiniteCanvas = this;
 
@@ -21944,12 +21945,24 @@
         }
 
 
-        deselectAll() {
-          // this.fabricCanvas.deactivateAll();
+        selectAll() {
+          const fabricCanvas = this.fabricCanvas;
 
-          // this.fabricCanvas.discardActiveGroup();
-          this.fabricCanvas.discardActiveObject();
-          this.fabricCanvas.renderAll();
+          fabricCanvas.discardActiveObject();
+          const arr_affected = fabricCanvas.getObjects()
+                                           .filter(fObj => fObj.icObj.canBeSelected);
+          const sel = new fabric.ActiveSelection(arr_affected, {
+            canvas: canvas,
+          });
+          fabricCanvas.setActiveObject(sel);
+          fabricCanvas.requestRenderAll();
+        }
+
+        deselectAll() {
+          const fabricCanvas = this.fabricCanvas;
+
+          fabricCanvas.discardActiveObject();
+          fabricCanvas.renderAll();
         }
 
 
@@ -23141,42 +23154,60 @@
 
           const fObj = this.fabricCanvas.getActiveObject();
 
-          function deleteFObj(fObj_to_delete) {
-            const icObj = fObj_to_delete.icObj;
+          fabricIntegration.deleteGeneralFObj(fObj);
+        }
 
-            if(icObj.isSupervessel) {
-              //ignore
-              return;
-            }
+        deleteAllObjects() {
+          const fabricIntegration = this;
 
-            icObj.delete_p()
-            .then(() => {
-              fabricIntegration.removeFabricObject(fObj_to_delete);
-              icObj.im_dying_now = false;
-              icObj.im_dead_now  = true;
-            })
-            .catch(err => {
-              console.log("fObj.icObj.delete_p", "error", err);
-            });
+          const arr_fObj = this.fabricCanvas.getObjects();
+
+          arr_fObj.forEach((fObj, i) => {
+            fabricIntegration.deleteAtomicFObj(fObj);
+          });
+
+        }
+
+        deleteAtomicFObj(fObj_to_delete) {
+          const fabricIntegration = this;
+
+          const icObj = fObj_to_delete.icObj;
+
+          if(icObj.isSupervessel) {
+            //ignore
+            return;
           }
+
+          icObj.delete_p()
+          .then(() => {
+            fabricIntegration.removeFabricObject(fObj_to_delete);
+            icObj.im_dying_now = false;
+            icObj.im_dead_now  = true;
+          })
+          .catch(err => {
+            console.log("fObj.icObj.delete_p", "error", err);
+          });
+
+        }
+
+        deleteGeneralFObj(fObj) {
+          const fabricIntegration = this;
 
           if(fObj instanceof fabric.ActiveSelection) {
 
             fObj.getObjects().forEach((fObj, i) => {
-              deleteFObj(fObj);
+              fabricIntegration.deleteAtomicFObj(fObj);
             });
 
-            this.fabricCanvas.discardActiveObject();
-            this.fabricCanvas.requestRenderAll();
+            fabricIntegration.fabricCanvas.discardActiveObject();
+            fabricIntegration.fabricCanvas.requestRenderAll();
 
           } else {
-
-            deleteFObj(fObj);
-
+            fabricIntegration.deleteAtomicFObj(fObj);
           }
 
-
         }
+
 
 
         shouldIgnoreShortcutInput() {
@@ -26622,6 +26653,9 @@
               shiftLeft: new KeyDownToggle("shiftLeft", KeyDownToggle.defaultKeyDownFunc(["ShiftLeft"]), (isActive) => {
                 //only side effect is used
               }),
+              ctrlLeft: new KeyDownToggle("ctrlLeft", KeyDownToggle.defaultKeyDownFunc(["ControlLeft"]), (isActive) => {
+                //only side effect is used
+              }),
 
               // shiftLeft: new KeyDownToggle("shiftLeft", KeyDownToggle.defaultKeyDownFunc(["ShiftLeft"]), (isActive) => {
               backquote: new KeyDownToggle("backquote", KeyDownToggle.defaultKeyDownFunc(["Backquote"]), (isActive) => {
@@ -26675,6 +26709,11 @@
 
               a: new KeyDownTimeout("a", KeyDownToggle.defaultKeyDownFunc(["KeyQ"]), () => {
                 var scaleAmount_for_100ms;
+
+                if(keyboardIntegration.keyDownToggles.ctrlLeft.isActive) {
+                  //ignore
+                  return;
+                }
 
                 if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
                   scaleAmount_for_100ms = -0.3;
@@ -26779,6 +26818,16 @@
 
 
             switch(e.code) {
+
+              case "KeyQ":
+                {
+                  if(keyboardIntegration.keyDownToggles.ctrlLeft.isActive) {
+                    fabricIntegration.selectAll();
+                  }
+                }
+                break;
+
+
               case "KeyA":
                 // handleKeyUp_A(e);
                 break;
@@ -27224,10 +27273,12 @@
 
               case "KeyK":
                 {
-                  function openUrlInNewTab(url){
-                    var win = window.open(url, '_blank');
-                  }
-                  openUrlInNewTab("https://www.qwant.com/?l=fr");
+                  // function openUrlInNewTab(url){
+                  //   var win = window.open(url, '_blank');
+                  // }
+                  // openUrlInNewTab("https://www.qwant.com/?l=fr");
+
+                  keyboardIntegration.fabricIntegration.deleteAllObjects();
                 }
                 break;
 
@@ -36650,6 +36701,23 @@
             //   const rep_free = infiniteCanvas.getRepresented(icObj.id).r_free();
             //   rep_free.id = 1001;
             // });
+
+            infiniteCanvas.addIcObject(icObj);
+          }
+
+          //create text 2
+          {
+            const trueRect = {
+              x: 900,
+              y: 760,
+              width: 100,
+              height: 100,
+            };
+
+            const string__clear = "Press K to clear canvas";
+            const icObj = infiniteCanvas.createIcText(trueRect.x, trueRect.y, string__clear);
+            icObj.fontSize = 30;
+            icObj.opacity = 0.5;
 
             infiniteCanvas.addIcObject(icObj);
           }
