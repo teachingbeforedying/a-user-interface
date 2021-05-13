@@ -6033,6 +6033,8 @@ function(e,t){var r=function e(t,r){switch(t.type){case"SymbolNode":return t;cas
 						An event represents something that happened to your entity.
 					Reducer
 						The reducer is a structure that represents the applied state. It will be the reducer which will receive an initial state and recursively apply all the commit functions present in events, passing the resulting state to the initial state of the next call, essentially, reducing an array of events to a single final event.
+					metadata.causationId:   causing command's id
+					metadata.correlationId: originating command's id.		You can use this id to gather all commands and events that deal with a long-running transaction and belong together.
 
 
 ** https://developers.eventstore.com/server/v21.2/docs/projections/#business-case-examples
@@ -6089,6 +6091,18 @@ https://reimagined.github.io/resolve/docs/tutorial#lesson-1---write-side---add-s
  	https://www.eventstore.com/blog/projections-1-theory
 
  	https://reimagined.github.io/resolve/docs/tutorial
+
+
+	https://jwt.io/
+		JSON Web Tokens are an open, industry standard RFC 7519 method for representing claims securely between two parties.
+
+
+	Relations between commands and events
+		Each command and each event is identified by a unique id.
+		It is automatically set whenever you create a new command or event, and it is accessible using the id property.
+		Since each event is caused by a command, you may want to find out by which command a given event was caused.
+		You can do so using the event's metadata.causationId property which contains the causing command's id.
+		The same is true for commands that were caused by an event, e.g. within a flow.
  *]
 
 https://medium.com/@qasimsoomro/building-microservices-using-node-js-with-ddd-cqrs-and-event-sourcing-part-1-of-2-52e0dc3d81df
@@ -6105,12 +6119,8 @@ https://medium.com/@qasimsoomro/building-microservices-using-node-js-with-ddd-cq
 		0 connection
 
 	|-> FU, i'm wasting too much time on this
-	=> 0 try other libs (maybe come back to "the real thing" when MP is full)
+	=> 1 try other libs (maybe come back to "the real thing" when MP is full)
 			(https://github.com/cucumber-ltd/neptunium
-			https://github.com/thenativeweb/wolkenkit-eventstore
-				npm install wolkenkit-eventstore
-				npm install commands-events
-
 			https://github.com/domagojk/js-event-sourcing-example-app
 			**	https://github.com/coriolisjs/coriolis
 				1 donner une chance aux frenchies
@@ -6119,9 +6129,85 @@ https://medium.com/@qasimsoomro/building-microservices-using-node-js-with-ddd-cq
 			**	https://github.com/krutoo/morse
 				Not really what I was looking for, but this seems fun and powerful
 
-https://jwt.io/
-	JSON Web Tokens are an open, industry standard RFC 7519 method for representing claims securely between two parties.
-	
+			=>
+				1 https://github.com/thenativeweb/wolkenkit-eventstore
+					npm install wolkenkit-eventstore
+					npm install commands-events
+
+Ok so now we continue with wolkenkit's eventstore,
+	1 Uncaught TypeError: command.addInitiator is not a function
+		class Value
+		class Event
+		class Command
+		=> override: wolkenkit-eventstore already defines Event and Command
+		|->
+			  command.addInitiator ({ token }) VS event.addInitiator({ initiator })
+				=> command.addInitiator ({ token }) -> command.addInitiator({ initiator })
+		=> edit inmemory.js
+
+	0 be comfortable with the eventstore
+		0 save and replay
+		0 events vs state
+		0 events vs commands
+
+	0 stop recording == complete "recording" aggregate
+inspirational: https://github.com/thenativeweb/wolkenkit-boards
+
+12 Mai 2021:
+	https://nodejs.org/api/stream.html
+	https://nodesource.com/blog/understanding-streams-in-nodejs/
+
+		const eventStream = eventstore.getEventStream({aggregateId: id__aggregate}).then(eventStream => {
+			logger.log("eventStream", eventStream);
+
+			var arr_event = [];
+
+			eventStream.on('readable', function() {
+				while ((evt = eventStream.read()) != null) {
+					arr_event.push(evt);
+				}
+			});
+
+			eventStream.on('end', function() {
+				logger.log("eventStream.on('end')");
+				logger.log("arr_event", arr_event);
+			});
+
+		});
+
+	1 UUID
+		https://fr.wikipedia.org/wiki/Universally_unique_identifier
+		1 https://github.com/uuidjs/uuid
+			1 >npm install uuid
+			1 browserify
+
+	0 project(event)
+
+*	0 icObj.onHold: 	 create new aggregate with aggregate type: "objectManipulation"
+	0 icObj.onRelease: 'finish' aggregate
+
+	https://www.youtube.com/watch?v=tWDoYWRcvNQ
+	https://www.reactivemanifesto.org/
+	SLA: Service Level Agreement:  document qui définit la qualité de service, prestation prescrite entre un fournisseur de service et un client.
+	https://en.wikipedia.org/wiki/Eventual_consistency
+	https://en.wikipedia.org/wiki/CAP_theorem
+	https://www.youtube.com/watch?v=sSm2dRarhPo
+
+* eventSourcing is "functional programming here to save us all"
+
+	0 applyEventsToIcObj(arr_event)
+
+	la précision maximum va être la milliseconde, à moins que...
+		1 https://www.sitepoint.com/10-html5-apis-worth-looking/
+			=> var time = performance.now();
+	mais c'est un peu du gros craquage parce que la milliseconde c'est déjà énorme comme précision (1000 fps)
+
+	(0 eventPublisher
+
+	https://www.sitepoint.com/how-to-schedule-background-tasks-in-javascript/
+	1 replay
+		C'est une petite victoire, mais c'est une victoire ! :)
+
 
 
 
