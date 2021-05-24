@@ -4447,7 +4447,7 @@
         const icObj__represented  = RepresentedFactory.initial(icObj);
         const icObj__rep_official = icObj__represented.r_official();
 
-        const icObj__rep_free     = icObj__represented.createNewRepresentationWithName("free");
+        const icObj__rep_free     = icObj__represented.createNewRepresentation("free");
         icObj__rep_free.addInteraction_hold();
 
         if(icObj.type == "composite") {
@@ -4492,7 +4492,7 @@
 
                     const part__represented  = this.createRepresentedIcObject(part_icObj);
                     const part__rep_official = part__represented.r_official();
-                    const part__rep_free     = part__represented.createNewRepresentationWithName("free");
+                    const part__rep_free     = part__represented.createNewRepresentation("free");
                     if(part__rep_free.nowHeld == null) {
                       part__rep_free.addInteraction_hold();
                     }
@@ -5710,7 +5710,7 @@
 
 
 
-      createIcPathmadeOperator_start() {
+      createIcPathmadeOperator_start(type__pathmadeOp) {
         // console.log("createIcPathmadeOperator_start");
 
         const infiniteCanvas = this;
@@ -5723,7 +5723,9 @@
           }
         }
 
-        infiniteCanvas.creationManagers["pathmadeOperator"] = {};
+        infiniteCanvas.creationManagers["pathmadeOperator"] = {
+          type: type__pathmadeOp,
+        };
         const creationManager__pathmadeOperator = infiniteCanvas.creationManagers["pathmadeOperator"];
 
         //create dedicated eventstore
@@ -5743,30 +5745,32 @@
       createIcPathmadeOperator_end() {
         // console.log("createIcReplay_end");
 
+        const infiniteCanvas = this;
+
         //check
         {
-          const creationManager__pathmadeOperator = this.creationManagers["pathmadeOperator"];
+          const creationManager__pathmadeOperator = infiniteCanvas.creationManagers["pathmadeOperator"];
           if(creationManager__pathmadeOperator == null) {
             throw new Error("createIcPathmadeOperator_end, creationManager__pathmadeOperator == null");
           }
         }
 
-        const creationManager__pathmadeOperator = this.creationManagers["pathmadeOperator"];
+        const creationManager__pathmadeOperator = infiniteCanvas.creationManagers["pathmadeOperator"];
 
         //stop recording
         creationManager__pathmadeOperator.sub.unsubscribe();
 
 
-
-        const path      = creationManager__pathmadeOperator.path;
-        const replayObj = creationManager__pathmadeOperator.replayObj;
+        const type__pathmadeOp = creationManager__pathmadeOperator.type;
+        const path             = creationManager__pathmadeOperator.path;
+        const replayObj        = creationManager__pathmadeOperator.replayObj;
 
         const eventstore__pathmadeOperator = creationManager__pathmadeOperator.eventstore;
-        const replayObj_p = this.getReplayObj_p(eventstore__pathmadeOperator);
+        const replayObj_p = infiniteCanvas.getReplayObj_p(eventstore__pathmadeOperator);
 
         replayObj_p.then(replayObj => {
 
-          const icPathmadeOperator = this.createIcPathmadeOperator(path, replayObj);
+          const icPathmadeOperator = infiniteCanvas.createIcPathmadeOperator(type__pathmadeOp, path, replayObj);
           this.addIcObject(icPathmadeOperator);
 
           delete this.creationManagers["pathmadeOperator"];
@@ -5930,10 +5934,26 @@
       //   return icPathmadeOperator;
       // }
 
+      createIcPathmadeOperator(type__pathmadeOp, path, replayObj) {
+        var outIcObj;
 
+        switch(type__pathmadeOp) {
+          case "conveyor":
+            outIcObj = infiniteCanvas.createIcPathmadeOperator__conveyor(path, replayObj);
+            break;
+          case "shadePossessor":
+            outIcObj = infiniteCanvas.createIcPathmadeOperator__shadePossessor(path, replayObj);
+            break;
+          default:
+            throw new Error("Unsupported type: " + type__pathmadeOp);
+            break;
+        }
 
-      createIcPathmadeOperator(path, replayObj) {
-        logger.log("createIcPathmadeOperator", path, replayObj);
+        return outIcObj;
+      }
+
+      createIcPathmadeOperator__conveyor(path, replayObj) {
+        logger.log("createIcPathmadeOperator__conveyor", path, replayObj);
 
         const point__start = this.startingPointFromPath(path);
 
@@ -5980,6 +6000,82 @@
         return icComposite;
       }
 
+
+      createIcPathmadeOperator__shadePossessor(path, replayObj) {
+        logger.log("createIcPathmadeOperator__shadePossessor", path, replayObj);
+
+        const point__start = this.startingPointFromPath(path);
+
+        const trueRect = {
+          x:      point__start.x,
+          y:      point__start.y,
+          width:  100,
+          height: 100,
+        };
+
+        const text_in = "pathmade:shadePossessor";
+
+        const transformationFunc = this.transformationFuncForReplayObj(replayObj);
+
+        const transformationFunc__decorated = (icObj) => {
+
+          //create geminiShade
+          const icGeminiShade = infiniteCanvas.createIcGeminiShade(icObj);
+          // icGeminiShade.position = {
+          //   x: icGeminiShade.position.x + 100,
+          //   y: icGeminiShade.position.y + 100,
+          // };
+          // infiniteCanvas.addIcObject(icGeminiShade);
+
+          //operate on shade
+          infiniteCanvas.onceOnAddRepresentedForIcObject(icGeminiShade, (icGeminiShade) => {
+
+            const represented__geminiShade = infiniteCanvas.getRepresented(icGeminiShade.id);
+            const rep_free__geminiShade    = represented__geminiShade.r_free();
+
+            transformationFunc(rep_free__geminiShade);
+
+            //destroy shade
+            rep_free__geminiShade.im_dying_now = true;
+          });
+          infiniteCanvas.addIcObject(icGeminiShade);
+
+
+          //destroy shade
+
+        };
+
+        const operatorConfig = new OperatorConfig(text_in, transformationFunc__decorated);
+
+        const touchSlotConfig = {
+          transformationFunc: operatorConfig.transformationFunc,
+        };
+
+        const touchSlot    = infiniteCanvas.createIcTouchSlot(trueRect, touchSlotConfig);
+        touchSlot.fill     = "";
+        // touchSlot.isMobile = false;
+
+        const text         = operatorConfig.name;
+        const facade       = infiniteCanvas.createIcText(trueRect.x, trueRect.y, text);
+        facade.backgroundColor = "blanchedalmond";
+        // facade.isMobile    = false;
+        // facade.isTouchable = false;
+
+        const parts = {
+          "touchSlot": touchSlot,
+          "facade":    facade,
+        };
+
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+
+        const icComposite = this.createIcComposite(trueRect, parts, compositeConfig);
+        icComposite.cType = "gm_operator";
+
+        const operation = new Operation(operatorConfig.transformationFunc);
+        icComposite.operation = operation;
+
+        return icComposite;
+      }
 
 
 
@@ -10632,6 +10728,32 @@
       }
 
 
+      createIcGeminiShade(icObj) {
+        console.log("createIcGeminiShade", icObj);
+        const infiniteCanvas = this;
+
+        const icObj__clone = icObj.deepClone();
+        const id__clone    = infiniteCanvas.generateIcObjectId();
+        icObj__clone.id = id__clone;
+
+        const icGeminiShade_spec = {
+          id__target: icObj.id,
+
+          opacity: 0.666,
+          fill: "grey",
+        };
+
+        const icGeminiShade = Object.assign(icObj__clone, icGeminiShade_spec);
+
+        const engine = new GeminiShadeEngine();
+        const eType  = "geminiShade";
+
+        const icEngined = infiniteCanvas.createIcEngined(icGeminiShade, eType, engine);
+
+        return icEngined;
+      }
+
+
 
 
 
@@ -12320,6 +12442,20 @@
         });
 
         infiniteCanvas.addIcObject(icObj__clone);
+      }
+
+      operateOnActiveObject__poopGeminiShade() {
+        const infiniteCanvas = this;
+
+        const icObj__mould = infiniteCanvas.getActiveObject();
+
+        const icObj__geminiShade = infiniteCanvas.createIcGeminiShade(icObj__mould);
+
+        icObj__geminiShade.position = Object.assign({}, icObj__mould.position);
+        icObj__geminiShade.position.x = icObj__geminiShade.position.x * 1.10;
+        icObj__geminiShade.position.y = icObj__geminiShade.position.y * 1.10;
+
+        infiniteCanvas.addIcObject(icObj__geminiShade);
       }
 
 
@@ -14929,7 +15065,9 @@
         return id_rep;
       }
 
-      getNewRepresentation() {
+      getNewRepresentation(repType = "std") {
+        var outRep;
+
         const backingObj = this;
 
         const id_rep = backingObj.generateNewRepId();
@@ -14938,11 +15076,22 @@
         console.log("target", target);
 
         const arr_backingObj = [backingObj];
-        const rep = createRepresentation(target, id_rep, arr_backingObj);
 
-        backingObj.addRepresentation(rep);
+        switch(repType) {
+          case "std":
+            outRep = createRepresentation(target, id_rep, arr_backingObj);
+            break;
+          // case "ghost":
+          //   outRep = createRepresentation__ghost(target, id_rep, arr_backingObj);
+          //   break;
+          default:
+            throw new Error("Unsupported repType: " + repType);
+            break;
+        }
 
-        return rep;
+        backingObj.addRepresentation(outRep);
+
+        return outRep;
       }
 
       // updateWithRepresentation(rep__update) {
@@ -15169,8 +15318,8 @@
           return this.reps["official"];
         }
 
-        createNewRepresentationWithName(repName) {
-          const rep_new = this.backingObj.getNewRepresentation();
+        createNewRepresentation(repName, repType = "std") {
+          const rep_new = this.backingObj.getNewRepresentation(repType);
           rep_new.represented = this;
 
           this.reps[repName] = rep_new;
@@ -15261,7 +15410,7 @@
 
 
         //representation "plus"
-      function createRepresentation(target, id_rep, arr_backingObj) {
+      function createRepresentation(target, id_rep, arr_backingObj/*, dict_ignoredPropName = {}*/) {
           // console.log("createRepresentation", "target", target);
           // console.log("createRepresentation", JSON.stringify(target));
 
@@ -15355,7 +15504,9 @@
                 return outProp;
               },
               set: function (obj, propName, setValue) {
-                // console.log("representation.set", propName, setValue);
+                if(propName == "touchStateDict") {
+                  logger.trace("representation.set", propName, setValue);
+                }
 
                 if(propName in broadcaster) {
                   broadcaster[propName] = setValue;
@@ -15366,17 +15517,22 @@
                 else {
                   //setting something in inner
 
-                  const oldValue = inner[propName];
-                  const newValue = setValue;
+                  // const isIgnoredPropName = (dict_ignoredPropName[propName] != null);
+                  // if(!isIgnoredPropName) {
 
-                  updateInternals(propName,setValue);
-                  broadcaster.arr_backingObj.forEach((backingObj, i) => {
-                    // console.log("representation has updated", broadcaster.representation);
-                    // console.log("broadcasting to", backingObj);
-                    backingObj.updateWithPropFromRepresentation(propName, setValue, broadcaster.representation);
-                  });
+                    const oldValue = inner[propName];
+                    const newValue = setValue;
 
-                  broadcaster.didUpdateFromInner(broadcaster.representation, propName, oldValue, newValue);
+                    updateInternals(propName,setValue);
+                    broadcaster.arr_backingObj.forEach((backingObj, i) => {
+                      // console.log("representation has updated", broadcaster.representation);
+                      // console.log("broadcasting to", backingObj);
+                      backingObj.updateWithPropFromRepresentation(propName, setValue, broadcaster.representation);
+                    });
+
+                    broadcaster.didUpdateFromInner(broadcaster.representation, propName, oldValue, newValue);
+
+                  // }
 
                 }
 
@@ -15440,28 +15596,56 @@
           }
 
           // receiver.inner = inner;
-          receiver.syncWith = function(rep) {
+          receiver.syncWith = function(rep, set_propName__ignored = null) {
             // Object.entries(rep.inner).forEach(([propName,value], i) => {
             //   updateInternals(propName, value);
             // });
-            Object.keys(inner).forEach((propName, i) => {
+
+            const arr_propName = Object.keys(inner);
+
+            var arr_propName__filtered;
+            if(set_propName__ignored == null) {
+              arr_propName__filtered = arr_propName;
+            } else {
+              arr_propName__filtered = arr_propName.filter(propName => !set_propName__ignored.has(propName));
+            }
+
+            arr_propName__filtered.forEach((propName, i) => {
               const value = rep[propName];
               console.log("+++syncWith", propName, value);
               updateInternals(propName, value);
             });
-          }
 
-          receiver.syncWithObj = function(obj) {
-            Object.keys(obj).forEach((propName, i) => {
+          };
+
+          receiver.syncWithObj = function(obj, set_propName__ignored = null) {
+
+            const arr_propName = Object.keys(obj);
+
+            var arr_propName__filtered;
+            if(set_propName__ignored == null) {
+              arr_propName__filtered = arr_propName;
+            } else {
+              arr_propName__filtered = arr_propName.filter(propName => !set_propName__ignored.has(propName));
+            }
+
+            arr_propName__filtered.forEach((propName, i) => {
               const value = obj[propName];
+              console.log("+++syncWithObj", propName, value);
               updateInternals(propName, value);
             });
-          }
+
+          };
 
 
           var outerUpdates = {};
           receiver.updateFromOuter = (propName, value, rep) => {
             // console.log("updateFromOuter", propName, value);
+
+            // const isIgnoredPropName = (dict_ignoredPropName[propName] != null);
+            // if(isIgnoredPropName) {
+            //   return;
+            // }
 
             const isRepFollowed = (receiver.followed[rep.id_rep] == rep);
             if(!isRepFollowed) {
@@ -15581,7 +15765,18 @@
 
 
           return glassFacade;
-        }
+      }
+
+
+      // function createRepresentation__ghost(target, id_rep, arr_backingObj) {
+      //   //feel/channel everything but moves
+      //   const dict_ignoredPropName = {
+      //     position: true,
+      //   };
+      //   const rep = createRepresentation(target, id_rep, arr_backingObj, dict_ignoredPropName);
+      //
+      //   return rep;
+      // }
 
 
 
@@ -15748,12 +15943,12 @@
 
 
           this.attemptTouching = function(icObj_slot, icObj_piece) {
-            logger.log("attemptTouching", icObj_slot, icObj_piece);
+            // logger.log("attemptTouching", icObj_slot, icObj_piece);
 
             const canTouch = this.checkCanTouch(icObj_slot, icObj_piece);
 
             const rep_official = icObj_piece;
-            console.log("attempting to touch with touchState: " + rep_official.touchStateDict[icObj_slot.id]);
+            // logger.log("attempting to touch with touchState: " + rep_official.touchStateDict[icObj_slot.id]);
 
             if(canTouch) {
               console.log("can touch");
@@ -15779,7 +15974,7 @@
           };
 
           this.checkCanTouch = function(icObj_slot, icObj_piece) {
-            logger.log("checkCanTouch", icObj_piece);
+            // logger.log("checkCanTouch", icObj_piece);
             var outBool;
 
             // outBool = Touch.canTouch(icObj_piece, icObj_slot);
@@ -15804,14 +15999,17 @@
 
 
             const rep_official = icObj_piece;
-            // const represented  = icObj_piece.represented;
-            // const rep_free     = represented.getRepresentation("free");
-            // const rep_touched  = represented.getRepresentation("snapped");
-
-            rep_official.touchStateDict[icObj_slot.id] = TouchState.Touched;
-
             const represented  = icObj_piece.represented;
             const rep_free     = represented.getRepresentation("free");
+            // const rep_touched  = represented.getRepresentation("snapped");
+
+
+            //rep_official.touchStateDict[icObj_slot.id] = TouchState.Touched;    //SHU: as of now, don't set prop inside dict
+            const touchStateDict__clone = Object.assign({}, rep_official.touchStateDict);
+            touchStateDict__clone[icObj_slot.id] = TouchState.Touched;
+            // rep_official.touchStateDict = touchStateDict__clone;               //SHU: it does not work well with rep_official, I've tried with rep_free and it seems ok...  (I don't care that much anymore)
+            rep_free.touchStateDict = touchStateDict__clone;                      //SHU: as of now, set dict as if it were a depthless prop
+
 
             //apply mutation
             console.log("touch: apply mutation");
@@ -16009,7 +16207,7 @@
           };
 
           this.checkCanUntouch = function(icObj_slot, icObj_piece) {
-            console.log("checkCanUntouch", icObj_piece);
+            logger.log("checkCanUntouch", icObj_piece);
             var outBool;
 
             outBool = Touch.canUntouch(icObj_piece, icObj_slot);
@@ -16141,7 +16339,7 @@
             // logger.log("r_official_update_handler", icObj_piece);
 
             const touchState = icObj_piece.touchStateDict[icObj_slot.id];
-            console.log("touchState", touchState);
+            logger.log("touchState", touchState);
 
             if(touchState == TouchState.Untouched) {
               this.attemptTouching(icObj_slot, icObj_piece);
@@ -16823,7 +17021,7 @@
             const rep_official = icObj_piece;
             const represented  = icObj_piece.represented;
             const rep_free     = represented.getRepresentation("free");
-            const rep_snapped  = represented.createNewRepresentationWithName("snapped");
+            const rep_snapped  = represented.createNewRepresentation("snapped");
 
             rep_official.snapState = SnapState.Presnapped;
             // rep_official.snappedTo = icObj_slot;
@@ -18794,7 +18992,264 @@
       // }
 
 
+      class GeminiShadeEngine {
+        constructor() {
 
+          this.initialized = false;
+
+          this.initialize = function(scopeObj) {
+
+            //"wake up":
+            //bind all funcs
+            // function isFunction(functionToCheck) {
+            //   return functionToCheck && {}.toString.call(functionToCheck) === '[object Function]';
+            // }
+            const isFunction = value => value && (Object.prototype.toString.call(value) === "[object Function]" || "function" === typeof value || value instanceof Function);
+
+            this.awoken = {
+              'i_am': "awoken",
+            };
+            console.log("this.virgin", this.virgin);
+            Object.entries(this.virgin)
+                  .filter(([propName, prop]) => isFunction(prop))
+                  .forEach(([propName, prop], i) => {
+                    this.awoken[propName] = prop.bind(this.awoken);
+                  });
+
+            // this.scopeObj  = scopeObj;
+              //engineCarrier,
+              //infiniteCanvas,
+            this.awoken.scopeObj = scopeObj;
+
+            this.initialized = true;
+          }
+
+
+
+
+          this.start = function() {
+            logger.log("GeminiShadeEngine.start", this);
+            const engine = this;
+
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const gemini         = this.scopeObj.engineCarrier;
+            const id__target     = this.scopeObj.engineCarrier.id__target;
+
+            //get free_rep
+            const represented__gemini  = infiniteCanvas.getRepresented(gemini.id);
+            const rep_free__gemini     = represented__gemini.r_free();
+            const rep_official__gemini = represented__gemini.r_official();
+
+
+            //get target's free_rep
+            const represented__target  = infiniteCanvas.getRepresented(id__target);
+            const rep_free__target     = represented__target.r_free();
+            const rep_official__target = represented__target.r_official();
+
+
+
+
+            //create listeners
+
+            const set_propName__ignore = new Set([
+                "id",
+                "type",
+
+                "position",
+                "size",
+                "homeScale",
+                "orientation",
+                "scale",
+                "flip",
+                "zIndex",
+
+                "fill",
+                "stroke",
+                "opacity",
+                "strokeWidth",
+                "backgroundColor",
+
+                "canBeMoved",
+                "canBeRotated",
+                "canBeResized",
+                "canBeSelected",
+                "canBeHeld",
+
+                "isSnappable",
+                "snapState",
+                "snappedTo",
+
+                "isTouchable",
+                "touchStateDict",
+
+                "cType",
+                "isCompositePart",
+                "isMobile",
+                "compositeId",
+
+                "isHeld",
+                "isUsingCenterPosition",
+
+                "isSelected",
+                "didUpdateListeners",
+
+                "edit",
+
+                "holdListeners",
+                "nowHeld",
+                "onHold",
+                "offHold",
+                "releaseListeners",
+                "nowReleased",
+                "onRelease",
+                "offRelease",
+
+
+
+
+                "id__target",
+                "eType",
+                "engine",
+                "getScopeObj",
+
+            ]);
+
+            const set_propName__ignore_in  = set_propName__ignore;
+            const set_propName__ignore_out = set_propName__ignore;
+
+
+            const broadcast = function(rep_free, propName, oldValue, newValue) {
+
+              const isIgnored = set_propName__ignore_out.has(propName);
+              if(isIgnored) {
+                return;
+              }
+              logger.log("broadcast", propName, newValue);
+
+              //off listener
+              if(rep_free__target.didUpdateFromInnerListeners.includes(engine.receive)) {
+                rep_free__target.offInnerUpdate(engine.receive);
+              }
+
+              //mutate
+              rep_free__target[propName] = newValue;
+
+              //on listener
+              rep_free__target.onInnerUpdate(engine.receive);
+
+            };
+
+            const receive = function(rep_free, propName, oldValue, newValue) {
+
+              const isIgnored = set_propName__ignore_in.has(propName);
+              if(isIgnored) {
+                return;
+              }
+              logger.log("receive", propName, newValue);
+
+              //off listener
+              if(rep_free__gemini.didUpdateFromInnerListeners.includes(engine.broadcast)) {
+                rep_free__gemini.offInnerUpdate(engine.broadcast);
+              }
+
+              //mutate
+              rep_free__gemini[propName] = newValue;
+
+              //on listener
+              rep_free__gemini.onInnerUpdate(engine.broadcast);
+
+            };
+
+            //store listeners
+            engine.broadcast = broadcast;
+            engine.receive   = receive;
+
+            this.geminiBind = function(gemini, target) {
+
+              target.onInnerUpdate(this.receive);
+              gemini.onInnerUpdate(this.broadcast);
+              // gemini.follow(target);
+              // target.follow(gemini);
+
+              //create and store uninstaller
+              this.geminiUnbind = function() {
+                gemini.offInnerUpdate(this.broadcast);
+                target.offInnerUpdate(this.receive);
+                // gemini.unfollow(target);
+                // target.unfollow(gemini);
+              };
+
+            };
+
+            this.geminiBind(rep_free__gemini, rep_free__target);
+
+
+            /*
+            const broadcast = function(rep_free, propName, oldValue, newValue) {
+
+              const isIgnored = set_propName__ignore_out.has(propName);
+              if(isIgnored) {
+                return;
+              }
+              logger.log("broadcast", propName, newValue);
+
+              //off listener
+              if(rep_official__target.didUpdateFromInnerListeners.includes(engine.receive)) {
+                rep_official__target.offInnerUpdate(engine.receive);
+              }
+
+              //mutate
+              rep_official__target[propName] = newValue;
+
+              //on listener
+              rep_official__target.onInnerUpdate(engine.receive);
+
+            };
+
+            const receive = function(rep_free, propName, oldValue, newValue) {
+
+              const isIgnored = set_propName__ignore_in.has(propName);
+              if(isIgnored) {
+                return;
+              }
+              logger.log("receive", propName, newValue);
+
+              //off listener
+              if(rep_official__gemini.didUpdateFromInnerListeners.includes(engine.broadcast)) {
+                rep_official__gemini.offInnerUpdate(engine.broadcast);
+              }
+
+              //mutate
+              rep_official__gemini[propName] = newValue;
+
+              //on listener
+              rep_official__gemini.onInnerUpdate(engine.broadcast);
+
+            };
+
+            //store listeners
+            engine.broadcast = broadcast;
+            engine.receive   = receive;
+
+            this.geminiBind(rep_official__gemini, rep_official__target);
+            */
+          };
+
+          this.stop = function() {
+            this.geminiUnbind();
+
+            this.broadcast = null;
+            this.receive   = null;
+          };
+
+
+          this.virgin = Object.assign({}, this);  //virgin == not bound
+
+
+        }
+
+
+      }
 
 
 
@@ -25059,7 +25514,7 @@
           return outBrushConfig;
         }
 
-        enterPathmadeOperatorPathDrawing() {
+        enterPathmadeOperatorPathDrawing(type__pathmadeOp) {
           const fabricIntegration = this;
           const fabricCanvas      = fabricIntegration.fabricCanvas;
           const infiniteCanvas    = fabricIntegration.infiniteCanvas;
@@ -25151,7 +25606,7 @@
 
 
             //start pathmadeOperator creation
-            infiniteCanvas.createIcPathmadeOperator_start();
+            infiniteCanvas.createIcPathmadeOperator_start(type__pathmadeOp);
           }
           fabricCanvas.on('mouse:down:before', startRecording);
 
@@ -26752,7 +27207,7 @@
       //       const rep_official = icObj_piece;
       //       const represented  = icObj_piece.represented;
       //       const rep_free     = represented.getRepresentation("free");
-      //       const rep_snapped  = represented.createNewRepresentationWithName("snapped");
+      //       const rep_snapped  = represented.createNewRepresentation("snapped");
       //
       //       rep_official.snapState = SnapState.Presnapped;
       //       // rep_official.snappedTo = icObj_slot;
@@ -29142,10 +29597,22 @@
                 }
               }),
 
-              pathmadeOperatorDrawing: new KeyDownToggle("Digit5", KeyDownToggle.defaultKeyDownFunc(["Digit5"]), (isActive) => {
+              pathmadeOperatorDrawing__conveyor: new KeyDownToggle("Digit5", KeyDownToggle.defaultKeyDownFunc(["Digit5"]), (isActive) => {
 
                 if(isActive) {
-                  fabricIntegration.enterPathmadeOperatorPathDrawing();
+                  const type = "conveyor";
+                  fabricIntegration.enterPathmadeOperatorPathDrawing(type);
+                } else {
+                  fabricIntegration.leavePathmadeOperatorPathDrawing();
+                }
+
+              }),
+
+              pathmadeOperatorDrawing__shadePossessor: new KeyDownToggle("Digit4", KeyDownToggle.defaultKeyDownFunc(["Digit4"]), (isActive) => {
+
+                if(isActive) {
+                  const type = "shadePossessor";
+                  fabricIntegration.enterPathmadeOperatorPathDrawing(type);
                 } else {
                   fabricIntegration.leavePathmadeOperatorPathDrawing();
                 }
@@ -29400,7 +29867,12 @@
 
               case "KeyX":
                 {
-                  keyboardIntegration.infiniteCanvas.operateOnActiveObject__poopSameHomeScaleClone();
+                    if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+                      keyboardIntegration.infiniteCanvas.operateOnActiveObject__poopGeminiShade();
+                    }
+                    // else {
+                    //   keyboardIntegration.infiniteCanvas.operateOnActiveObject__poopSameHomeScaleClone();
+                    // }
                 }
                 break;
 
@@ -29437,15 +29909,15 @@
                 }
               break;
 
-              case "Digit4":
-                {
-                  // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__remove_parentheses");
-                  // keyboardIntegration.infiniteCanvas.operateOnActiveObject__executeScript();
-
-                  // keyboardIntegration.infiniteCanvas.operateOnActiveObject__setBehavior("stickyRelease", true);
-                  fabricIntegration.prepareSingleUseBehavior("stickyRelease");
-                }
-              break;
+              // case "Digit4":
+              //   {
+              //     // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__remove_parentheses");
+              //     // keyboardIntegration.infiniteCanvas.operateOnActiveObject__executeScript();
+              //
+              //     // keyboardIntegration.infiniteCanvas.operateOnActiveObject__setBehavior("stickyRelease", true);
+              //     fabricIntegration.prepareSingleUseBehavior("stickyRelease");
+              //   }
+              // break;
 
 
               // case "Digit5":
@@ -36731,6 +37203,7 @@
           // this.debug_slice_image();
 
           // this.debug_recording();
+          // this.debug_geminiShade();
 
 
 
@@ -39198,6 +39671,40 @@
             infiniteCanvas.addIcObject(icMathNode);
           }
 
+          //create icMathNode
+          {
+            const trueRect_1 = {
+              x: 300,
+              y: 400,
+              width: 100,
+              height: 100,
+            };
+
+            const mathNode = math.parse("14");
+            mathNode.autoSimplify = true;
+
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
+            icMathNode.isTouchable = true;
+            infiniteCanvas.addIcObject(icMathNode);
+          }
+
+          //create icMathNode
+          {
+            const trueRect_1 = {
+              x: 300,
+              y: 500,
+              width: 100,
+              height: 100,
+            };
+
+            const mathNode = math.parse("x");
+            mathNode.autoSimplify = true;
+
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
+            icMathNode.isTouchable = true;
+            infiniteCanvas.addIcObject(icMathNode);
+          }
+
 
           //create operator
           {
@@ -39249,6 +39756,97 @@
 
 
         }
+
+        debug_geminiShade() {
+
+          //create icMathNode
+          {
+            const trueRect_1 = {
+              x: 300,
+              y: 300,
+              width: 100,
+              height: 100,
+            };
+
+            const mathNode = math.parse("0");
+            mathNode.autoSimplify = true;
+
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
+            icMathNode.isTouchable = true;
+
+            infiniteCanvas.onceOnAddRepresentedForIcObject(icMathNode, (icMathNode) => {
+
+              const represented  = infiniteCanvas.getRepresented(icMathNode.id);
+              const rep_official = represented.r_official();
+              // const rep_free     = represented.r_free();
+
+              //create gemini shade
+              const icGeminiShade = infiniteCanvas.createIcGeminiShade(rep_official);
+              icGeminiShade.position = {
+                x: icGeminiShade.position.x + 100,
+                y: icGeminiShade.position.y + 100,
+              };
+
+              infiniteCanvas.addIcObject(icGeminiShade);
+
+            });
+
+
+            infiniteCanvas.addIcObject(icMathNode);
+          }
+
+
+          //create operator
+          {
+            const trueRect_2 = {
+              x: 800,
+              y: 200,
+              width: 100,
+              height: 100,
+            };
+            const gmOperator = infiniteCanvas.createIcGMOperator(trueRect_2, "+ 1");
+            infiniteCanvas.addIcObject(gmOperator);
+          }
+
+          // //create operator
+          // {
+          //   const trueRect_2 = {
+          //     x: 800,
+          //     y: 800,
+          //     width: 100,
+          //     height: 100,
+          //   };
+          //   const gmOperator = infiniteCanvas.createIcGMOperator(trueRect_2, "+ 10");
+          //   infiniteCanvas.addIcObject(gmOperator);
+          // }
+          //
+          // //create operator
+          // {
+          //   const trueRect_2 = {
+          //     x: 1500,
+          //     y: 200,
+          //     width: 100,
+          //     height: 100,
+          //   };
+          //   const gmOperator = infiniteCanvas.createIcGMOperator(trueRect_2, "x 2");
+          //   infiniteCanvas.addIcObject(gmOperator);
+          // }
+          //
+          // //create operator
+          // {
+          //   const trueRect_2 = {
+          //     x: 1500,
+          //     y: 800,
+          //     width: 100,
+          //     height: 100,
+          //   };
+          //   const gmOperator = infiniteCanvas.createIcGMOperator(trueRect_2, "x (-1)");
+          //   infiniteCanvas.addIcObject(gmOperator);
+          // }
+
+
+        }
+
 
         debug_startingScreen() {
 
