@@ -97,7 +97,6 @@
               return a;
           }
 
-
         }
 
 
@@ -4114,18 +4113,27 @@
 
     </script> -->
 
-
-
-    <!-- <script type="text/javascript" src="lib/wolkenkit-eventstore/wolkenkit-commands-events.browserified.bundle.js"></script>
+    <!-- <script type="text/javascript" src="lib/bluebird.min.js"></script> -->
+    <script type="text/javascript" src="lib/bluebird.browserified.bundle.js"></script>
     <script>
-      logger.log("Bundle_WKCE", Bundle_WKCE);
-      const commandsAndEvents = Bundle_WKCE.commandsAndEvents;
-      const Event   = commandsAndEvents.Event;
-      const Command = commandsAndEvents.Command;
+      logger.log("Bundle_BBIRD", Bundle_BBIRD);
+
+      const bluebird = Bundle_BBIRD.bluebird;
     </script>
-    <script>
+    <!-- <script>
       //discovery
+      const arr_promise = [...Array(10).keys()].map(index => {
+        return bluebird.delay(index * 1000, index);
+      });
 
+      const sum_p = bluebird.reduce(arr_promise, (acc,x) => {
+        logger.log("acc", acc);
+        return acc + x;
+      }, 0);
+
+      sum_p.then(value => {
+        logger.log("sum_p", value);
+      });
     </script> -->
 
 
@@ -5878,6 +5886,67 @@
         return outFunc;
       }
 
+      // doEvent_p(icEvent) {
+      //
+      // }
+
+      transformationFunc_pForReplayObj(replayObj) {
+        var outFunc;
+
+        outFunc = function(icObj) {
+          var out_p;
+
+          const arr_event__replay = replayObj.arr_event;
+          if(arr_event__replay.length > 0) {
+
+            const event__first = arr_event__replay[0];
+            const time__first  = event__first.data.time;
+            const arr_replayEvent = arr_event__replay.map(event => {
+              const event__clone = Object.assign({}, event);
+
+              const time__event = event__clone.data.time
+              event__clone.timeout = time__event - time__first;
+
+              return event__clone;
+            });
+
+            function createPromiseForReplayEvent(replayEvent) {
+              return new Promise((resolve, reject) => {
+                setTimeout(() => {
+
+                  const rep_free = icObj;
+
+                  const moveEvent = replayEvent;
+
+                  //"apply" event
+                  const position__new = moveEvent.data.position;
+                  rep_free.position = position__new;
+
+                  resolve(rep_free);
+
+                }, replayEvent.timeout);
+              });
+            }
+
+            const arr_promise = arr_replayEvent.map(createPromiseForReplayEvent);
+
+            var transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+
+            out_p = bluebird.reduce(arr_promise, (acc,x) => {
+              // logger.log("x", x);
+            }, transformationOutput);
+
+          } else {
+            out_p = Promise.reject(new Error("arr_event__replay.length == 0"));
+          }
+
+          return out_p;
+        };
+
+        return outFunc;
+      }
+
+
       createIcDummy(trueRect) {
         logger.log("createIcDummy");
 
@@ -6015,9 +6084,8 @@
 
         const text_in = "pathmade:shadePossessor";
 
-        const transformationFunc = this.transformationFuncForReplayObj(replayObj);
-
-        const transformationFunc__decorated = (icObj) => {
+        // const transformationFunc = this.transformationFuncForReplayObj(replayObj);
+        const transformationFunc__decorated = async function(icObj, icTouchSlot) {
 
           //create geminiShade
           const icGeminiShade = infiniteCanvas.createIcGeminiShade(icObj);
@@ -6025,24 +6093,81 @@
           //   x: icGeminiShade.position.x + 100,
           //   y: icGeminiShade.position.y + 100,
           // };
-          // infiniteCanvas.addIcObject(icGeminiShade);
 
-          //operate on shade
-          infiniteCanvas.onceOnAddRepresentedForIcObject(icGeminiShade, (icGeminiShade) => {
-
-            const represented__geminiShade = infiniteCanvas.getRepresented(icGeminiShade.id);
-            const rep_free__geminiShade    = represented__geminiShade.r_free();
-
-            transformationFunc(rep_free__geminiShade);
-
-            //destroy shade
-            rep_free__geminiShade.im_dying_now = true;
-          });
-          infiniteCanvas.addIcObject(icGeminiShade);
+          //prevent geminiShade from being touched by shadePossessor when starting
+          {
+            icGeminiShade.touchStateDict[icTouchSlot.id] = TouchState.Touched;
+            // icGeminiShade.isTouchable = false;
 
 
-          //destroy shade
+            // logger.log("*icTouchSlot", icTouchSlot);
+            // const canTouchFunc_geometryWise = function(above, below, context) {
+            //   return Touch.canTouch(above, below);
+            // };
+            //
+            // const canTouchFunc_idWise = function(above, below, context) {
+            //   logger.log("canTouchFunc_idWise, above.id", above.id);
+            //   logger.log("canTouchFunc_idWise, icGeminiShade.id", icGeminiShade.id);
+            //
+            //   return (above.id != icGeminiShade.id);
+            // };
+            //
+            // const canTouchFuncs = {
+            //   "geometry": canTouchFunc_geometryWise,
+            //   "id":       canTouchFunc_idWise,
+            // };
+            //
+            // const canTouchFunc_allWise = (above, below, context) => {
+            //   return Object.entries(canTouchFuncs).reduce((acc, [canTouchFunc_xWiseName, canTouchFunc_xWise]) => {
+            //     const canTouch_xWise = canTouchFunc_xWise(above,below, context);
+            //     console.log("canTouch_xWise", canTouchFunc_xWiseName, canTouch_xWise);
+            //     return acc && canTouch_xWise;
+            //   }, true);
+            // };
+            //
+            // const canTouchFunc = canTouchFunc_allWise;
+            // icTouchSlot.touchSlotConfig.canTouchFunc = canTouchFunc;
+          }
 
+          //prevent original from touches while shadePossessor is running     //SHU: il faudra trouver un moyen de faire autrement car c'est moche
+          icObj.isTouchable = false;
+
+          const transformationOutput = await infiniteCanvas.addIcObject_p(icGeminiShade)
+                                      .then(rep_free__geminiShade => {
+                                        var out_p;
+
+                                        //operate on shade
+
+                                        const transformationFunc_p = infiniteCanvas.transformationFunc_pForReplayObj(replayObj);
+
+                                        out_p = transformationFunc_p(rep_free__geminiShade)
+                                                .then(transformationOutput => {
+
+                                                  const obj = {
+                                                    rep_free__geminiShade: rep_free__geminiShade,
+                                                    transformationOutput:  transformationOutput,
+                                                  };
+
+                                                  return obj;
+                                                });
+
+                                        return out_p;
+                                      })
+                                      .then(obj => {
+
+                                        const rep_free__geminiShade = obj.rep_free__geminiShade;
+                                        const transformationOutput  = obj.transformationOutput;
+
+                                        //destroy shade
+                                        rep_free__geminiShade.im_dying_now = true;
+
+                                        //restore isTouchable                 //SHU: il faudra trouver un moyen de faire autrement car c'est moche
+                                        icObj.isTouchable = true;
+
+                                        return transformationOutput;
+                                      });
+
+          return transformationOutput;
         };
 
         const operatorConfig = new OperatorConfig(text_in, transformationFunc__decorated);
@@ -10766,6 +10891,25 @@
 
       }
 
+      addIcObject_p(icObj) {
+        var out_p;
+
+        out_p = new Promise((resolve, reject) => {
+
+          infiniteCanvas.onceOnAddRepresentedForIcObject(icObj, async (icObj) => {
+
+            const represented = infiniteCanvas.getRepresented(icObj.id);
+            const rep_free    = represented.r_free();
+
+            resolve(rep_free);
+          });
+          infiniteCanvas.addIcObject(icObj);
+
+        });
+
+        return out_p;
+      }
+
       didAddIcObject(icObj) {
 
       }
@@ -14723,6 +14867,9 @@
             {
               const mathNode = value;
               const mathNode__deepClone = mathNode.cloneDeep();
+              if(mathNode.autoSimplify != null) {
+                mathNode__deepClone.autoSimplify = mathNode.autoSimplify;
+              }
               icObj__deepClone[key] = mathNode__deepClone;
             }
             break;
@@ -15992,7 +16139,7 @@
           };
 
 
-          this.touch = function(icObj_slot, icObj_piece) {
+          this.touch = async function(icObj_slot, icObj_piece) {
             console.log("touch", icObj_piece);
 
             const icTouchSlot = this.scopeObj.engineCarrier;
@@ -16008,7 +16155,7 @@
             const touchStateDict__clone = Object.assign({}, rep_official.touchStateDict);
             touchStateDict__clone[icObj_slot.id] = TouchState.Touched;
             // rep_official.touchStateDict = touchStateDict__clone;               //SHU: it does not work well with rep_official, I've tried with rep_free and it seems ok...  (I don't care that much anymore)
-            rep_free.touchStateDict = touchStateDict__clone;                      //SHU: as of now, set dict as if it were a depthless prop
+            rep_free.touchStateDict     = touchStateDict__clone;                  //SHU: as of now, set dict as if it were a depthless prop
 
 
             //apply mutation
@@ -16069,7 +16216,7 @@
               logger.log("icObj__touched", icObj__touched);
 
 
-              const transformationOutput = transformationFunc(icObj__touched);
+              const transformationOutput = await transformationFunc(icObj__touched, icObj_slot);
               switch(transformationOutput.type) {
                 case "new":
                 {
@@ -16329,6 +16476,7 @@
             }
 
             rep_official.touchStateDict[icObj_slot.id] = TouchState.Untouched;
+            // rep_free.touchStateDict[icObj_slot.id] = TouchState.Untouched;
           };
 
 
@@ -19112,6 +19260,8 @@
                 "engine",
                 "getScopeObj",
 
+                "im_dying_now",
+                "im_dead_now",
             ]);
 
             const set_propName__ignore_in  = set_propName__ignore;
