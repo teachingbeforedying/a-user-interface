@@ -4340,9 +4340,11 @@
         this.rx_icEvent_subject    = new Rx.Subject();
         this.rx_icEvent_observable = this.rx_icEvent_subject.asObservable();
 
-
         // this.isRecordingPathmade_subject    = new Rx.BehaviorSubject(false);
         // this.isRecordingPathmade_observable = this.isRecordingPathmade_subject.asObservable();
+
+        this.rx_icPathmadeOperator_subject    = new Rx.Subject();
+        this.rx_icPathmadeOperator_observable = this.rx_icPathmadeOperator_subject.asObservable();
 
 
           //--track changes
@@ -5750,8 +5752,9 @@
 
       }
 
-      createIcPathmadeOperator_end() {
-        // console.log("createIcReplay_end");
+      createIcPathmadeOperator_end_p() {
+        // console.log("createIcPathmadeOperator_end_p");
+        var out_p;
 
         const infiniteCanvas = this;
 
@@ -5759,7 +5762,8 @@
         {
           const creationManager__pathmadeOperator = infiniteCanvas.creationManagers["pathmadeOperator"];
           if(creationManager__pathmadeOperator == null) {
-            throw new Error("createIcPathmadeOperator_end, creationManager__pathmadeOperator == null");
+            const err = new Error("createIcPathmadeOperator_end_p, creationManager__pathmadeOperator == null");
+            out_p = Promise.reject(err);
           }
         }
 
@@ -5776,13 +5780,17 @@
         const eventstore__pathmadeOperator = creationManager__pathmadeOperator.eventstore;
         const replayObj_p = infiniteCanvas.getReplayObj_p(eventstore__pathmadeOperator);
 
-        replayObj_p.then(replayObj => {
+        out_p = replayObj_p
+                .then(replayObj => {
 
-          const icPathmadeOperator = infiniteCanvas.createIcPathmadeOperator(type__pathmadeOp, path, replayObj);
-          this.addIcObject(icPathmadeOperator);
+                  const icPathmadeOperator = infiniteCanvas.createIcPathmadeOperator(type__pathmadeOp, path, replayObj);
 
-          delete this.creationManagers["pathmadeOperator"];
-        });
+                  delete this.creationManagers["pathmadeOperator"];
+
+                  return icPathmadeOperator;
+                });
+
+        return out_p;
       }
 
       // createIcPathmadeOperator_from_operatorPathDrawingFObj(fObj) {
@@ -5934,7 +5942,14 @@
 
             out_p = bluebird.reduce(arr_promise, (acc,x) => {
               // logger.log("x", x);
+              return acc;
             }, transformationOutput);
+
+            //debug
+            // out_p = out_p.then(transformationOutput => {
+            //   logger.log("transformationOutput", transformationOutput);
+            //   return transformationOutput;
+            // });
 
           } else {
             out_p = Promise.reject(new Error("arr_event__replay.length == 0"));
@@ -6066,7 +6081,14 @@
         const operation = new Operation(operatorConfig.transformationFunc);
         icComposite.operation = operation;
 
-        return icComposite;
+
+        const icPathmadeOperator_spec = {
+          path: path,
+        };
+
+        const icPathmadeOperator = Object.assign(icComposite, icPathmadeOperator_spec);
+
+        return icPathmadeOperator;
       }
 
 
@@ -6142,6 +6164,7 @@
 
                                         out_p = transformationFunc_p(rep_free__geminiShade)
                                                 .then(transformationOutput => {
+                                                  // logger.log("transformationOutput", transformationOutput);
 
                                                   const obj = {
                                                     rep_free__geminiShade: rep_free__geminiShade,
@@ -6156,7 +6179,8 @@
                                       .then(obj => {
 
                                         const rep_free__geminiShade = obj.rep_free__geminiShade;
-                                        const transformationOutput  = obj.transformationOutput;
+                                        // const transformationOutput  = obj.transformationOutput;
+                                        const transformationOutput = new TransformationOutput("mutated", icObj, icObj);
 
                                         //destroy shade
                                         rep_free__geminiShade.im_dying_now = true;
@@ -6199,7 +6223,197 @@
         const operation = new Operation(operatorConfig.transformationFunc);
         icComposite.operation = operation;
 
-        return icComposite;
+
+        // return icComposite;
+
+        const icPathmadeOperator_spec = {
+          path: path,
+        };
+
+        const icPathmadeOperator = Object.assign(icComposite, icPathmadeOperator_spec);
+
+        return icPathmadeOperator;
+      }
+
+
+
+
+      createIcMultiPathmadeOperator_start(type__pathmadeOp) {
+        // console.log("createIcMultiPathmadeOperator_start");
+
+        const infiniteCanvas = this;
+
+        //check
+        {
+          const creationManager__multiPathmadeOperator = infiniteCanvas.creationManagers["multiPathmadeOperator"];
+          if(creationManager__multiPathmadeOperator != null) {
+            throw new Error("createIcMultiPathmadeOperator_start, creationManager__multiPathmadeOperator != null");
+          }
+        }
+
+        infiniteCanvas.creationManagers["multiPathmadeOperator"] = {
+          type: type__pathmadeOp,
+        };
+        const creationManager__multiPathmadeOperator = infiniteCanvas.creationManagers["multiPathmadeOperator"];
+
+        //create array for parts
+        creationManager__multiPathmadeOperator.arr_pathmadeOp = [];
+
+        //start amassing
+        creationManager__multiPathmadeOperator.sub = infiniteCanvas.rx_icPathmadeOperator_observable.subscribe({
+          next: (icPathmadeOperator) => {
+            creationManager__multiPathmadeOperator.arr_pathmadeOp.push(icPathmadeOperator);
+          },
+        });
+
+      }
+
+      createIcMultiPathmadeOperator_end() {
+        console.log("createIcMultiPathmadeOperator_end");
+
+        const infiniteCanvas = this;
+
+        //check
+        {
+          const creationManager__multiPathmadeOperator = infiniteCanvas.creationManagers["multiPathmadeOperator"];
+          if(creationManager__multiPathmadeOperator == null) {
+            throw new Error("createIcMultiPathmadeOperator_end, creationManager__multiPathmadeOperator == null");
+          }
+        }
+
+        const creationManager__multiPathmadeOperator = infiniteCanvas.creationManagers["multiPathmadeOperator"];
+
+        //stop amassing
+        creationManager__multiPathmadeOperator.sub.unsubscribe();
+
+
+        const type__pathmadeOp = creationManager__multiPathmadeOperator.type;
+        const arr_pathmadeOp   = creationManager__multiPathmadeOperator.arr_pathmadeOp;
+
+
+        //create from parts
+        const icMultiPathmadeOperator = infiniteCanvas.createIcMultiPathmadeOperator(arr_pathmadeOp);
+
+        return icMultiPathmadeOperator;
+      }
+
+
+      createIcMultiPathmadeOperator(arr_pathmadeOp) {
+        logger.log("createIcMultiPathmadeOperator", arr_pathmadeOp);
+
+        const pathmadeOp__first = arr_pathmadeOp.find(e => true);
+        const path__first       = pathmadeOp__first.path;
+
+        const point__start = this.startingPointFromPath(path__first);
+
+        const trueRect = {
+          x:      point__start.x,
+          y:      point__start.y,
+          width:  100,
+          height: 100,
+        };
+
+        const text_in = "multipathmade";
+
+
+        const canTouchFunc_geometryWise = function(above, below, context) {
+          return Touch.canTouch(above, below);
+        };
+
+        const canTouchFunc_valueWise = function(icObj) {
+          var outBool;
+
+          if(icObj.type == "composite") {
+            const nb_parts = Object.values(icObj.parts).length;
+            logger.log("nb_parts", nb_parts);
+            const nb_op    = arr_pathmadeOp.length;
+            logger.log("nb_op", nb_op);
+
+            outBool = (nb_parts == nb_op);
+          } else {
+            outBool = false;
+          }
+
+          logger.log("canTouchFunc_valueWise", icObj, outBool);
+
+          return outBool;
+        };
+
+        const canTouchFuncs = {
+          "geometry": canTouchFunc_geometryWise,
+          "value":    canTouchFunc_valueWise,
+        };
+
+        const canTouchFunc_allWise = (above, below, context) => {
+          return Object.entries(canTouchFuncs).reduce((acc, [canTouchFunc_xWiseName, canTouchFunc_xWise]) => {
+            const canTouch_xWise = canTouchFunc_xWise(above,below, context);
+            console.log("canTouch_xWise", canTouchFunc_xWiseName, canTouch_xWise);
+            return acc && canTouch_xWise;
+          }, true);
+        };
+
+        const canTouchFunc = canTouchFunc_allWise;
+
+
+        const transformationFunc = async function(icObj, icTouchSlot) {
+
+          //debug
+          // icObj.fill = Color.randomColor();
+          const transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+
+          //dispatch
+          const arr_part               = Object.values(icObj.parts);
+          const arr_transformationFunc = arr_pathmadeOp.map(icObj => icObj.parts.touchSlot.touchSlotConfig.transformationFunc);
+
+          const zip = (a, b) => a.map((k, i) => [k, b[i]]);
+          const arr_zipped = zip(arr_part, arr_transformationFunc);
+
+          const arr_transformationOutput = arr_zipped.map(([part, transformationFunc], i) => {
+            const transformationOutput = transformationFunc(part);
+          });
+
+          return transformationOutput;
+        };
+
+
+        const operatorConfig = new OperatorConfig(text_in, transformationFunc);
+
+        const touchSlotConfig = {
+          canTouchFunc:       canTouchFunc,
+          transformationFunc: operatorConfig.transformationFunc,
+        };
+
+        const touchSlot    = infiniteCanvas.createIcTouchSlot(trueRect, touchSlotConfig);
+        touchSlot.fill     = "";
+        // touchSlot.isMobile = false;
+
+        const text         = operatorConfig.name;
+        const facade       = infiniteCanvas.createIcText(trueRect.x, trueRect.y, text);
+        facade.backgroundColor = "blanchedalmond";
+        // facade.isMobile    = false;
+        // facade.isTouchable = false;
+
+        const parts = {
+          "touchSlot": touchSlot,
+          "facade":    facade,
+        };
+
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+
+        const icComposite = this.createIcComposite(trueRect, parts, compositeConfig);
+        icComposite.cType = "multipathmade";
+
+        const operation = new Operation(operatorConfig.transformationFunc);
+        icComposite.operation = operation;
+
+
+        const icMultiPathmadeOperator_spec = {
+          arr_pathmadeOp: arr_pathmadeOp,
+        };
+
+        const icMultiPathmadeOperator = Object.assign(icComposite, icMultiPathmadeOperator_spec);
+
+        return icMultiPathmadeOperator;
       }
 
 
@@ -9094,6 +9308,32 @@
             break;
 
 
+
+            //composite-munching
+            case "c:objectAtIndex":
+            {
+              const index = cfg.index;
+
+              operatorConfig.name = gmOperatorType + "(" + index + ")";
+
+              function icObjTransformationFunc(icObj) {
+                logger.log("c:objectAtIndex", icObj);
+                var transformationOutput;
+
+
+                const arr_part   = Object.values(icObj.parts);
+                const icObj__new = arr_part[index];
+
+                transformationOutput = new TransformationOutput("new", icObj__new, icObj);
+
+                return transformationOutput;
+              };
+
+              operatorConfig.transformationFunc = icObjTransformationFunc;
+            }
+            break;
+
+
           }
 
           return operatorConfig;
@@ -11754,6 +11994,8 @@
         const icComposite = infiniteCanvas.createIcComposite(trueRect, parts, compositeConfig);
         // icComposite.cType = cType;
 
+        icComposite.isTouchable = true;
+
         icComposite.stroke      = "cyan";
         icComposite.strokeWidth = 5;
 
@@ -12748,7 +12990,7 @@
       }
 
 
-      addNewGMOperator_withType(type) {
+      addNewGMOperator_withType(type, cfg = {}) {
         const true_cursor = this.getTrueCursor();
 
         const left = true_cursor.x;
@@ -12764,7 +13006,7 @@
           height: height,
         };
 
-        const icGMOperator = this.createIcGMOperator_withType(trueRect, type);
+        const icGMOperator = this.createIcGMOperator_withType(trueRect, type, cfg);
         this.addNewIcObject(icGMOperator);
       }
 
@@ -16246,7 +16488,48 @@
                     icObj__old.im_dying_now = true;
                   }
 
-                  removeOld(icObj__touched);
+                  // removeOld(icObj__touched);
+
+                  //SHU: check if icObj__new is contained in icObj__old
+                  function isNewInOld(icObj__old, icObj__new) {
+                    var outBool;
+
+                    switch(icObj__old.type) {
+                      case "composite":
+                        {
+                          const arr_part = Object.values(icObj__old.parts);
+
+                          //breadth-first
+                          outBool = Utils.early_break_reduce(arr_part, (acc,x,i,arr) => {
+                            const isFound = (x == icObj__new);
+                            logger.log("isFound", x, icObj__new, isFound);
+                            return acc || isFound;
+                          }, false, (acc, x, i, arr) => {
+                            return (acc == true);
+                          });
+
+                          if(!outBool) {
+                            outBool = Utils.early_break_reduce(arr_part, (acc,x,i,arr) => {
+                              const isFound = isNewInOld(x, icObj__new);
+                              return acc || isFound;
+                            }, false, (acc, x, i, arr) => {
+                              return (acc == true);
+                            });
+                          }
+
+                          return outBool;
+                        }
+                        break;
+                      default:
+                        outBool = false;
+                        break;
+                    }
+
+                    logger.log("isNewInOld", icObj__old, icObj__new, outBool);
+
+                    return outBool;
+                  }
+
 
                   //add new
                   function addNew(icObj__new) {
@@ -16265,16 +16548,22 @@
 
                   }
 
+                  const icObj__old = icObj__touched;
+
                   if(transformationOutput.value instanceof IcObject) {
 
                     const icObj__new = transformationOutput.value;
                     logger.log("icObj__new", icObj__new);
 
+                    const isNewInOld_ = isNewInOld(icObj__old, icObj__new);
+                    // removeOld(icObj__old);
                     addNew(icObj__new);
 
                   } else if(transformationOutput.value instanceof Array) {
 
                     logger.log("transformationOutput.value instanceof Array");
+
+                    removeOld(icObj__old);
 
                     transformationOutput.value.forEach((icObj__new, i) => {
                       addNew(icObj__new);
@@ -25680,48 +25969,53 @@
 
           fabricCanvas.isDrawingMode = true;
 
-          fabricIntegration.current_operatorPathDrawing_objects = [];
-          function operatorPathDrawing_objectAdded(e) {
-            logger.log("operatorPathDrawing_objectAdded",e);
 
-            const fObj = e.target;
-            if(fObj.icObj != null) {
-              //ignore
-              return;
-            } else {
-
-              fObj.set({
-                stroke:  rgbColor,
-                opacity: opacity,
-              });
-
-              fabricIntegration.current_operatorPathDrawing_objects.push(e.target);
-
-            }
-
-          }
-
-          fabricIntegration.operatorPathDrawing_objectAdded = operatorPathDrawing_objectAdded;
-          fabricCanvas.on('object:added', fabricIntegration.operatorPathDrawing_objectAdded);
-
-
-          function onMouseMove__dummy(e) {
-            // logger.log("onMouseMove__dummy", e);
-            const rep_free__dummy = fabricIntegration.operatorPathDrawing_dummy;
-
-            const true_cursor = infiniteCanvas.getTrueCursor();
-            rep_free__dummy.position = {
-              x: true_cursor.x,
-              y: true_cursor.y,
-            };
-
-          }
-          fabricIntegration.operatorPathDrawing_onMouseMove__dummy = onMouseMove__dummy;
 
           //replay related
           function startRecording(e) {
             // logger.log("startRecording", e);
             fabricCanvas.off('mouse:down:before', startRecording);
+
+
+
+            fabricIntegration.current_operatorPathDrawing_objects = [];
+            function operatorPathDrawing_objectAdded(e) {
+              logger.log("operatorPathDrawing_objectAdded",e);
+
+              const fObj = e.target;
+              if(fObj.icObj != null) {
+                //ignore
+                return;
+              } else {
+
+                fObj.set({
+                  stroke:  rgbColor,
+                  opacity: opacity,
+                });
+
+                fabricIntegration.current_operatorPathDrawing_objects.push(e.target);
+
+              }
+
+            }
+
+            fabricIntegration.operatorPathDrawing_objectAdded = operatorPathDrawing_objectAdded;
+            fabricCanvas.on('object:added', fabricIntegration.operatorPathDrawing_objectAdded);
+
+
+            function onMouseMove__dummy(e) {
+              // logger.log("onMouseMove__dummy", e);
+              const rep_free__dummy = fabricIntegration.operatorPathDrawing_dummy;
+
+              const true_cursor = infiniteCanvas.getTrueCursor();
+              rep_free__dummy.position = {
+                x: true_cursor.x,
+                y: true_cursor.y,
+              };
+
+            }
+            fabricIntegration.operatorPathDrawing_onMouseMove__dummy = onMouseMove__dummy;
+
 
 
 
@@ -25758,30 +26052,74 @@
             //start pathmadeOperator creation
             infiniteCanvas.createIcPathmadeOperator_start(type__pathmadeOp);
           }
-          fabricCanvas.on('mouse:down:before', startRecording);
 
+          function stopRecording(e) {
+            // logger.log("startRecording", e);
+            fabricCanvas.off('mouse:up', stopRecording);
+
+            //kill dummy
+            fabricCanvas.off('mouse:move', fabricIntegration.operatorPathDrawing_onMouseMove__dummy);
+            if(fabricIntegration.operatorPathDrawing_dummy != null) {
+              fabricIntegration.operatorPathDrawing_dummy.im_dying_now = true;
+            }
+
+
+            fabricIntegration.fabricCanvas.off('object:added', fabricIntegration.freeDrawing_objectAdded);
+
+            //get newly created fabric objects
+            const operatorPathDrawing_objects_created = [...fabricIntegration.current_operatorPathDrawing_objects];
+            fabricIntegration.current_operatorPathDrawing_objects = [];
+
+            fabricIntegration.manageCreatedOperatorPathDrawingObjects(operatorPathDrawing_objects_created);
+
+            //stop pathmadeOperator creation
+            infiniteCanvas.createIcPathmadeOperator_end_p()
+            .then(icPathmadeOperator => {
+
+              switch(fabricIntegration.buildMode__operatorPathDrawing) {
+                case "grains":
+                  {
+                    infiniteCanvas.addIcObject(icPathmadeOperator);
+                  }
+                  break;
+                case "composite":
+                  {
+                    infiniteCanvas.rx_icPathmadeOperator_subject.next(icPathmadeOperator);
+                  }
+                  break;
+                default:
+                  throw new Error("fabricIntegration.buildMode__operatorPathDrawing, unsupported buildMode: " + fabricIntegration.buildMode__operatorPathDrawing);
+                  break;
+              }
+
+            });
+
+            //wait for next recording
+            fabricCanvas.on('mouse:down:before', startRecording);
+            fabricCanvas.on('mouse:up',          stopRecording);
+          }
+
+          //wait for next recording
+          fabricCanvas.on('mouse:down:before', startRecording);
+          fabricCanvas.on('mouse:up',          stopRecording);
+
+          //store methods for uninstalling
+          fabricIntegration.operatorPathDrawing_startRecording = startRecording;
+          fabricIntegration.operatorPathDrawing_stopRecording  = stopRecording;
         }
 
         leavePathmadeOperatorPathDrawing() {
           const fabricIntegration = this;
           const fabricCanvas      = fabricIntegration.fabricCanvas;
-          const infiniteCanvas    = fabricIntegration.infiniteCanvas;
 
-          //kill dummy
-          fabricCanvas.off('mouse:move', fabricIntegration.operatorPathDrawing_onMouseMove__dummy);
-          if(fabricIntegration.operatorPathDrawing_dummy != null) {
-            fabricIntegration.operatorPathDrawing_dummy.im_dying_now = true;
-          }
+          //stop waiting for next recording
+          fabricCanvas.off('mouse:down:before', fabricIntegration.operatorPathDrawing_startRecording);
+          delete fabricIntegration.operatorPathDrawing_startRecording;
+          fabricCanvas.off('mouse:up', fabricIntegration.operatorPathDrawing_stopRecording);
+          delete fabricIntegration.operatorPathDrawing_stopRecording;
 
 
           fabricIntegration.fabricCanvas.isDrawingMode = false;
-          fabricIntegration.fabricCanvas.off('object:added', fabricIntegration.freeDrawing_objectAdded);
-
-          //get newly created fabric objects
-          const operatorPathDrawing_objects_created = [...fabricIntegration.current_operatorPathDrawing_objects];
-          fabricIntegration.current_operatorPathDrawing_objects = [];
-
-          fabricIntegration.manageCreatedOperatorPathDrawingObjects(operatorPathDrawing_objects_created);
         }
 
         manageCreatedOperatorPathDrawingObjects(arr_fObj) {
@@ -25809,8 +26147,73 @@
             this.fabricCanvas.remove(fObj);
           });
 
-          infiniteCanvas.createIcPathmadeOperator_end();
         }
+
+
+
+
+
+        enterPathmadeOperatorPathDrawing__grains(type__pathmadeOp) {
+          const fabricIntegration = this;
+          const fabricCanvas      = fabricIntegration.fabricCanvas;
+          const infiniteCanvas    = fabricIntegration.infiniteCanvas;
+
+          //set creationMode
+          fabricIntegration.buildMode__operatorPathDrawing = "grains";
+
+          //start drawing mode
+          fabricIntegration.enterPathmadeOperatorPathDrawing(type__pathmadeOp);
+        }
+
+        leavePathmadeOperatorPathDrawing__grains() {
+
+          const fabricIntegration = this;
+          const fabricCanvas      = fabricIntegration.fabricCanvas;
+          const infiniteCanvas    = fabricIntegration.infiniteCanvas;
+
+          //end drawing mode
+          fabricIntegration.leavePathmadeOperatorPathDrawing();
+
+          //unset creationMode
+          delete fabricIntegration.buildMode__operatorPathDrawing;
+        }
+
+
+
+        enterPathmadeOperatorPathDrawing__composite(type__pathmadeOp) {
+          const fabricIntegration = this;
+          const fabricCanvas      = fabricIntegration.fabricCanvas;
+          const infiniteCanvas    = fabricIntegration.infiniteCanvas;
+
+          //start multiPathmadeOperator creation
+          infiniteCanvas.createIcMultiPathmadeOperator_start(type__pathmadeOp);
+
+          //set creationMode
+          fabricIntegration.buildMode__operatorPathDrawing = "composite";
+
+          //start drawing mode
+          fabricIntegration.enterPathmadeOperatorPathDrawing(type__pathmadeOp);
+        }
+
+        leavePathmadeOperatorPathDrawing__composite() {
+
+          const fabricIntegration = this;
+          const fabricCanvas      = fabricIntegration.fabricCanvas;
+          const infiniteCanvas    = fabricIntegration.infiniteCanvas;
+
+          //end drawing mode
+          fabricIntegration.leavePathmadeOperatorPathDrawing();
+
+          //unset creationMode
+          delete fabricIntegration.buildMode__operatorPathDrawing;
+
+          //end multiPathmadeOperator creation
+          const icMultiPathmadeOperator = infiniteCanvas.createIcMultiPathmadeOperator_end();
+          infiniteCanvas.addIcObject(icMultiPathmadeOperator);
+
+        }
+
+
 
 
         enterSlicing() {
@@ -29751,9 +30154,9 @@
 
                 if(isActive) {
                   const type = "conveyor";
-                  fabricIntegration.enterPathmadeOperatorPathDrawing(type);
+                  fabricIntegration.enterPathmadeOperatorPathDrawing__grains(type);
                 } else {
-                  fabricIntegration.leavePathmadeOperatorPathDrawing();
+                  fabricIntegration.leavePathmadeOperatorPathDrawing__grains();
                 }
 
               }),
@@ -29762,9 +30165,21 @@
 
                 if(isActive) {
                   const type = "shadePossessor";
-                  fabricIntegration.enterPathmadeOperatorPathDrawing(type);
+                  fabricIntegration.enterPathmadeOperatorPathDrawing__grains(type);
                 } else {
-                  fabricIntegration.leavePathmadeOperatorPathDrawing();
+                  fabricIntegration.leavePathmadeOperatorPathDrawing__grains();
+                }
+
+              }),
+
+              pathmadeOperatorDrawing__multi: new KeyDownToggle("Digit3", KeyDownToggle.defaultKeyDownFunc(["Digit3"]), (isActive) => {
+
+                if(isActive) {
+                  const type = "conveyor";
+                  // const type = "shadePossessor";
+                  fabricIntegration.enterPathmadeOperatorPathDrawing__composite(type);
+                } else {
+                  fabricIntegration.leavePathmadeOperatorPathDrawing__composite();
                 }
 
               }),
@@ -30046,18 +30461,18 @@
 
 
 
-              case "Digit3":
-                {
-                  // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__remove_parentheses");
-
-                  // const mathNode = math.parse("3*2");
-                  // keyboardIntegration.infiniteCanvas.addNewMNReictangle(mathNode);
-
-                  // const sandBox_doubleObjects = new SandBox_doubleObjects(keyboardIntegration.infiniteCanvas);
-
-                  keyboardIntegration.infiniteCanvas.addNewToggleRect();
-                }
-              break;
+              // case "Digit3":
+              //   {
+              //     // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__remove_parentheses");
+              //
+              //     // const mathNode = math.parse("3*2");
+              //     // keyboardIntegration.infiniteCanvas.addNewMNReictangle(mathNode);
+              //
+              //     // const sandBox_doubleObjects = new SandBox_doubleObjects(keyboardIntegration.infiniteCanvas);
+              //
+              //     keyboardIntegration.infiniteCanvas.addNewToggleRect();
+              //   }
+              // break;
 
               // case "Digit4":
               //   {
@@ -30128,8 +30543,8 @@
 
                   // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("equation__add1");
 
-                  // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("split__top_layer");
-                  keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("decomposition__product_primes");
+                  keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("split__top_layer");
+                  // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("decomposition__product_primes");
 
                   // keyboardIntegration.infiniteCanvas.addNewGMSafetyZone();
                 }
@@ -30148,7 +30563,15 @@
 
               case "KeyJ":
                 {
-                  keyboardIntegration.infiniteCanvas.addNewWell();
+                  // keyboardIntegration.infiniteCanvas.addNewWell();
+
+                  {
+                    const cfg = {
+                      index: 1,
+                    };
+                    keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("c:objectAtIndex", cfg);
+                  }
+
                 }
                 break;
 
@@ -37354,7 +37777,7 @@
 
           // this.debug_recording();
           // this.debug_geminiShade();
-
+          // this.debug_triggeredPathmade();
 
 
           this.debug_startingScreen();
@@ -39994,6 +40417,71 @@
           //   infiniteCanvas.addIcObject(gmOperator);
           // }
 
+
+        }
+
+        debug_triggeredPathmade() {
+
+          //create icMathNode
+          {
+            const trueRect_1 = {
+              x: 300,
+              y: 300,
+              width: 100,
+              height: 100,
+            };
+
+            const mathNode = math.parse("1");
+            mathNode.autoSimplify = true;
+
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
+            icMathNode.isTouchable = true;
+
+            infiniteCanvas.addIcObject(icMathNode);
+          }
+
+          //create icMathNode
+          {
+            const trueRect_1 = {
+              x: 300,
+              y: 600,
+              width: 100,
+              height: 100,
+            };
+
+            const mathNode = math.parse("2");
+            mathNode.autoSimplify = true;
+
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
+            icMathNode.isTouchable = true;
+
+            infiniteCanvas.addIcObject(icMathNode);
+          }
+
+
+          //create operator
+          {
+            const trueRect_2 = {
+              x: 800,
+              y: 200,
+              width: 100,
+              height: 100,
+            };
+            const gmOperator = infiniteCanvas.createIcGMOperator(trueRect_2, "+ 1");
+            infiniteCanvas.addIcObject(gmOperator);
+          }
+
+          //create operator
+          {
+            const trueRect_2 = {
+              x: 1500,
+              y: 600,
+              width: 100,
+              height: 100,
+            };
+            const gmOperator = infiniteCanvas.createIcGMOperator(trueRect_2, "x 2");
+            infiniteCanvas.addIcObject(gmOperator);
+          }
 
         }
 
