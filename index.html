@@ -4911,6 +4911,10 @@
 
         const icMathNode_spec = {
           mathNode: mathNode,
+
+          //appearance
+          strokeWidth: 0.0777,
+          stroke:     "hotpink",
         };
 
         const icMathNode = Object.assign(icObj, icMathNode_spec);
@@ -9320,11 +9324,20 @@
                 logger.log("c:objectAtIndex", icObj);
                 var transformationOutput;
 
+                switch(icObj.type) {
+                  case "composite":
+                    {
+                      const arr_part   = Object.values(icObj.parts);
+                      const icObj__new = arr_part[index];
 
-                const arr_part   = Object.values(icObj.parts);
-                const icObj__new = arr_part[index];
-
-                transformationOutput = new TransformationOutput("new", icObj__new, icObj);
+                      transformationOutput = new TransformationOutput("new", icObj__new, icObj);
+                    }
+                    break;
+                  default:
+                    //do nothing
+                    transformationOutput = new TransformationOutput("old", icObj, icObj);
+                    break;
+                }
 
                 return transformationOutput;
               };
@@ -15844,7 +15857,15 @@
 
 
           broadcaster.didUpdateFromInner = (representation, propName, oldValue, newValue) => {
+
             broadcaster.didUpdateFromInnerListeners.forEach((listener, i) => {
+              // if(!listener) {   //SHU: oulala
+              //   // logger.log("broadcaster.didUpdateFromInnerListeners", broadcaster.didUpdateFromInnerListeners);
+              //   // throw new Error("listener == null");
+              //
+              //   return;
+              // }
+              // logger.log("listener", listener);
               listener(representation, propName, oldValue, newValue);
             });
           };
@@ -15855,7 +15876,9 @@
             broadcaster.didUpdateFromInnerListeners.push(listener);
           };
           broadcaster.offInnerUpdate = (listener) => {
+            // logger.log("broadcaster.didUpdateFromInnerListeners, before", broadcaster.didUpdateFromInnerListeners);
             broadcaster.didUpdateFromInnerListeners = Utils.arrayByRemovingElement(broadcaster.didUpdateFromInnerListeners, listener);
+            // logger.log("broadcaster.didUpdateFromInnerListeners,  after", broadcaster.didUpdateFromInnerListeners);
           };
 
           broadcaster.offAllInnerUpdates = () => {
@@ -16468,8 +16491,8 @@
 
                   rep_free__supervessel.engine.awoken.removePart(icObj__touched);
 
-                  //remove old
-                  function removeOld(icObj__old)
+                  //killOld
+                  function killOld(icObj__old)
                   {
                     // infiniteCanvas.removeIcObject(icObj__touched);
                     switch(icObj__old.type) {
@@ -16488,11 +16511,15 @@
                     icObj__old.im_dying_now = true;
                   }
 
-                  // removeOld(icObj__touched);
+                  function findParentInOld(icObj__old, icObj__new) {
+                    var outFindResult;
 
-                  //SHU: check if icObj__new is contained in icObj__old
-                  function isNewInOld(icObj__old, icObj__new) {
-                    var outBool;
+                    const findResult__initial = {
+                      isFound: false,
+                      parent:  null,
+                    };
+
+                    outFindResult = findResult__initial;
 
                     switch(icObj__old.type) {
                       case "composite":
@@ -16500,39 +16527,41 @@
                           const arr_part = Object.values(icObj__old.parts);
 
                           //breadth-first
-                          outBool = Utils.early_break_reduce(arr_part, (acc,x,i,arr) => {
+                          outFindResult = Utils.early_break_reduce(arr_part, (acc,x,i,arr) => {
                             const isFound = (x == icObj__new);
                             logger.log("isFound", x, icObj__new, isFound);
-                            return acc || isFound;
-                          }, false, (acc, x, i, arr) => {
-                            return (acc == true);
+                            if(isFound) {
+                                acc.parent = icObj__old;
+                            }
+                            acc.isFound = acc.isFound || isFound;
+                            return acc;
+                          }, outFindResult, (acc, x, i, arr) => {
+                            return (acc.isFound == true);
                           });
 
-                          if(!outBool) {
-                            outBool = Utils.early_break_reduce(arr_part, (acc,x,i,arr) => {
-                              const isFound = isNewInOld(x, icObj__new);
-                              return acc || isFound;
-                            }, false, (acc, x, i, arr) => {
-                              return (acc == true);
+                          if(!outFindResult.isFound) {
+                            outFindResult = Utils.early_break_reduce(arr_part, (acc,x,i,arr) => {
+                              acc = findParentInOld(x, icObj__new);
+                              return acc;
+                            }, outFindResult, (acc, x, i, arr) => {
+                              return (acc.isFound == true);
                             });
                           }
 
-                          return outBool;
                         }
                         break;
                       default:
-                        outBool = false;
                         break;
                     }
 
-                    logger.log("isNewInOld", icObj__old, icObj__new, outBool);
+                    logger.log("findParentInOld", icObj__old, icObj__new, outFindResult);
 
-                    return outBool;
+                    return outFindResult;
                   }
 
 
                   //add new
-                  function addNew(icObj__new) {
+                  function addNew(icObj__new, isInCanvas) {
                     icObj__new.isTouchable = true;
                     icObj__new.touchStateDict[icObj_slot.id] = TouchState.Touched;
                     if(icObj__new.type == "composite") {
@@ -16541,11 +16570,12 @@
                       });
                     }
 
-                    infiniteCanvas.addIcObject(icObj__new);
+                    if(!isInCanvas) {
+                      infiniteCanvas.addIcObject(icObj__new);
+                    }
 
                     const rep_free__new = infiniteCanvas.getRepresented(icObj__new.id).r_free();
                     rep_free__supervessel.engine.awoken.addPart(rep_free__new);
-
                   }
 
                   const icObj__old = icObj__touched;
@@ -16555,15 +16585,29 @@
                     const icObj__new = transformationOutput.value;
                     logger.log("icObj__new", icObj__new);
 
-                    const isNewInOld_ = isNewInOld(icObj__old, icObj__new);
-                    // removeOld(icObj__old);
-                    addNew(icObj__new);
+                    //if icObj__new belongs to icObj__old hierarchy, remove icObj__new from icObj__old hierarchy
+                    const findParentInOld_ = findParentInOld(icObj__old, icObj__new);
+                    if(findParentInOld_.isFound) {
+                      const composite__parent = findParentInOld_.parent;
+                      composite__parent.engine.awoken.removePart(icObj__new);
+
+                      logger.log("parent", composite__parent);
+                      logger.log("removed part", icObj__new);
+
+                      killOld(icObj__old);
+                      addNew(icObj__new, true);
+
+                    } else {
+                      killOld(icObj__old);
+                      addNew(icObj__new, false);
+                    }
 
                   } else if(transformationOutput.value instanceof Array) {
 
                     logger.log("transformationOutput.value instanceof Array");
 
-                    removeOld(icObj__old);
+                    //SHU: TODO: manage the case "filtering multiple objects in composite"
+                    killOld(icObj__old);
 
                     transformationOutput.value.forEach((icObj__new, i) => {
                       addNew(icObj__new);
@@ -17885,8 +17929,16 @@
             return handle__listener;
           };
 
+
+
+
+          // this.counter__partListeners = 0;
           this.createPartListener = function() {
+
+            // const index__partListener = this.counter__partListeners;
+
             const part__listener = (representation, propName, oldValue, newValue) => {
+              // logger.log("partListener", index__partListener);
               const updatesDict = {
                 [propName]: {
                   old: oldValue,
@@ -17895,6 +17947,8 @@
               };
               this.managePartUpdate(representation, updatesDict);
             };
+
+            // this.counter__partListeners += 1;
 
             return part__listener;
           };
@@ -18184,16 +18238,23 @@
             const handle__represented = infiniteCanvas.getRepresented(handle.id);
             const handle__rep_free    = handle__represented.r_free();
 
-              //deactivate listener
-                  //retrieve
+            //deactivate listener
+                //retrieve
             const part__listener = this.listeners[part__rep_free.id];
-                  //deactivate
+                //deactivate
             part__rep_free.offInnerUpdate(part__listener);
+            delete this.listeners[part__rep_free.id];
 
-              //remove part from .parts
+            //remove part from .parts
+                // logger.log(handle__rep_free.parts", handle__rep_free.parts);
+              //get key
+            const key__part = Object.keys(handle__rep_free.parts).find(key => (handle__rep_free.parts[key] == part__rep_free));
+              //update parts dict
+                // delete handle__rep_free.parts[key__part];
             const parts__updated = Object.assign({}, handle__rep_free.parts);
-            delete parts__updated[part__rep_free.id];
+            delete parts__updated[key__part];
             handle__rep_free.parts = parts__updated;
+
 
               //remove partConfig
             delete handle__rep_free.compositeConfig[part__rep_free.id];
@@ -18688,6 +18749,7 @@
             const part__listener = this.listeners[part__rep_free.id];
                   //deactivate
             part__rep_free.offInnerUpdate(part__listener);
+            delete this.listeners[part__rep_free.id];
 
               //remove part from .parts
             const parts__updated = Object.assign({}, handle__rep_free.parts);
@@ -22291,6 +22353,12 @@
             // originX: icObj.originX ? icObj.originX : "left",
             originY: "top",
 
+
+            // fill:         "yellow",
+            // stroke:       icObj.stroke,
+            // strokeWidth : icObj.strokeWidth,
+
+
             icObj: icObj,
           });
 
@@ -22338,6 +22406,10 @@
             fObj.set({
               width:  width_px__svgEl,
               height: height_px__svgEl,
+
+              // fill:         "yellow",
+              // stroke:       icObj.stroke,
+              // strokeWidth : icObj.strokeWidth,
             });
 
             const dataUrl = SvgHelper.toDataURL(svgEl);
@@ -22362,6 +22434,9 @@
                   //debug
                   // stroke: "yellow",
                   // strokeWidth: 2,
+
+                  stroke:       icObj.stroke,
+                  strokeWidth : icObj.strokeWidth,
                 });
 
                 img.scaleToWidth(width_px__svgEl);
@@ -37778,6 +37853,8 @@
           // this.debug_recording();
           // this.debug_geminiShade();
           // this.debug_triggeredPathmade();
+          // this.debug_compositeAsArgument();
+
 
 
           this.debug_startingScreen();
@@ -40482,6 +40559,72 @@
             const gmOperator = infiniteCanvas.createIcGMOperator(trueRect_2, "x 2");
             infiniteCanvas.addIcObject(gmOperator);
           }
+
+        }
+
+
+        debug_compositeAsArgument() {
+
+          //create icMathNode
+          {
+            const trueRect_1 = {
+              x: 300,
+              y: 300,
+              width: 100,
+              height: 100,
+            };
+
+            const mathNode = math.parse("1");
+            mathNode.autoSimplify = true;
+
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
+            icMathNode.isTouchable = true;
+
+            infiniteCanvas.addIcObject(icMathNode);
+          }
+
+          //create icMathNode
+          {
+            const trueRect_1 = {
+              x: 300,
+              y: 600,
+              width: 100,
+              height: 100,
+            };
+
+            const mathNode = math.parse("2");
+            mathNode.autoSimplify = true;
+
+            const icMathNode = infiniteCanvas.createIcMathNode(trueRect_1.x, trueRect_1.y, mathNode);
+            icMathNode.isTouchable = true;
+
+            infiniteCanvas.addIcObject(icMathNode);
+          }
+
+
+          // //create operator
+          // {
+          //   const trueRect_2 = {
+          //     x: 800,
+          //     y: 200,
+          //     width: 100,
+          //     height: 100,
+          //   };
+          //   const gmOperator = infiniteCanvas.createIcGMOperator(trueRect_2, "+ 1");
+          //   infiniteCanvas.addIcObject(gmOperator);
+          // }
+          //
+          // //create operator
+          // {
+          //   const trueRect_2 = {
+          //     x: 1500,
+          //     y: 600,
+          //     width: 100,
+          //     height: 100,
+          //   };
+          //   const gmOperator = infiniteCanvas.createIcGMOperator(trueRect_2, "x 2");
+          //   infiniteCanvas.addIcObject(gmOperator);
+          // }
 
         }
 
