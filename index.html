@@ -4347,6 +4347,10 @@
         this.rx_icPathmadeOperator_observable = this.rx_icPathmadeOperator_subject.asObservable();
 
 
+
+        this.index__counter = 1;
+
+
           //--track changes
 
         // this.lastChangeTimestamp = null;
@@ -6278,9 +6282,7 @@
                                         var out_p;
 
                                         //add icObj to vessel
-                                        logger.log("icObj.compositeId before", icObj.compositeId);
                                         rep_free__vessel.engine.awoken.addPart(icObj);
-                                        logger.log("icObj.compositeId after", icObj.compositeId);
 
                                         //operate on vessel
                                         const transformationFunc_p = infiniteCanvas.transformationFunc_pForReplayObj(replayObj);
@@ -6563,6 +6565,307 @@
       }
 
 
+
+      createIcLayout(truePoint, storeConfig) {    //SHU: todo
+        logger.log("createIcLayout", truePoint, storeConfig);
+
+        // const parts           = [];
+        // const compositeConfig = Compositer.defaultCompositeConfig(parts, true);
+        // const icComposite     = this.createIcComposite(trueRect, parts, compositeConfig);
+        // icComposite.c_type = "store";
+        //
+        // const fColor = new fabric.Color("9A7B5F");
+        // fColor.setAlpha(1.0);
+        // const rgbaColorString = fColor.toRgba();
+        //
+        // const icStore_spec = {
+        //   fill: rgbaColorString,
+        //
+        //   isTouchable: true,
+        // }
+        //
+        // const icVessel = Object.assign(icComposite, icVessel_spec);
+        //
+        // return icVessel;
+      }
+
+
+      createIcStore(trueRect, storeConfig_in) {
+        logger.log("createIcStore", trueRect, storeConfig);
+
+        var storeConfig = storeConfig_in;
+        if(storeConfig == null) {
+          storeConfig = {
+            type: "copy",
+          };
+        }
+
+        const transformationFunc = async function(icObj, icTouchSlot) {
+
+          //debug
+          icObj.fill = Color.randomColor();
+          const transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+
+
+          const rep_free__icStore = infiniteCanvas.getRepresented(icTouchSlot.compositeId).r_free();
+          const rep_free__depot   = rep_free__icStore.parts.depot;
+
+          const icObj__clone = icObj.deepClone();
+          const id__clone    = infiniteCanvas.generateIcObjectId();
+          icObj__clone.id = id__clone;
+          icObj__clone.isTouchable = false;
+
+          infiniteCanvas.addIcObject(icObj__clone);
+          const rep_free__clone = infiniteCanvas.getRepresented(icObj__clone.id).r_free();
+
+          rep_free__clone.homeScale = Object.assign({}, icObj.homeScale);
+
+          const nb__in_depot = Object.values(rep_free__depot.parts).length;
+          const spacing__x = 200;
+          rep_free__clone.isMobile = true;
+          rep_free__clone.position = {
+            x: rep_free__depot.position.x + nb__in_depot * spacing__x,
+            y: rep_free__depot.position.y,
+          };
+
+          rep_free__depot.engine.awoken.addPart(rep_free__clone);
+
+          return transformationOutput;
+        };
+
+        const text_in = "store";
+        const operatorConfig = new OperatorConfig(text_in, transformationFunc);
+
+        const touchSlotConfig = {
+          // canTouchFunc:       canTouchFunc,
+          transformationFunc: operatorConfig.transformationFunc,
+        };
+
+        const touchSlot    = infiniteCanvas.createIcTouchSlot(trueRect, touchSlotConfig);
+        touchSlot.fill     = "";
+        // touchSlot.isMobile = false;
+
+
+        var depot;
+        {
+          const parts           = [];
+          const compositeConfig = Compositer.defaultCompositeConfig(parts, true);
+          const icComposite     = this.createIcComposite(trueRect, parts, compositeConfig);
+          icComposite.c_type    = "depot";
+
+          depot = icComposite;
+        }
+
+
+        const text         = operatorConfig.name;
+        const facade       = infiniteCanvas.createIcText(trueRect.x, trueRect.y, text);
+        facade.backgroundColor = "blanchedalmond";
+        // facade.backgroundColor = "#9A7B5F";        //SHU: is store really an operator ?
+        // facade.isMobile    = false;
+        // facade.isTouchable = false;
+
+        const parts = {
+          "touchSlot": touchSlot,
+          "depot":     depot,
+          "facade":    facade,
+        };
+
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+        const icComposite     = this.createIcComposite(trueRect, parts, compositeConfig);
+        icComposite.c_type = "store";
+
+        const operation = new Operation(operatorConfig.transformationFunc);
+        icComposite.operation = operation;
+
+        const icStore_spec = {
+
+        };
+
+        const icStore = Object.assign(icComposite, icStore_spec);
+
+        infiniteCanvas.onceOnAddRepresentedForIcObject(icStore, (icStore) => {
+
+          const rep_free__icStore = infiniteCanvas.getRepresented(icStore.id).r_free();
+          const rep_free__depot   = rep_free__icStore.parts.depot;
+
+          //shift down depot
+          rep_free__depot.isMobile = true;
+          rep_free__depot.position = Object.assign({}, rep_free__depot.position, {y: rep_free__depot.position.y + 180});
+          rep_free__depot.isMobile = false;
+
+        });
+
+        return icStore;
+      }
+
+
+      createIcCounter(trueRect, counterConfig_in) {
+        logger.log("createIcCounter", trueRect, counterConfig_in);
+
+        var counterConfig = counterConfig_in;
+        if(counterConfig == null) {
+          counterConfig = this.createCounterConfig(1);
+        }
+
+        const canTouchFunc_geometryWise = (above, below, context) => {
+          return Touch.canTouch(above, below);
+        };
+
+        const canTouchFunc_valueWise = function(icObj, icTouchSlot) {
+          const canCount = counterConfig.canCountFunc(icObj);
+          return canCount;
+        };
+
+        const canTouchFuncs = {
+          "geometry": canTouchFunc_geometryWise,
+          "value":    canTouchFunc_valueWise,
+        };
+
+        const canTouchFunc_allWise = (above, below, context) => {
+          return Object.entries(canTouchFuncs).reduce((acc, [canTouchFunc_xWiseName, canTouchFunc_xWise]) => {
+            const canTouch_xWise = canTouchFunc_xWise(above,below, context);
+            console.log("canTouch_xWise", canTouchFunc_xWiseName, canTouch_xWise);
+            return acc && canTouch_xWise;
+          }, true);
+        };
+
+        const canTouchFunc = canTouchFunc_allWise;
+
+        const transformationFunc = async function(icObj, icTouchSlot) {
+
+          //debug
+          // icObj.fill = Color.randomColor();
+          const transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+
+
+          const rep_free__icCounter = infiniteCanvas.getRepresented(icTouchSlot.compositeId).r_free();
+
+          const rep_free__reictangle = rep_free__icCounter.parts.reictangle;
+          const rep_free__label      = rep_free__icCounter.parts.label;
+
+
+          //increment counter inner variable
+          //counter inner variable is reictangle mathNode
+          const mathNode__counter__old = rep_free__reictangle.mathNode;
+          const value__counter__old    = mathNode__counter__old.value;
+          const value__counter__new    = value__counter__old + 1;
+
+
+          //update parts
+          const mathNode__counter__new  = new math.ConstantNode(value__counter__new);
+          rep_free__reictangle.mathNode = mathNode__counter__new;
+
+          rep_free__label.text          = "" + value__counter__new;
+
+          return transformationOutput;
+        };
+
+        const text_in = "count_";
+        const operatorConfig = new OperatorConfig(text_in, transformationFunc);
+
+        const touchSlotConfig = {
+          canTouchFunc:       canTouchFunc,
+          transformationFunc: operatorConfig.transformationFunc,
+        };
+
+        const touchSlot    = infiniteCanvas.createIcTouchSlot(trueRect, touchSlotConfig);
+        // touchSlot.fill     = "";
+        // touchSlot.isMobile = false;
+
+
+
+
+
+        const text         = operatorConfig.name;
+        const facade       = infiniteCanvas.createIcText(trueRect.x, trueRect.y, text);
+        facade.backgroundColor = "blanchedalmond";
+        // facade.backgroundColor = "#9A7B5F";        //SHU: is store really an operator ?
+        // facade.isMobile    = false;
+        // facade.isTouchable = false;
+
+        const icObj__specimen = counterConfig.icObj__specimen;
+        icObj__specimen.position = {
+          x: facade.position.x + 280,
+          y: facade.position.y + 32,
+        };
+
+
+        const mathNode       = new math.ConstantNode(0);
+        const icMNReictangle = this.createIcMNReictangle(trueRect.x + 100, trueRect.y - 50, mathNode);
+        icMNReictangle.isTouchable = false;
+        icMNReictangle.fill = "#A6C39E";
+        icMNReictangle.orientation = -90;
+
+
+        const string__counter = "" + mathNode.value;
+        const label           = infiniteCanvas.createIcText(trueRect.x + 100, trueRect.y + 200, string__counter);
+        label.backgroundColor = "#A6C39E";
+
+        const parts = {
+          "touchSlot":  touchSlot,
+          "facade":     facade,
+          "specimen":   icObj__specimen,
+
+          "reictangle": icMNReictangle,
+          "label":      label,
+        };
+
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+        const icComposite     = this.createIcComposite(trueRect, parts, compositeConfig);
+        icComposite.c_type = "counter";
+
+        const operation = new Operation(operatorConfig.transformationFunc);
+        icComposite.operation = operation;
+
+        const icCounter_spec = {
+
+        };
+
+        const icCounter = Object.assign(icComposite, icCounter_spec);
+
+        //arrange parts once added
+        // infiniteCanvas.onceOnAddRepresentedForIcObject(icCounter, (icCounter) => {
+        //
+        //   const rep_free__icCounter = infiniteCanvas.getRepresented(icCounter.id).r_free();
+        //
+        //   const rep_free__touchSlot   = rep_free__icCounter.parts.touchSlot;
+        //   const rep_free__facade      = rep_free__icCounter.parts.facade;
+        //
+        //   const rep_free__specimen    = rep_free__icCounter.parts.specimen;
+        //   const rep_free__reictangle  = rep_free__icCounter.parts.reictangle;
+        //   const rep_free__label       = rep_free__icCounter.parts.label;
+        //
+        //   rep_free__touchSlot.isMobile = true;
+        //   rep_free__touchSlot.position = Object.assign({}, rep_free__icCounter.position);
+        //   rep_free__touchSlot.isMobile = false;
+        //
+        //   rep_free__facade.isMobile = true;
+        //   rep_free__facade.position = Object.assign({}, rep_free__icCounter.position);
+        //   rep_free__facade.isMobile = false;
+        //
+        //   // rep_free__specimen.isMobile = true;
+        //   // rep_free__specimen.position = Object.assign({}, rep_free__icCounter.position);
+        //   // rep_free__specimen.isMobile = false;
+        //
+        //
+        //   rep_free__reictangle.isMobile = true;
+        //   rep_free__reictangle.position = {
+        //     x: rep_free__specimen.position.x,
+        //     y: rep_free__specimen.position.y - 100,
+        //   };
+        //   rep_free__reictangle.isMobile = false;
+        //
+        //   rep_free__label.isMobile = true;
+        //   rep_free__label.position = {
+        //     x: rep_free__specimen.position.x - 100,
+        //     y: rep_free__specimen.position.y + 100,
+        //   };
+        //   rep_free__label.isMobile = false;
+        //
+        // });
+
+        return icCounter;
+      }
 
 
 
@@ -9487,6 +9790,202 @@
               operatorConfig.transformationFunc = icObjTransformationFunc;
             }
             break;
+
+
+            //composite creation
+            case "vessel":
+            {
+              const rgbaString__vessel = cfg.rgbaString;
+
+              operatorConfig.name = "vessel";
+
+              const icObjTransformationFunc = async function(icObj) {
+                var transformationOutput;
+
+                logger.log("[vessel]");
+                //create vessel
+                const trueRect__icObj = {
+                  x:      icObj.position.x,
+                  y:      icObj.position.y,
+                  width:  icObj.size.width,
+                  height: icObj.size.height,
+                };
+                const icVessel = infiniteCanvas.createIcVessel(trueRect__icObj);
+                if(rgbaString__vessel != null) {
+                  icVessel.fill = rgbaString__vessel;
+                }
+
+                transformationOutput = await infiniteCanvas.addIcObject_p(icVessel)
+                                                .then(rep_free__vessel => {
+
+                                                  //add icObj to vessel
+                                                  rep_free__vessel.engine.awoken.addPart(icObj);
+
+                                                  return rep_free__vessel;
+                                                })
+                                                .then(rep_free__vessel => {
+                                                  const transformationOutput = new TransformationOutput("new", rep_free__vessel, icObj);
+                                                  return transformationOutput;
+                                                });
+
+                return transformationOutput;
+              };
+
+              operatorConfig.transformationFunc = icObjTransformationFunc;
+            }
+            break;
+
+            case "unvessel":
+            {
+              operatorConfig.name = "unvessel";
+
+              const icObjTransformationFunc = (icObj) => {
+                var transformationOutput;
+
+                logger.log("[unvessel]");
+
+                // const rep_free__vessel = infiniteCanvas.get;
+
+                //remove parts from vessel
+                // rep_free__vessel.engine.awoken.removePart(icObj);
+
+                transformationOutput = new TransformationOutput("new", arr_icObj, icObj);
+
+                return transformationOutput;
+              };
+
+              operatorConfig.transformationFunc = icObjTransformationFunc;
+            }
+            break;
+
+
+
+            //randomness
+
+            case "random":
+            {
+              operatorConfig.name = gmOperatorType;
+
+              function icObjTransformationFunc(icObj) {
+                logger.log("random", icObj);
+                var transformationOutput;
+
+                const mathNode = new math.ConstantNode(0);
+                const value__random = Math.random();
+                mathNode.value = value__random;
+
+                const trueRect__icObj = {
+                  x:      icObj.position.x,
+                  y:      icObj.position.y,
+                  width:  icObj.size.width,
+                  height: icObj.size.height,
+                };
+                const icMathNode = infiniteCanvas.createIcMathNode(trueRect__icObj.x, trueRect__icObj.y, mathNode);
+
+                transformationOutput = new TransformationOutput("new", icMathNode, icObj);
+
+                return transformationOutput;
+              };
+
+              operatorConfig.transformationFunc = icObjTransformationFunc;
+            }
+            break;
+
+            case "rand_int":
+            {
+              const int__min = cfg.min;
+              const int__max = cfg.max;
+
+              operatorConfig.name = gmOperatorType + "(" + int__min + "," +  int__max + ")";
+
+              function icObjTransformationFunc(icObj) {
+                logger.log("rand_int", icObj);
+                var transformationOutput;
+
+                const mathNode = new math.ConstantNode(0);
+                const value__random = Math.floor(Math.random() * (int__max - int__min)) + int__min;
+                mathNode.value = value__random;
+
+                const trueRect__icObj = {
+                  x:      icObj.position.x,
+                  y:      icObj.position.y,
+                  width:  icObj.size.width,
+                  height: icObj.size.height,
+                };
+                const icMathNode = infiniteCanvas.createIcMathNode(trueRect__icObj.x, trueRect__icObj.y, mathNode);
+
+                transformationOutput = new TransformationOutput("new", icMathNode, icObj);
+
+                return transformationOutput;
+              };
+
+              operatorConfig.transformationFunc = icObjTransformationFunc;
+            }
+            break;
+
+            case "rand_inArr":
+            {
+              const arr_value = cfg.arr_value;
+
+              operatorConfig.name = gmOperatorType + "([" + arr_value.join(",") + "])";
+
+              function icObjTransformationFunc(icObj) {
+                logger.log("rand_inArr", icObj);
+                var transformationOutput;
+
+                const mathNode = new math.ConstantNode(0);
+                const value__random = Utils.randomElementInArray(arr_value);
+                mathNode.value = value__random;
+
+                const trueRect__icObj = {
+                  x:      icObj.position.x,
+                  y:      icObj.position.y,
+                  width:  icObj.size.width,
+                  height: icObj.size.height,
+                };
+                const icMathNode = infiniteCanvas.createIcMathNode(trueRect__icObj.x, trueRect__icObj.y, mathNode);
+
+                transformationOutput = new TransformationOutput("new", icMathNode, icObj);
+
+                return transformationOutput;
+              };
+
+              operatorConfig.transformationFunc = icObjTransformationFunc;
+            }
+            break;
+
+            case "rand_inBag":
+            {
+              operatorConfig.name = gmOperatorType;
+
+              function icObjTransformationFunc(icObj) {
+                logger.log("rand_inBag", icObj);
+                var transformationOutput;
+
+                switch(icObj.type) {
+                  case "composite":
+                    {
+                      const arr_part      = Object.values(icObj.parts);
+                      const icObj__picked = Utils.randomElementInArray(arr_part);
+
+                      const icObj__new    = icObj__picked.deepClone();
+
+                      transformationOutput = new TransformationOutput("new", icObj__new, icObj);
+                    }
+                    break;
+                  default:
+                    //do nothing
+                    transformationOutput = new TransformationOutput("old", icObj, icObj);
+                    break;
+                }
+
+                return transformationOutput;
+              };
+
+              operatorConfig.transformationFunc = icObjTransformationFunc;
+            }
+            break;
+
 
 
           }
@@ -13453,7 +13952,81 @@
       }
 
 
+      addNewStore() {
+        const true_cursor = this.getTrueCursor();
 
+        const left = true_cursor.x;
+        const top  = true_cursor.y;
+
+        const width  = 100;   //"information" size
+        const height = 100;
+
+        const trueRect = {
+          x: left,
+          y: top,
+          width: width,
+          height: height,
+        };
+
+        const icStore = this.createIcStore(trueRect);
+        this.addNewIcObject(icStore);
+      }
+
+      addNewCounter() {
+        const infiniteCanvas = this;
+
+        const true_cursor = this.getTrueCursor();
+
+        const left = true_cursor.x;
+        const top  = true_cursor.y;
+
+        const width  = 100;   //"information" size
+        const height = 100;
+
+        const trueRect = {
+          x: left,
+          y: top,
+          width: width,
+          height: height,
+        };
+
+        const index__counter = this.index__counter;
+        const counterConfig  = this.createCounterConfig(index__counter);
+        this.index__counter += 1;
+
+        const icCounter = this.createIcCounter(trueRect, counterConfig);
+        this.addNewIcObject(icCounter);
+      }
+
+      createCounterConfig(index__counter) {
+        var outCounterConfig;
+
+        const mathNode   = new math.ConstantNode(index__counter);
+        const left = 0;
+        const top  = 0;
+        const icMathNode = infiniteCanvas.createIcMathNode(0, 0, mathNode);
+
+        const icObj__specimen = icMathNode;
+        outCounterConfig = {
+          icObj__specimen: icObj__specimen,
+
+          canCountFunc: (icObj) => {
+            var outBool;
+
+            const isValidType    = (icObj.type           == icObj__specimen.type);
+            if(!isValidType) {
+              outBool = false;
+            } else {
+              const isValidValue = (icObj.mathNode.value == icObj__specimen.mathNode.value);
+              outBool = isValidValue;
+            }
+
+            return outBool;
+          }
+        };
+
+        return outCounterConfig;
+      }
 
 
 
@@ -16729,6 +17302,14 @@
                       infiniteCanvas.addIcObject(icObj__new);
                     }
 
+                    const isPositionCorrection = true;
+                    if(isPositionCorrection) {
+                      icObj__new.position = {
+                        x: rep_free__vessel.position.x,
+                        y: rep_free__vessel.position.y,
+                      };
+                    }
+
                     const rep_free__new = infiniteCanvas.getRepresented(icObj__new.id).r_free();
                     rep_free__vessel.engine.awoken.addPart(rep_free__new);
                   }
@@ -18456,7 +19037,6 @@
             const handle__represented = infiniteCanvas.getRepresented(handle.id);
             const handle__rep_free    = handle__represented.r_free();
 
-
             //listen to handle
             const handle__listener = this.listeners[handle.id];
             handle__rep_free.onInnerUpdate(handle__listener);
@@ -18466,6 +19046,9 @@
             const arr_parts_all   = Object.values(parts);
             arr_parts_all.forEach((part__rep_free, i) => {
               // logger.log("part__rep_free", part__rep_free);
+
+              //set compositeId if not done yet         //SHU: horror
+              part__rep_free.compositeId = handle__rep_free.id;
 
               //'activate' listeners
               const part__listener = this.listeners[part__rep_free.id];
@@ -30798,7 +31381,7 @@
 
                   keyboardIntegration.infiniteCanvas.manageEnterOrLeaveRecording();
                 }
-              break;
+                break;
 
               case "Digit7":
                 {
@@ -30813,7 +31396,7 @@
 
                   // keyboardIntegration.infiniteCanvas.addNewGMSafetyZone();
                 }
-              break;
+                break;
 
               case "Digit8":
                 {
@@ -30822,9 +31405,21 @@
 
                   // keyboardIntegration.infiniteCanvas.addNewGMTargetTouchSlot();
 
-                  keyboardIntegration.infiniteCanvas.operateOnActiveObject__toggleProperty("isTouchable");
+                  // keyboardIntegration.infiniteCanvas.operateOnActiveObject__toggleProperty("isTouchable");
+
+                  keyboardIntegration.infiniteCanvas.addNewStore();
                 }
-              break;
+                break;
+
+              case "Digit9":
+                {
+                  // keyboardIntegration.infiniteCanvas.addNewCountdown();
+                  // keyboardIntegration.infiniteCanvas.addNewIcEngined_debug();
+
+                  // keyboardIntegration.infiniteCanvas.manageMoveEvent_debug();
+                  keyboardIntegration.infiniteCanvas.addNewCounter();
+                }
+                break;
 
               case "KeyJ":
                 {
@@ -30923,15 +31518,6 @@
 
                   keyboardIntegration.infiniteCanvas.manageReplay_debug();
                   // keyboardIntegration.infiniteCanvas.manageReplay_debug__machineGun();
-                }
-                break;
-
-              case "Digit9":
-                {
-                  // keyboardIntegration.infiniteCanvas.addNewCountdown();
-                  // keyboardIntegration.infiniteCanvas.addNewIcEngined_debug();
-
-                  keyboardIntegration.infiniteCanvas.manageMoveEvent_debug();
                 }
                 break;
 
@@ -38045,7 +38631,9 @@
           // this.debug_triggeredPathmade();
           // this.debug_compositeAsArgument();
 
+          // this.debug_random();
 
+          // this.debug_pathSeams();
 
           this.debug_startingScreen();
         }
@@ -40824,6 +41412,39 @@
             infiniteCanvas.addIcObject(icGMOperator);
           }
 
+          //create vessel operator
+          {
+            const trueRect = {
+              x: 1000,
+              y: 200,
+              width: 100,
+              height: 100,
+            };
+
+            const fColor = new fabric.Color("crimson");
+            fColor.setAlpha(0.666);
+            const rgbaColorString = fColor.toRgba();
+
+            const cfg = {
+              rgbaColorString: rgbaColorString,
+            };
+            const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect, "vessel", cfg);
+            infiniteCanvas.addIcObject(icGMOperator);
+          }
+
+          //create unvessel operator
+          {
+            const trueRect = {
+              x: 1000,
+              y: 600,
+              width: 100,
+              height: 100,
+            };
+
+            const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect, "unvessel");
+            infiniteCanvas.addIcObject(icGMOperator);
+          }
+
           // //create operator
           // {
           //   const trueRect_2 = {
@@ -40849,6 +41470,81 @@
           // }
 
         }
+
+        debug_random() {
+
+          //create random operator
+          {
+            const trueRect = {
+              x: 1000,
+              y: 200,
+              width: 100,
+              height: 100,
+            };
+
+            const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect, "random");
+            infiniteCanvas.addIcObject(icGMOperator);
+          }
+
+          //create rand_int operator
+          {
+            const trueRect = {
+              x: 1000,
+              y: 600,
+              width: 100,
+              height: 100,
+            };
+
+            const cfg = {
+              min: 1,
+              max: 100,
+            };
+            const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect, "rand_int", cfg);
+            infiniteCanvas.addIcObject(icGMOperator);
+          }
+
+          //create rand_inArr operator
+          {
+            const trueRect = {
+              x: 1500,
+              y: 400,
+              width: 100,
+              height: 100,
+            };
+
+            const cfg = {
+              arr_value: [1,1,1,2,2,2,2,2,2,3],
+            };
+            const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect, "rand_inArr", cfg);
+            infiniteCanvas.addIcObject(icGMOperator);
+          }
+
+          //create rand_inBag operator
+          {
+            const trueRect = {
+              x: 1500,
+              y: 800,
+              width: 100,
+              height: 100,
+            };
+
+            const cfg = {
+
+            };
+            const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect, "rand_inBag", cfg);
+            infiniteCanvas.addIcObject(icGMOperator);
+          }
+
+
+
+        }
+
+        debug_pathSeams() {
+
+
+        }
+
+
 
 
         debug_startingScreen() {
