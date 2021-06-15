@@ -5912,6 +5912,10 @@
         outFunc = function(icObj) {
           var out_p;
 
+          //follow a new path
+          icObj.counter__path += 1;
+          const index__path = icObj.counter__path;
+
           const arr_event__replay = replayObj.arr_event;
           if(arr_event__replay.length > 0) {
 
@@ -5928,17 +5932,26 @@
 
             function createPromiseForReplayEvent(replayEvent) {
               return new Promise((resolve, reject) => {
+
                 setTimeout(() => {
 
-                  const rep_free = icObj;
+                  if(icObj.counter__path == index__path) {
 
-                  const moveEvent = replayEvent;
+                    const rep_free = icObj;
 
-                  //"apply" event
-                  const position__new = moveEvent.data.position;
-                  rep_free.position = position__new;
+                    const moveEvent = replayEvent;
 
-                  resolve(rep_free);
+                    //"apply" event
+                    const position__new = moveEvent.data.position;
+                    rep_free.position = position__new;
+
+                    resolve(rep_free);
+
+                  } else {
+                    // const err = new Error("icObj.id__replayObj != replayObj.id");
+                    // reject(err);
+                    resolve(icObj);
+                  }
 
                 }, replayEvent.timeout);
               });
@@ -6061,7 +6074,26 @@
 
         const text_in = "pathmade:conveyor";
 
-        const transformationFunc = this.transformationFuncForReplayObj(replayObj);
+        // const transformationFunc = this.transformationFuncForReplayObj(replayObj);
+        const transformationFunc = async function(icObj, icTouchSlot) {
+
+          //prevent original from touches while shadePossessor is running     //SHU: il faudra trouver un moyen de faire autrement car c'est moche
+          // icObj.isTouchable = false;
+
+          const transformationFunc_p = infiniteCanvas.transformationFunc_pForReplayObj(replayObj);
+          const transformationOutput = await transformationFunc_p(icObj)
+                                            .then(transformationOutput => {
+
+                                              //restore isTouchable                 //SHU: il faudra trouver un moyen de faire autrement car c'est moche
+                                              // if(icObj.type != "geminiShade") {
+                                              //   icObj.isTouchable = true;
+                                              // }
+
+                                              return transformationOutput;
+                                            });
+
+          return transformationOutput;
+        };
 
         const operatorConfig = new OperatorConfig(text_in, transformationFunc);
 
@@ -6197,7 +6229,9 @@
                                         rep_free__geminiShade.im_dying_now = true;
 
                                         //restore isTouchable                 //SHU: il faudra trouver un moyen de faire autrement car c'est moche
-                                        icObj.isTouchable = true;
+                                        // if(icObj.type != "geminiShade") {
+                                        //   icObj.isTouchable = true;
+                                        // }
 
                                         return transformationOutput;
                                       });
@@ -6272,7 +6306,7 @@
           };
           const icVessel = infiniteCanvas.createIcVessel(trueRect__icObj);
 
-          //prevent vessel from being touched by shadePossessor when starting
+          //prevent vessel from being touched by parent vesseler when starting
           {
             icVessel.touchStateDict[icTouchSlot.id] = TouchState.Touched;
           }
@@ -6280,6 +6314,18 @@
           const transformationOutput = await infiniteCanvas.addIcObject_p(icVessel)
                                       .then(rep_free__vessel => {
                                         var out_p;
+
+                                        // shutemp {
+                                        //
+                                        //remove icObj from previous vessel (if any)
+                                        const previousVessel = infiniteCanvas.getVessel(icObj);
+                                        if(previousVessel != null) {
+                                          // previousVessel.engine.awoken.removePart(icObj);
+                                          previousVessel.im_dying_now = true;                   //SHU: this is ugly, and fortunately, only temporary
+                                        }
+                                        //
+                                        // shutemp }
+
 
                                         //add icObj to vessel
                                         rep_free__vessel.engine.awoken.addPart(icObj);
@@ -6381,6 +6427,31 @@
         const icVessel = Object.assign(icComposite, icVessel_spec);
 
         return icVessel;
+      }
+
+      createIcFuturing(trueRect) {
+        logger.log("createIcFuturing");
+
+        const infiniteCanvas = this;
+
+        const type      = "futuring";
+        const position  = Geometry.createPoint(trueRect.x, trueRect.y);
+        const size      = Geometry.createSize(trueRect.width, trueRect.height);
+        const homeScale = Object.assign({}, this.scale);
+
+        const icObj = this.createIcObject(type, position, size, homeScale);
+
+        const icFuturing_spec = {
+
+        };
+
+        const icFuturing = Object.assign(icObj, icFuturing_spec);
+
+
+        const engine = new FuturingEngine();
+        const eType  = "futuring";
+
+        const icEngined = infiniteCanvas.createIcEngined(icFuturing, eType, engine);
       }
 
 
@@ -12722,6 +12793,19 @@
 
       }
 
+      getVessel(icObj) {
+        var outIcObj;
+
+        const id__parent = icObj.compositeId;
+        if(id__parent != -1) {
+          const rep_free__parent = this.getRepresented(id__parent).r_free();
+          if(rep_free__parent.c_type == "vessel") {
+            outIcObj = rep_free__parent;
+          }
+        }
+
+        return outIcObj;
+      }
 
 
       getSupervessel() {
@@ -12729,6 +12813,8 @@
         const supervessel__rep_free    = supervessel__represented.r_free();
         return supervessel__rep_free;
       }
+
+
 
       getActiveObject() {
 
@@ -15097,6 +15183,11 @@
         // this.exoObject     = null;
 
         this.didUpdateListeners = [];
+
+
+
+        //ugliness from outer space
+        this.counter__path = 0;
       }
 
       static fromJson_p(json_icObject) {
@@ -28982,247 +29073,7 @@
 
 
 
-      class RxSubjectEngine {
 
-        constructor() {
-
-          this.initialized = false;
-
-          this.initialize = function(scopeObj) {
-
-            //"wake up":
-            //bind all funcs
-            // function isFunction(functionToCheck) {
-            //   return functionToCheck && {}.toString.call(functionToCheck) === '[object Function]';
-            // }
-            const isFunction = value => value && (Object.prototype.toString.call(value) === "[object Function]" || "function" === typeof value || value instanceof Function);
-
-            this.awoken = {
-              'i_am': "awoken",
-            };
-            console.log("this.virgin", this.virgin);
-            Object.entries(this.virgin)
-                  .filter(([propName, prop]) => isFunction(prop))
-                  .forEach(([propName, prop], i) => {
-                    this.awoken[propName] = prop.bind(this.awoken);
-                  });
-
-            // this.scopeObj  = scopeObj;
-              //engineCarrier,
-              //infiniteCanvas,
-            this.awoken.scopeObj = scopeObj;
-
-            this.initialized = true;
-          }
-
-
-
-
-
-          this.next = function(value) {
-
-            const engineCarrier = this.scopeObj.engineCarrier;
-            engineCarrier.value = value;
-
-            this.rxSubject.next(value);
-          };
-
-          this.getRxSubject = function() {
-            return this.rxSubject;
-          };
-
-
-
-          this.start = function() {
-            console.log("RxSubjectEngine::start, this", this);
-            console.log("RxSubjectEngine::start", "this.scopeObj", this.scopeObj);
-
-            const engineCarrier = this.scopeObj.engineCarrier;
-            const value         = engineCarrier.value;
-
-            const replaySubject = new Rx.ReplaySubject(1);
-            replaySubject.next(value);
-
-            this.rxSubject = replaySubject;
-          };
-
-          this.stop = function() {
-
-            this.rxSubject.complete();
-          };
-
-
-
-          this.virgin = Object.assign({}, this);  //virgin == not bound
-
-        }
-
-      }
-
-      class RxSubscriptionEngine {
-
-
-
-
-      }
-
-
-      class FacetEngine {
-
-        constructor() {
-
-          this.initialized = false;
-
-          this.initialize = function(scopeObj) {
-
-            //"wake up":
-            //bind all funcs
-            // function isFunction(functionToCheck) {
-            //   return functionToCheck && {}.toString.call(functionToCheck) === '[object Function]';
-            // }
-            const isFunction = value => value && (Object.prototype.toString.call(value) === "[object Function]" || "function" === typeof value || value instanceof Function);
-
-            this.awoken = {
-              'i_am': "awoken",
-            };
-            console.log("this.virgin", this.virgin);
-            Object.entries(this.virgin)
-                  .filter(([propName, prop]) => isFunction(prop))
-                  .forEach(([propName, prop], i) => {
-                    this.awoken[propName] = prop.bind(this.awoken);
-                  });
-
-            // this.scopeObj  = scopeObj;
-              //engineCarrier,
-              //infiniteCanvas,
-            this.awoken.scopeObj = scopeObj;
-
-            this.initialized = true;
-          }
-
-
-          this.react = function(nextObj) {
-
-            const engineCarrier = this.scopeObj.engineCarrier;
-
-            const reactFunc = engineCarrier.reactFunc;
-
-            const result = reactFunc(engineCarrier, nextObj);
-
-            return result;
-          };
-
-
-          this.start = function() {
-            console.log("FacetEngine::start, this", this);
-            console.log("FacetEngine::start", "this.scopeObj", this.scopeObj);
-
-            const engineCarrier = this.scopeObj.engineCarrier;
-            // const core          = engineCarrier.core;
-
-            const rxObservable  = engineCarrier.rxObservable;
-
-            this.rxsub = rxObservable.subscribe({
-              next: (obj) => {
-                this.react(obj);
-              },
-            });
-
-          };
-
-          this.stop = function() {
-            this.rxsub.unsubscribe();
-          };
-
-
-
-          this.virgin = Object.assign({}, this);  //virgin == not bound
-
-        }
-
-      }
-
-
-
-
-
-
-
-
-
-
-
-      class Observe {
-
-      }
-
-      class ObserverEngine {
-
-        constructor() {
-
-        }
-
-        start() {
-
-        }
-
-        stop() {
-
-        }
-
-        observe(icObj_incoming) { //this function is to be hooked
-
-        }
-
-        static defaultInstance(infiniteCanvas, icObserver) {
-          var outEngine;
-
-          const observerEngine = new ObserverEngine();
-          Hooker.installHooks(observerEngine, "observe");
-
-
-          const r_official_update_handler = (observer, icObj_incoming, outerUpdatesDict) => {
-            console.log("observerEngine::r_official_update_handler", icObj_incoming);
-
-            observerEngine.observe(icObj_incoming);
-          };
-          observerEngine.r_official_update_handler = r_official_update_handler;
-
-          const r_official_update_handler2 = (rep_official_incoming, outerUpdatesDict) => {
-            console.log("observerEngine::r_official_update_handler2", rep_official_incoming);
-
-            const represented  = infiniteCanvas.getRepresented(icObserver.id);
-            // console.log("represented", represented);
-            const rep_official = represented.r_official();
-
-            const observer    = rep_official;
-            const incomingObj = rep_official_incoming;
-            // console.log("incomingObj.id", incomingObj.id);
-
-            if(incomingObj != observer) { //don't observe oneself
-
-              console.log("observer.observerConfig.observed", observer.observerConfig.observed);
-              const isObserved = observer.observerConfig.observed[incomingObj.id];
-
-              if(!isObserved) {
-                //ignore: incomingObj is not observed
-              } else {
-                observerEngine.r_official_update_handler(observer, incomingObj, outerUpdatesDict);
-              }
-
-            } else {
-              console.log("I won't observe myself");
-            }
-
-          };
-          observerEngine.r_official_update_handler2 = r_official_update_handler2;
-
-          outEngine = observerEngine;
-
-          return outEngine;
-        }
-
-      }
 
 
 
@@ -29276,7 +29127,7 @@
           countDownConfig.stepFunc = (countDownObj) => {
             // logger.log("stepFunc", countDownObj);
 
-            if(countDownObj.index == 10) {             //SHU123
+            if(countDownObj.index == 10) {
               curseTrigger.expulse();
             }
           };
@@ -29724,6 +29575,330 @@
       //   }
       //
       // }
+
+
+
+
+      class RxSubjectEngine {
+
+        constructor() {
+
+          this.initialized = false;
+
+          this.initialize = function(scopeObj) {
+
+            //"wake up":
+            //bind all funcs
+            // function isFunction(functionToCheck) {
+            //   return functionToCheck && {}.toString.call(functionToCheck) === '[object Function]';
+            // }
+            const isFunction = value => value && (Object.prototype.toString.call(value) === "[object Function]" || "function" === typeof value || value instanceof Function);
+
+            this.awoken = {
+              'i_am': "awoken",
+            };
+            console.log("this.virgin", this.virgin);
+            Object.entries(this.virgin)
+                  .filter(([propName, prop]) => isFunction(prop))
+                  .forEach(([propName, prop], i) => {
+                    this.awoken[propName] = prop.bind(this.awoken);
+                  });
+
+            // this.scopeObj  = scopeObj;
+              //engineCarrier,
+              //infiniteCanvas,
+            this.awoken.scopeObj = scopeObj;
+
+            this.initialized = true;
+          }
+
+
+
+
+
+          this.next = function(value) {
+
+            const engineCarrier = this.scopeObj.engineCarrier;
+            engineCarrier.value = value;
+
+            this.rxSubject.next(value);
+          };
+
+          this.getRxSubject = function() {
+            return this.rxSubject;
+          };
+
+
+
+          this.start = function() {
+            console.log("RxSubjectEngine::start, this", this);
+            console.log("RxSubjectEngine::start", "this.scopeObj", this.scopeObj);
+
+            const engineCarrier = this.scopeObj.engineCarrier;
+            const value         = engineCarrier.value;
+
+            const replaySubject = new Rx.ReplaySubject(1);
+            replaySubject.next(value);
+
+            this.rxSubject = replaySubject;
+          };
+
+          this.stop = function() {
+
+            this.rxSubject.complete();
+          };
+
+
+
+          this.virgin = Object.assign({}, this);  //virgin == not bound
+
+        }
+
+      }
+
+      class RxSubscriptionEngine {
+
+
+
+
+      }
+
+
+      class FacetEngine {
+
+        constructor() {
+
+          this.initialized = false;
+
+          this.initialize = function(scopeObj) {
+
+            //"wake up":
+            //bind all funcs
+            // function isFunction(functionToCheck) {
+            //   return functionToCheck && {}.toString.call(functionToCheck) === '[object Function]';
+            // }
+            const isFunction = value => value && (Object.prototype.toString.call(value) === "[object Function]" || "function" === typeof value || value instanceof Function);
+
+            this.awoken = {
+              'i_am': "awoken",
+            };
+            console.log("this.virgin", this.virgin);
+            Object.entries(this.virgin)
+                  .filter(([propName, prop]) => isFunction(prop))
+                  .forEach(([propName, prop], i) => {
+                    this.awoken[propName] = prop.bind(this.awoken);
+                  });
+
+            // this.scopeObj  = scopeObj;
+              //engineCarrier,
+              //infiniteCanvas,
+            this.awoken.scopeObj = scopeObj;
+
+            this.initialized = true;
+          }
+
+
+          this.react = function(nextObj) {
+
+            const engineCarrier = this.scopeObj.engineCarrier;
+
+            const reactFunc = engineCarrier.reactFunc;
+
+            const result = reactFunc(engineCarrier, nextObj);
+
+            return result;
+          };
+
+
+          this.start = function() {
+            console.log("FacetEngine::start, this", this);
+            console.log("FacetEngine::start", "this.scopeObj", this.scopeObj);
+
+            const engineCarrier = this.scopeObj.engineCarrier;
+            // const core          = engineCarrier.core;
+
+            const rxObservable  = engineCarrier.rxObservable;
+
+            this.rxsub = rxObservable.subscribe({
+              next: (obj) => {
+                this.react(obj);
+              },
+            });
+
+          };
+
+          this.stop = function() {
+            this.rxsub.unsubscribe();
+          };
+
+
+
+          this.virgin = Object.assign({}, this);  //virgin == not bound
+
+        }
+
+      }
+
+
+
+
+
+
+
+
+
+
+
+      class Observe {
+
+      }
+
+      class ObserverEngine {
+
+        constructor() {
+
+        }
+
+        start() {
+
+        }
+
+        stop() {
+
+        }
+
+        observe(icObj_incoming) { //this function is to be hooked
+
+        }
+
+        static defaultInstance(infiniteCanvas, icObserver) {
+          var outEngine;
+
+          const observerEngine = new ObserverEngine();
+          Hooker.installHooks(observerEngine, "observe");
+
+
+          const r_official_update_handler = (observer, icObj_incoming, outerUpdatesDict) => {
+            console.log("observerEngine::r_official_update_handler", icObj_incoming);
+
+            observerEngine.observe(icObj_incoming);
+          };
+          observerEngine.r_official_update_handler = r_official_update_handler;
+
+          const r_official_update_handler2 = (rep_official_incoming, outerUpdatesDict) => {
+            console.log("observerEngine::r_official_update_handler2", rep_official_incoming);
+
+            const represented  = infiniteCanvas.getRepresented(icObserver.id);
+            // console.log("represented", represented);
+            const rep_official = represented.r_official();
+
+            const observer    = rep_official;
+            const incomingObj = rep_official_incoming;
+            // console.log("incomingObj.id", incomingObj.id);
+
+            if(incomingObj != observer) { //don't observe oneself
+
+              console.log("observer.observerConfig.observed", observer.observerConfig.observed);
+              const isObserved = observer.observerConfig.observed[incomingObj.id];
+
+              if(!isObserved) {
+                //ignore: incomingObj is not observed
+              } else {
+                observerEngine.r_official_update_handler(observer, incomingObj, outerUpdatesDict);
+              }
+
+            } else {
+              console.log("I won't observe myself");
+            }
+
+          };
+          observerEngine.r_official_update_handler2 = r_official_update_handler2;
+
+          outEngine = observerEngine;
+
+          return outEngine;
+        }
+
+      }
+
+
+
+
+      class FuturingEngine {
+
+        constructor() {
+
+          this.initialized = false;
+
+          this.initialize = function(scopeObj) {
+
+            //"wake up":
+            //bind all funcs
+            // function isFunction(functionToCheck) {
+            //   return functionToCheck && {}.toString.call(functionToCheck) === '[object Function]';
+            // }
+            const isFunction = value => value && (Object.prototype.toString.call(value) === "[object Function]" || "function" === typeof value || value instanceof Function);
+
+            this.awoken = {
+              'i_am': "awoken",
+            };
+            console.log("this.virgin", this.virgin);
+            Object.entries(this.virgin)
+                  .filter(([propName, prop]) => isFunction(prop))
+                  .forEach(([propName, prop], i) => {
+                    this.awoken[propName] = prop.bind(this.awoken);
+                  });
+
+            // this.scopeObj  = scopeObj;
+              //engineCarrier,
+              //infiniteCanvas,
+            this.awoken.scopeObj = scopeObj;
+
+            this.initialized = true;
+          }
+
+
+
+
+
+          this.add = function(transformation) {
+
+          };
+
+          this.abort_current = function() {
+
+          };
+
+          this.abort_all = function() {
+
+          };
+
+
+
+          this.start = function() {
+            console.log("RxSubjectEngine::start, this", this);
+            console.log("RxSubjectEngine::start", "this.scopeObj", this.scopeObj);
+
+            const engineCarrier = this.scopeObj.engineCarrier;
+
+            this.speed = 1.0;
+
+          };
+
+          this.stop = function() {
+
+
+          };
+
+
+
+          this.virgin = Object.assign({}, this);  //virgin == not bound
+
+        }
+
+      }
+
+
 
 
 
@@ -30990,7 +31165,12 @@
               pathmadeOperatorDrawing__conveyor: new KeyDownToggle("Digit5", KeyDownToggle.defaultKeyDownFunc(["Digit5"]), (isActive) => {
 
                 if(isActive) {
-                  const type = "conveyor";
+                  var type;
+                  if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+                    type = "vesseler";
+                  } else {
+                    type = "conveyor";
+                  }
                   fabricIntegration.enterPathmadeOperatorPathDrawing__grains(type);
                 } else {
                   fabricIntegration.leavePathmadeOperatorPathDrawing__grains();
@@ -31012,7 +31192,7 @@
               pathmadeOperatorDrawing__shadePossessor: new KeyDownToggle("Digit4", KeyDownToggle.defaultKeyDownFunc(["Digit4"]), (isActive) => {
 
                 if(isActive) {
-                  const type = "vesseler";
+                  const type = "shadePossessor";
                   fabricIntegration.enterPathmadeOperatorPathDrawing__grains(type);
                 } else {
                   fabricIntegration.leavePathmadeOperatorPathDrawing__grains();
@@ -31405,9 +31585,9 @@
 
                   // keyboardIntegration.infiniteCanvas.addNewGMTargetTouchSlot();
 
-                  // keyboardIntegration.infiniteCanvas.operateOnActiveObject__toggleProperty("isTouchable");
+                  keyboardIntegration.infiniteCanvas.operateOnActiveObject__toggleProperty("isTouchable");
 
-                  keyboardIntegration.infiniteCanvas.addNewStore();
+                  // keyboardIntegration.infiniteCanvas.addNewStore();
                 }
                 break;
 
