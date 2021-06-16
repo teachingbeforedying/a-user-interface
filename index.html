@@ -5083,7 +5083,10 @@
                 return outMathNode;
               }
 
-              rep_free.mathNode = mathFieldTex_to_mathNode(tex);
+               const mathNode__new = mathFieldTex_to_mathNode(tex);
+               mathNode__new.autoSimplify = true;
+
+               rep_free.mathNode = mathNode__new;
             }
 
             //remove all listeners
@@ -7526,10 +7529,18 @@
       }
 
 
-      createIcConductiveOperator(trueRect, mathOperatorSymbol_in = "+", isRetaining = false) {
+      createIcConductiveOperator(trueRect, mathOperatorSymbol_in = "+", cfg_in = null) {
         console.log("createIcConductiveOperator", trueRect);
 
-        const icPlatform = infiniteCanvas.createIcPlatform(trueRect);
+        var cfg = cfg_in;
+        if(cfg == null) {
+          cfg = {
+            isRetaining: false,
+          };
+        }
+
+        const trueRect__platform = Object.assign({}, trueRect, {width: 300, height: 300});
+        const icPlatform = infiniteCanvas.createIcPlatform(trueRect__platform);
         infiniteCanvas.addIcObject(icPlatform);                         //SHU: workaround.  One day, find out how to create fresh composite containing fresh composite
 
         const touchSlotConfig = {
@@ -7576,121 +7587,228 @@
 
           const rep_free__touchSlot = rep_free__conductiveOperator.parts.touchSlot;
 
-          const gmOperatorTextChangeEngine = new GMOperatorTextChangeEngine();
           const mathOperatorSymbol   = mathOperatorSymbol_in;
-          const mathOperatorFuncName = gmOperatorTextChangeEngine.mathOperatorFuncNameForSymbol(mathOperatorSymbol);
 
-          const transformationFunc = (icObj) => {
-            var transformationOutput;
+          switch(mathOperatorSymbol) {
+            case "+":
+            case "-":
+            case "x":
+            case "/":
+              {
+                const gmOperatorTextChangeEngine = new GMOperatorTextChangeEngine();
+                const mathOperatorFuncName = gmOperatorTextChangeEngine.mathOperatorFuncNameForSymbol(mathOperatorSymbol);
 
-            logger.log("transformationFunc__touch", icObj);
+                const transformationFunc = (icObj) => {
+                  var transformationOutput;
 
-            const rep_free__platform = rep_free__conductiveOperator.parts.platform;
-            logger.log("rep_free__platform", rep_free__platform);
+                  logger.log("transformationFunc__touch", icObj);
 
-            // const icObj__sadness = icObjToIcObjFunc(icObj);
+                  const rep_free__platform = rep_free__conductiveOperator.parts.platform;
+                  logger.log("rep_free__platform", rep_free__platform);
 
-            const conducted_operands = rep_free__platform.parts.terrace.parts;
-            const arr_conducted_operands = Object.values(conducted_operands);
+                  // const icObj__sadness = icObjToIcObjFunc(icObj);
 
-            if(arr_conducted_operands.length > 0) {
+                  const conducted_operands = rep_free__platform.parts.terrace.parts;
+                  const arr_conducted_operands = Object.values(conducted_operands);
 
-              if(icObj.type == "mathNode") {
+                  if(arr_conducted_operands.length > 0) {
 
-                //check if transformation is allowed
-                function isTransformationAllowed_atomic(mathNode_a, mathNode_b) {
-                  var outBool;
+                    if(icObj.type == "mathNode") {
 
-                  //fractions mode
-                  if(MathUtils.isFraction(mathNode_a) && MathUtils.isFraction(mathNode_b)) {
+                      //check if transformation is allowed
+                      function isTransformationAllowed_atomic(mathNode_a, mathNode_b) {
+                        var outBool;
 
-                    const mathNode__denominator_a = mathNode_a.args[1];
-                    const mathNode__denominator_b = mathNode_b.args[1];
+                        //fractions mode
+                        if(MathUtils.isFraction(mathNode_a) && MathUtils.isFraction(mathNode_b)) {
 
-                    const isSameDenominator = (mathNode__denominator_a.value == mathNode__denominator_b.value);   //SHU: this should be improved (symbols, parentheses...)
+                          const mathNode__denominator_a = mathNode_a.args[1];
+                          const mathNode__denominator_b = mathNode_b.args[1];
 
-                    outBool = isSameDenominator;
+                          const isSameDenominator = (mathNode__denominator_a.value == mathNode__denominator_b.value);   //SHU: this should be improved (symbols, parentheses...)
 
-                  } else {
-                    outBool = true;
-                  }
+                          outBool = isSameDenominator;
 
-                  return outBool;
-                }
+                        } else {
+                          outBool = true;
+                        }
 
-                const arr_conducted_mathNodes = arr_conducted_operands.filter(icObj => icObj.type == "mathNode").map(icObj => icObj.mathNode);
-                logger.log("arr_conducted_mathNodes", arr_conducted_mathNodes);
+                        return outBool;
+                      }
 
-                const mathNode__initial = icObj.mathNode.cloneDeep();
-                mathNode__initial.autoSimplify = icObj.mathNode.autoSimplify;
+                      const arr_conducted_mathNodes = arr_conducted_operands.filter(icObj => icObj.type == "mathNode").map(icObj => icObj.mathNode);
+                      logger.log("arr_conducted_mathNodes", arr_conducted_mathNodes);
 
-                const isTransformationAllowed = Utils.early_break_reduce(arr_conducted_mathNodes, (acc,x,i,arr) => {
-                  return acc && isTransformationAllowed_atomic(mathNode__initial, x);
-                }, true, (acc, x, i, arr) => {
-                  return (acc == false);
-                });
+                      const mathNode__initial = icObj.mathNode.cloneDeep();
+                      mathNode__initial.autoSimplify = icObj.mathNode.autoSimplify;
 
-                if(isTransformationAllowed) {
+                      const isTransformationAllowed = Utils.early_break_reduce(arr_conducted_mathNodes, (acc,x,i,arr) => {
+                        return acc && isTransformationAllowed_atomic(mathNode__initial, x);
+                      }, true, (acc, x, i, arr) => {
+                        return (acc == false);
+                      });
 
-                  // const mathNode__new = arr_conducted_mathNodes.reduce((acc, mathNode_conducted) => {
-                  const mathNode__new = arr_conducted_operands.reduce((acc, icObj_conducted) => {
+                      if(isTransformationAllowed) {
 
-                    const mathNode__acc      = acc;
-                    const mathNode_conducted = icObj_conducted.mathNode;
+                        // const mathNode__new = arr_conducted_mathNodes.reduce((acc, mathNode_conducted) => {
+                        const mathNode__new = arr_conducted_operands.reduce((acc, icObj_conducted) => {
 
-                    if(!isRetaining) {
-                      rep_free__platform.parts.terrace.engine.awoken.removePart(icObj_conducted);
-                      icObj_conducted.im_dying_now = true;
+                          const mathNode__acc      = acc;
+                          const mathNode_conducted = icObj_conducted.mathNode;
+
+                          if(!cfg.isRetaining) {
+                            rep_free__platform.parts.terrace.engine.awoken.removePart(icObj_conducted);
+                            icObj_conducted.im_dying_now = true;
+                          }
+
+                          const transformationFunc   = gmOperatorTextChangeEngine.createTransformationFunc(mathOperatorSymbol, mathOperatorFuncName, mathNode_conducted);
+                          const transformationFunc__decorated = function(mathNode) {
+                            var outMathNode;
+
+                            // outMathNode = transformationFunc(mathNode);
+                            // outMathNode = Simplifier.simplify_fraction(outMathNode);
+
+                            const mathNode_numerator__acc       = mathNode__acc.args[0];
+                            const mathNode_numerator__conducted = mathNode_conducted.args[0];
+
+                            const value__numerator      = mathNode_numerator__acc.value + mathNode_numerator__conducted.value;
+                            const mathNode__numerator   = new math.ConstantNode(value__numerator);
+                            const mathNode__denominator = mathNode__acc.args[1];
+
+                            outMathNode = new math.OperatorNode("/", "divide", [mathNode__numerator, mathNode__denominator]);
+
+                            return outMathNode;
+                          };
+
+                          acc = transformationFunc__decorated(acc);
+
+                          return acc;
+                        }, mathNode__initial);
+                        logger.log("mathNode__new", mathNode__new);
+
+                        const icObj__new = icObj.clone();
+                        icObj__new.mathNode = mathNode__new;
+
+                        transformationOutput = new TransformationOutput("mutated", icObj__new, icObj);
+
+                      } else {
+                        transformationOutput = new TransformationOutput("old", icObj, icObj);
+                      }
+
+                    } else {
+                      transformationOutput = new TransformationOutput("old", icObj, icObj);
                     }
 
-                    const transformationFunc   = gmOperatorTextChangeEngine.createTransformationFunc(mathOperatorSymbol, mathOperatorFuncName, mathNode_conducted);
-                    const transformationFunc__decorated = function(mathNode) {
-                      var outMathNode;
+                  } else {
+                    icObj.fill = Color.randomColor();
+                    // icObj.mathNode = new math.ConstantNode(42);
+                    transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+                  }
 
-                      // outMathNode = transformationFunc(mathNode);
-                      // outMathNode = Simplifier.simplify_fraction(outMathNode);
+                  return transformationOutput;
+                };
 
-                      const mathNode_numerator__acc       = mathNode__acc.args[0];
-                      const mathNode_numerator__conducted = mathNode_conducted.args[0];
-
-                      const value__numerator      = mathNode_numerator__acc.value + mathNode_numerator__conducted.value;
-                      const mathNode__numerator   = new math.ConstantNode(value__numerator);
-                      const mathNode__denominator = mathNode__acc.args[1];
-
-                      outMathNode = new math.OperatorNode("/", "divide", [mathNode__numerator, mathNode__denominator]);
-
-                      return outMathNode;
-                    };
-
-                    acc = transformationFunc__decorated(acc);
-
-                    return acc;
-                  }, mathNode__initial);
-                  logger.log("mathNode__new", mathNode__new);
-
-                  const icObj__new = icObj.clone();
-                  icObj__new.mathNode = mathNode__new;
-
-                  transformationOutput = new TransformationOutput("mutated", icObj__new, icObj);
-
-                } else {
-                  transformationOutput = new TransformationOutput("old", icObj, icObj);
-                }
-
-              } else {
-                transformationOutput = new TransformationOutput("old", icObj, icObj);
+                rep_free__touchSlot.touchSlotConfig.transformationFunc = transformationFunc;
               }
+              break;
 
-            } else {
-              icObj.fill = Color.randomColor();
-              // icObj.mathNode = new math.ConstantNode(42);
-              transformationOutput = new TransformationOutput("mutated", icObj, icObj);
-            }
+            case "randInBag":
+              {
+                const transformationFunc = (icObj) => {
+                  var transformationOutput;
 
-            return transformationOutput;
-          };
+                  logger.log("transformationFunc__touch", icObj);
 
-          rep_free__touchSlot.touchSlotConfig.transformationFunc = transformationFunc;
+                  const rep_free__platform = rep_free__conductiveOperator.parts.platform;
+                  logger.log("rep_free__platform", rep_free__platform);
+
+                  // const icObj__sadness = icObjToIcObjFunc(icObj);
+
+                  const conducted_operands = rep_free__platform.parts.terrace.parts;
+                  const arr_conducted_operands = Object.values(conducted_operands);
+
+                  switch(arr_conducted_operands.length) {
+                    case 0:
+                      {
+                        icObj.fill = Color.randomColor();
+                        // icObj.mathNode = new math.ConstantNode(42);
+                        transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+                      }
+                      break;
+
+                    case 1:
+                      {
+                        const isBag = (arr_conducted_operands[0].type == "composite");
+                        if(isBag) {
+
+                          const icObj__bag = arr_conducted_operands[0];
+
+                          const arr_part = Object.values(icObj__bag.parts);
+
+                          const part__random = Utils.randomElementInArray(arr_part);
+
+                          var icObj__new;
+                          if(cfg.isConsume) {
+                            //remove part
+                            const rep_free__parent = infiniteCanvas.getRepresented(part__random.compositeId).r_free();
+                            rep_free__parent.engine.awoken.removePart(part__random);
+
+                            icObj__new = part__random;
+                          } else {
+                            const icObj__clone = infiniteCanvas.createReplicant(part__random);
+                            icObj__new = icObj__clone;
+                          }
+
+                          // icObj__new.position = Object.assign({}, icObj.position);
+
+                          transformationOutput = new TransformationOutput("new", icObj__new, icObj);
+
+                        } else {
+                          icObj.fill = Color.randomColor();
+                          // icObj.mathNode = new math.ConstantNode(42);
+                          transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+                        }
+                      }
+                      break;
+
+                    default:
+                      {
+                        const arr_part = arr_conducted_operands;
+
+                        const part__random = Utils.randomElementInArray(arr_part);
+
+                        var icObj__new;
+                        if(cfg.isConsume) {
+                          //remove part
+                          const rep_free__parent = infiniteCanvas.getRepresented(part__random.compositeId).r_free();
+                          rep_free__parent.engine.awoken.removePart(part__random);
+
+                          icObj__new = part__random;
+                        } else {
+                          const icObj__clone = infiniteCanvas.createReplicant(part__random);
+                          icObj__new = icObj__clone;
+                        }
+
+                        // icObj__new.position = Object.assign({}, icObj.position);
+
+                        transformationOutput = new TransformationOutput("new", icObj__new, icObj);
+                      }
+                      break;
+                  }
+
+                  return transformationOutput;
+                };
+
+                rep_free__touchSlot.touchSlotConfig.transformationFunc = transformationFunc;
+              }
+              break;
+            default:
+              throw new Error("Unsupported mathOperatorSymbol: " + mathOperatorSymbol);
+              break;
+          }
+
+
+
 
         });
 
@@ -13547,6 +13665,16 @@
       //
       // }
 
+
+      createReplicant(icObj) {
+        const icObj_clone = icObj.deepClone();
+        const id__clone = infiniteCanvas.generateIcObjectId();
+        icObj_clone.id = id__clone;
+
+        return icObj_clone;
+      }
+
+
       operateOnActiveObject__poopSameHomeScaleClone() {
         const infiniteCanvas = this;
 
@@ -14112,6 +14240,27 @@
         };
 
         return outCounterConfig;
+      }
+
+
+      addNewConductiveOperator_withType(type, cfg = {}) {
+        const true_cursor = this.getTrueCursor();
+
+        const left = true_cursor.x;
+        const top  = true_cursor.y;
+
+        const width  = 100;   //"information" size
+        const height = 100;
+
+        const trueRect = {
+          x: left,
+          y: top,
+          width: width,
+          height: height,
+        };
+
+        const conductiveOperator = infiniteCanvas.createIcConductiveOperator(trueRect, type, cfg);
+        infiniteCanvas.addIcObject(conductiveOperator);
       }
 
 
@@ -31479,11 +31628,11 @@
                 }
                 break;
 
-              case "KeyU":
+              case "KeyY":
                 {
-                  // keyboardIntegration.infiniteCanvas.addNewTouchSlot();
-                  // keyboardIntegration.infiniteCanvas.addNewGMOperator();
-                  keyboardIntegration.infiniteCanvas.addNewGMChallenge(0);
+                  // keyboardIntegration.infiniteCanvas.addNewGMChallenge(0);
+
+                  keyboardIntegration.infiniteCanvas.addNewStore();
                 }
                 break;
 
@@ -31586,8 +31735,6 @@
                   // keyboardIntegration.infiniteCanvas.addNewGMTargetTouchSlot();
 
                   keyboardIntegration.infiniteCanvas.operateOnActiveObject__toggleProperty("isTouchable");
-
-                  // keyboardIntegration.infiniteCanvas.addNewStore();
                 }
                 break;
 
@@ -31600,6 +31747,25 @@
                   keyboardIntegration.infiniteCanvas.addNewCounter();
                 }
                 break;
+
+              case "F2":
+                {
+                  const cfg = {
+                    isConsume: false,
+                  };
+                  keyboardIntegration.infiniteCanvas.addNewConductiveOperator_withType("randInBag", cfg);
+                }
+                break;
+
+              case "F4":
+                {
+                  const cfg = {
+                    isConsume: true,
+                  };
+                  keyboardIntegration.infiniteCanvas.addNewConductiveOperator_withType("randInBag", cfg);
+                }
+                break;
+
 
               case "KeyJ":
                 {
@@ -31790,9 +31956,9 @@
 
 
               // case "Digit0":
-              case "Numpad0":
-                keyboardIntegration.infiniteCanvas.move_to_initial_position();
-                break;
+              // case "Numpad0":
+              //   keyboardIntegration.infiniteCanvas.move_to_initial_position();
+              //   break;
 
               case "BackQuote":
                 keyboardIntegration.infiniteCanvas.move_to_pov__animation(pov_debug, animationConfig__default);
@@ -31879,6 +32045,65 @@
 
 
               default:
+
+                //listen to numpad digits
+                const arr_numpad = (e.code).split("Numpad");
+                logger.log("arr_numpad", arr_numpad);
+                const code__numpad = arr_numpad[1];
+                if(code__numpad != null) {
+                  logger.log("arr_numpad[1]", arr_numpad[1]);
+
+                  switch(code__numpad) {
+                    case "Add":
+                      {
+                        const cfg = {
+                          isConsume: false,
+                        };
+                        keyboardIntegration.infiniteCanvas.addNewConductiveOperator_withType("+", cfg);
+                      }
+                      break;
+                    case "Subtract":
+                      {
+                        const cfg = {
+                          isConsume: false,
+                        };
+                        keyboardIntegration.infiniteCanvas.addNewConductiveOperator_withType("-", cfg);
+                      }
+                      break;
+                    case "Multiply":
+                      {
+                        const cfg = {
+                          isConsume: false,
+                        };
+                        keyboardIntegration.infiniteCanvas.addNewConductiveOperator_withType("x", cfg);
+                      }
+                      break;
+                    case "Divide":
+                      {
+                        const cfg = {
+                          isConsume: false,
+                        };
+                        keyboardIntegration.infiniteCanvas.addNewConductiveOperator_withType("/", cfg);
+                      }
+                      break;
+                    default:
+                      {
+                        const num__code = parseInt(code__numpad);
+                        logger.log("num__code", num__code);
+
+                        if(num__code != NaN) {
+                          const mathNode    = new math.ConstantNode(num__code);
+                          mathNode.autoSimplify = true;
+
+                          keyboardIntegration.infiniteCanvas.addNewMathNode(mathNode);
+                        }
+
+                      }
+                      break;
+                  }
+
+                }
+
                 break;
             }
           }
@@ -38921,18 +39146,19 @@
           facade_rep_free.curse_metamorphosis.start();
 
 
-          keyboard_Rx.rx_keyUp.subscribe({
-            next: (e) => {
-              logger.log("e",e);
-
-              switch(e.code) {
-                case "Numpad1":
-                  facade_rep_free.curse_metamorphosis.curseTrigger.impulse();
-                  break;
-              }
-
-            },
-          });
+          //debug?
+          // keyboard_Rx.rx_keyUp.subscribe({
+          //   next: (e) => {
+          //     logger.log("e",e);
+          //
+          //     switch(e.code) {
+          //       case "Numpad1":
+          //         facade_rep_free.curse_metamorphosis.curseTrigger.impulse();
+          //         break;
+          //     }
+          //
+          //   },
+          // });
 
 
 
