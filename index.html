@@ -4579,6 +4579,8 @@
 
 
 
+
+
       introduceToExistingObjects(represented) {
 
         //introduce object to existing touchSlots
@@ -4824,10 +4826,14 @@
         const exoObject = Object.assign({}, fObj);
         exoObject.icObj = null; // remove circular dependency
 
+        const isCosmetic = fObj.isCosmetic;
+
         const icFreeDrawing_spec = {
           // path: fObj.path,
 
           exoObject: exoObject,
+
+          isCosmetic: isCosmetic,
         };
 
         const icFreeDrawing = Object.assign(icObj, icFreeDrawing_spec);
@@ -7743,7 +7749,8 @@
 
                           const icObj__bag = arr_conducted_operands[0];
 
-                          const arr_part = Object.values(icObj__bag.parts);
+                          const arr_part = Object.values(icObj__bag.parts)
+                                                 .filter(icObj__part => !icObj__part.isCosmetic);
 
                           const part__random = Utils.randomElementInArray(arr_part);
 
@@ -7754,6 +7761,25 @@
                             rep_free__parent.engine.awoken.removePart(part__random);
 
                             icObj__new = part__random;
+
+                            //destroy bag if emptied
+                            {
+                              const arr_remaining = Object.values(rep_free__parent.parts)
+                                                          .filter(icObj__part => !icObj__part.isCosmetic);
+
+                              if(arr_remaining.length == 0) {
+
+                                // //remove bag from platform's terrace
+                                // const rep_free__terrace = infiniteCanvas.getRepresented(rep_free__parent.compositeId).r_free();
+                                // rep_free__terrace.engine.awoken.removePart(rep_free__parent);
+
+                                // rep_free__parent.shouldAlsoRemoveChildren = true;
+
+                                rep_free__parent.im_dying_now = true;
+                              }
+                            }
+
+
                           } else {
                             const icObj__clone = infiniteCanvas.createReplicant(part__random);
                             icObj__new = icObj__clone;
@@ -7764,16 +7790,35 @@
                           transformationOutput = new TransformationOutput("new", icObj__new, icObj);
 
                         } else {
-                          icObj.fill = Color.randomColor();
-                          // icObj.mathNode = new math.ConstantNode(42);
-                          transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+                          const part__random = arr_conducted_operands[0];
+
+                          const icObj__clone = infiniteCanvas.createReplicant(part__random);
+                          icObj__new = icObj__clone;
+
+                          transformationOutput = new TransformationOutput("new", icObj__new, icObj);
                         }
                       }
                       break;
 
-                    default:
+                    default:  //manage objects put directly on platform     //SHU: TODO: flatten atoms and composites
                       {
                         const arr_part = arr_conducted_operands;
+
+                        //debug
+                        {
+                          const arr_values = arr_part.map(x => {
+                            var outValue;
+
+                            const mathNode = x.mathNode;
+                            logger.log("mathNode", mathNode);
+                            if(mathNode != null) {
+                              outValue = mathNode.value;
+                            }
+
+                            return outValue;
+                          });
+                          logger.log("arr_values", arr_values);
+                        }
 
                         const part__random = Utils.randomElementInArray(arr_part);
 
@@ -12076,6 +12121,12 @@
           return;
         }
 
+        //remove from parent (if any)
+        const rep_free = represented.r_free();
+        if(rep_free.compositeId != -1) {
+          const rep_free__parent = infiniteCanvas.getRepresented(rep_free.compositeId).r_free();
+          rep_free__parent.engine.awoken.removePart(rep_free);
+        }
 
         if(shouldAlsoRemoveChildren) {
           if(represented.r_official().type == "composite") {
@@ -26951,7 +27002,7 @@
         }
 
 
-        enterFreeDrawing() {
+        enterFreeDrawing(cfg) {
           const fabricIntegration = this;
 
           const brushConfig = this.brushConfig__freeDrawing();
@@ -26972,6 +27023,8 @@
             fObj.set({
               stroke:  rgbColor,
               opacity: opacity,
+
+              isCosmetic: cfg.isCosmetic,
             });
 
             fabricIntegration.current_freeDrawing_objects.push(e.target);
@@ -31275,8 +31328,13 @@
               // shiftLeft: new KeyDownToggle("shiftLeft", KeyDownToggle.defaultKeyDownFunc(["ShiftLeft"]), (isActive) => {
               backquote: new KeyDownToggle("backquote", KeyDownToggle.defaultKeyDownFunc(["Backquote"]), (isActive) => {
                 /**/
+
+                const isCosmetic = keyboardIntegration.keyDownToggles.altLeft.isActive;
+                const cfg = {
+                  isCosmetic: isCosmetic,
+                };
                 if(isActive) {
-                  fabricIntegration.enterFreeDrawing();
+                  fabricIntegration.enterFreeDrawing(cfg);
                 } else {
                   fabricIntegration.leaveFreeDrawing();
                 }
