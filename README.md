@@ -14,6 +14,8 @@ Interactive objects
 Operators      
 _Math objects_    
 _Composites_          
+_Conveyors_    
+_Vessels_      
 ...and many others, scattered here and there    
 
 ## Video
@@ -36,6 +38,7 @@ Ideas rating: from *** (very good idea) to * (nice idea)
 <br/> Interested by an idea? Go on and code it yourself!
 
 <br/>There is some (huge) refactoring to do (Reduce loc nb, create lib(s) with separate files, improve performance, ...)
+<br/>See this as the first version of something bigger
  
 <br/>
 <br/>   
