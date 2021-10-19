@@ -4783,6 +4783,14 @@
 
         icText.addInteraction_edit();
 
+        //SHU123
+        // //add collection
+        // function collectionCreation_textChangeListener(icObj) {
+        //
+        // }
+        // icText.onEditExit(collectionCreation_textChangeListener);
+        // rep_free.onEditExit(collectionCreation_textChangeListener);
+
         return icText;
       }
 
@@ -7129,8 +7137,61 @@
       }
 
 
+     createIcCollection(trueRect, collectionConfig) {
+       console.log("createIcCollection", trueRect, collectionConfig);
 
+       const infiniteCanvas = this;
 
+       function createPartsDict(collectionConfig) {
+
+         function trueRectForPartIndex(index) {
+           const outTrueRect = {
+             x:      trueRect.x + 200 + index * 100 / infiniteCanvas.scale.X,
+             y:      trueRect.y,
+             width:  trueRect.width,
+             height: trueRect.height,
+           };
+
+           return outTrueRect;
+         }
+
+         const nb_elements = collectionConfig.max - collectionConfig.min + 1;
+         const arr_numbers = Array.from({length: nb_elements}, (_, i) => i + collectionConfig.min)
+
+         const arr_entries = arr_numbers.map((number, index) => {
+           const trueRect__icObj = trueRectForPartIndex(index);
+           const mathNode = new math.ConstantNode(number);
+           const icObj = infiniteCanvas.createIcMathNode(trueRect__icObj.x, trueRect__icObj.y, mathNode);
+
+           const name__element = "part_" + index;
+           return [name__element, icObj];
+         });
+
+         const partsDict = Object.fromEntries(arr_entries);
+
+         return partsDict;
+       }
+
+       const parts = createPartsDict(collectionConfig);
+
+       const compositeConfig = Object.entries(parts).reduce((acc, [partName, part], index) => {
+         // const isMobile = (index != 0);
+         const isMobile = true;
+
+         // acc[partName] = {
+         acc[part.id] = {
+           isMobile: isMobile,
+         };
+         return acc;
+       }, {});
+
+       const icComposite = this.createIcComposite(trueRect, parts, compositeConfig);
+
+       icComposite.isCollection = true;
+       icComposite.isTouchable  = true;
+
+       return icComposite;
+     }
 
 
       // createIcComposite(parts, engine) {
@@ -7668,23 +7729,35 @@
                           }
 
                           const transformationFunc   = gmOperatorTextChangeEngine.createTransformationFunc(mathOperatorSymbol, mathOperatorFuncName, mathNode_conducted);
+
                           const transformationFunc__decorated = function(mathNode) {
                             var outMathNode;
 
-                            // outMathNode = transformationFunc(mathNode);
-                            // outMathNode = Simplifier.simplify_fraction(outMathNode);
-
-                            const mathNode_numerator__acc       = mathNode__acc.args[0];
-                            const mathNode_numerator__conducted = mathNode_conducted.args[0];
-
-                            const value__numerator      = mathNode_numerator__acc.value + mathNode_numerator__conducted.value;
-                            const mathNode__numerator   = new math.ConstantNode(value__numerator);
-                            const mathNode__denominator = mathNode__acc.args[1];
-
-                            outMathNode = new math.OperatorNode("/", "divide", [mathNode__numerator, mathNode__denominator]);
+                            outMathNode = transformationFunc(mathNode);
 
                             return outMathNode;
                           };
+
+                          //SHU: addition de fractions:
+                          // const transformationFunc__decorated = function(mathNode) {
+                          //   var outMathNode;
+                          //
+                          //   // outMathNode = transformationFunc(mathNode);
+                          //   // outMathNode = Simplifier.simplify_fraction(outMathNode);
+                          //
+                          //   logger.log("mathNode__acc", mathNode__acc);
+                          //
+                          //   const mathNode_numerator__acc       = mathNode__acc.args[0];
+                          //   const mathNode_numerator__conducted = mathNode_conducted.args[0];
+                          //
+                          //   const value__numerator      = mathNode_numerator__acc.value + mathNode_numerator__conducted.value;
+                          //   const mathNode__numerator   = new math.ConstantNode(value__numerator);
+                          //   const mathNode__denominator = mathNode__acc.args[1];
+                          //
+                          //   outMathNode = new math.OperatorNode("/", "divide", [mathNode__numerator, mathNode__denominator]);
+                          //
+                          //   return outMathNode;
+                          // };
 
                           acc = transformationFunc__decorated(acc);
 
@@ -8761,16 +8834,18 @@
           operatorConfig = GMOperatorMama.operatorConfigForRank(rank);
         } else {
           const text_in = operatorString_in;
-          const transformationFunc_oldStyle = (new GMOperatorTextChangeEngine()).transformationFuncForText(text_in);
+          // const transformationFunc_oldStyle = (new GMOperatorTextChangeEngine()).transformationFuncForText(text_in);
 
-          const transformationFunc = function(icObj) {
-            var transformationOutput;
+          // const transformationFunc = function(icObj) {
+          //   var transformationOutput;
+          //
+          //   const icObj__mutated = transformationFunc_oldStyle(icObj);
+          //   transformationOutput = new TransformationOutput("mutated", icObj__mutated, icObj);
+          //
+          //   return transformationOutput;
+          // };
 
-            const icObj__mutated = transformationFunc_oldStyle(icObj);
-            transformationOutput = new TransformationOutput("mutated", icObj__mutated, icObj);
-
-            return transformationOutput;
-          };
+          const transformationFunc = (new GMOperatorTextChangeEngine()).transformationFuncForText(text_in);
 
           operatorConfig = new OperatorConfig(text_in, transformationFunc);
         }
@@ -8820,6 +8895,7 @@
           };
 
           switch(gmOperatorType) {
+
             case "simplify":
             {
               operatorConfig.name = "s";
@@ -10025,6 +10101,163 @@
             }
             break;
 
+            // case "c:map:1":
+            // {
+            //   operatorConfig.name = "c:map:" + "" + 1 + "";
+            //
+            //   function icObjTransformationFunc(icObj) {
+            //     logger.log("c:map:1", icObj);
+            //     var transformationOutput;
+            //
+            //     switch(icObj.type) {
+            //       case "composite":
+            //         {
+            //           const arr_part      = Object.values(icObj.parts);
+            //           const arr_part__new = arr_part.map(icObj__part => {
+            //             var outIcObj;
+            //
+            //             switch(icObj__part.type) {
+            //               case "mathNode":
+            //               {
+            //                 const mathNode__new   = new math.ConstantNode(1);
+            //                 const icMathNode__new = infiniteCanvas.createIcMathNode(icObj__part.position.x, icObj__part.position.y, mathNode__new);
+            //                 outIcObj = icMathNode__new;
+            //               }
+            //               break;
+            //               default:
+            //                 //do nothing
+            //                 outIcObj = icObj;
+            //               break;
+            //             }
+            //
+            //             return outIcObj;
+            //           });
+            //
+            //
+            //           //create new collection
+            //           const arr_entries = arr_part__new.map((icObj__part__new, index) => {
+            //             const name__element = "part_" + index;
+            //             return [name__element, icObj__part__new];
+            //           });
+            //
+            //           const parts = Object.fromEntries(arr_entries);
+            //
+            //           const compositeConfig = Object.entries(parts).reduce((acc, [partName, part], index) => {
+            //             // const isMobile = (index != 0);
+            //             const isMobile = true;
+            //
+            //             // acc[partName] = {
+            //             acc[part.id] = {
+            //               isMobile: isMobile,
+            //             };
+            //             return acc;
+            //           }, {});
+            //
+            //           const icObj__new = infiniteCanvas.createIcComposite(trueRect, parts, compositeConfig);
+            //
+            //           icComposite.isCollection = true;
+            //           icComposite.isTouchable  = true;
+            //
+            //           transformationOutput = new TransformationOutput("new", icObj__new, icObj);
+            //         }
+            //         break;
+            //       default:
+            //         //do nothing
+            //         transformationOutput = new TransformationOutput("old", icObj, icObj);
+            //         break;
+            //     }
+            //
+            //     return transformationOutput;
+            //   };
+            //
+            //   operatorConfig.transformationFunc = icObjTransformationFunc;
+            // }
+            // break;
+
+            case "c:map:":
+            {
+              const operatorString = cfg.operatorString;
+              operatorConfig.name = "c:map:" + operatorString;
+
+              function icObjTransformationFunc(icObj) {
+                logger.log(operatorConfig.name, icObj);
+                var transformationOutput;
+
+                switch(icObj.type) {
+                  case "composite":
+                    {
+                      const arr_part      = Object.values(icObj.parts);
+                      const arr_part__new = arr_part.map(icObj__part => {
+                        var outIcObj;
+
+                        switch(icObj__part.type) {
+                          case "mathNode":
+                          {
+                            const transformationFunc__inner = (new GMOperatorTextChangeEngine()).transformationFuncForText(operatorString);
+                            logger.log("transformationFunc__inner", transformationFunc__inner);
+                            logger.log("icObj__part", icObj__part);
+
+                            // const operatorConfig__inner     = operatorConfigForType("inverse");
+                            // const transformationFunc__inner = operatorConfig__inner.transformationFunc;
+                            // const operation__inner = new Operation(transformationFunc__inner);
+
+                            const transformationOutput__inner = transformationFunc__inner(icObj__part);
+                            logger.log("transformationOutput__inner", transformationOutput__inner);
+
+                            const icObj__part__new = transformationOutput__inner.value;
+                            outIcObj = icObj__part__new;
+                          }
+                          break;
+                          default:
+                            //do nothing
+                            outIcObj = icObj__part;
+                          break;
+                        }
+
+                        return outIcObj;
+                      });
+
+
+                      //create new collection
+                      const arr_entries = arr_part__new.map((icObj__part__new, index) => {
+                        const name__element = "part_" + index;
+                        return [name__element, icObj__part__new];
+                      });
+
+                      const parts = Object.fromEntries(arr_entries);
+
+                      const compositeConfig = Object.entries(parts).reduce((acc, [partName, part], index) => {
+                        // const isMobile = (index != 0);
+                        const isMobile = true;
+
+                        // acc[partName] = {
+                        acc[part.id] = {
+                          isMobile: isMobile,
+                        };
+                        return acc;
+                      }, {});
+
+                      const icObj__new = infiniteCanvas.createIcComposite(trueRect, parts, compositeConfig);
+
+                      icComposite.isCollection = true;
+                      icComposite.isTouchable  = true;
+
+                      transformationOutput = new TransformationOutput("new", icObj__new, icObj);
+                    }
+                    break;
+                  default:
+                    //do nothing
+                    transformationOutput = new TransformationOutput("old", icObj, icObj);
+                    break;
+                }
+
+                return transformationOutput;
+              };
+
+              operatorConfig.transformationFunc = icObjTransformationFunc;
+            }
+            break;
+
 
             //composite creation
             case "vessel":
@@ -10232,6 +10465,7 @@
 
         const touchSlotConfig = {
           transformationFunc: operatorConfig.transformationFunc,
+          isCollectionOperator: cfg.isCollectionOperator,
         };
 
         const touchSlot    = infiniteCanvas.createIcTouchSlot(trueRect, touchSlotConfig);
@@ -12850,6 +13084,47 @@
       //
       //   return outIcObj;
       // }
+
+
+      addNewCollection(collectionStr) {
+        const true_cursor = this.getTrueCursor();
+
+        const left = true_cursor.x;
+        const top  = true_cursor.y;
+
+        const width  = 100;   //"information" size
+        const height = 100;
+
+        const trueRect = {
+          x: left,
+          y: top,
+          width: width,
+          height: height,
+        };
+
+        const collectionConfig = this.parseCollectionStr(collectionStr);
+
+        const icCollection = this.createIcCollection(trueRect, collectionConfig);
+        this.addNewIcObject(icCollection);
+      }
+
+      parseCollectionStr(collectionStr) {
+        var outConfig;
+
+        var arr_elements = collectionStr.split("..");
+        var min  = parseInt(arr_elements[0]);
+        var max  = parseInt(arr_elements[1]);
+        var step = 1;
+
+        outConfig = {
+          min:  min,
+          max:  max,
+          step: step,
+        };
+
+        return outConfig;
+      }
+
 
       compose(arr_icObj) {
         console.log("compose", arr_icObj);
@@ -20950,11 +21225,19 @@
               var transformationOutput;
 
               var outIcObj;
-              outIcObj = icObj.clone();
-              // logger.log("icObj.mathNode", icObj.mathNode);
-              outIcObj.mathNode = transformationFunc(icObj.mathNode);
 
-              transformationOutput = new TransformationOutput("mutated", outIcObj, icObj);
+              const mathNode__new = transformationFunc(icObj.mathNode);
+
+              /* //does not work well
+              // outIcObj = icObj.clone();
+              // // logger.log("icObj.mathNode", icObj.mathNode);
+              // outIcObj.mathNode = transformationFunc(mathNode__new);
+              */
+                 //does work well
+              outIcObj = infiniteCanvas.createIcMathNode(icObj.position.x, icObj.position.y, mathNode__new);
+
+              // transformationOutput = new TransformationOutput("mutated", outIcObj, icObj);
+              transformationOutput = new TransformationOutput("new", outIcObj, icObj);
 
               return transformationOutput;
             };
@@ -31672,12 +31955,13 @@
 
               case "KeyX":
                 {
-                    if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
-                      keyboardIntegration.infiniteCanvas.operateOnActiveObject__poopGeminiShade();
-                    }
-                    // else {
-                    //   keyboardIntegration.infiniteCanvas.operateOnActiveObject__poopSameHomeScaleClone();
+                    // if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+                    //   keyboardIntegration.infiniteCanvas.operateOnActiveObject__poopGeminiShade();
                     // }
+                    // else
+                    {
+                      keyboardIntegration.infiniteCanvas.operateOnActiveObject__poopSameHomeScaleClone();
+                    }
                 }
                 break;
 
@@ -32072,19 +32356,27 @@
 
               // case "KeyM":
               case "Semicolon":
-                if(keyboardIntegration.keyDownToggles.r.isActive) {
-                  keyboardIntegration.infiniteCanvas.manageCenterRotation(-10);
-                } else {
-                  keyboardIntegration.infiniteCanvas.updateWithDOrientation(-10);
-                }
+                // if(keyboardIntegration.keyDownToggles.r.isActive) {
+                //   keyboardIntegration.infiniteCanvas.manageCenterRotation(-10);
+                // } else {
+                //   keyboardIntegration.infiniteCanvas.updateWithDOrientation(-10);
+                // }
+
+                keyboardIntegration.infiniteCanvas.addNewCollection("1..10");
+
                 break;
 
               case "KeyP":
-                if(keyboardIntegration.keyDownToggles.r.isActive) {
-                  keyboardIntegration.infiniteCanvas.manageCenterRotation(+10);
-                } else {
-                  keyboardIntegration.infiniteCanvas.updateWithDOrientation(+10);
-                }
+                // if(keyboardIntegration.keyDownToggles.r.isActive) {
+                //   keyboardIntegration.infiniteCanvas.manageCenterRotation(+10);
+                // } else {
+                //   keyboardIntegration.infiniteCanvas.updateWithDOrientation(+10);
+                // }
+
+                // keyboardIntegration.infiniteCanvas.addNewCollectionOperator("+1");
+                // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("c:map:1",  {isCollectionOperator: true});
+                keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("c:map:", {operatorString: "+ 1"});
+
                 break;
 
               case "KeyK":
@@ -32148,10 +32440,10 @@
                         const cfg = {
                           isConsume: false,
                         };
-                        // keyboardIntegration.infiniteCanvas.addNewConductiveOperator_withType("+", cfg);
+                        keyboardIntegration.infiniteCanvas.addNewConductiveOperator_withType("+", cfg);
 
                         //debug (pour les élèves en salle info)
-                        keyboardIntegration.inputProperties.scrollProperties.step *= 2;
+                        // keyboardIntegration.inputProperties.scrollProperties.step *= 2;
                       }
                       break;
                     case "Subtract":
@@ -32159,10 +32451,10 @@
                         const cfg = {
                           isConsume: false,
                         };
-                        // keyboardIntegration.infiniteCanvas.addNewConductiveOperator_withType("-", cfg);
+                        keyboardIntegration.infiniteCanvas.addNewConductiveOperator_withType("-", cfg);
 
                         //debug (pour les élèves en salle info)
-                        keyboardIntegration.inputProperties.scrollProperties.step /= 2;
+                        // keyboardIntegration.inputProperties.scrollProperties.step /= 2;
                       }
                       break;
                     case "Multiply":
