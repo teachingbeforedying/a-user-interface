@@ -5041,6 +5041,22 @@
         const icComposite = this.createIcComposite(trueRect, parts, compositeConfig);
         icComposite.cType = "progress_marker";
 
+        //debug
+        // const icObj = icComposite;
+        // setTimeout(() => {
+        //   const represented = infiniteCanvas.getRepresented(icObj.id);
+        //   const rep_free    = represented.r_free();
+        //
+        //   // const progress = 0.9;
+        //   // rep_free.progress = progress;
+        //
+        //   const arcStart = 40;
+        //   const arcEnd   = 160;
+        //   rep_free.parts.arc.arcStart = arcStart;
+        //   rep_free.parts.arc.arcEnd   = arcEnd;
+        //
+        // }, 2000);
+
         return icComposite;
       }
 
@@ -22692,6 +22708,17 @@
                     height: icObj.size.height,
                   });
                   break;
+                case "arc_of_circle":
+                  if(fObj.isDirty__clipPath) {
+                    logger.log("standardRedraw:", "arc_of_circle", icObj.arcStart, icObj.arcEnd);
+                    //set clipPath (arc of square)
+                    const clipPath = fabricIntegration.createFabricClipPath_ArcOfSquare(icObj.radius, icObj.strokeWidth, icObj.arcStart, icObj.arcEnd);
+                    fObj.set({
+                      clipPath: clipPath,
+                    });
+                    fObj.isDirty__clipPath = false;
+                  }
+                  break;
                 default:
                   break;
               }
@@ -22802,6 +22829,10 @@
                 .then((fObj) => {
                   standardRedraw(fObj);
                 });
+              }
+              else if(propName == "arcStart" || propName == "arcEnd") {
+                fObj.isDirty__clipPath = true;
+                standardRedraw(fObj);
               }
               else {
                 console.log("icObj_fRep","onInnerUpdate", icObj_fRep);
@@ -23953,11 +23984,20 @@
           var fObj = this.createFabricCircleWithIcObj(icObj);
 
           //set clipPath (arc of square)
-          const radius = icObj.radius + icObj.strokeWidth;
+          var clipPath = this.createFabricClipPath_ArcOfSquare(icObj.radius, icObj.strokeWidth, icObj.arcStart, icObj.arcEnd);
+          logger.log("clipPath", clipPath);
+
+          fObj.clipPath = clipPath;
+
+          return fObj;
+        }
+
+        createFabricClipPath_ArcOfSquare(radius_in, strokeWidth, arcStart, arcEnd) {
+          const radius = radius_in + strokeWidth;
 
           const point0 = Geometry.createPoint(0,0);
-          const pointC1 = Geometry.pointOnSquare__angleInDegrees(point0, radius, icObj.arcStart);
-          const pointC2 = Geometry.pointOnSquare__angleInDegrees(point0, radius, icObj.arcEnd);
+          const pointC1 = Geometry.pointOnSquare__angleInDegrees(point0, radius, arcStart);
+          const pointC2 = Geometry.pointOnSquare__angleInDegrees(point0, radius, arcEnd);
 
           const arr_angle__corners = [...Array(4).keys()].map(index => 45 + index * 90);
           logger.log("arr_angle__corners", arr_angle__corners);
@@ -23967,15 +24007,15 @@
           }));
 
           const dict_point__arc = {
-            [icObj.arcStart] : pointC1,
-            [icObj.arcEnd]   : pointC2,
+            [arcStart] : pointC1,
+            [arcEnd]   : pointC2,
           };
 
           const dict_point = Object.assign(dict_point__corners, dict_point__arc);
           logger.log("dict_point", dict_point);
 
           var arr_point = Object.entries(dict_point).filter(([angle, point]) => {
-            const isBetween = (icObj.arcStart <= angle) && (angle <= icObj.arcEnd);
+            const isBetween = (arcStart <= angle) && (angle <= arcEnd);
             return isBetween;
           }).sort((e1, e2) => {
             return e1.angle < e2.angle;
@@ -23986,10 +24026,7 @@
 
           var clipPath = new fabric.Polygon(arr_point);
 
-          logger.log("clipPath", clipPath);
-          fObj.clipPath = clipPath;
-
-          return fObj;
+          return clipPath;
         }
 
         createFabricArcOfEllipseWithIcObj(icObj) {
@@ -40494,7 +40531,7 @@
 
           // this.debug_points();
           // this.debug_circles_ellipses_and_arcs();
-          //this.debug_lesson_entrance();
+          //this.debug_progress_marker();
 
           this.debug_startingScreen();
         }
@@ -43651,7 +43688,7 @@
 
         }
 
-        debug_lesson_entrance() {
+        debug_progress_marker() {
 
           //create crown
           // {
@@ -43707,11 +43744,6 @@
 
             const icProgressMarker = infiniteCanvas.createIcProgressMarker(trueRect, progress, cfg);
             infiniteCanvas.addIcObject(icProgressMarker);
-
-            // const pointCenter = Geometry.getCenterPoint(Geometry.createLTRect(trueRect));
-            // const radius      = trueRect.width / 2;
-            // const icCircle = infiniteCanvas.createIcCircle(pointCenter,radius);
-            // infiniteCanvas.addIcObject(icCircle);
           }
 
         }
