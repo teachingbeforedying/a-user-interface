@@ -69,6 +69,23 @@
             return elt;
           }
 
+          static randomElementInArray__weighted(arr, arr_weight_in) {
+            var i;
+
+            const arr_weight = [...arr_weight_in];
+
+            for (i = 0; i < arr_weight.length; i++)
+                arr_weight[i] += arr_weight[i - 1] || 0;
+
+            const random = Math.random() * arr_weight[arr_weight.length - 1];
+
+            for (i = 0; i < arr_weight.length; i++)
+                if (arr_weight[i] > random)
+                    break;
+
+            return arr[i];
+          }
+
           static early_break_reduce(arr, reduce_callback, initial, checkStopFunc) {
             const x = [...arr]                         // create copy of "array" for iterating
                       .reduce((acc, x, i, arr) => {
@@ -4984,6 +5001,26 @@
         return icPolygon;
       }
 
+      createIcHexagon(pointTL, length, cfg_in = null) {
+        const arr_point = [
+          Geometry.createPoint(pointTL.x + length * 0.5, pointTL.y + 0),
+          Geometry.createPoint(pointTL.x + length * 1.5, pointTL.y + 0),
+          Geometry.createPoint(pointTL.x + length * 2.0, pointTL.y + length * math.sqrt(3) / 2.0),
+          Geometry.createPoint(pointTL.x + length * 1.5, pointTL.y + length * math.sqrt(3)),
+          Geometry.createPoint(pointTL.x + length * 0.5, pointTL.y + length * math.sqrt(3)),
+          Geometry.createPoint(pointTL.x + length * 0.0, pointTL.y + length * math.sqrt(3) /2.0),
+        ];
+
+        const cfg_default = {
+          strokeColor : "red",
+          fillColor   : "blue",
+        };
+        const cfg = cfg_in ? Object.assign(cfg_default, cfg_in) : cfg_default;
+
+        const icPolygon = this.createIcPolygon(arr_point, cfg);
+
+        return icPolygon;
+      }
 
       createIcProgressMarker(trueRect, progress, cfg) { //bind progress outer object via cfg
         const infiniteCanvas = this;
@@ -5060,6 +5097,92 @@
         return icComposite;
       }
 
+      createIcProductOfPrimesDisk(pointCenter, number) {
+        const infiniteCanvas = this;
+
+        const mathNode__number = new math.ConstantNode(number);
+        // const mathNode__prpr   = Rewriter.decomposition_product_primes(mathNode__number);
+        const arr_values = MathUtils.primeFactorization(number);
+        logger.log("arr_values", arr_values);
+        const nb_factors = arr_values.length;
+
+        const radius_full = 100;
+        const strokeWidth = radius_full / 4;
+        const radius      = radius_full - strokeWidth / 2.0;
+
+        const width    = 2 * radius_full;
+        const height   = 2 * radius_full;
+        const trueRect = Geometry.createCenteredXYRect(pointCenter, width, height);
+
+        // const cfg_circle__bg = {
+        //   strokeWidth: strokeWidth,
+        //   strokeColor: "grey",
+        //   fillColor: "",
+        // };
+        // const circle__bg  = infiniteCanvas.createIcCircle(pointCenter, radius, cfg_circle__bg);
+
+        function colorForPrime(number) {
+          const dict_color = {
+            2: "orange",
+            3: "green",
+            5: "blue",
+            7: "violet",
+          };
+          const color_default = "red";
+          if(!math.isPrime(number)) {
+            throw new Error("number must be a prime number");
+          }
+          const color = dict_color[number] ? dict_color[number] : color_default;
+          return color;
+        }
+
+        function angleStartForSector(index_sector, nb_sectors) {
+          return 360 * index_sector / nb_sectors;
+        }
+
+        function angleEndForSector(index_sector, nb_sectors) {
+          return 360 * (index_sector + 1) / nb_sectors; //- 0.05;
+        }
+
+        function arcForPrimeNumber(number, index_sector, nb_sectors) {
+
+          const color = colorForPrime(number);
+
+          const cfg_arc = {
+            strokeWidth: strokeWidth,
+            strokeColor: color,
+            fillColor: "",
+          };
+          const angleStart = angleStartForSector(index_sector, nb_sectors);
+          const angleEnd   = angleEndForSector(index_sector, nb_sectors);
+          const arc = infiniteCanvas.createIcArcOfCircle(pointCenter, radius, angleStart, angleEnd, cfg_arc);
+          return arc;
+        }
+
+        const arr_arc = arr_values.map((number, index) => {
+          const arc = arcForPrimeNumber(number, index, nb_factors);
+          return arc;
+        });
+        const arr_entries = arr_arc.map((arc, index) => {
+          const name = "sector_" + index;
+          return [name, arc];
+        });
+        const dict_sector = Object.fromEntries(arr_entries);
+
+        var parts = {};
+        parts = Object.assign(parts, dict_sector);
+
+        // const facade      = infiniteCanvas.createIcMathNode(x,y,mathNode);
+        // parts.facade = facade;
+
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+
+        const icComposite = this.createIcComposite(trueRect, parts, compositeConfig);
+        icComposite.cType = "product_of_primes";
+
+        return icComposite;
+      }
+
 
       createIcText(left, top, text) {
 
@@ -5108,6 +5231,8 @@
 
         const icImage_spec = {
           img : img,
+          force_width:  false,
+          force_height: false,
         };
 
         const icImage = Object.assign(icObj, icImage_spec);
@@ -23541,7 +23666,6 @@
             // width:  icObj.size.width,
             // height: icObj.size.height,
 
-
             scaleX: icObj.scale.X,
             scaleY: icObj.scale.Y,
 
@@ -23553,11 +23677,19 @@
             icObj: icObj,
           });
 
-          // const width  = icObj.size.width;
-          // const height = icObj.size.height;
-          // fObj.scaleToHeight(width);
-          // fObj.scaleToWidth(height);
 
+          if(icObj.force_width) {
+            const factor__force_width = icObj.width / icObj.img.width;
+            fObj.set({
+              scaleX: fObj.scaleX * factor__force_width,
+            });
+          }
+          if(icObj.force_height) {
+            const factor__force_height = icObj.height / icObj.img.height;
+            fObj.set({
+              scaleY: fObj.scaleY * factor__force_height,
+            });
+          }
 
           //event listeners
           if(icObj.canBeHeld) {
@@ -27603,7 +27735,7 @@
 
 
         updateFabricObject_position_default(fObj) {
-          logger.log("updateFabricObject_position_default", fObj);
+          // logger.log("updateFabricObject_position_default", fObj);
 
           //SHU: TODO: update fabric.Line object position
           if(fObj instanceof fabric.Line) {
@@ -27663,7 +27795,7 @@
           const icObj = fObj.icObj;
 
           const v = compute_fObj_position_vector(icObj);
-          logger.log("v", v);
+          // logger.log("v", v);
 
           fObj.set({
             // x: x + offsetX,
@@ -27986,6 +28118,23 @@
               });
 
             // }
+
+            //handle when image is forced to scale to icObj's width and height
+            if(fObj instanceof fabric.Image) {
+              const icObj = fObj.icObj;
+              if(icObj.force_width) {
+                const factor__force_width = icObj.width / icObj.img.width;
+                fObj.set({
+                  scaleX: fObj.scaleX * factor__force_width,
+                });
+              }
+              if(icObj.force_height) {
+                const factor__force_height = icObj.height / icObj.img.height;
+                fObj.set({
+                  scaleY: fObj.scaleY * factor__force_height,
+                });
+              }
+            }
 
           }
           // else {
@@ -40533,6 +40682,13 @@
           // this.debug_circles_ellipses_and_arcs();
           //this.debug_progress_marker();
 
+          // this.debug_decomp_prime_disks();
+
+          // this.debug_hexagon();
+          // this.debug_hexagon_grid1();
+          // this.debug_hexagon_grid2();
+          // this.debug_hexagon_fun();
+
           this.debug_startingScreen();
         }
 
@@ -43748,6 +43904,405 @@
 
         }
 
+        debug_decomp_prime_disks() {
+          const pointCenter = Geometry.createPoint(200, 100);
+          // const number = 20;
+          const number = 11628;
+          const icDecompPrimeDisk = infiniteCanvas.createIcProductOfPrimesDisk(pointCenter, number);
+          infiniteCanvas.addIcObject(icDecompPrimeDisk);
+        }
+
+
+        debug_hexagon() {
+          const pointTL = Geometry.createPoint(100,100);
+          const length = 100;
+          const icHexagon = infiniteCanvas.createIcHexagon(pointTL, length);
+          infiniteCanvas.addIcObject(icHexagon);
+        }
+
+        debug_hexagon_grid1() {
+
+          const length = 100;
+
+          //hexagon1
+          {
+            const pointTL = Geometry.createPoint(0,0);
+            const icHexagon = infiniteCanvas.createIcHexagon(pointTL, length);
+            infiniteCanvas.addIcObject(icHexagon);
+          }
+
+          //hexagon2
+          {
+            const row = 0;
+            const col = 2;
+            const pointTL = Geometry.createPoint((col + 1.0) * length, row * length * math.sqrt(3) / 2.0);
+            const icHexagon = infiniteCanvas.createIcHexagon(pointTL, length);
+            infiniteCanvas.addIcObject(icHexagon);
+          }
+
+          //hexagon3
+          {
+            const row = 1;
+            const col = 1;
+            const pointTL = Geometry.createPoint((col + 0.5) * length, row * length * math.sqrt(3) / 2.0);
+            const icHexagon = infiniteCanvas.createIcHexagon(pointTL, length);
+            infiniteCanvas.addIcObject(icHexagon);
+          }
+
+        }
+
+        debug_hexagon_grid2() {
+
+          const arr_type = [
+            "water",
+            "sand",
+            "soil",
+            "mud",
+            "grass",
+            "tree__small",
+            "tree__big",
+          ];
+
+          function easyConfig(type) {
+
+            var fillColor;
+            switch(type) {
+              case "water":
+                fillColor = "cyan";
+                break;
+              // case "water_deep":
+                // fillColor = "blue";
+                // break;
+              case "sand":
+                fillColor = "gold";
+                break;
+              case "tree__big":
+                fillColor = "black";
+                break;
+              case "tree__small":
+                fillColor = "gray";
+                break;
+              case "grass":
+                fillColor = "green";
+                break;
+              case "soil":
+                fillColor = "red";
+                break;
+              case "mud":
+                fillColor = "brown";
+                break;
+
+              default:
+                fillColor = "";
+                break;
+            }
+
+            const cfg = {
+              strokeColor : "white",
+              fillColor   : fillColor,
+            };
+
+            return cfg;
+          }
+
+          function easyHexagon(row, col, type) {
+            const length = 50;
+
+            const factor__col = (col % 2 == 0) ? (col + 1.0) : (col + 0.5);
+            const x = 3 * col * length + ((row % 2 == 0) ? 0 : 1.5) * length;
+            const y = row * length * math.sqrt(3) / 2.0;
+            const pointTL = Geometry.createPoint(x, y);
+
+            const cfg = easyConfig(type);
+
+            const icHexagon = infiniteCanvas.createIcHexagon(pointTL, length, cfg);
+            return icHexagon;
+          }
+
+          const w = 10;
+          const h = 10;
+
+          const arr_x = [...Array(w).keys()];
+          const arr_y = [...Array(h).keys()];
+
+          const arr_hexagon = arr_x.map(x => {
+            return arr_y.map(y => {
+              const type = Utils.randomElementInArray(arr_type);
+              const icHexagon = easyHexagon(x, y, type);
+              return icHexagon;
+            });
+          }).flat();
+
+          arr_hexagon.forEach((icHexagon, i) => {
+            infiniteCanvas.addIcObject(icHexagon);
+          });
+
+        }
+
+        debug_hexagon_fun() {
+
+          function loadAssets_p() {
+            const dict_image_path = {
+              "water" : "img/oyagame/water__ok.png",
+              "sand"  : "img/oyagame/sand.png",
+              "soil"  : "img/oyagame/soil.png",
+              "mud"   : "img/oyagame/mud.png",
+              "grass" : "img/oyagame/grass.png",
+              "tree__small" : "img/oyagame/tree__small.png",
+              "tree__big"   : "img/oyagame/tree__big.png",
+            };
+
+            var dict_image = {};
+            const arr_p = Object.entries(dict_image_path).map(([type, image_path]) => {
+              const img__file_p = FileIntegration.imageFromImgSrc_p(image_path);
+              const img_p = img__file_p;
+
+              return img_p.then(img => {
+                dict_image[type] = img;
+                logger.log("loaded image for" + " " + type);
+              });
+            });
+
+            const assets_p = Promise.all(arr_p)
+                                    .then(arr => {
+                                      return dict_image;
+                                    });
+
+            return assets_p;
+          }
+
+          const arr_type = [
+            "water",
+            "sand",
+            "soil",
+            "mud",
+            "grass",
+            "tree__small",
+            "tree__big",
+          ];
+
+          function easyConfig(type) {
+
+            var fillColor;
+            switch(type) {
+              case "water":
+                fillColor = "cyan";
+                break;
+              // case "water_deep":
+                // fillColor = "blue";
+                // break;
+              case "sand":
+                fillColor = "gold";
+                break;
+              case "tree__big":
+                fillColor = "black";
+                break;
+              case "tree__small":
+                fillColor = "gray";
+                break;
+              case "grass":
+                fillColor = "green";
+                break;
+              case "soil":
+                fillColor = "red";
+                break;
+              case "mud":
+                fillColor = "brown";
+                break;
+
+              default:
+                fillColor = "";
+                break;
+            }
+
+            const cfg = {
+              strokeColor : "white",
+              fillColor   : fillColor,
+            };
+
+            return cfg;
+          }
+
+          function easyHexagon(row, col, type, dict_image) {
+            const length = 50;
+
+            const factor__col = (col % 2 == 0) ? (col + 1.0) : (col + 0.5);
+            const x = 3 * col * length + ((row % 2 == 0) ? 0 : 1.5) * length;
+            const y = row * length * math.sqrt(3) / 2.0;
+            const pointTL = Geometry.createPoint(x, y);
+
+            const cfg = easyConfig(type);
+
+            // const icHexagon = infiniteCanvas.createIcHexagon(pointTL, length, cfg);
+            // return icHexagon;
+
+            const img = dict_image[type];
+            const icImage = infiniteCanvas.createIcImage(pointTL.x, pointTL.y, img);
+            const width__tile  = 2 * length;
+            const height__tile = math.sqrt(3) * length;
+            icImage.width  = width__tile;
+            icImage.height = height__tile;
+            icImage.force_width  = true;
+            icImage.force_height = true;
+
+            // const img_clone = img.clone();
+            // const icImage = infiniteCanvas.createIcImage(pointTL.x, pointTL.y, img_clone);
+            return icImage;
+          }
+
+          function easyDictAbcHexagon() {
+
+            const w = 10;
+            const h = 10;
+
+            function empty_dict(w,h) {
+              const arr_x = [...Array(w).keys()];
+              const arr_y = [...Array(h).keys()];
+
+              const arr_entryX = arr_x.map(x => {
+                const arr_entryY = arr_y.map(y => {
+                  const entryY = [y, null];
+                  return entryY;
+                });
+                const dict = Object.fromEntries(arr_entryY);
+                const entryX = [x, dict];
+                logger.log("entryX", entryX);
+                return entryX;
+              });
+              logger.log("arr_entryX", arr_entryX);
+
+              const dict = Object.fromEntries(arr_entryX);
+              logger.log("dictXX", dict);
+              return dict;
+            }
+
+            function arr_prob_gen(type) {
+
+              const dict = {
+                "water" : [25,25,5,25,10,5,5],
+                "sand" :  [25,25,5,5,5,10,25],
+                "soil" :  [5,5,25,25,15,15,10],
+                "mud" :   [15,0,15,25,15,15,15],
+                "tree__big" :   [0,0,10,10,35,25,20],
+                "tree__small" : [0,5,10,10,25,35,15],
+                "grass" :       [0,5,10,15,15,20,35],
+              };
+
+              var arr_prob = dict[type];
+              arr_prob = arr_prob.map(x => x / 100.0);
+
+              return arr_prob;
+            }
+
+
+
+            function easyType(arr_type__surrounding) {
+              var outType;
+
+              logger.log("arr_type__surrounding", arr_type__surrounding);
+
+              outType = "sand";
+
+              if(arr_type__surrounding.length == 0) {
+                outType = Utils.randomElementInArray(arr_type);
+              } else {
+                const arr_arr_weight = arr_type__surrounding.map(type => arr_prob_gen(type));
+                logger.log("arr_arr_weight", arr_arr_weight);
+                var arr_weight = arr_arr_weight.reduce((acc, x) => {
+                  if(acc != null) {
+                    acc = x.map(function(e, i) {
+                      const sum_ = acc[i] + x[i];
+                      return sum_;
+                    });
+                  } else {
+                    acc = x;
+                  }
+                  return acc;
+                });
+                arr_weight = arr_weight.map(sum_ => sum_ * 1.0 / arr_type__surrounding.length);
+
+                outType = Utils.randomElementInArray__weighted(arr_type, arr_weight);
+              }
+
+              return outType;
+            }
+
+            const dict_abcHexagon = empty_dict(w,h);
+            logger.log("empty_dict", dict_abcHexagon);
+
+            //generation
+            var x = 0;
+            var y = 0;
+            while(x < w) {
+              while(y < h) {
+                if(dict_abcHexagon[x][y] == null) {
+
+                  const arr_abcHexagon__surrounding = [
+                    dict_abcHexagon[x+1] ? dict_abcHexagon[x+1][y+1] : null,
+                    dict_abcHexagon[x] ? dict_abcHexagon[x][y+2] : null,
+                    dict_abcHexagon[x-1] ? dict_abcHexagon[x-1][y+1] : null,
+                    dict_abcHexagon[x-1] ? dict_abcHexagon[x-1][y-1] : null,
+                    dict_abcHexagon[x] ? dict_abcHexagon[x][y-2] : null,
+                    dict_abcHexagon[x+1] ? dict_abcHexagon[x+1][y-1] : null,
+                  ];
+                  logger.log("arr_abcHexagon__surrounding", arr_abcHexagon__surrounding);
+                  const arr_type__surrounding = arr_abcHexagon__surrounding.filter(abcHex => abcHex != null && abcHex != undefined).map(abcHex => abcHex.type);
+                  const type = easyType(arr_type__surrounding);
+
+                  const abcHexagon = {
+                    row: x,
+                    col: y,
+                    type: type,
+                  };
+
+                  dict_abcHexagon[x][y] = abcHexagon;
+                }
+                y = y + 1;
+              }
+              x = x + 1;
+              y = 0;
+            }
+
+            return dict_abcHexagon;
+          }
+
+          const dict_abcHexagon = easyDictAbcHexagon();
+          logger.log("dict_abcHexagon", dict_abcHexagon);
+
+          {
+            const w = 10;
+            const h = 10;
+
+            const arr_x = [...Array(w).keys()];
+            const arr_y = [...Array(h).keys()];
+
+            function icHexagonFromAbcHexagon(abcHexagon, dict_image) {
+              const row = abcHexagon.row;
+              const col = abcHexagon.col;
+              const type = abcHexagon.type;
+              return easyHexagon(row, col, type, dict_image);
+            }
+
+
+            loadAssets_p().then(dict_image => {
+
+              arr_x.forEach(x => {
+                arr_y.forEach(y => {
+                  const abcHexagon = dict_abcHexagon[x][y];
+                  const icHexagon  = icHexagonFromAbcHexagon(abcHexagon, dict_image);
+                  infiniteCanvas.addIcObject(icHexagon);
+                });
+              });
+
+            });
+
+
+
+
+
+          }
+
+        }
 
 
         debug_startingScreen() {
@@ -43858,6 +44413,7 @@
 
         }
 
+
       }
 
     </script>
@@ -43869,6 +44425,1428 @@
 
 
 
+
+
+
+
+    <script src='lib/Queue.js' type='text/javascript'> </script>
+    <script src='lib/PriorityQueue.js' type='text/javascript'> </script>
+
+    <script>
+
+      const HexType = [
+        "blank",
+
+
+        "water",
+        "sand",
+        "soil",
+        "mud",
+        "grass",
+        "tree__small",
+        "tree__big",
+      ];
+
+      class HexCoordinates {    //hexagonal axial coordinates
+
+        constructor(x,z) {
+          this.x = x;
+          this.z = z;
+        }
+
+        static fromOffsetCoordinates(x,z) {
+          // return new HexCoordinates(x - z/2, z);
+          return new HexCoordinates(x, z - ((x % 2 == 0) ? x/2 : (x-1)/2 ));
+        }
+
+        getY() {
+          return -this.x - this.z;
+        }
+
+        distanceTo(other) {
+          const x        = this.x;
+          const y        = this.getY();
+          const z        = this.z;
+
+          const other_y  = other.getY();
+
+          const distance =
+			       ((x < other.x ? other.x - x : x - other.x) +
+			          (y < other_y ? other_y - y : y - other_y) +
+			             (z < other.z ? other.z - z : z - other.z)) / 2;
+          return distance;
+        }
+
+        toString() {
+          return "" + this.x + "," + this.z;
+        }
+
+      }
+
+      class HexCell {
+
+        constructor(x,y,type = "blank") {
+
+          //squareXY-based coordinates
+          this.x = x;
+          this.y = y;
+          // this.coords_squareXY = new HexCoordinates(x,y);
+
+          //offset coordinates
+          this.coords_offset = new HexCoordinates(2 * x + ((y % 2 == 0) ? 0 : 1), (y - ((y % 2 == 0) ? 0 : 1) ) / 2);
+          //axial  coordinates
+          this.coords_axial  = HexCoordinates.fromOffsetCoordinates(this.coords_offset.x,this.coords_offset.z);
+
+          this.type      = type;
+
+          //flemme
+          this.elevation = 0;
+        }
+
+        clone_deep() {
+          var outCell;
+
+          outCell = new HexCell(this.x, this.y, this.type);
+
+          return outCell;
+        }
+
+        static fromAxialCoords(x,z,type = "blank") {
+          const x_sq = (x % 2 == 0) ? x/2 : (x-1)/2;
+          const y_sq = 2 * z + x;
+          return new HexCell(x_sq,y_sq,type);
+        }
+
+      }
+
+      class ProtoCell {
+
+        constructor(cell) {
+          this.cell = cell;
+
+          this.elevation = 0;
+        }
+
+        x() {
+          return this.cell.x;
+        }
+
+        y() {
+          return this.cell.y;
+        }
+
+        getPreparedCell() {
+          var outCell;
+
+          outCell = this.cell.clone_deep();
+          outCell.type = HexMapGenerator.typeForElevation(this.elevation);
+
+          return outCell;
+        }
+
+      }
+
+      class PathElement {
+
+        constructor(elt, from) {
+          this.elt  = elt;
+          this.from = from;
+        }
+
+      }
+
+      class SearchElement {
+
+        constructor(pathElt, distance_traveled, heuristic_remaining) {
+          this.pathElt   = pathElt;
+
+          this.distance_traveled   = distance_traveled;    //exactly       traveled
+          this.heuristic_remaining = heuristic_remaining;  //estimation of remaining
+        }
+
+        getPriority() {
+          return this.distance_traveled + this.heuristic_remaining;
+        }
+
+      }
+
+      class HexMap {
+
+        constructor(type_map) {
+          this.type_map = type_map;
+
+          //init
+          this.dict_landTypeShare = HexMap.dictLandTypeShareForMapType(this.type_map);
+          this.average_elevation  = HexMap.computeAverageElevation(this.dict_landTypeShare);
+
+        }
+
+        static dictLandTypeShareForMapType(type_map) {
+          var outDict;
+
+          switch(type_map) {
+            case "forest":
+              outDict = {
+                "water" :        10,
+                "sand" :          0,
+                "soil" :          5,
+                "mud"  :         10,
+                "grass" :         5,
+                "tree__small" :  30,
+                "tree__big" :    40,
+              };
+              break;
+
+            case "river":
+            case "clear":
+            case "village":
+            case "fruitland":
+            default:
+              outDict = {
+                "water" :        20,
+                "sand" :         10,
+                "soil" :         10,
+                "mud"  :         10,
+                "grass" :        10,
+                "tree__small" :  20,
+                "tree__big" :    20,
+              };
+              break;
+          }
+
+          return outDict;
+        }
+
+        static elevationForTypeLand(type_land) {
+          const arr_type__practical = HexType.slice(0);
+          return arr_type__practical.indexOf(type_land);
+        }
+
+        static computeAverageElevation(dictLandTypeShare) {
+          return Object.entries(dictLandTypeShare).reduce((acc, [type_land, share_land]) => {
+            const elevation_type_land = HexMap.elevationForTypeLand(type_land);
+            return acc + elevation_type_land * (share_land / 100.0);
+          }, 0);
+        }
+
+      }
+
+      class HexMapGenerator {
+
+        constructor(grid) {
+          this.grid = grid;
+        }
+
+        generateMap() {
+
+          //--fill with stuff--
+          this.createLand();
+        }
+
+        // raiseTerrain(chunkSize) {
+        //
+        //   // for (var i = 0; i < chunkSize; i++) {
+        //   //   this.grid.getRandomCell().type = "grass";
+        //   //   // this.grid.getRandomCell().typeIndex = 1;
+        //   // }
+        //
+        //   // {
+        //   //   //get cells with same z
+        //   //   this.grid.cells.filter(hexCell_i => {
+        //   //     // return hexCell_i.coords_offset.z == 10;
+        //   //     return hexCell_i.coords_axial.z == 10;
+        //   //   }).forEach((hexCell_near, i) => {
+        //   //     hexCell_near.type = "sand";
+        //   //   });
+        //   // }
+        //   //
+        //   // {
+        //   //   //get cells with same x
+        //   //   this.grid.cells.filter(hexCell_i => {
+        //   //     // return hexCell_i.coords_offset.x == 3;
+        //   //     return hexCell_i.coords_axial.x == 3;
+        //   //   }).forEach((hexCell_near, i) => {
+        //   //     hexCell_near.type = "mud";
+        //   //   });
+        //   // }
+        //
+        //   // {
+        //   //   //drop of land
+        //   //   const hexCell_r = this.grid.getRandomCell();
+        //   //   hexCell_r.type = "water";
+        //   //
+        //   //   this.grid.cells.filter(hexCell_i => {
+        //   //     const distance = hexCell_i.coords_axial.distanceTo(hexCell_r.coords_axial);
+        //   //     logger.log("distance", distance);
+        //   //     return distance == 1;
+        //   //   }).forEach((hexCell_near, i) => {
+        //   //     hexCell_near.type = "tree__big";
+        //   //   });
+        //   //
+        //   //   this.grid.getCellsAtAxialDistance(hexCell_r, 4)
+        //   //   .forEach((hexCell) => {
+        //   //     hexCell.type = "grass";
+        //   //   });
+        //   //
+        //   // }
+        //
+        //   // {
+        //   //   //drop of land
+        //   //   const hexCell_r = this.grid.getRandomCell();
+        //   //   hexCell_r.type = "sand";
+        //   //
+        //   //   const hexCell_NE = this.grid.getNeighborAtDirection(hexCell_r, "NE");
+        //   //   if(hexCell_NE != null) {
+        //   //     hexCell_NE.type = "grass";
+        //   //   }
+        //   //
+        //   // }
+        //
+        //   /*
+        //   function typeForDirection(direction) {
+        //     var outType;
+        //
+        //     switch(direction) {
+        //       case "N":
+        //         outType = "sand";
+        //         break;
+        //       case "NE":
+        //         outType = "soil";
+        //         break;
+        //       case "SE":
+        //         outType = "mud";
+        //         break;
+        //       case "S":
+        //         outType = "grass";
+        //         break;
+        //       case "SO":
+        //         outType = "tree__small";
+        //         break;
+        //       case "NO":
+        //         outType = "tree__big";
+        //         break;
+        //       default:
+        //         throw new Error("unsupported direction: " + direction);
+        //         break;
+        //     }
+        //
+        //     return outType;
+        //   }
+        //
+        //   function typeForNeighborIndex(nIndex) {
+        //     const dict_type = {
+        //       0: "sand",
+        //       1: "soil",
+        //       2: "mud",
+        //       3: "grass",
+        //       4: "tree__small",
+        //       5: "tree__big",
+        //     };
+        //     return dict_type[nIndex];
+        //   }
+        //
+        //   {
+        //     //drop of land
+        //     const hexCell_r = this.grid.getCellAtPos(5,5);
+        //     hexCell_r.type = "water";
+        //
+        //     ["N", "NE", "SE", "S", "SO", "NO"].map(direction => {
+        //       const hexCell_neighbor = this.grid.getNeighborAtDirection(hexCell_r, direction);
+        //       return [direction, hexCell_neighbor];
+        //     })
+        //     .forEach(([direction, hexCell]) => {
+        //       const type = typeForDirection(direction);
+        //       hexCell.type = type;
+        //     });
+        //
+        //   }
+        //
+        //   {
+        //     //drop of land
+        //     const hexCell_r = this.grid.getRandomCell();
+        //     hexCell_r.type = "water";
+        //
+        //     Object.entries(this.grid.getDictNeighbor(hexCell_r))
+        //     .forEach(([nIndex, hexCell]) => {
+        //       const type = typeForNeighborIndex(nIndex);
+        //       hexCell.type = type;
+        //     });
+        //   }
+        //   */
+        //
+        //
+        //   /*
+        //   {
+        //     //find path between cells
+        //     const hexCell_from = this.grid.getRandomCell();
+        //     logger.log("hexCell_from", [hexCell_from.x, hexCell_from.y]);
+        //     hexCell_from.type  = "water";
+        //     const hexCell_to   = this.grid.getRandomCell();
+        //     logger.log("hexCell_to", [hexCell_to.x, hexCell_to.y]);
+        //     hexCell_to.type    = "sand";
+        //
+        //     // const arr_path = this.grid.findShortestPath(hexCell_from, hexCell_to);
+        //     // const arr_path = this.grid.findShortestPath__withHeuristic(hexCell_from, hexCell_to);
+        //     const arr_path = this.grid.findShortestPath__withHeuristic__withPQ(hexCell_from, hexCell_to);
+        //     logger.log("arr_path", arr_path);
+        //     arr_path.slice(1,-1).forEach((hexCell, i) => {
+        //       logger.log("hexCell", [hexCell.x, hexCell.y]);
+        //       hexCell.type = "mud";
+        //     });
+        //   }
+        //   */
+        //
+        //   /*
+        //   [...Array(5).keys()].forEach((i) => {
+        //     const hexCell_r = this.grid.getRandomCell();
+        //     hexCell_r.type  = "grass";
+        //     // const arr_chunk = this.grid.findAChunk__withHeuristic__withPQ(hexCell_r, 10);
+        //     const arr_chunk = this.grid.findAChunk__withHeuristic__withPQ(hexCell_r, 30);
+        //
+        //     arr_chunk.forEach((hexCell, i) => {
+        //       // logger.log("hexCell", [hexCell.x, hexCell.y]);
+        //       hexCell.type = "mud";
+        //     });
+        //   });
+        //   */
+        //
+        // }
+
+        static typeForElevation(elevation_in) {
+          var outType;
+
+          const arr_type__practical = HexType.slice(0);
+          const nb_type__practical  = arr_type__practical.length;
+
+          const elevation = math.min(elevation_in, nb_type__practical - 1);
+
+          outType = arr_type__practical[elevation];
+
+          return outType;
+        }
+
+        createLand() {
+
+          const nb_cells = this.grid.cells.length;
+          const type_map = "forest";
+          const hexMap   = new HexMap(type_map);
+          const dict_landTypeShare = hexMap.dict_landTypeShare;
+          const average_elevation  = hexMap.average_elevation;
+
+          const share_drop = 10;
+          const percentage_drop = share_drop / 100.0;
+          const size_drop  = math.floor(percentage_drop * nb_cells);
+
+          const nb_drop = math.floor(average_elevation / percentage_drop);
+          this.elevateUsingDrops(nb_drop, size_drop);
+
+          this.diffuseToMatchShares(type_map);
+
+          this.cleanOutArtefacts();
+        }
+
+        elevateUsingDrops(nb_drop, size_drop) {
+
+          //drops
+          [...Array(nb_drop).keys()].forEach((i) => {
+            const hexCell_r = HexGridUtils.getRandomCell(this.grid);
+            const arr_chunk = HexGridUtils.findAChunk__withHeuristic__withPQ(this.grid, hexCell_r, size_drop);
+            arr_chunk.forEach((hexCell, i) => {
+              hexCell.elevation += 1;
+            });
+          });
+
+          //assign types
+          this.grid.cells.forEach((cell, i) => {
+            cell.type = HexMapGenerator.typeForElevation(cell.elevation);
+          });
+
+        }
+
+        diffuseToMatchShares(dict_landTypeShare) {
+
+        }
+
+        cleanOutArtefacts() {
+
+        }
+
+      }
+
+      class HexGrid_Rect {
+
+        constructor(w,h) {
+          this.w = w;
+          this.h = h;
+          this.cells = [];
+
+          this.initialize();
+        }
+
+        initialize() {
+          const nb_cells = this.w * this.h;
+          this.cells = [...Array(nb_cells).keys()].map(i => {
+            const y = math.floor(i / this.w);
+            const x = i - y * this.w;
+            const hexCell = new HexCell(x,y, "blank");
+            return hexCell;
+          })
+        }
+
+        getCellAtIndex(i) {
+          var outCell = null;
+          if(0 <= i && i < this.cells.length) {
+            outCell = this.cells[i];
+          }
+          return outCell;
+        }
+
+        getCellAtPos(x,y) {
+          var outCell = null;
+
+          const is_invalid_x  = (x < 0 || x >= this.w);
+          const is_invalid_y  = (y < 0 || y >= this.h);
+          const is_invalid_xy = is_invalid_x || is_invalid_y;
+          if(!is_invalid_xy) {
+            outCell = this.getCellAtIndex(x + y * this.w);
+          }
+
+          return outCell;
+        }
+
+      }
+
+      class HexGrid_Hex {
+
+        constructor(l) {
+          this.l = l;
+          this.cells = [];
+
+          this.initialize();
+        }
+
+        initialize() {
+
+          if(this.l == 0) {
+            this.cells = [];
+            return;
+          }
+
+          if(this.l == 1) {
+            const cell__center = new HexCell(0,0);
+            this.cells = [cell__center];
+            return;
+          }
+
+          function arrCoordsAxialNeighbors(x,z) {
+            return [
+              new HexCoordinates(x    , z - 1),
+              new HexCoordinates(x + 1, z - 1),
+              new HexCoordinates(x + 1, z    ),
+              new HexCoordinates(x    , z + 1),
+              new HexCoordinates(x - 1, z + 1),
+              new HexCoordinates(x - 1, z    ),
+            ];
+          }
+
+          const cell__center = new HexCell(0,0);
+          const dict_cells = [...Array(this.l-1).keys()].reduce((acc, i) => {
+
+            const dict_current = acc.dict;
+            const arr_frontier = acc.frontier;
+            logger.log("arr_frontier.length", arr_frontier.length);
+
+            //create outerShell cells
+            return arr_frontier.reduce((acc2, cell_frontier) => {
+              const x = cell_frontier.coords_axial.x;
+              const z = cell_frontier.coords_axial.z;
+              const arr_coords_neighbor       = arrCoordsAxialNeighbors(x, z);
+              const arr_coords_neighbor_fresh = arr_coords_neighbor.filter(coords => {
+                const string_coords = coords.toString();
+                // logger.log("string_coords", string_coords);
+                const isAlreadyInDict = (dict_current[string_coords] != null);
+                // logger.log("isAlreadyInDict", isAlreadyInDict);
+                return !isAlreadyInDict;
+              });
+              // logger.log("___");
+
+              const arr_cell_neighbor_fresh = arr_coords_neighbor_fresh.map((coords_axial, i) => {
+                return HexCell.fromAxialCoords(coords_axial.x,coords_axial.z);
+              });
+
+              const dict_fresh = Object.fromEntries(arr_cell_neighbor_fresh.map(cell => {
+                const string_coords = cell.coords_axial.toString();
+                return [string_coords, cell];
+              }));
+
+              const arr_frontier_out = acc2.frontier.concat(arr_cell_neighbor_fresh);
+              const dict_out         = Object.assign(acc2.dict, dict_fresh);
+
+              return {
+                dict:     dict_out,
+                frontier: arr_frontier_out,
+              };
+
+            }, {
+              dict:     acc.dict,
+              frontier: [],
+            });
+
+          }, {
+            dict: {
+              [cell__center.coords_axial.toString()] : cell__center,
+            },
+            frontier: [cell__center],
+          }).dict;
+
+          this.cells = Object.values(dict_cells);
+        }
+
+        getCellAtIndex(i) {
+          var outCell = null;
+          if(0 <= i && i < this.cells.length) {
+            outCell = this.cells[i];
+          }
+          return outCell;
+        }
+
+        getCellAtPos(x,y) {
+          var outCell = null;
+
+          outCell = this.cells.find(cell => (cell.x == x && cell.y == y));  //moche mais fu
+
+          return outCell;
+        }
+
+      }
+
+      class HexGrid_fromHexGridSeed {
+
+        constructor(grid_seed, n) {
+          this.grid_seed = grid_seed;
+          this.n = n;
+
+          this.cells = [];
+
+          this.initialize();
+        }
+
+        initialize() {
+          const nb_cells = this.w * this.h;
+          this.cells = [...Array(nb_cells).keys()].map(i => {
+            const y = math.floor(i / this.w);
+            const x = i - y * this.w;
+            const hexCell = new HexCell(x,y, "blank");
+            return hexCell;
+          });
+        }
+
+        getCellAtIndex(i) {
+          var outCell = null;
+          if(0 <= i && i < this.cells.length) {
+            outCell = this.cells[i];
+          }
+          return outCell;
+        }
+
+        getCellAtPos(x,y) {
+          var outCell = null;
+
+          const is_invalid_x  = (x < 0 || x >= this.w);
+          const is_invalid_y  = (y < 0 || y >= this.h);
+          const is_invalid_xy = is_invalid_x || is_invalid_y;
+          if(!is_invalid_xy) {
+            outCell = this.getCellAtIndex(x + y * this.w);
+          }
+
+          return outCell;
+        }
+
+      }
+
+      class HexGridUtils {
+
+        static getRandomCell(grid) {
+          return Utils.randomElementInArray(grid.cells);
+        }
+
+
+        //cell neighbors
+
+        static getNeighborAtDirection(grid, hexCell, direction) {
+
+          const is_y_even = (hexCell.y % 2 == 0);
+          const dx_y_evenodd = is_y_even ? -1 : 0;
+
+          const dict_xy = {
+              N:   {x:                0, y:-2},
+              NE:  {x: 1 + dx_y_evenodd, y:-1},
+              SE:  {x: 1 + dx_y_evenodd, y: 1},
+              S:   {x:                0, y: 2},
+              SO:  {x: 0 + dx_y_evenodd, y: 1},
+              NO:  {x: 0 + dx_y_evenodd, y:-1},
+          };
+
+          const dxdy = dict_xy[direction];
+          const x = hexCell.x + dxdy.x;
+          const y = hexCell.y + dxdy.y;
+
+          return grid.getCellAtPos(x,y);
+        }
+
+        static getNeighborAtIndex(grid, hexCell, index) {
+
+          const is_y_even = (hexCell.y % 2 == 0);
+          const dx_y_evenodd = is_y_even ? -1 : 0;
+
+          const dict_xy = {
+              0:  {x:                0, y:-2},
+              1:  {x: 1 + dx_y_evenodd, y:-1},
+              2:  {x: 1 + dx_y_evenodd, y: 1},
+              3:  {x:                0, y: 2},
+              4:  {x: 0 + dx_y_evenodd, y: 1},
+              5:  {x: 0 + dx_y_evenodd, y:-1},
+          };
+
+          const dxdy = dict_xy[index];
+          const x = hexCell.x + dxdy.x;
+          const y = hexCell.y + dxdy.y;
+
+          return grid.getCellAtPos(x,y);
+        }
+
+        static getDictNeighbor(grid, hexCell) {
+          const arr_entry = [...Array(6).keys()].map(index => {
+            const hexCell_neighbor = this.getNeighborAtIndex(grid, hexCell, index);
+            return [index, hexCell_neighbor];
+          }).filter(([index, hexCell]) => {
+            return hexCell != null;
+          });
+          const dict_neighbor = Object.fromEntries(arr_entry);
+          return dict_neighbor;
+        }
+
+        static getNeighborAtIndex__alternative_order(grid, hexCell, index) {
+
+          const is_y_even = (hexCell.y % 2 == 0);
+          const dx_y_evenodd = is_y_even ? -1 : 0;
+
+          const dict_xy = {
+              0:  {x: 1 + dx_y_evenodd, y: 1},
+              1:  {x: 1 + dx_y_evenodd, y:-1},
+              2:  {x:                0, y: 2},
+              3:  {x:                0, y:-2},
+              4:  {x: 0 + dx_y_evenodd, y: 1},
+              5:  {x: 0 + dx_y_evenodd, y:-1},
+          };
+
+          const dxdy = dict_xy[index];
+          const x = hexCell.x + dxdy.x;
+          const y = hexCell.y + dxdy.y;
+
+          return grid.getCellAtPos(x,y);
+        }
+
+        static getDictNeighbor__alternative_order(grid, hexCell) {
+          const arr_entry = [...Array(6).keys()].map(index => {
+            const hexCell_neighbor = this.getNeighborAtIndex__alternative_order(grid, hexCell, index);
+            return [index, hexCell_neighbor];
+          }).filter(([index, hexCell]) => {
+            return hexCell != null;
+          });
+          const dict_neighbor = Object.fromEntries(arr_entry);
+          return dict_neighbor;
+        }
+
+
+        //distances
+
+        static getDistance__axial(hexCell_from, hexCell_to) {
+          return hexCell_from.coords_axial.distanceTo(hexCell_to.coords_axial);
+        }
+
+        static getCellsAtAxialDistance(grid, hexCell_c, distance_axial) {
+
+          const dict_cellsAtDistance = grid.cells.map((hexCell_i,i) => {
+            const distance = this.getDistance__axial(hexCell_i, hexCell_c);
+            const miniDict = {
+              i : i,
+              hexCell: hexCell_i,
+              distance : distance,
+            };
+            return miniDict;
+          }).reduce((acc, x) => {
+            if(acc[x.distance] == null) {
+              acc[x.distance] = [];
+            }
+            acc[x.distance].push(x.hexCell);
+            return acc;
+          }, {});
+          // logger.log("dict_cellsAtDistance", dict_cellsAtDistance);
+
+          const arr_cell = dict_cellsAtDistance[distance_axial];
+          return arr_cell;
+        }
+
+
+        static getArrDistanceTo__axial(grid, hexCell) {
+          const arr_distance = grid.cells.map(hexCell_i => {
+            return this.getDistance__axial(hexCell, hexCell_i);
+          });
+          return arr_distance;
+        }
+
+        static getArrDistanceTo__pathfinding(grid, hexCell) {
+          const arr_distance = grid.cells.map(hexCell_i => {
+            return hexCell.findShortestPathTo(hexCell_i).length;
+          });
+          return arr_distance;
+        }
+
+        static findShortestPathDistance(grid, cell_from, cell_to) {
+          return (this.findShortestPath(grid, cell_from, cell_to).length - 1);
+        }
+
+        static findShortestPath(grid, cell_from, cell_to) {
+          var outArr;
+
+          const is_same_x  = (cell_from.x == cell_to.x);
+          const is_same_y  = (cell_from.y == cell_to.y);
+          const is_same_xy = is_same_x && is_same_y;
+          if(is_same_xy) {
+            return [];
+          }
+
+          const queue_frontier = new Queue();
+
+          const pathElt_from = new PathElement(cell_from, null);
+          queue_frontier.enqueue(pathElt_from);
+
+          var isReached = false;
+          while(!isReached) {
+            const pathElt_current = queue_frontier.dequeue();
+            const cell_current    = pathElt_current.elt;
+            const arr_cell_neighbor = Object.values(this.getDictNeighbor(grid, cell_current));
+
+            isReached = arr_cell_neighbor.includes(cell_to);
+            if(isReached) {
+              //we have found a path
+              const pathElt_to = new PathElement(cell_to, pathElt_current);
+
+              //let's rebuild the path
+              outArr = this.rebuildPath(pathElt_to);
+
+            } else {
+              //continue searching
+              const arr_pathElt = arr_cell_neighbor.map(cell => {
+                return new PathElement(cell, pathElt_current);
+              });
+
+              // queue_frontier.enqueue(...arr_pathElt);    //not working
+              arr_pathElt.forEach((pathElt, i) => {
+                const arr_cell_frontier = queue_frontier.getArr().map(pathElt => pathElt.elt);
+                const is_already_in_queue = arr_cell_frontier.includes(pathElt.elt);
+                if(!is_already_in_queue) {
+                  queue_frontier.enqueue(pathElt);
+                }
+              });
+
+              // logger.log("queue_frontier.getLength()", queue_frontier.getLength());
+            }
+          }
+
+          return outArr;
+        }
+
+        static rebuildPath(pathElt_to) {
+          var outArr;
+
+          const arrPath_backwards = [];
+          arrPath_backwards.push(pathElt_to.elt);
+
+          var pathElt_w = pathElt_to;
+          while(pathElt_w.from != null) {
+            const pathElt_from = pathElt_w.from;
+            arrPath_backwards.push(pathElt_from.elt);
+
+            pathElt_w = pathElt_from;
+          }
+
+          outArr = [...arrPath_backwards].reverse();
+
+          return outArr;
+        }
+
+
+
+        static findShortestPath__withHeuristic(grid, cell_from, cell_to) {
+          var outArr;
+
+          const is_same_x  = (cell_from.x == cell_to.x);
+          const is_same_y  = (cell_from.y == cell_to.y);
+          const is_same_xy = is_same_x && is_same_y;
+          if(is_same_xy) {
+            return [];
+          }
+
+          // const queue_frontier = new Queue();
+          var queue_frontier = [];
+
+          const pathElt_from   = new PathElement(cell_from, null);
+          const searchElt_from = new SearchElement(pathElt_from, 0, -1);
+          queue_frontier.push(searchElt_from);
+
+          var isReached         = false;
+          var distance_traveled = 0;
+          while(!isReached) {
+            const dequeued = queue_frontier[0];
+            queue_frontier = queue_frontier.slice(1);
+
+            const searchElt_current = dequeued;
+
+            const pathElt_current   = searchElt_current.pathElt;
+            const cell_current      = pathElt_current.elt;
+            const arr_cell_neighbor = Object.values(this.getDictNeighbor(grid, cell_current));
+
+            isReached = arr_cell_neighbor.includes(cell_to);
+            if(isReached) {
+              //we have found a path
+              const pathElt_to = new PathElement(cell_to, pathElt_current);
+
+              //let's rebuild the path
+              outArr = this.rebuildPath(pathElt_to);
+
+            } else {
+              //continue searching
+              distance_traveled += 1;
+
+              const arr_searchElt = arr_cell_neighbor.map(cell => {
+                const heuristic_remaining = this.getDistance__axial(cell, cell_to);
+                const pathElt   = new PathElement(cell, pathElt_current);
+                const searchElt = new SearchElement(pathElt, distance_traveled, heuristic_remaining);
+                return searchElt;
+              });
+
+              arr_searchElt.forEach((searchElt, i) => {
+                const arr_cell_frontier = queue_frontier.map(searchElt => searchElt.pathElt.elt);
+                const is_already_in_queue = arr_cell_frontier.includes(searchElt.pathElt.elt);
+                if(!is_already_in_queue) {
+                  queue_frontier.push(searchElt);
+                }
+              });
+
+              //sort frontier using priority
+              queue_frontier.sort((searchElt1, searchElt2) => {
+                return searchElt1.getPriority() < searchElt2.getPriority();
+              });
+
+            }
+          }
+
+          return outArr;
+        }
+
+        static findShortestPath__withHeuristic__withPQ(cell_from, cell_to) {
+          var outArr;
+
+          const is_same_x  = (cell_from.x == cell_to.x);
+          const is_same_y  = (cell_from.y == cell_to.y);
+          const is_same_xy = is_same_x && is_same_y;
+          if(is_same_xy) {
+            return [];
+          }
+
+          // const queue_frontier = new Queue();
+          var pqueue_frontier = new PriorityQueue();
+
+          const pathElt_from   = new PathElement(cell_from, null);
+          const searchElt_from = new SearchElement(pathElt_from, 0, -1);
+          const pqe_from       = new PriorityQueueElement(searchElt_from, searchElt_from.getPriority());
+          pqueue_frontier.enqueue(pqe_from);
+
+          var isReached         = false;
+          var distance_traveled = 0;
+          while(!isReached) {
+            const pqe_dequeued      = pqueue_frontier.dequeue();
+            const searchElt_current = pqe_dequeued.payload;
+            const pathElt_current   = searchElt_current.pathElt;
+            const cell_current      = pathElt_current.elt;
+            // const arr_cell_neighbor = Object.values(this.getDictNeighbor(grid, cell_current));
+            // const arr_cell_neighbor = Utils.shuffle(Object.values(this.getDictNeighbor(grid, cell_current)));
+            const arr_cell_neighbor = Object.values(this.getDictNeighbor__alternative_order(grid, cell_current));
+
+            isReached = arr_cell_neighbor.includes(cell_to);
+            if(isReached) {
+              //we have found a path
+              const pathElt_to = new PathElement(cell_to, pathElt_current);
+
+              //let's rebuild the path
+              outArr = this.rebuildPath(pathElt_to);
+
+            } else {
+              //continue searching
+              distance_traveled += 1;
+
+              const arr_pqe_neighbor = arr_cell_neighbor.map(cell => {
+                const heuristic_remaining = this.getDistance__axial(cell, cell_to);
+                const pathElt   = new PathElement(cell, pathElt_current);
+                const searchElt = new SearchElement(pathElt, distance_traveled, heuristic_remaining);
+                const pqe       = new PriorityQueueElement(searchElt, searchElt.getPriority());
+                return pqe;
+              });
+
+              arr_pqe_neighbor.forEach((pqe_neighbor, i) => {
+                const cell_neighbor       = pqe_neighbor.payload.pathElt.elt;
+
+                const arr_pqe_frontier    = pqueue_frontier.arr_priority
+                                                           .filter(priority => priority != null)
+                                                           .reduce((acc, priority_i) => {
+                                                             const arr_priority_i = pqueue_frontier.dict_pqe[priority_i];
+                                                             return acc.concat(arr_priority_i);
+                                                           }, []);
+                // logger.log("pqueue_frontier.arr_priority", pqueue_frontier.arr_priority);
+                // logger.log("arr_pqe_frontier", arr_pqe_frontier);
+                const arr_cell_frontier   = arr_pqe_frontier.map(pqe => pqe.payload.pathElt.elt);
+                // logger.log("arr_cell_frontier", arr_cell_frontier);
+
+                const is_already_in_queue = arr_cell_frontier.includes(cell_neighbor);
+
+                if(!is_already_in_queue) {
+                  //add to frontier
+                  pqueue_frontier.enqueue(pqe_neighbor);
+                }
+                /*
+                else {
+                  logger.log("is_already_in_queue");
+
+                  //get corresponding existing pqe
+                  const pqe_existing = arr_pqe_frontier.find(pqe_frontier => {   //on refait un petit tour pour le plaisir
+                    const cell_frontier = pqe_frontier.payload.pathElt.elt;
+                    return (cell_frontier == cell_neighbor);
+                  });
+                  logger.log("pqe_existing.priority", pqe_existing.priority);
+                  logger.log("pqe_neighbor.priority", pqe_neighbor.priority);
+
+                  //update priority if better
+                  if(pqe_existing.priority > pqe_neighbor.priority) {
+                    logger.log("found better");
+
+                    pqueue_frontier.remove(pqe_existing);
+                    pqueue_frontier.enqueue(pqe_neighbor);
+                  }
+
+                }
+                */
+
+              });
+
+            }
+          }
+
+          return outArr;
+        }
+
+
+        static findShortestPath__withHeuristic__andObstacles(cell_from, cell_to) {
+          var outArr;
+
+
+          return outArr;
+        }
+
+
+
+        static findAChunk__withHeuristic__withPQ(grid, cell_from, nb_cells) {
+          var outArr;
+
+          const dict_chunk = {};
+
+          // const queue_frontier = new Queue();
+          var pqueue_frontier = new PriorityQueue();
+
+          const pathElt_from   = new PathElement(cell_from, null);
+          const searchElt_from = new SearchElement(pathElt_from, 0, -1);
+          const pqe_from       = new PriorityQueueElement(searchElt_from, searchElt_from.getPriority());
+          pqueue_frontier.enqueue(pqe_from);
+
+          var isEnough          = false;
+          var distance_traveled = 0;
+          while(!isEnough) {
+
+            const arr_chunk = Object.values(dict_chunk);
+            isEnough = (arr_chunk.length >= nb_cells);
+            if(isEnough) {
+
+              //let's crop the correct number of cells
+              outArr = arr_chunk.slice(0, nb_cells);
+
+            } else {
+              //continue searching
+              distance_traveled += 1;
+
+              const pqe_dequeued      = pqueue_frontier.dequeue();
+              logger.log("pqe_dequeued.priority", pqe_dequeued.priority);
+              const searchElt_current = pqe_dequeued.payload;
+              const pathElt_current   = searchElt_current.pathElt;
+              const cell_current      = pathElt_current.elt;
+              const arr_cell_neighbor = Utils.shuffle(Object.values(this.getDictNeighbor(grid, cell_current)));
+
+              arr_cell_neighbor.forEach((cell_neighbor, i) => {
+
+                // const heuristic_remaining = 0;
+                const heuristic_remaining = math.randomInt(0, 50);
+
+                const pathElt_neighbor      = new PathElement(cell_neighbor, pathElt_current);
+                const searchElt_neighbor    = new SearchElement(pathElt_neighbor, distance_traveled, heuristic_remaining);
+                const pqe_neighbor          = new PriorityQueueElement(searchElt_neighbor, searchElt_neighbor.getPriority());
+
+                const string_xy           = cell_neighbor.x + "," + cell_neighbor.y;
+                const is_already_in_queue = dict_chunk[string_xy] != null;
+
+                if(!is_already_in_queue) {
+                  dict_chunk[string_xy] = cell_neighbor;
+                  //add to frontier
+                  pqueue_frontier.enqueue(pqe_neighbor);
+                }
+
+              });
+
+            }
+          }
+
+          return outArr;
+        }
+
+        static findABChunk__withHeuristic__withPQ(cell_from, cell_to, nb_cells) {
+          var outArr;
+
+          return outArr;
+        }
+
+        static isContiguous(grid, arr_cell) {
+
+        }
+
+        static sortedClockwise(arr_cell) {
+
+        }
+
+        static findShellCell(grid, arr_cell) {
+          var outCell;
+
+          var isFound = false;
+          var index = 0;
+          while(!isFound) {
+
+            isFound = null;
+            if(isFound) {
+              outCell = null;
+            }
+
+          }
+
+          return outCell;
+        }
+
+        static findShellsDict(grid, arr_shell) {
+
+        }
+
+        static findAllInShell(grid, arr_shell) {
+          const isContiguous = this.isContiguous(arr_shell);
+
+          if(!isContiguous) {
+            throw new Error("arr_shell is not contiguous");
+          }
+
+          const dict_shells = this.findShellsDict(grid, arr_shell);
+
+        }
+
+        static findInnerShell(grid, arr_cell_seed) {
+          return arr_cell_seed.filter(cell => {
+            const isInnerShellCell = (Object.values(this.getDictNeighbor(grid, cell)).length < 6);
+            return isInnerShellCell;
+          });
+        }
+
+        static findOuterShell(grid, arr_cell_seed) {
+
+          const arr_innerShell = this.findInnerShell(grid, arr_cell_seed);
+
+
+
+          // arr_cell_neighbor.forEach((cell_neighbor, i) => {
+          //
+          //   // const heuristic_remaining = 0;
+          //   const heuristic_remaining = math.randomInt(0, 50);
+          //
+          //   const pathElt_neighbor      = new PathElement(cell_neighbor, pathElt_current);
+          //   const searchElt_neighbor    = new SearchElement(pathElt_neighbor, distance_traveled, heuristic_remaining);
+          //   const pqe_neighbor          = new PriorityQueueElement(searchElt_neighbor, searchElt_neighbor.getPriority());
+          //
+          //   const string_xy           = cell_neighbor.x + "," + cell_neighbor.y;
+          //   const is_already_in_queue = dict_chunk[string_xy] != null;
+          //
+          //   if(!is_already_in_queue) {
+          //     dict_chunk[string_xy] = cell_neighbor;
+          //     //add to frontier
+          //     pqueue_frontier.enqueue(pqe_neighbor);
+          //   }
+
+        }
+
+
+
+        static findShellChunk(grid, arr_cell_seed, nb_shell_layers) {
+          return [...Array(nb_shell_layers).keys()].reduce((acc, i) => {
+            const arr_outerShell = this.findOuterShell(grid, acc);
+            return acc.concat(arr_outerShell);
+          }, [...arr_cell_seed]);
+        }
+
+      }
+
+
+      class OyaGame {
+
+        /* still_river
+
+          hexCoordinates:
+            square-xy-based
+            offset
+            axial
+
+          0 raccourcis clavier pour spawn
+              joueurs
+              animaux
+              symboles (croix, triangle de danger)
+
+          0 pour faire plus vrai:
+              les maps d'évènements sont spawnées après que le MJ a zoomé
+              le MJ peut ensuite les effacer si ça fait ramer la page
+
+          0 missing assets:
+              river Oyapock (story map)
+
+          22 décembre 2021:
+            ANNIV LOIC
+            plusieurs façons de générer:
+              proche en proche probabiliste
+              placer des fils au fur et à mesure
+              placer des fractales au fur et à mesure
+              faire des patates, avec des patates dedans
+
+              grossir des zones en "consommant la frontière"
+
+            0 path between 2 selected cells
+
+            0 définir la "distance de traversée" pour passer d'une cellule d'un type X à une cellule d'un type Y
+                espace dual
+
+            0 afficher tous les chemins les plus courts différents
+
+          23 décembre 2021:
+            1 A*
+              0 sorted list
+              0 priority queue:
+                change neighbor priority if a shorter route has been found
+
+          26 décembre 2021:
+            0 creating a terrain chunk can be done via:
+                moving out of a center cell
+                moving in to a destination center cell (like the end of a pathfinding)
+
+            0X avoid repainting (==overlapping) what has already been painted
+              => actually it is another key element of terrain generation
+
+          27 décembre 2021:
+            =>=> GENERATION PAR TACHES ! et contrôle au fur et à mesure
+              "créer de l'existant" pour ensuite le retravailler
+
+            0 essayer sans overlap et avec des gouttes de plus en plus petites (share wrt remaining)
+
+            0 Hexagonal map !
+                et la route vers le fractal
+                0 faire simple
+
+            0 any shape map
+
+            0 paint/drip
+
+        */
+
+        constructor() {
+
+          this.arr_map_types = [
+            "forest",
+            "river",
+            "clear",
+            "village",
+            "fruitland",
+          ];
+
+          this.w = 14;
+          this.h = 28;
+
+          // this.hexGrid      = new HexGrid_Rect(this.w,this.h);
+          this.hexGrid      = new HexGrid_Hex(this.w);
+
+          this.mapGenerator = new HexMapGenerator(this.hexGrid);
+
+          this.initialize();
+        }
+
+        initialize() {
+          this.mapGenerator.generateMap();
+
+          this.loadAssets_p()
+          .then(dict_image => {
+
+            this.render(dict_image);
+          });
+        }
+
+        loadAssets_p() {
+          const dict_image_path = {
+            "water" : "img/oyagame/water__ok.png",
+            "sand"  : "img/oyagame/sand.png",
+            "soil"  : "img/oyagame/soil.png",
+            "mud"   : "img/oyagame/mud.png",
+            "grass" : "img/oyagame/grass.png",
+            "tree__small" : "img/oyagame/tree__small.png",
+            "tree__big"   : "img/oyagame/tree__big.png",
+          };
+
+          var dict_image = {};
+          const arr_p = Object.entries(dict_image_path).map(([type, image_path]) => {
+            const img__file_p = FileIntegration.imageFromImgSrc_p(image_path);
+            const img_p = img__file_p;
+
+            return img_p.then(img => {
+              dict_image[type] = img;
+              logger.log("loaded image for" + " " + type);
+            });
+          });
+
+          const assets_p = Promise.all(arr_p)
+                                  .then(arr => {
+                                    return dict_image;
+                                  });
+
+          return assets_p;
+        }
+
+        render(dict_image) {
+
+          this.hexGrid.cells.map(hexCell => {
+            const icHexagon  = this.icObjectForHexCell(hexCell, dict_image);
+            infiniteCanvas.addIcObject(icHexagon);
+          });
+
+        }
+
+        easyConfig(type) {
+
+          var fillColor;
+          switch(type) {
+            case "blank":
+              fillColor = "white";
+              break;
+
+
+            case "water":
+              fillColor = "cyan";
+              break;
+            // case "water_deep":
+              // fillColor = "blue";
+              // break;
+            case "sand":
+              fillColor = "gold";
+              break;
+            case "tree__big":
+              fillColor = "black";
+              break;
+            case "tree__small":
+              fillColor = "gray";
+              break;
+            case "grass":
+              fillColor = "green";
+              break;
+            case "soil":
+              fillColor = "red";
+              break;
+            case "mud":
+              fillColor = "brown";
+              break;
+
+            default:
+              fillColor = "";
+              break;
+          }
+
+          const cfg = {
+            strokeColor : "white",
+            fillColor   : fillColor,
+          };
+
+          return cfg;
+        }
+
+        icObjectForHexCell(hexCell, dict_image) {
+          var outIcObj;
+
+          // const length = 50;
+          const length = 20;
+
+          const row  = hexCell.y;
+          const col  = hexCell.x;
+
+          const factor__col = (col % 2 == 0) ? (col + 1.0) : (col + 0.5);
+          const x = 3 * col * length + ((row % 2 == 0) ? 0 : 1.5) * length;
+          const y = row * length * math.sqrt(3) / 2.0;
+          const pointTL = Geometry.createPoint(x, y);
+
+
+          const type = hexCell.type;
+          const cfg = this.easyConfig(type);
+
+          switch(type) {
+            case "blank":
+            {
+                const icHexagon = infiniteCanvas.createIcHexagon(pointTL, length, cfg);
+                outIcObj = icHexagon;
+            }
+            break;
+            default:
+            // throw new Error("unsupported type:" + type);
+            {
+              const img = dict_image[type];
+              const icImage = infiniteCanvas.createIcImage(pointTL.x, pointTL.y, img);
+              // const img_clone = img.clone();
+              // const icImage = infiniteCanvas.createIcImage(pointTL.x, pointTL.y, img_clone);
+              const width__tile  = 2 * length;
+              const height__tile = math.sqrt(3) * length;
+              icImage.width  = width__tile;
+              icImage.height = height__tile;
+              icImage.force_width  = true;
+              icImage.force_height = true;
+
+              outIcObj = icImage;
+            }
+            break;
+              // break;
+          }
+
+          return outIcObj;
+        }
+
+      }
+
+    </script>
+    <script>
+      // const oyagame = new OyaGame();
+    </script>
 
 
 
