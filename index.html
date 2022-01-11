@@ -12995,7 +12995,7 @@
 
             //SHU: wolken-related
             context: {
-              name: 'ux'
+              name: 'ux',
             },
             aggregate: {
               name: 'icObject',
@@ -13014,6 +13014,48 @@
           };
 
           outIcEvent = icEvent__move;
+        }
+
+        //for hexmap
+        else if(outerUpdatesDict.isHeld) {
+
+          var time = performance.now();
+          logger.log("time", time);
+
+          const icObj__id     = icObj.id;
+          const isHeld__new = Object.assign({}, outerUpdatesDict.isHeld.new);
+
+          const revision = infiniteCanvas.generateIcEventIndex();
+
+          const icEvent__hold = {
+            // type: "hold",
+            data: {
+              id:       icObj__id,
+              isHeld:   isHeld__new,
+              time:     time,
+            },
+
+            //SHU: wolken-related
+            context: {
+              name: 'ux',
+            },
+            aggregate: {
+              name: 'icObject',
+              id:    uuid__unknown,
+            },
+            name: 'icObjHeld',
+
+            metadata: {
+              correlationId: uuid__unknown,
+              causationId:   uuid__unknown,
+
+              revision:  revision,
+              timestamp: time,
+            },
+
+          };
+
+          outIcEvent = icEvent__hold;
         }
 
         return outIcEvent;
@@ -13074,6 +13116,7 @@
 
         //create event
         const icEvent__icObjUpdate = this.createIcEvent__icObjUpdate(icObj, outerUpdatesDict);
+        // const icEvent__icObjUpdate = null;   //debug
         if(icEvent__icObjUpdate != null) {
           //"publish" event
           //so that it's somehow saved somewhere
@@ -22411,7 +22454,7 @@
 
           function selectionHandler__default(options) {
             const selectionMgmtObj = getSelectionMgmtObject(options);
-            processSelectionMgmtObject(selectionMgmtObj, options);
+            processSelectionMgmtObject(selectionMgmtObj, options);     //SHU666666 this call is very heavy
           }
 
 
@@ -22844,6 +22887,13 @@
                     fObj.isDirty__clipPath = false;
                   }
                   break;
+                // case "image":
+                // {
+                //   logger.log("standardRedraw:", "image", icObj.img);
+                //   fObj.setElement(icObj.img);
+                //   fObj.setCoords();
+                // }
+                //   break;
                 default:
                   break;
               }
@@ -22959,6 +23009,15 @@
                 fObj.isDirty__clipPath = true;
                 standardRedraw(fObj);
               }
+              else if(propName == "img") {
+                // fObj.refreshImg_p()
+                // .then((fObj) => {
+                //   standardRedraw(fObj);
+                // });
+                console.log("icObj_fRep","onInnerUpdate", "img", icObj_fRep);
+                fObj.setElement(icObj.img);
+                fObj.setCoords();
+              }
               else {
                 console.log("icObj_fRep","onInnerUpdate", icObj_fRep);
                 standardRedraw(fObj);
@@ -23009,6 +23068,17 @@
                 .then((fObj) => {
                   standardRedraw(fObj);
                 });
+              }
+              else if(propName == "img") {
+                console.log("icObj_fRep","onOuterUpdate", "img", icObj_fRep);
+
+                // fObj.refreshImg_p()
+                // .then((fObj) => {
+                //   standardRedraw(fObj);
+                // });
+
+                fObj.setElement(icObj.img);
+                fObj.setCoords();
               }
               else {
                 console.log("icObj_fRep","onOuterUpdate", icObj_fRep);
@@ -44501,6 +44571,16 @@
 
           //flemme
           this.elevation = 0;
+
+
+          //rx
+          this.rx_subject    = new Rx.Subject();
+          this.rx_observable = this.rx_subject.asObservable();
+        }
+
+        setType2(type) {
+          this.type = type;
+          this.rx_subject.next(this);
         }
 
         clone_deep() {
@@ -44577,8 +44657,8 @@
 
           //init
           this.dict_landTypeShare = HexMap.dictLandTypeShareForMapType(this.type_map);
+          // logger.log("this.dict_landTypeShare", this.dict_landTypeShare);
           this.average_elevation  = HexMap.computeAverageElevation(this.dict_landTypeShare);
-
         }
 
         static dictLandTypeShareForMapType(type_map) {
@@ -44840,7 +44920,7 @@
           const nb_drop = math.floor(average_elevation / percentage_drop);
           this.elevateUsingDrops(nb_drop, size_drop);
 
-          this.diffuseToMatchShares(type_map);
+          this.diffuseToMatchShares(dict_landTypeShare);
 
           this.cleanOutArtefacts();
         }
@@ -44864,6 +44944,116 @@
         }
 
         diffuseToMatchShares(dict_landTypeShare) {
+
+          const nb_cells = this.grid.cells.length;
+          logger.log("nb_cells", nb_cells);
+
+          //sort shares
+          const arr_entry_share__sorted = Object.entries(dict_landTypeShare).sort(([k1,v1], [k2,v2]) => {
+            return v1 < v2;
+          });
+
+          arr_entry_share__sorted.slice(0,-1).forEach(([type, share], i) => {
+
+            //determine nb of cells to paint
+            const nb_cells_of_type__target  = math.floor(share / 100.0 * nb_cells);
+            logger.log("nb_cells_of_type__target", type, nb_cells_of_type__target);
+            // if(nb_cells_of_type__target > 0) {
+
+              var nb_cells_of_type__current   = this.grid.cells.filter(cell => cell.type == type).length;
+              // logger.log("nb_cells_of_type__current", nb_cells_of_type__current);
+
+              if(nb_cells_of_type__current < nb_cells_of_type__target) {
+
+                while(nb_cells_of_type__current < nb_cells_of_type__target) {
+                  //inject a cell of type
+                  logger.log("inject a cell of type", type);
+
+                  var cell_injection;
+
+                  //get a cell in which to inject type
+                  const cell_of_type = this.grid.cells.find(cell => cell.type == type);
+                  if(cell_of_type != null) {
+                    const arr_outerShell = HexGridUtils.findOuterShell_of_area_with_type(this.grid, cell_of_type);
+                    // logger.log("arr_outerShell", arr_outerShell);
+
+                    //filter out types that already have correct number of cells
+                    const arr_type__too_many = arr_entry_share__sorted.filter(([type, share]) => {
+                      const nb_current = this.grid.cells.filter(cell => cell.type == type).length;
+                      const nb_target  = math.floor(share / 100.0 * nb_cells);
+                      return nb_current > nb_target;
+                    }).map(([type, share]) => type);
+
+                    const arr_outerShell__filtered = arr_outerShell.filter(cell_outerShell => {
+                      return arr_type__too_many.includes(cell_outerShell.type);
+                    });
+
+                    if(arr_outerShell__filtered.length > 0) {
+                      cell_injection = Utils.randomElementInArray(arr_outerShell__filtered);
+                    } else {
+                      cell_injection = HexGridUtils.getRandomCell(this.grid);
+                      while(!arr_type__too_many.includes(cell_injection.type)) {
+                        cell_injection = HexGridUtils.getRandomCell(this.grid);
+                      }
+                    }
+
+                  } else {
+                    cell_injection = HexGridUtils.getRandomCell(this.grid);
+                    while(!arr_type__too_many.includes(cell_injection.type)) {
+                      cell_injection = HexGridUtils.getRandomCell(this.grid);
+                    }
+                  }
+
+                  //change type
+                  cell_injection.type = type;
+
+                  nb_cells_of_type__current   = this.grid.cells.filter(cell => cell.type == type).length;
+                  logger.log("nb_cells_of_type__current", nb_cells_of_type__current);
+                }
+
+              } else {
+
+                while(nb_cells_of_type__current > nb_cells_of_type__target) {
+                  //remove a cell of type
+                  logger.log("remove a cell of type", type);
+
+                  //get a cell in which to change type
+                  const cell_of_type = this.grid.cells.find(cell => cell.type == type);
+
+                  //change type
+                  const entry__next = arr_entry_share__sorted[i+1];
+                  const type__next  = entry__next[0];
+                  cell_of_type.type = type__next;
+
+                  nb_cells_of_type__current   = this.grid.cells.filter(cell => cell.type == type).length;
+                  logger.log("nb_cells_of_type__current", nb_cells_of_type__current);
+                }
+
+              }
+
+            // }
+
+          });
+
+          //color blank cells with major type
+          const entry__last = arr_entry_share__sorted[arr_entry_share__sorted.length - 1];
+          const type__last  = entry__last[0];
+          this.grid.cells.filter(cell => cell.type == "blank").forEach((cell_blank, i) => {
+            cell_blank.type = type__last;
+          });
+
+
+
+          //debug
+          const dict_nb_cell_for_type = Object.fromEntries(arr_entry_share__sorted.map(([type, share]) => {
+            const nb_cells_for_type = this.grid.cells.filter(cell => cell.type == type).length;
+            const nb_cells_of_type__target  = math.floor(share / 100.0 * nb_cells);
+            return [type, {
+              target: nb_cells_of_type__target,
+              actual: nb_cells_for_type,
+            }];
+          }));
+          logger.log("dict_nb_cell_for_type", dict_nb_cell_for_type);
 
         }
 
@@ -45485,7 +45675,7 @@
               distance_traveled += 1;
 
               const pqe_dequeued      = pqueue_frontier.dequeue();
-              logger.log("pqe_dequeued.priority", pqe_dequeued.priority);
+              // logger.log("pqe_dequeued.priority", pqe_dequeued.priority);
               const searchElt_current = pqe_dequeued.payload;
               const pathElt_current   = searchElt_current.pathElt;
               const cell_current      = pathElt_current.elt;
@@ -45605,8 +45795,161 @@
           }, [...arr_cell_seed]);
         }
 
+        static findArea_with_element_of_type(grid, cell_from) {
+          var outArr;
+
+          const type__target = cell_from.type;
+
+          const dict_chunk = {};
+
+          const string_xy  = cell_from.x + "," + cell_from.y;
+          dict_chunk[string_xy] = cell_from;
+
+          // const queue_frontier = new Queue();
+          var pqueue_frontier = new PriorityQueue();
+
+          const pathElt_from   = new PathElement(cell_from, null);
+          const searchElt_from = new SearchElement(pathElt_from, 0, -1);
+          const pqe_from       = new PriorityQueueElement(searchElt_from, searchElt_from.getPriority());
+          pqueue_frontier.enqueue(pqe_from);
+
+          var isFull            = false;
+          var distance_traveled = 0;
+          while(!isFull) {
+
+            //continue searching
+            distance_traveled += 1;
+
+            const pqe_dequeued      = pqueue_frontier.dequeue();
+            // logger.log("pqe_dequeued.priority", pqe_dequeued.priority);
+            const searchElt_current = pqe_dequeued.payload;
+            const pathElt_current   = searchElt_current.pathElt;
+            const cell_current      = pathElt_current.elt;
+            const arr_cell_neighbor = Utils.shuffle(Object.values(this.getDictNeighbor(grid, cell_current)));
+
+            arr_cell_neighbor.forEach((cell_neighbor, i) => {
+
+              // const heuristic_remaining = 0;
+              const heuristic_remaining = math.randomInt(0, 50);
+
+              const pathElt_neighbor      = new PathElement(cell_neighbor, pathElt_current);
+              const searchElt_neighbor    = new SearchElement(pathElt_neighbor, distance_traveled, heuristic_remaining);
+              const pqe_neighbor          = new PriorityQueueElement(searchElt_neighbor, searchElt_neighbor.getPriority());
+
+              const isValidType = (cell_neighbor.type == type__target);
+              // logger.log("isValidType", isValidType);
+
+              if(isValidType) {
+
+                const string_xy           = cell_neighbor.x + "," + cell_neighbor.y;
+                const is_already_in_queue = dict_chunk[string_xy] != null;
+
+                if(!is_already_in_queue) {
+                  dict_chunk[string_xy] = cell_neighbor;
+                  //add to frontier
+                  pqueue_frontier.enqueue(pqe_neighbor);
+                }
+
+              }
+
+            });
+
+            isFull = pqueue_frontier.isEmpty();
+          }
+
+          const arr_chunk = Object.values(dict_chunk);
+          outArr = arr_chunk;
+
+          return outArr;
+        }
+
+        static findOuterShell_of_area_with_type(grid, cell_of_type) {
+
+          const arr_area = this.findArea_with_element_of_type(grid, cell_of_type);
+          // logger.log("arr_area.length", arr_area.length);
+
+          const dict_outerShell = arr_area.reduce((acc, cell_area) => {
+            const arr_cell_neighbor = Object.values(this.getDictNeighbor(grid, cell_area));
+            // logger.log("arr_cell_neighbor", arr_cell_neighbor);
+            arr_cell_neighbor.forEach((cell_neighbor, i) => {
+              const isOuterCell = (cell_neighbor.type != cell_area.type);
+              // logger.log("isOuterCell", isOuterCell);
+              if(isOuterCell) {
+                const string_xy = cell_neighbor.x + "," + cell_neighbor.y;
+                if(!acc[string_xy]) {
+                  acc[string_xy] = cell_neighbor;
+                }
+              }
+            });
+            return acc;
+          }, {});
+
+          const arr_outerShell = Object.values(dict_outerShell);
+
+          return arr_outerShell;
+        }
+
       }
 
+      class Bridge__Crossroads {
+
+        constructor() {
+          this.dict_crossroads = {};
+        }
+
+        crossroadsObj(id_any) {
+          return this.dict_crossroads[id_any];
+        }
+
+        add(crossroadsObj) {
+          crossroadsObj.getRoads().forEach((road, i) => {
+            const identified = crossroadsObj.identifiedForRoad(road);
+            const id_ = identified.id();
+            // logger.log("setting", id_);
+            this.dict_crossroads[id_] = crossroadsObj;
+          });
+        }
+
+        remove(crossroadsObj) {
+          crossroadsObj.getRoads().forEach((road, i) => {
+            const identified = crossroadsObj.identifiedForRoad(road);
+            const id_ = identified.id();
+            delete this.dict_crossroads[id_];
+          });
+        }
+
+      }
+
+      class Identified {
+        constructor(obj, func_id) {
+          this.obj     = obj;
+          this.func_id = func_id;
+        }
+
+        id() {
+          return this.func_id(this.obj);
+        }
+      }
+
+      class CrossroadsObj {
+
+        constructor(dict_identified) {
+          this.dict_identified = dict_identified;
+        }
+
+        getRoads() {
+          return Object.keys(this.dict_identified);
+        }
+
+        identifiedForRoad(road) {
+          return this.dict_identified[road];
+        }
+
+        objectForRoad(road) {
+          return this.identifiedForRoad(road).obj;
+        }
+
+      }
 
       class OyaGame {
 
@@ -45662,7 +46005,7 @@
 
           27 décembre 2021:
             =>=> GENERATION PAR TACHES ! et contrôle au fur et à mesure
-              "créer de l'existant" pour ensuite le retravailler
+              "créer de l'existant" (==premier(s) jet(s)) pour ensuite le retravailler
 
             0 essayer sans overlap et avec des gouttes de plus en plus petites (share wrt remaining)
 
@@ -45674,6 +46017,27 @@
 
             0 paint/drip
 
+          28 décembre 2021:
+            0 corriger le premier jet
+
+          29 décembre 2021:
+            0 fill tool
+              0 event: cell selected : get "HexModel" object
+                => Bridge__Crossroads
+                => Reactive bridge
+
+                0 remove biobj when removing cell
+              0 highlight selection
+              0 area of type
+
+          11 janvier 2022:
+            1 retour sur la génération retravaillée
+              1 il faut ne pas toucher à nouveau aux types que l'on a ajustés
+                => outerShell().filter(ne garder que les types qui ont des cellules en trop)
+                   random(grid.cells.filter(ne garder que les types qui ont des cellules en trop))
+              |-> l'algorithme a pour effet de "rejeter la boue sur les côtés"...
+                    (les types avec des petites parts de marché sont relégués à la périphérie)
+              0? trouver une autre façon de rétablir les pourcentages
         */
 
         constructor() {
@@ -45694,14 +46058,35 @@
 
           this.mapGenerator = new HexMapGenerator(this.hexGrid);
 
+          this.bridge = new Bridge__Crossroads();
+
           this.initialize();
         }
 
         initialize() {
           this.mapGenerator.generateMap();
 
+          //bind to events
+          infiniteCanvas.rx_icEvent_observable.subscribe({
+            next: (value) => {
+              console.log("rx_icEvent_subject", "next", value);
+
+              const icEvent  = value;
+
+              const id_icObj      = icEvent.data.id;
+              const crossroadsObj = this.bridge.crossroadsObj(id_icObj);
+              const hexCell       = crossroadsObj.objectForRoad("hexCell");
+
+              // hexCell.type = "sand";
+              hexCell.setType2("sand");
+
+            },
+          });
+
           this.loadAssets_p()
           .then(dict_image => {
+
+            this.dict_image = dict_image;
 
             this.render(dict_image);
           });
@@ -45740,11 +46125,52 @@
         render(dict_image) {
 
           this.hexGrid.cells.map(hexCell => {
-            const icHexagon  = this.icObjectForHexCell(hexCell, dict_image);
+
+            const icHexagon  = this.createIcObjectForHexCell(hexCell, dict_image);
+
+            //bridge
+            const crossroadsObj = new CrossroadsObj({
+              "hexCell" : new Identified(hexCell,   this.id_hexCell),
+              "icObj"   : new Identified(icHexagon, this.id_icObj),
+            });
+            this.bridge.add(crossroadsObj);
+
+              //bind
+              hexCell.rx_observable.subscribe({
+                next: (value) => {
+                  logger.log("hexCell.rx_observable", "next", value);
+                  this.updateIcObj(icHexagon, hexCell);
+                },
+              })
+
             infiniteCanvas.addIcObject(icHexagon);
           });
 
         }
+
+        id_hexCell(hexCell) {
+          return hexCell.coords_axial.toString();
+        }
+
+        id_icObj(icObj) {
+          return icObj.id;
+        }
+
+        hexCellForIcObj(icObj) {
+          const id            = this.id_icObj(icObj);
+          logger.log("id", id);
+          const crossroadsObj = this.bridge.crossroadsObj(id);
+          return crossroadsObj.objectForRoad("hexCell");
+        }
+
+        icObjForHexCell(hexCell) {
+          const id            = this.id_hexCell(hexCell);
+          logger.log("id", id);
+          const crossroadsObj = this.bridge.crossroadsObj(id);
+          return crossroadsObj.objectForRoad("icObj");
+        }
+
+
 
         easyConfig(type) {
 
@@ -45793,7 +46219,7 @@
           return cfg;
         }
 
-        icObjectForHexCell(hexCell, dict_image) {
+        createIcObjectForHexCell(hexCell, dict_image) {
           var outIcObj;
 
           // const length = 50;
@@ -45839,6 +46265,20 @@
           }
 
           return outIcObj;
+        }
+
+        updateIcObj(icObj, hexCell) {
+          // icObj.strokeWidth = 5;
+          // icObj.strokeColor = "cyan";
+
+          const type = hexCell.type;
+          const img  = this.dict_image[type];
+
+          //get free rep
+          const represented = infiniteCanvas.getRepresented(icObj.id);
+          const rep_free    = represented.r_free();
+
+          rep_free.img  = img;
         }
 
       }
