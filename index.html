@@ -16040,7 +16040,39 @@
         this.redrawCanvas(RedrawOccasion.offsetChanged);
       }
 
+      showRect(rect) {
+        //get pov to show and contain rect
+        const pov = this.centeredPovForRect(rect);
 
+        this.set_pov(pov);
+      }
+
+      povForRect(rect_target) {
+
+      }
+
+      centeredPovForRect(rect_target) {
+        const pointCenter = Geometry.getCenterPoint(Geometry.createLTRect(rect_target));
+        logger.log("centeredPovForRect");
+        logger.log("pointCenter", pointCenter);
+
+        const screenRect = this.getScreenRect();
+        logger.log("screenRect", screenRect);
+
+        // const scaleFactor_to_contain_targetRect = 1.0;
+
+        const scale  = {
+          X: 0.5,
+          Y: 0.5,
+        };
+        const offset = {
+          dx: 300,
+          dy: 400,
+        };
+
+        const pov = new POV(scale, offset);
+        return pov;
+      }
 
 
       manageImageImport(img) {
@@ -22166,8 +22198,8 @@
           // fabric.Object.prototype.padding     = 10;
           //
           //
-          // fabric.Rect.prototype.rx = 5;    //shuxylo
-          // fabric.Rect.prototype.ry = 5;
+          fabric.Rect.prototype.rx = 5;    //shuxylo
+          fabric.Rect.prototype.ry = 5;
 
 
           fabric.Object.prototype.getFObjZIndex = function() {
@@ -22841,6 +22873,8 @@
           const fabricIntegration = this;
           const fabricCanvas      = this.fabricCanvas;
 
+          const infiniteCanvas    = this.infiniteCanvas;
+
           console.log("addFabricObjectWithIcObj", "icObj", icObj__r_free);
           // const fObj = this.createFabricObjectWithIcObj(icObj);
 
@@ -22902,6 +22936,14 @@
               fabricIntegration.updateFabricObject_position_default(fObj);
 
               fabricCanvas.renderAll();
+            }
+
+            function hardRedraw() {   //REDRAw HACK
+              infiniteCanvas.updateScaleAndDOffset({
+                X: infiniteCanvas.scale.X * (1.0 + 1e-10),
+                Y: infiniteCanvas.scale.Y * (1.0 + 1e-10),
+              }, {dx: 0, dy: 0});
+              infiniteCanvas.redrawCanvas(RedrawOccasion.scaleChanged);
             }
 
             function fObjZIndexForIcObj(icObj) {
@@ -22995,6 +23037,7 @@
                   fObj.refreshTex_p()
                   .then((fObj) => {
                     standardRedraw(fObj);
+                    hardRedraw();
                   });
                 }
 
@@ -23059,6 +23102,7 @@
                   fObj.refreshTex_p()
                   .then((fObj) => {
                     standardRedraw(fObj);
+                    hardRedraw();
                   });
                 }
 
@@ -23118,6 +23162,7 @@
                 .then((fObj) => {
                   fabricCanvas.renderAll();
                   standardRedraw(fObj);         //SHU: rajouté pour que les TeX (tout simples) spawnent correctement
+                  hardRedraw();
                 });
               }
 
@@ -40099,12 +40144,13 @@
 
           setTimeout(() => {
 
-            const position_to = {
-              x: golfCourse_to.rect.x,
-              y: golfCourse_to.rect.y,
-            };
-            this.infiniteCanvas.move_to_position(position_to);
+            // const position_to = {
+            //   x: golfCourse_to.rect.x,
+            //   y: golfCourse_to.rect.y,
+            // };
+            // this.infiniteCanvas.move_to_position(position_to);
 
+            this.infiniteCanvas.showRect(golfCourse_to.rect);    //SHU TODO
 
             if(this.step_to == null) {
               // const step = GolfGameStep__Endless_Practice.randomInstance1(infiniteCanvas, golfCourse_to);
@@ -40648,11 +40694,11 @@
 
 
     </script>
-    <!-- <script>
+    <script> //SHU777
       setTimeout(() => {    //SHU: wait for mathjax to finish loading
-        const golfGame__endless_practice = new GolfGame__Endless_Practice(infiniteCanvas);     //practice
+        // const golfGame__endless_practice = new GolfGame__Endless_Practice(infiniteCanvas);     //practice
       }, 1000);
-    </script> -->
+    </script>
 
 
 
@@ -40758,6 +40804,8 @@
           // this.debug_hexagon_grid1();
           // this.debug_hexagon_grid2();
           // this.debug_hexagon_fun();
+
+          // this.debug_povs();
 
           this.debug_startingScreen();
         }
@@ -44375,6 +44423,47 @@
         }
 
 
+        debug_povs() {
+
+          {
+            //show border rect for starting pov
+            const rect_pov_start = infiniteCanvas.getScreenRect();
+            // getCanvasBoundingTrueRect
+            const icObj = infiniteCanvas.createIcRect(rect_pov_start);
+            icObj.fill = "red";
+            infiniteCanvas.addIcObject(icObj);
+          }
+
+          {
+            //animate move to rect1/pov1
+            const rect1 = {
+              x:      2000,
+              y:      2000,
+              width:    50,
+              height:   50,
+            };
+            // getCanvasBoundingTrueRect
+            const icObj1 = infiniteCanvas.createIcRect(rect1);
+            icObj1.fill = "blue";
+            infiniteCanvas.addIcObject(icObj1);
+
+            const pov1 = infiniteCanvas.centeredPovForRect(rect1);
+            const cfg_anim = {
+              duration: 3000,
+            };
+            Animation.move_to_pov__animation(pov1, cfg_anim);
+
+          }
+
+          {
+            //animate move to rect2/pov2
+
+          }
+
+
+        }
+
+
         debug_startingScreen() {
 
           //create text
@@ -44678,6 +44767,16 @@
               break;
 
             case "river":
+              outDict = {
+                "water" :        60,
+                "sand" :         10,
+                "soil" :          0,
+                "mud"  :         10,
+                "grass" :         0,
+                "tree__small" :   0,
+                "tree__big" :    20,
+              };
+              break;
             case "clear":
             case "village":
             case "fruitland":
@@ -44909,6 +45008,9 @@
 
           const nb_cells = this.grid.cells.length;
           const type_map = "forest";
+          // const type_map = "river";
+          // const type_map = "clear";
+
           const hexMap   = new HexMap(type_map);
           const dict_landTypeShare = hexMap.dict_landTypeShare;
           const average_elevation  = hexMap.average_elevation;
@@ -44972,7 +45074,8 @@
                   var cell_injection;
 
                   //get a cell in which to inject type
-                  const cell_of_type = this.grid.cells.find(cell => cell.type == type);
+                  // const cell_of_type = this.grid.cells.find(cell => cell.type == type);
+                  const cell_of_type = Utils.randomElementInArray([...this.grid.cells.filter(cell => cell.type == type)]);
                   if(cell_of_type != null) {
                     const arr_outerShell = HexGridUtils.findOuterShell_of_area_with_type(this.grid, cell_of_type);
                     // logger.log("arr_outerShell", arr_outerShell);
@@ -45018,7 +45121,8 @@
                   logger.log("remove a cell of type", type);
 
                   //get a cell in which to change type
-                  const cell_of_type = this.grid.cells.find(cell => cell.type == type);
+                  // const cell_of_type = this.grid.cells.find(cell => cell.type == type);
+                  const cell_of_type = Utils.randomElementInArray([...this.grid.cells.filter(cell => cell.type == type)]);
 
                   //change type
                   const entry__next = arr_entry_share__sorted[i+1];
@@ -46038,6 +46142,21 @@
               |-> l'algorithme a pour effet de "rejeter la boue sur les côtés"...
                     (les types avec des petites parts de marché sont relégués à la périphérie)
               0? trouver une autre façon de rétablir les pourcentages
+          13 janvier 2022:
+              => 1 utiliser random(arr.filter()) à la place de arr.find()
+
+              0 utiliser une hierarchie de mutabilité
+                0 ou utiliser un système de poussée: si sand devient water alors un des voisins de sand devient sand
+
+            0 endless loop when share tree__big too small ( "river" map  usecase)
+                while() loops are kind of evil...
+
+          19 janvier 2022:
+            LOIC:
+            0 ligne de commande pour muter une cellule avec son identifiant
+            0 carte de l'Oyapock : possibilité de zoomer et respecter les cours d'eau et l'élévation
+
+
         */
 
         constructor() {
