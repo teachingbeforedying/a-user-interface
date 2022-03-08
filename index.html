@@ -15349,6 +15349,14 @@
       }
 
 
+      getShownRect() {
+        const screenRect = this.getScreenRect();
+        const noOrRect   = this.toNoOrRect(screenRect);
+        const shownRect  = Geometry.createXYRect(noOrRect);
+        return shownRect;
+      }
+
+
 
       //"entry points"
 
@@ -16016,19 +16024,6 @@
         this.updateScaleAndOffset(this.coords_initial.scale, this.coords_initial.offset);
       }
 
-      getCurrentPov() {
-        const scale  = this.scale;
-        const offset = this.offset;
-
-        const pov = new POV(scale, offset);
-        return pov;
-      }
-
-      set_pov(pov) {
-        this.updateScaleAndOffset(pov.scale, pov.offset);
-      }
-
-
       move_to_position(position) {
         console.log("move_to_position", position);
 
@@ -16040,39 +16035,171 @@
         this.redrawCanvas(RedrawOccasion.offsetChanged);
       }
 
-      showRect(rect) {
+
+
+      /* POVs */
+
+      getCurrentPov() {
+        return new POV(this.scale, this.offset);
+      }
+
+      set_pov(pov) {
+        this.updateScaleAndOffset(pov.scale, pov.offset);
+        // this.redrawCanvas(RedrawOccasion.povChanged);
+        this.redrawCanvas(RedrawOccasion.scaleChanged);
+      }
+
+      move_to_pov__animation(pov_to, cfg_anim__easy) {
+        const infiniteCanvas = this;
+
+        const pov_from = Object.assign({}, this.getCurrentPov());
+
+        const cfg_anim = Object.assign({
+          // targets: countDownEngine,
+          targets: [],
+
+          /*animated props*/
+          progress: 1,
+          /*--------------*/
+
+          direction: 'normal',
+          easing:    'linear',
+          duration:  cfg_anim__easy.duration,
+
+          autoplay: false,
+
+          update: (anim) => {
+            const progress = anim.progress / 100;
+            const pov__progress = infiniteCanvas.getPovForProgress(pov_from, pov_to, progress);
+            logger.log("pov__progress", pov__progress);
+            infiniteCanvas.set_pov(pov__progress);
+          },
+        }, cfg_anim__easy);
+
+        const animation = anime(cfg_anim);
+        animation.play();
+
+      }
+
+      getPovForProgress(pov_from, pov_to, progress) {
+        const arr_propPaths = [
+          "scale.X",
+          "scale.Y",
+          "offset.dx",
+          "offset.dy",
+        ];
+        function getPropForPropPath(obj, propPath) {
+          const arr_path = propPath.split(".");
+          return arr_path.reduce((acc, pathElt) => {
+            return acc[pathElt];
+          }, obj);
+        }
+        function setPropAtPropPath(obj, propPath, value) {
+          const arr_path = propPath.split(".");
+          const arr__all_but_last = arr_path.slice(0, -1);
+          const penultimate = arr__all_but_last.reduce((acc, pathElt) => {
+
+            //create if not found
+            if(acc[pathElt] == null) {
+              acc[pathElt] = {};
+            }
+
+            return acc[pathElt];
+          }, obj);
+
+          const [lastPathElt] = arr_path.slice(-1);
+          penultimate[lastPathElt] = value;
+        }
+        const pov_progress = arr_propPaths.reduce((acc, propPath) => {
+          const prop_from = getPropForPropPath(pov_from, propPath);
+          const prop_to   = getPropForPropPath(pov_to, propPath);
+
+          //linear progress
+          const prop_progress = prop_from + (prop_to - prop_from) * progress;
+
+          setPropAtPropPath(acc, propPath, prop_progress);
+
+          return acc;
+        }, {});
+
+        return pov_progress;
+      }
+
+
+
+      show_rect(rect) {
         //get pov to show and contain rect
         const pov = this.centeredPovForRect(rect);
 
         this.set_pov(pov);
       }
 
-      povForRect(rect_target) {
+      move_to_rect__animation(rect__dst, cfg_anim__easy) {
+        logger.log("move_to_rect__animation", rect__dst, cfg_anim__easy);
 
+        const pov__dst  = infiniteCanvas.centeredPovForRect(rect__dst);
+        infiniteCanvas.move_to_pov__animation(pov__dst, cfg_anim__easy);
       }
 
-      centeredPovForRect(rect_target) {
-        const pointCenter = Geometry.getCenterPoint(Geometry.createLTRect(rect_target));
-        logger.log("centeredPovForRect");
-        logger.log("pointCenter", pointCenter);
+      povForRect(rect_target) {
+        throw new Error("lol");
+      }
 
-        const screenRect = this.getScreenRect();
-        logger.log("screenRect", screenRect);
+      centeredPovForRect(rect__dst) {
+        // logger.log("centeredPovForRect", rect__dst);
+        const infiniteCanvas = this;
 
-        // const scaleFactor_to_contain_targetRect = 1.0;
+        const rect__src = infiniteCanvas.getShownRect();
+        // logger.log("shownRect", rect__src);
+        // logger.log("rect__dst", rect__dst);
 
-        const scale  = {
-          X: 0.5,
-          Y: 0.5,
+        const pointCenter__src = Geometry.getCenterPoint(Geometry.createLTRect(rect__src));
+        // logger.log("pointCenter__src", pointCenter__src);
+
+        const pointCenter__dst = Geometry.getCenterPoint(Geometry.createLTRect(rect__dst));
+        // logger.log("pointCenter__dst", pointCenter__dst);
+
+        // const length_max__src = Math.max(rect__src.width, rect__src.height);
+        // const length_max__dst = Math.max(rect__dst.width, rect__dst.height);
+        // const scaleFactor_to_contain_dstRect = 1.0 / (length_max__dst / length_max__src);  //scale works in reverse in iC...
+
+        const length_min__src = Math.min(rect__src.width, rect__src.height);
+        const length_min__dst = Math.min(rect__dst.width, rect__dst.height);
+        // logger.log("length_min__src", length_min__src);
+        // logger.log("length_min__dst", length_min__dst);
+
+        const scaleFactor_to_contain_dstRect = 1.0 / (length_min__dst / length_min__src);  //scale works in reverse in iC...
+        // logger.log("scaleFactor_to_contain_dstRect", scaleFactor_to_contain_dstRect);
+
+        const scale__dst = {
+          X: infiniteCanvas.scale.X * scaleFactor_to_contain_dstRect,
+          Y: infiniteCanvas.scale.Y * scaleFactor_to_contain_dstRect,
         };
-        const offset = {
-          dx: 300,
-          dy: 400,
-        };
+        logger.log("scale__dst", scale__dst);
 
-        const pov = new POV(scale, offset);
+
+        // const offset__topleftd__dst = {
+        //   dx: -rect__dst.x,
+        //   dy: -rect__dst.y,
+        // };
+        // const pov = new POV(scale__dst, offset__topleftd__dst);
+
+        const offset__centered__dst = {
+          dx: -(rect__dst.x - rect__dst.width/2.0),
+          dy: -(rect__dst.y /*- rect__dst.height/2.0*/),
+        };
+        const pov = new POV(scale__dst, offset__centered__dst);
+
         return pov;
       }
+
+
+
+
+
+
+
+
 
 
       manageImageImport(img) {
@@ -17074,115 +17201,36 @@
     class POV {
 
       constructor(scale, offset) {
-
+        this.scale  = scale;
+        this.offset = offset;
       }
 
-      static debug() {
-        const scale  = 5;
+      static createPOVWithValues(scale_X, scale_Y, offset_dx, offset_dy) {
+        const scale = {
+          X: scale_X,
+          Y: scale_Y,
+        };
         const offset = {
-          dx:+100,
-          dy:+100,
+          dx: offset_dx,
+          dy: offset_dy,
+        };
+        return new POV(scale, offset);
+      }
+
+      static debugInstance() {
+        const scale  = {
+          X: 2.0,
+          Y: 1.5,
+        };
+        const offset = {
+          dx: +100,
+          dy: +100,
         };
         return new POV(scale, offset);
       }
 
 
     }
-
-
-
-    class Animation {
-
-      constructor() {
-        const animationConfig__default = {
-          duration: 5000,  //duration == 0 => instant teleport, 'blink'
-          /*
-          animation : linear,
-          */
-        }
-      }
-
-      move_to_pov__animation(pov_to, animationConfig) {
-        console.log("move_to_initial_position");
-
-        const pov_from = getCurrentPov();
-        console.log("pov_from", pov_from);
-
-        const duration = animationConfig.duration;
-
-        const time_start = Date.now();
-
-        const frame_duration = 17; //17 ms <-> 60 Hz
-        const myIntervalLoop = setInterval(function () {
-
-          const time_curr = Date.now();
-          const elapsed   = time_curr - time_start;
-
-          const progress   = getProgress(elapsed, duration);
-
-          // console.log("progress", progress);
-          if (progress < 1.0) {
-            const pov_target = getPovForProgress(pov_from, pov_to, progress);
-            // console.log("pov_target", pov_target);
-            set_pov(pov_target);
-          } else {
-            set_pov(pov_to);
-            clearInterval(myIntervalLoop);
-          }
-        }, frame_duration);
-
-        updateScaleAndOffset(coords_initial.scale, coords_initial.offset);
-      }
-
-      getPovForProgress(pov_from, pov_to, progress) {
-        const arr_propPaths = [
-          "scale",
-          "offset.dx",
-          "offset.dy",
-        ];
-        function getPropForPropPath(obj, propPath) {
-          const arr_path = propPath.split(".");
-          return arr_path.reduce((acc, pathElt) => {
-            return acc[pathElt];
-          }, obj);
-        }
-        function setPropAtPropPath(obj, propPath, value) {
-          const arr_path = propPath.split(".");
-          const arr__all_but_last = arr_path.slice(0, -1);
-          const penultimate = arr__all_but_last.reduce((acc, pathElt) => {
-
-            //create if not found
-            if(acc[pathElt] == null) {
-              acc[pathElt] = {};
-            }
-
-            return acc[pathElt];
-          }, obj);
-
-          const [lastPathElt] = arr_path.slice(-1);
-          penultimate[lastPathElt] = value;
-        }
-        const pov_progress = arr_propPaths.reduce((acc, propPath) => {
-          const prop_from = getPropForPropPath(pov_from, propPath);
-          const prop_to   = getPropForPropPath(pov_to, propPath);
-
-          //linear progress
-          const prop_progress = prop_from + (prop_to - prop_from) * progress;
-
-          setPropAtPropPath(acc, propPath, prop_progress);
-
-          return acc;
-        }, {});
-
-        return pov_progress;
-      }
-
-      getProgress(curr, total) {
-        return curr/total;
-      }
-
-    }
-
 
 
 
@@ -29570,6 +29618,16 @@
           return Geometry.createRect(xyRect.x,xyRect.y,xyRect.width,xyRect.height);
         }
 
+        static createXYRect(ltRect) {
+          const xyRect = {
+            x:       ltRect.left,
+            y:       ltRect.top,
+            width:   ltRect.width,
+            height:  ltRect.height,
+          };
+          return xyRect;
+        }
+
         static createCenteredXYRect(pointCenter, w, h) {
           const xyRect = {
             x: pointCenter.x - w / 2.0,
@@ -29579,6 +29637,8 @@
           };
           return xyRect;
         }
+
+
 
         static getCenterScaledRect(ltRect, scale) {
           const pointCenter = Geometry.getCenterPoint(ltRect);
@@ -33690,7 +33750,9 @@
               //   break;
 
               case "BackQuote":
-                keyboardIntegration.infiniteCanvas.move_to_pov__animation(pov_debug, animationConfig__default);
+
+                //nothing for now
+
                 break;
 
 
@@ -40150,7 +40212,7 @@
             // };
             // this.infiniteCanvas.move_to_position(position_to);
 
-            this.infiniteCanvas.showRect(golfCourse_to.rect);    //SHU TODO
+            this.infiniteCanvas.show_rect(golfCourse_to.rect);    //SHU TODO
 
             if(this.step_to == null) {
               // const step = GolfGameStep__Endless_Practice.randomInstance1(infiniteCanvas, golfCourse_to);
@@ -40805,9 +40867,9 @@
           // this.debug_hexagon_grid2();
           // this.debug_hexagon_fun();
 
-          // this.debug_povs();
+          this.debug_povs();
 
-          this.debug_startingScreen();
+          // this.debug_startingScreen();
         }
 
         debug1() {
@@ -44425,38 +44487,58 @@
 
         debug_povs() {
 
-          {
-            //show border rect for starting pov
-            const rect_pov_start = infiniteCanvas.getScreenRect();
-            // getCanvasBoundingTrueRect
-            const icObj = infiniteCanvas.createIcRect(rect_pov_start);
-            icObj.fill = "red";
-            infiniteCanvas.addIcObject(icObj);
-          }
+          //show border rect for starting pov
+          const rect__start   = infiniteCanvas.getShownRect();
+          const icRect__start = infiniteCanvas.createIcRect(rect__start);
+          icRect__start.fill = "red";
+          infiniteCanvas.addIcObject(icRect__start);
 
           {
-            //animate move to rect1/pov1
-            const rect1 = {
+            const rect__1 = {
               x:      2000,
               y:      2000,
               width:    50,
               height:   50,
             };
-            // getCanvasBoundingTrueRect
-            const icObj1 = infiniteCanvas.createIcRect(rect1);
-            icObj1.fill = "blue";
-            infiniteCanvas.addIcObject(icObj1);
 
-            const pov1 = infiniteCanvas.centeredPovForRect(rect1);
-            const cfg_anim = {
+            const icRect__1 = infiniteCanvas.createIcRect(rect__1);
+            icRect__1.fill = "blue";
+            infiniteCanvas.addIcObject(icRect__1);
+
+
+            //animate move to rect1/pov1
+            const cfg_anim__easy = {
               duration: 3000,
             };
-            Animation.move_to_pov__animation(pov1, cfg_anim);
+            infiniteCanvas.move_to_rect__animation(rect__1, cfg_anim__easy);
 
           }
 
           {
+            const rect__2 = {
+              x:      -3000,
+              y:       2000,
+              width:    500,
+              height:   500,
+            };
+
+            const icRect__2 = infiniteCanvas.createIcRect(rect__2);
+            icRect__2.fill = "green";
+            infiniteCanvas.addIcObject(icRect__2);
+
+
             //animate move to rect2/pov2
+            const cfg_anim__easy = {
+              duration: 2000,
+            };
+
+            setTimeout(() => {
+              infiniteCanvas.move_to_rect__animation(rect__2, cfg_anim__easy);
+            }, 5000);
+
+            // setTimeout(() => {
+            //   infiniteCanvas.move_to_rect__animation(rect__start, cfg_anim__easy);
+            // }, 5000);
 
           }
 
