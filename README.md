@@ -1,6 +1,8 @@
 ![Logo](./img/ic_better_logo2.png)
 
-##Try it !
+## Try it !
+(Keep ² key pressed (right above TAB) and click to draw)
+
 http://mathgame.fr/ic.html
 
 ## About
