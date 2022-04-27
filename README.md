@@ -1,5 +1,8 @@
 ![Logo](./img/ic_better_logo2.png)
 
+##Try it !
+http://mathgame.fr/ic.html
+
 ## About
 Infinite whiteboard with interactive elements.   
 Originally designed for students to manipulate math objects.  
@@ -15,13 +18,14 @@ Operators
 _Math objects_    
 _Composites_          
 _Conveyors_    
-_Vessels_      
+_Vessels_
+_Pathmade operators_
 ...and many others, scattered here and there    
 
 ## Video
 https://tube.nocturlab.fr/videos/watch/playlist/285cab9f-8601-439b-aa6d-15ad3a4f23a7?playlistPosition=1     
 
-## Try it !
+## Try it ! (2)
 1. Download project : [Code] (green button) > [Download ZIP]  
 2. Open index.html  
 (3. Mess around with objects and keyboard shortcuts)   
