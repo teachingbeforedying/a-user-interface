@@ -20,8 +20,8 @@ Operators
 _Math objects_    
 _Composites_          
 _Conveyors_    
-_Vessels_
-_Pathmade operators_
+_Vessels_   
+_Pathmade operators_    
 ...and many others, scattered here and there    
 
 ## Video
