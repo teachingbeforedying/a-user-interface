@@ -15,6 +15,7 @@ Open for any kind of improvement, or degeneration.
 Infinite canvas: space is not constrained in width, height, or depth    
 Z-scroll: resize your elements in a blink   
 Z-index: bring this in front of that    
+Create and save presentations with text, images, videos, ...    
 Interactive objects     
 Operators      
 _Math objects_    
@@ -29,7 +30,7 @@ https://tube.nocturlab.fr/videos/watch/playlist/285cab9f-8601-439b-aa6d-15ad3a4f
 
 ## Try it ! (2)
 1. Download project : [Code] (green button) > [Download ZIP]  
-2. Open index.html  
+2. Open ic.html  
 (3. Mess around with objects and keyboard shortcuts)   
    
 For math stuff: go to /challenges/maths and open *.html   
@@ -53,5 +54,5 @@ Ideas rating: from *** (very good idea) to * (nice idea)
 ## Development routine
 3 tabs in Atom:   
 programmashute: day-to-day low-level technical issues and progresses  
-index.html:     code  
+ic.html:     code  
 ![still_shute](./still_shute.txt):    "ideas worth coding"  
