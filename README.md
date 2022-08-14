@@ -28,7 +28,7 @@ _Pathmade operators_
 ## Video
 https://tube.nocturlab.fr/videos/watch/playlist/285cab9f-8601-439b-aa6d-15ad3a4f23a7?playlistPosition=1     
 
-## Try it ! (2)
+## Try it offline !
 1. Download project : [Code] (green button) > [Download ZIP]  
 2. Open ic.html  
 (3. Mess around with objects and keyboard shortcuts)   
