@@ -6234,16 +6234,22 @@
 
         const icObj = this.createIcObject(type, position, size, homeScale);
 
-        const fChildren  = fObj.getObjects();
-        const icChildren = fChildren.map(fObj => {
-          const icObj = fObj.icObj;
+        const arr_fChild  = fObj.getObjects();
+        const arr_icChild = arr_fChild.map(fObj_child => {
+          logger.log("fObj_child", fObj_child);
+
+          // const icObj_child = fObj.icObj;
+          // logger.log("icObj_child", icObj_child);   //????
+          // icObj_child.icObj__activeSelection = icObj;
+
+          fObj.activeSelection = fObj;
 
           //add position wrt group
 
         });
 
         const icActiveSelection_spec = {
-          children: icChildren,
+          children: arr_icChild,
         };
 
         const icActiveSelection = Object.assign(icObj, icActiveSelection_spec);
@@ -14276,6 +14282,54 @@
 
       }
 
+
+      spread(arr_icObj) {
+        console.log("compose", arr_icObj);
+        const infiniteCanvas = this;
+
+        var isIntersecting = infiniteCanvas.checkIntersecting(arr_icObj);
+        while(isIntersecting) {
+
+          //spread
+          //SHU TODO
+
+          isIntersecting = infiniteCanvas.checkIntersecting(arr_icObj);
+        }
+
+      }
+
+      getBarycenter(arr_icObj) {
+        var outPoint;
+
+        outPoint = arr_icObj.reduce((acc, icObj) => {
+          return {
+            x: acc.x + icObj.position.x,
+            y: acc.y + icObj.position.y,
+          }
+        }, {
+          x: 0,
+          y: 0,
+        });
+
+        outPoint.x = math.floor(outPoint.x / arr_icObj.length);
+        outPoint.y = math.floor(outPoint.y / arr_icObj.length);
+
+        return outPoint;
+      }
+
+      checkIntersecting(arr_icObj) {
+        var outBool;
+
+        outBool = arr_icObj.reduce((acc, x) => {
+          //SHU TODO
+          return acc;
+        }, false);
+
+        return outBool;
+      }
+
+
+
       getVessel(icObj) {
         var outIcObj;
 
@@ -17066,6 +17120,14 @@
             const radius   = json_icObject.radius;
 
             icObj.radius = radius;
+            break;
+          case "rivetedSegment":
+            const point_start = json_icObject.point_start;
+            const point_end   = json_icObject.point_end;
+
+            icObj.point_start = point_start;
+            icObj.point_end   = point_end;
+
             break;
 
           case "group":
@@ -23088,7 +23150,7 @@
 
           this.initializeFabricObjectCopyCut();
 
-          // this.configureActiveSelectionListeners();
+          this.configureActiveSelectionListeners();
         }
 
         setFabricObjects(fabric_objects__new) {
@@ -23725,6 +23787,16 @@
                 }
                 else {
                   fabricIntegration.unlockFObj(fObj);
+                }
+              }
+              else if(propName == "icObj__activeSelection") {
+                console.log("icObj__activeSelection");
+                if(icObj_fRep.icObj__activeSelection != null) {
+                  //switch to group coordinates
+
+                } else {
+                  //back to individual coordinates
+
                 }
               }
 
@@ -27845,7 +27917,7 @@
 
           //creation
           this.fabricCanvas.on("selection:created", (options) => {
-            // console.log("selection:created", event);
+            logger.log("selection:created", event);
 
             const activeObject = this.fabricCanvas.getActiveObject();
 
@@ -27855,28 +27927,71 @@
 
               //inject 'initial' props
               activeSelection.icObj = infiniteCanvas.createIcActiveSelection_from_activeSelectionFObj(activeSelection);
+
+              activeSelection.forEachObject((fObj, index, arr_fObj) => {
+                setGroupCoords(fObj, activeSelection);
+                savePrivateCoords(fObj, activeSelection);
+              }, fabricIntegration.fabricCanvas.context);
             }
 
           });
 
+          function setGroupCoords(fObj, activeSelection) {
+
+            const left__solo = fObj.left;
+            const top__solo  = fObj.top;
+
+            //set new "group coords"
+            const activeSelectionCL = activeSelection.left + activeSelection.width  / 2;
+            const activeSelectionCT = activeSelection.top  + activeSelection.height / 2;
+            fObj.left = left__solo - activeSelectionCL;
+            fObj.top  = top__solo  - activeSelectionCT;
+
+          }
+
+          function savePrivateCoords(fObj, activeSelection) {
+
+            //save wrtGroup coords
+            fObj.left__wrtGroup = fObj.left;
+            fObj.top__wrtGroup  = fObj.top;
+
+            const activeSelectionCL = activeSelection.left + activeSelection.width  / 2;
+            const activeSelectionCT = activeSelection.top  + activeSelection.height / 2;
+
+            //save solo coords
+            fObj.left__solo = fObj.left__wrtGroup + activeSelectionCL;
+            fObj.top__solo  = fObj.top__wrtGroup  + activeSelectionCT;
+          }
+
+
           //update
           this.fabricCanvas.on("selection:updated", (options) => {
-            //SHU TODO
+            logger.log("selection:updated", options);
+
+            //TBD
+
           });
-
-
 
 
 
 
 
           //move
-          this.fabricCanvas.on("object:moving", (options) => {
+          // this.fabricCanvas.on("object:moving", (options) => {
+          //   // console.log("object:moving", event);
+          //
+          //   const target = options.target;
+          //   if(target.type == "activeSelection") {
+          //     activeSelection_moving(target);
+          //   }
+          //
+          // });
+          this.fabricCanvas.on("object:moved", (options) => {
             // console.log("object:moving", event);
 
             const target = options.target;
             if(target.type == "activeSelection") {
-              activeSelection_moving(target);
+              activeSelection_moved(target);
             }
 
           });
@@ -27919,8 +28034,8 @@
 
 
 
-          function activeSelection_moving(activeSelection) {
-            console.log("activeSelection moving");
+          function activeSelection_moved(activeSelection) {
+            logger.log("activeSelection moving");
 
             //update activeSelection position
             {
@@ -27943,20 +28058,18 @@
 
             //update children position
 
-            const activeSelectionCL = activeSelection.left + activeSelection.width  / 2;
-            const activeSelectionCT = activeSelection.top  + activeSelection.height / 2;
+            function updateChildIcObj_position(fObj) {
 
-            function updateChildFObj_position(fObj) {
+              savePrivateCoords(fObj, activeSelection);
 
-              const icObj = fObj.icObj;
-
-              const screenPoint = {
-                x: activeSelectionCL + fObj.left,
-                y: activeSelectionCT + fObj.top,
+              const fObj_screenPos = {
+                x: fObj.left__solo,
+                y: fObj.top__solo,
               };
 
-              const position_update = infiniteCanvas.toTruePoint(screenPoint);
+              const position_update = infiniteCanvas.toTruePoint(fObj_screenPos);
 
+              const icObj = fObj.icObj;
               const icObj_new = Object.assign({}, icObj);
               Object.assign(icObj_new.position, position_update);
 
@@ -27964,7 +28077,9 @@
             }
 
             activeSelection.forEachObject((fObj, index, arr_fObj) => {
-              updateChildFObj_position(fObj);
+              updateChildIcObj_position(fObj);
+              fObj.left = fObj.left__wrtGroup;
+              fObj.top  = fObj.top__wrtGroup;
             }, fabricIntegration.fabricCanvas.context);
 
 
@@ -30394,6 +30509,55 @@
             this.deselectAll();
             infiniteCanvas.decompose(icObj_composite);
           }
+
+        }
+
+
+
+        //spread
+        spreadSelectedObjects() {
+          console.log("composeSelectedObjects");
+          const infiniteCanvas = this.infiniteCanvas;
+
+          //get selected objects
+          const canvas = this.fabricCanvas;
+
+          const activeObject = canvas.getActiveObject();
+          if (activeObject == null) {
+            return;
+          }
+          if(activeObject.type != 'activeSelection') {
+            console.log("can only compose objects from an activeSelection");
+            return;
+          }
+
+          const activeSelection = activeObject;
+          console.log("activeSelection", activeSelection);
+
+          const arr_fObj = activeSelection.getObjects();
+
+          this.deselectAll();
+
+
+
+          const arr_topLevelFObj = arr_fObj.filter(fObj => {
+            const isTopLevelObj = !fObj.icObj.isCompositePart;
+            return isTopLevelObj;
+          });
+
+          const arr_topLevelIcObj = arr_topLevelFObj.map((fObj, i) => {
+            return fObj.icObj;
+          });
+
+          const arr_topLevelIcObj_without_supervessel = arr_topLevelIcObj.filter(icObj => {
+            const isSupervessel = (icObj.isSupervessel != null) && icObj.isSupervessel;
+            return !isSupervessel;
+          });
+
+          infiniteCanvas.spread(arr_topLevelIcObj_without_supervessel);
+
+          // this.deselectAll();
+          // canvas.renderAll();
 
         }
 
@@ -34479,10 +34643,15 @@
 
               case "KeyS":
               {
-                infiniteCanvas.manageSaveInfinishute_p()
-                .then((success) => {
-                  console.log("success", success);
-                });
+                if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+                  //compose
+                  fabricIntegration.spreadSelectedObjects();
+                } else {
+                  infiniteCanvas.manageSaveInfinishute_p()
+                  .then((success) => {
+                    console.log("success", success);
+                  });
+                }
               }
               break;
               case "KeyL":
