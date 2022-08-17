@@ -14283,29 +14283,67 @@
       }
 
 
-      spread(arr_icObj) {
-        console.log("compose", arr_icObj);
+      spreadApart(arr_icObj) {
+        logger.log("spreadApart", arr_icObj);
         const infiniteCanvas = this;
 
         var isIntersecting = infiniteCanvas.checkIntersecting(arr_icObj);
-        while(isIntersecting) {
+        logger.log("spreadApart", "isIntersecting", isIntersecting);
 
-          //spread
-          //SHU TODO
+        var counter = 0;
+        while(isIntersecting || (counter < 10)) {
+
+          //spread push
+          infiniteCanvas.spread_push(arr_icObj);
 
           isIntersecting = infiniteCanvas.checkIntersecting(arr_icObj);
+
+          counter += 1;
         }
 
+      }
+
+      checkIntersecting(arr_icObj) {
+        logger.log("checkIntersecting", arr_icObj);
+
+        var outBool;
+
+        outBool = Utils.early_break_reduce(arr_icObj, (acc,icObj,index,arr) => {
+
+          const rect__icObj = icObj.getRect();
+          const arr_end     = arr_icObj.slice(index + 1);
+
+          const isIntersectingAny = Utils.early_break_reduce(arr_end, (acc2,icObj__other,i,arr) => {
+
+            const rect__other    = icObj__other.getRect();
+            const isIntersecting = Geometry.intersectRect(rect__icObj, rect__other);
+            logger.log("isIntersecting", isIntersecting);
+
+            return acc2 || isIntersecting;
+          }, false, (acc2, x, i, arr) => {
+            return (acc2 == true);
+          });
+
+          return acc || isIntersectingAny;
+        }, false, (acc, x, i, arr) => {
+          return (acc == true);
+        });
+
+        return outBool;
       }
 
       getBarycenter(arr_icObj) {
         var outPoint;
 
         outPoint = arr_icObj.reduce((acc, icObj) => {
+          const pointCenter = {
+            x: icObj.position.x + icObj.size.width  / 2.0,
+            y: icObj.position.y + icObj.size.height / 2.0,
+          };
           return {
-            x: acc.x + icObj.position.x,
-            y: acc.y + icObj.position.y,
-          }
+            x: acc.x + pointCenter.x,
+            y: acc.y + pointCenter.y,
+          };
         }, {
           x: 0,
           y: 0,
@@ -14317,15 +14355,39 @@
         return outPoint;
       }
 
-      checkIntersecting(arr_icObj) {
-        var outBool;
+      spread_push(arr_icObj) {
+        logger.log("spread_push", arr_icObj);
 
-        outBool = arr_icObj.reduce((acc, x) => {
-          //SHU TODO
-          return acc;
-        }, false);
+        const infiniteCanvas = this;
 
-        return outBool;
+        const point__barycenter = infiniteCanvas.getBarycenter(arr_icObj);
+
+        arr_icObj.forEach((icObj, i) => {
+          const factor__push = 1.1;
+          infiniteCanvas.centered_push(point__barycenter, icObj, factor__push);
+        });
+
+      }
+
+      centered_push(pointCenter, icObj, factor) {
+
+        const infiniteCanvas = this;
+
+        const pointTL__src      = icObj.position;
+        const point_center__src = {
+          x: pointTL__src.x + icObj.size.width  / 2.0,
+          y: pointTL__src.y + icObj.size.height / 2.0,
+        };
+        const point_center__dst = Geometry.pointWithHomothety(point_center__src, pointCenter, factor);
+        logger.log("point_center__dst", point_center__dst);
+
+        const pointTL__dst      = {
+          x: point_center__dst.x - icObj.size.width  / 2.0,
+          y: point_center__dst.y - icObj.size.height / 2.0,
+        };
+
+        //set new pos
+        icObj.position = pointTL__dst;
       }
 
 
@@ -30554,11 +30616,9 @@
             return !isSupervessel;
           });
 
-          infiniteCanvas.spread(arr_topLevelIcObj_without_supervessel);
 
-          // this.deselectAll();
-          // canvas.renderAll();
 
+          infiniteCanvas.spreadApart(arr_topLevelIcObj_without_supervessel);
         }
 
 
@@ -31059,11 +31119,12 @@
         }
 
         static intersectRect(rect1, rect2) {
+          logger.log("intersectRect", rect1, rect2);
 
           const r1 = this.createLRTBRect(rect1);
-          console.log("r1", r1);
+          logger.log("r1", r1);
           const r2 = this.createLRTBRect(rect2);
-          console.log("r2", r2);
+          logger.log("r2", r2);
 
           return !(r2.left > r1.right ||
                    r2.right < r1.left ||
@@ -31196,6 +31257,17 @@
            return outRect;
          }
 
+         static pointWithHomothety(pointSrc, pointCenter, factor) {
+           const v = {
+             x: pointSrc.x - pointCenter.x,
+             y: pointSrc.y - pointCenter.y,
+           };
+           const pointDst = {
+             x: pointCenter.x + v.x * factor,
+             y: pointCenter.y + v.y * factor,
+           };
+           return pointDst;
+         }
 
 
       }
