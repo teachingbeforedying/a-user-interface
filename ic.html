@@ -21461,7 +21461,7 @@
             const parts           = handle__rep_free.parts;
             const arr_parts_all   = Object.values(parts);
             arr_parts_all.forEach((part__rep_free, i) => {
-              // logger.log("part__rep_free", part__rep_free);
+              logger.log("part__rep_free", part__rep_free);
 
               //set compositeId if not done yet         //SHU: horror
               part__rep_free.compositeId = handle__rep_free.id;
@@ -24289,7 +24289,7 @@
                   break;
                 case "image":
                 {
-                  logger.log("standardRedraw:", "image", icObj.img);
+                  // logger.log("standardRedraw:", "image", icObj.img);
                   fObj.setElement(icObj.img);
                   fObj.setCoords();
                 }
@@ -24422,7 +24422,7 @@
                 fObj.setCoords();
               }
               else {
-                logger.log("icObj_fRep","onInnerUpdate", icObj_fRep);
+                // logger.log("icObj_fRep","onInnerUpdate", icObj_fRep);
                 standardRedraw(fObj);
 
                 // if(icObj.type == "sparkle") {
@@ -49178,7 +49178,24 @@
         const arr_card = this.createArrCard();
         this.arr_card  = Utils.shuffle([...arr_card]);
 
+        this.dict_card = this.createDictCard();
+
         this.bindToIc(infiniteCanvas);
+
+        this.start();
+      }
+
+      createDictCard() {
+        var outDict;
+
+        const arr_card = this.createArrCard();
+
+        outDict = arr_card.reduce((acc, x) => {
+          acc[x.getIdentifier()] = x;
+          return acc;
+        }, {});
+
+        return outDict;
       }
 
       createArrCard() {
@@ -49196,7 +49213,8 @@
       createArrOperatorNodeFactoryFuncWrapper() {
         var outArr;
 
-        const arr_opSymbol = ["+", "-", "x", "/"];
+        // const arr_opSymbol = ["+", "-", "x", "/"];
+        const arr_opSymbol = ["+"];
         const arr_value_b  = [0,1,2,3,4,5,6,7,8,9];
 
         outArr = arr_opSymbol.map(string__opSymbol => {
@@ -49214,8 +49232,11 @@
       bindToIc(infiniteCanvas) {
 
         //spawn
-        GET100_Game.ic_spawn__gameState(infiniteCanvas, this.gameState);
-        GET100_Game.ic_spawn__gameInput(infiniteCanvas, this.gameInput);
+        const icMathNode__gameState = GET100_Game.ic__gameState(infiniteCanvas, this.gameState);
+        infiniteCanvas.addIcObject(icMathNode__gameState);
+
+        this.ic_spawn__gameInput(infiniteCanvas, this.gameInput);
+
         logger.log("this.arr_card", this.arr_card);
         this.arr_card.forEach((card, i) => {
           GET100_Game.ic_spawn__card(infiniteCanvas, card);
@@ -49224,15 +49245,19 @@
         //manage gameState updates
         this.rx_observable__gameState.subscribe({
           next: (gameState) => {
+            logger.log("rx_observable__gameState", "next", gameState.value__current);
 
+            // icMathNode__gameState.mathNode = new math.ConstantNode(gameState.value__current);
 
+            const rep_free = infiniteCanvas.getRepresented(icMathNode__gameState.id).r_free();
+            rep_free.mathNode = new math.ConstantNode(gameState.value__current);
 
           },
         });
 
       }
 
-      static ic_spawn__gameState(infiniteCanvas, gameState) {
+      static ic__gameState(infiniteCanvas, gameState) {
 
         const value = gameState.value__current;
 
@@ -49244,15 +49269,159 @@
         };
         const mathNode   = new math.ConstantNode(value);
         const icMathNode = infiniteCanvas.createIcMathNode(trueRect.x, trueRect.y, mathNode);
-        infiniteCanvas.addIcObject(icMathNode);
+
+        return icMathNode;
       }
 
-      static ic_spawn__gameInput(infiniteCanvas, gameInput) {
+      ic_spawn__gameInput(infiniteCanvas, gameInput) {
+        const game = this;
+
+        const trueRect_icEye = {
+          x: 400,
+          y: 200,
+          width:  200,
+          height: 200,
+        };
+
+        const icEye = infiniteCanvas.createIcEye(trueRect_icEye);
+        icEye.zIndex = 100;
+
+        infiniteCanvas.onceOnAddRepresentedForIcObject(icEye, (icEye) => {
+
+          const rep_free = infiniteCanvas.getRepresented(icEye.id).r_free();
+
+          function attemptDecoding() {
+
+            const img = rep_free.img__captured;
+
+            if(img != null) {
+              ImageUtils.qrcode__decode_image_p(img)
+              .then((result) => {
+                        logger.log("result", result);
+                        if(result != null) {
+                          // const str__result = result.text;
+                          const str__result = result;
+
+                          const identifier__card = str__result;
+                          game.manageGameInput__cardIdentifier(identifier__card);
+                        }
+                    }).catch((err) => {
+                        console.error(err);
+                    });
+            }
+
+          }
+
+          function loopDecode() {
+
+            setTimeout(function () {
+
+              attemptDecoding();
+              loopDecode();
+
+            }, 1000);
+
+          }
+
+          loopDecode();
+
+        });
+        infiniteCanvas.addIcObject(icEye);
 
       }
 
       static ic_spawn__card(infiniteCanvas, card) {
 
+        //card template
+        const icCard = GET100_Game.ic_template__card(infiniteCanvas);
+
+        //invest
+        infiniteCanvas.onceOnAddRepresentedForIcObject(icCard, (icCard) => {
+
+          const rep_free__composite = infiniteCanvas.getRepresented(icCard.id).r_free();
+
+          //bg
+          // rep_free__composite.parts.bg.fill = "grey";
+
+          //qrcode img
+          qrcodeImg_p(card.getIdentifier())
+          .then(img => {
+            rep_free__composite.parts.image.img = img;
+          });
+
+          //operator
+          rep_free__composite.parts.label__operator.text = card.getOperatorSimpleName();
+
+        });
+
+        //add to ic
+        infiniteCanvas.addIcObject(icCard);
+
+      }
+
+      static ic_template__card(infiniteCanvas) {
+        var outIcObj;
+
+        const trueRect_background = {
+          x: 0,
+          y: 0,
+          width:  250,
+          height: 350,
+        };
+        const icRect = infiniteCanvas.createIcRect(trueRect_background);
+        icRect.fill = "grey";
+
+        //img
+        const trueRect_img = {
+          x: 75,
+          y: 75,
+          width:  100,
+          height: 100,
+        };
+        const icImage = infiniteCanvas.createIcImage(trueRect_img.x,trueRect_img.y,null);
+
+        //operator
+        const trueRect_operator = {
+          x: 75,
+          y: 200,
+          width: 100,
+          height: 100,
+        };
+        // const icGMOperator = infiniteCanvas.createIcGMOperator(trueRect_operator, "x 2");
+        const icLabel__operator = infiniteCanvas.createIcText(trueRect_operator.x, trueRect_operator.y, "");
+
+
+
+        //composite
+        const parts = {
+          "bg":         icRect,
+          "image":      icImage,
+          // "gmOperator": icGMOperator,
+          "label__operator": icLabel__operator,
+        };
+
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+
+
+        const trueRect_composite = {
+          x: 500,
+          y: 0,
+          width:  250,
+          height: 350,
+        };
+
+        const icComposite = infiniteCanvas.createIcComposite(trueRect_composite, parts, compositeConfig);
+        icComposite.cType = "GET100_Card";
+        icComposite.fill  = "";
+
+        outIcObj = icComposite;
+
+        return outIcObj;
+      }
+
+      getCardWithIdentifier(identifier__card) {
+        logger.log("getCardWithIdentifier", identifier__card);
+        return this.dict_card[identifier__card];
       }
 
       start() {
@@ -49260,16 +49429,31 @@
 
         this.gameInput.rx_observable__gameInput.subscribe({
           next: (card) => {
-            game.manageCardInput(card);
+            game.manageGameAction__cardPlayed(card);
           },
         });
 
       }
 
-      manageCardInput(card) {
 
-        //shu 666
 
+
+      manageGameInput__cardIdentifier(identifier__card) {
+        const card = this.getCardWithIdentifier(identifier__card);
+        this.gameInput.rx_subject__gameInput.next(card);
+      }
+
+      manageGameAction__cardPlayed(card) {
+        logger.log("manageGameAction__cardPlayed", card);
+
+        const value__current    = this.gameState.value__current;
+        const mathNode__current = new math.ConstantNode(value__current);
+        mathNode__current.autoSimplify = true;
+
+        const func              = card.operatorNodeFactoryFuncWrapper.func;
+        const mathNode__result  = func(mathNode__current);
+
+        this.gameState.value__current = mathNode__result.value;
 
         //notify update
         this.rx_subject__gameState.next(this.gameState);
@@ -49299,11 +49483,22 @@
 
       constructor(operatorNodeFactoryFuncWrapper) {
         this.operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper;
-        this.identifier                     = GET100_Card.identifierForOperatorNodeFactoryFuncWrapper(operatorNodeFactoryFuncWrapper);
+      }
+
+      getIdentifier() {
+        return GET100_Card.identifierForOperatorNodeFactoryFuncWrapper(this.operatorNodeFactoryFuncWrapper);
+      }
+
+      getOperatorSimpleName() {
+        return GET100_Card.operatorSimpleName(this.operatorNodeFactoryFuncWrapper);
       }
 
       static identifierForOperatorNodeFactoryFuncWrapper(operatorNodeFactoryFuncWrapper) {
-        return "GET100__" + operatorNodeFactoryFuncWrapper.semantics.name;
+        return "GET100__" + GET100_Card.operatorSimpleName(operatorNodeFactoryFuncWrapper);
+      }
+
+      static operatorSimpleName(operatorNodeFactoryFuncWrapper) {
+        return operatorNodeFactoryFuncWrapper.semantics.name;
       }
 
     }
