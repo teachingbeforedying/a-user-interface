@@ -208,7 +208,7 @@
           constructor() {
             this.initialize();
 
-            // this.hush(this);
+            this.hush(this);
           }
 
           initialize() {
@@ -13933,8 +13933,9 @@
 
 
       icObjDidUpdate(icObj, outerUpdatesDict) {
-        console.log("icObjDidUpdate", icObj, outerUpdatesDict);
+        logger.log("icObjDidUpdate", icObj, outerUpdatesDict);
 
+        //SHU FLUID
         //create event
         const icEvent__icObjUpdate = this.createIcEvent__icObjUpdate(icObj, outerUpdatesDict);
         // const icEvent__icObjUpdate = null;   //debug
@@ -13947,6 +13948,7 @@
 
         //original iC update forwarding
         this.icObjListeners.forEach((listener, i) => {
+          logger.log("icObjDidUpdate", "listener()", listener);
           listener(icObj, outerUpdatesDict);
         });
       }
@@ -21225,6 +21227,9 @@
 
           //part update
           this.managePartUpdate = function(icObj_compositePart, outerUpdatesDict) {
+
+            //SHU FLUID
+
             logger.log("managePartUpdate", icObj_compositePart);
 
             const infiniteCanvas = this.scopeObj.infiniteCanvas;
@@ -49197,9 +49202,10 @@
         this.infiniteCanvas = infiniteCanvas;
 
         const value__initial = 0;
+        const value__target  = 100;
 
         //model
-        this.gameState = new GET100_GameState(value__initial);
+        this.gameState = new GET100_GameState(value__initial, value__target);
         this.rx_subject__gameState    = new Subject();
         this.rx_observable__gameState = this.rx_subject__gameState.asObservable();
 
@@ -49268,8 +49274,11 @@
         // const arr_opSymbol = ["+", "x"];
         // const arr_value_b  = [0,1,2,3,4,5,6,7,8,9];
 
-        const arr_opSymbol = ["+", "+"];
-        const arr_value_b  = [0,1,2,3,0,1,2,3];
+        // const arr_opSymbol = ["+", "+"];
+        // const arr_value_b  = [0,1,2,3,0,1,2,3];
+
+        const arr_opSymbol = ["+"];
+        const arr_value_b  = [100];
 
         outArr = arr_opSymbol.map(string__opSymbol => {
           return arr_value_b.map(value_b => {
@@ -49290,10 +49299,34 @@
         const ic__gameState = GET100_Game.ic__gameState(infiniteCanvas, this.gameState);
         infiniteCanvas.addIcObject(ic__gameState);
 
+
+
+
+
         const ic__gameInput = this.ic__gameInput(infiniteCanvas, this.gameInput);
         infiniteCanvas.addIcObject(ic__gameInput);
 
-        // logger.log("this.arr_card", this.arr_card);
+        function func_validInput() {
+          func_gameInputColorBlink("lime", 300);
+        }
+
+        function func_invalidInput() {
+          func_gameInputColorBlink("red", 300);
+        }
+
+        function func_gameInputColorBlink(colorName, duration_in_milliseconds) {
+          const rep_free = infiniteCanvas.getRepresented(ic__gameInput.id).r_free();
+          const fColor__fill = new fabric.Color(colorName);
+          fColor__fill.setAlpha(0.5);
+          rep_free.fill = fColor__fill.toRgba();
+          setTimeout(function () {
+            rep_free.fill = "transparent";
+          }, duration_in_milliseconds);
+        }
+
+
+
+
         const ic__dict_card = {};
         this.arr_card.forEach((card, i) => {
           const ic__card = GET100_Game.ic__card(infiniteCanvas, card);
@@ -49303,11 +49336,16 @@
           ic__dict_card[identifier] = ic__card;
         });
 
+
+
         //store
         this.dict_view = {
           gameState: ic__gameState,
           gameInput: ic__gameInput,
           dict_card: ic__dict_card,
+
+          func_validInput:   func_validInput,
+          func_invalidInput: func_invalidInput,
         };
 
 
@@ -49320,7 +49358,8 @@
             logger.log("rx_observable__gameState", "next", gameState.value__current);
 
             const rep_free = infiniteCanvas.getRepresented(ic__gameState.id).r_free();
-            rep_free.mathNode = new math.ConstantNode(gameState.value__current);
+            rep_free.parts.icMathNode__current.mathNode = new math.ConstantNode(gameState.value__current);
+            rep_free.parts.icMathNode__target.mathNode  = new math.ConstantNode(gameState.value__target);
 
           },
         });
@@ -49347,18 +49386,103 @@
 
       static ic__gameState(infiniteCanvas, gameState) {
 
-        const value = gameState.value__current;
+        const icComposite = GET100_Game.ic_template__gameState(infiniteCanvas);
 
-        const trueRect = {
-          x: 50,
-          y: 500,
-          width:  100,
+        //invest
+        const value__current = gameState.value__current;
+        const mathNode__current = new math.ConstantNode(value__current);
+        icComposite.parts.icMathNode__current.mathNode = mathNode__current;
+
+        const value__target = gameState.value__target;
+        const mathNode__target = new math.ConstantNode(value__target);
+        icComposite.parts.icMathNode__target.mathNode = mathNode__target;
+
+        return icComposite;
+      }
+
+      static ic_template__gameState(infiniteCanvas) {
+        var outIcObj;
+
+        const trueRect_background = {
+          x: 0,
+          y: 0,
+          width:  200,
+          height: 400,
+        };
+        const icRect = infiniteCanvas.createIcRect(trueRect_background);
+        icRect.fill = "blanchedalmond";
+
+        //current
+        //label: current
+        const trueRect_label__current = {
+          x: 5,
+          y: 5,
+          width: 100,
           height: 100,
         };
-        const mathNode   = new math.ConstantNode(value);
-        const icMathNode = infiniteCanvas.createIcMathNode(trueRect.x, trueRect.y, mathNode);
+        const icLabel__current = infiniteCanvas.createIcText(trueRect_label__current.x, trueRect_label__current.y, "current:");
 
-        return icMathNode;
+        //mathNode: current
+        const trueRect_mathNode__current = {
+          x: 50,
+          y: 100,
+          width: 100,
+          height: 100,
+        };
+        const mathNode__current   = new math.ConstantNode(0);
+        const icMathNode__current = infiniteCanvas.createIcMathNode(trueRect_mathNode__current.x, trueRect_mathNode__current.y, mathNode__current);
+
+        //target
+        //label: target
+        const trueRect_label__target = {
+          x: 5,
+          y: 205,
+          width: 100,
+          height: 100,
+        };
+        const icLabel__target = infiniteCanvas.createIcText(trueRect_label__target.x, trueRect_label__target.y, "target:");
+
+        //mathNode: target
+        const trueRect_mathNode__target = {
+          x: 50,
+          y: 300,
+          width: 100,
+          height: 100,
+        };
+        const mathNode__target   = new math.ConstantNode(100);
+        const icMathNode__target = infiniteCanvas.createIcMathNode(trueRect_mathNode__target.x, trueRect_mathNode__target.y, mathNode__target);
+
+
+
+
+        //composite
+        const parts = {
+          "bg":                 icRect,
+
+          "icLabel__current":     icLabel__current,
+          "icMathNode__current":  icMathNode__current,
+
+          "icLabel__target":      icLabel__target,
+          "icMathNode__target":   icMathNode__target,
+        };
+
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+
+
+        const trueRect_composite = {
+          x: 0,
+          y: 500,
+          width:  200,
+          height: 400,
+        };
+
+        const icComposite = infiniteCanvas.createIcComposite(trueRect_composite, parts, compositeConfig);
+        icComposite.cType = "GET100_GameState";
+        icComposite.fill  = "";
+
+        outIcObj = icComposite;
+
+        return outIcObj;
       }
 
       ic__gameInput(infiniteCanvas, gameInput) {
@@ -49524,6 +49648,18 @@
           },
         });
 
+        this.rx_observable__gameState.subscribe({
+          next: (gameState) => {
+            const value__current = gameState.value__current;
+            if(value__current == gameState.value__target) {
+              gameState.value__target = 100 - value__current;
+
+              //notify update
+              game.rx_subject__gameState.next(game.gameState);   //SHU: un peu cracra
+            }
+          },
+        });
+
       }
 
 
@@ -49548,6 +49684,10 @@
       static manageGameAction__playCard(game, card) {
         logger.log("manageGameAction__playCard", game, card);
 
+        //green blink
+        game.dict_view.func_validInput();
+
+
         const value__current    = game.gameState.value__current;
         const mathNode__current = new math.ConstantNode(value__current);
         mathNode__current.autoSimplify = true;
@@ -49566,9 +49706,11 @@
 
     class GET100_GameState {
 
-      constructor(value__initial) {
+      constructor(value__initial, value__target) {
         this.value__initial = value__initial;
         this.value__current = this.value__initial;
+
+        this.value__target  = value__target;
       }
 
     }
