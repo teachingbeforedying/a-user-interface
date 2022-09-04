@@ -208,7 +208,7 @@
           constructor() {
             this.initialize();
 
-            this.hush(this);
+            // this.hush(this);
           }
 
           initialize() {
@@ -21501,6 +21501,7 @@
               part__rep_free.compositeId = handle__rep_free.id;
 
               //'activate' listeners
+              logger.log("this.listeners", this.listeners);
               const part__listener = this.listeners[part__rep_free.id];
               part__rep_free.onInnerUpdate(part__listener);
             });
@@ -49743,17 +49744,30 @@
         // const arr_opSymbol = ["+", "+"];
         // const arr_value_b  = [0,1,2,3,0,1,2,3];
 
-        const arr_opSymbol = ["+"];
-        const arr_value_b  = [100];
+        // const arr_opSymbol = ["+"];
+        // const arr_value_b  = [100];
+        // const arr_opSymbol_valueb =  [["+", 100]];
 
-        outArr = arr_opSymbol.map(string__opSymbol => {
-          return arr_value_b.map(value_b => {
-            const op     = Operator.fromString_binary(string__opSymbol);
-            const node_b = new math.ConstantNode(value_b);
-            const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
-            return operatorNodeFactoryFuncWrapper;
-          });
-        }).flat();
+        const arr_add      = [0,1,2,3,4,5,6,7,8,9,10].map(value_b => ["+", value_b]);
+        const arr_subtract = [0,1,2,3,4,5,6,7,8,9,10].map(value_b => ["-", value_b]);
+        const arr_multiply = [0,1,2,3,4,5,6,7,8,9,10].map(value_b => ["x", value_b]);
+        const arr_divide   = [1,2,3,4,5,6,7,8,9].map(value_b => ["/", value_b]);
+
+        // const arr_opSymbol_valueb =  [...arr_add,
+        //                               ...arr_add,
+        //                               ...arr_subtract,
+        //                               ...arr_subtract,
+        //                               ...arr_multiply,
+        //                               ...arr_divide];
+
+        const arr_opSymbol_valueb =  [...arr_add];
+
+        outArr = arr_opSymbol_valueb.map(([string__opSymbol,value_b]) => {
+          const op     = Operator.fromString_binary(string__opSymbol);
+          const node_b = new math.ConstantNode(value_b);
+          const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
+          return operatorNodeFactoryFuncWrapper;
+        });
 
         return outArr;
       }
@@ -49776,12 +49790,14 @@
 
     class GET100_PrintableCardSheet {
 
-      constructor(infiniteCanvas, arr_card) {
+      constructor(infiniteCanvas, arr_card, nb_row, nb_col) {
+        logger.log("arr_card", arr_card);
+
         this.infiniteCanvas = infiniteCanvas;
         this.arr_card       = arr_card;
 
-        this.nb_col = 3;
-        this.nb_row = 4;
+        this.nb_col = nb_row;
+        this.nb_row = nb_col;
 
         this.width  = 2100;
         this.height = 2970;
@@ -49822,7 +49838,7 @@
           return arr_index_col.map(index_col => {
             const rect_card = {
               x:      this.getCardX(index_col),
-              y:      this.getCardX(index_row),
+              y:      this.getCardY(index_row),
               width:  this.getCardWidth(),
               height: this.getCardHeight(),
             };
@@ -49850,18 +49866,20 @@
         icRect.fill = "white";
         icRect.rx = 0;
         icRect.ry = 0;
+        icRect.zIndex = -10;
 
         //cards
         const arr_card_icPrintableCardFront = arr_card.map((card, i) => {
           const trueRect_card        = this.arr_rect[i];
+          logger.log("trueRect_card", trueRect_card);
+
           const icPrintableCardFront = GET100_PrintableCardSheet.ic__printableCard_front(infiniteCanvas, card, trueRect_card);
           return [card, icPrintableCardFront];
         });
 
 
-
-
         //composite
+          //parts
         const parts = {
           "bg":         icRect,
         };
@@ -49871,6 +49889,15 @@
           return acc;
         }, {});
         Object.assign(parts, dict_card);
+
+
+          //SHU: since icPrintableCardFront is a composite, we need to add it to ic before creating mother composite
+          //this is a lasting temporary workaround
+          infiniteCanvas.addIcObject(icRect);
+          arr_card_icPrintableCardFront.forEach(([card, icPrintableCardFront], i) => {
+            infiniteCanvas.addIcObject(icPrintableCardFront);
+          });
+
 
         const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
 
@@ -49886,28 +49913,30 @@
       }
 
       static ic__printableCard_front(infiniteCanvas, card, trueRect_card) {
+        logger.log("ic__printableCard_front", card, trueRect_card);
 
         //card template
         const icPrintableCard_front = GET100_PrintableCardSheet.ic_template__printableCard_front(infiniteCanvas, trueRect_card);
 
 
         //invest
+
           //position
-          icPrintableCard_front.position.x  = trueRect_card.x;
-          icPrintableCard_front.position.y  = trueRect_card.y;
-          icPrintableCard_front.size.width  = trueRect_card.width;
-          icPrintableCard_front.size.height = trueRect_card.height;
+          infiniteCanvas.onceOnAddRepresentedForIcObject(icPrintableCard_front, (icPrintableCard_front) => {
+
+            const rep_free__composite = infiniteCanvas.getRepresented(icPrintableCard_front.id).r_free();
+            rep_free__composite.position = {
+              x: trueRect_card.x,
+              y: trueRect_card.y,
+            };
+
+          });
+
 
           //content
           infiniteCanvas.onceOnAddRepresentedForIcObject(icPrintableCard_front, (icPrintableCard_front) => {
 
             const rep_free__composite = infiniteCanvas.getRepresented(icPrintableCard_front.id).r_free();
-
-            // //qrcode img
-            // qrcodeImg_p(card.getIdentifier())
-            // .then(img => {
-            //   rep_free__composite.parts.image.img = img;
-            // });
 
             //operator
             rep_free__composite.parts.label__operator.text = card.get100Operator.getSimpleName();
@@ -49929,7 +49958,7 @@
         const icRect = infiniteCanvas.createIcRect(trueRect_background);
         icRect.fill = "white";
         icRect.strokeWidth = 2;
-        icRect.strokeColor = "black";
+        icRect.stroke = "black";
 
 
         //img
@@ -49943,8 +49972,8 @@
 
         //operator
         const trueRect_operator = {
-          x: trueRect_background.width  * 0.2,
-          y: trueRect_background.height * 0.6,
+          x: trueRect_background.width  * 0.15,
+          y: trueRect_background.height * 0.15,
           width: 100,
           height: 100,
         };
@@ -49997,27 +50026,38 @@
         icRect.fill = "white";
         icRect.rx = 0;
         icRect.ry = 0;
+        icRect.zIndex = -10;
 
         //cards
-        const arr_card_icPrintableCardFront = arr_card.map((card, i) => {
+        const arr_card_icPrintableCardBack = arr_card.map((card, i) => {
           const trueRect_card        = this.arr_rect[i];
-          const icPrintableCardFront = GET100_PrintableCardSheet.ic__printableCard_front(infiniteCanvas, card, trueRect_card);
-          return [card, icPrintableCardFront];
+          logger.log("trueRect_card", trueRect_card);
+
+          const icPrintableCardBack = GET100_PrintableCardSheet.ic__printableCard_back(infiniteCanvas, card, trueRect_card);
+          return [card, icPrintableCardBack];
         });
 
 
-
-
         //composite
+          //parts
         const parts = {
           "bg":         icRect,
         };
-        const dict_card = arr_card_icPrintableCardFront.reduce((acc, [card, icPrintableCardFront]) => {
+        const dict_card = arr_card_icPrintableCardBack.reduce((acc, [card, icPrintableCardBack]) => {
           const identifier = card.getIdentifier();
-          acc[identifier]  = icPrintableCardFront;
+          acc[identifier]  = icPrintableCardBack;
           return acc;
-        },{});
+        }, {});
         Object.assign(parts, dict_card);
+
+
+          //SHU: since icPrintableCardFront is a composite, we need to add it to ic before creating mother composite
+          //this is a lasting temporary workaround
+          infiniteCanvas.addIcObject(icRect);
+          arr_card_icPrintableCardBack.forEach(([card, icPrintableCardBack], i) => {
+            infiniteCanvas.addIcObject(icPrintableCardBack);
+          });
+
 
         const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
 
@@ -50033,35 +50073,40 @@
       }
 
       static ic__printableCard_back(infiniteCanvas, card, trueRect_card) {
+        logger.log("ic__printableCard_back", card, trueRect_card);
 
         //card template
-        const icPrintableCard_front = GET100_PrintableCardSheet.ic_template__printableCard_front(infiniteCanvas, trueRect_card);
+        const icPrintableCard_back = GET100_PrintableCardSheet.ic_template__printableCard_back(infiniteCanvas, trueRect_card);
 
 
         //invest
+
           //position
-          icPrintableCard_front.position.x  = trueRect_card.x;
-          icPrintableCard_front.position.y  = trueRect_card.y;
-          icPrintableCard_front.size.width  = trueRect_card.width;
-          icPrintableCard_front.size.height = trueRect_card.height;
+          infiniteCanvas.onceOnAddRepresentedForIcObject(icPrintableCard_back, (icPrintableCard_back) => {
 
-          //content
-          infiniteCanvas.onceOnAddRepresentedForIcObject(icPrintableCard_front, (icPrintableCard_front) => {
-
-            const rep_free__composite = infiniteCanvas.getRepresented(icPrintableCard_front.id).r_free();
-
-            // //qrcode img
-            // qrcodeImg_p(card.getIdentifier())
-            // .then(img => {
-            //   rep_free__composite.parts.image.img = img;
-            // });
-
-            //operator
-            rep_free__composite.parts.label__operator.text = card.get100Operator.getSimpleName();
+            const rep_free__composite = infiniteCanvas.getRepresented(icPrintableCard_back.id).r_free();
+            rep_free__composite.position = {
+              x: trueRect_card.x,
+              y: trueRect_card.y,
+            };
 
           });
 
-        return icPrintableCard_front;
+
+          //content
+          infiniteCanvas.onceOnAddRepresentedForIcObject(icPrintableCard_back, (icPrintableCard_back) => {
+
+            const rep_free__composite = infiniteCanvas.getRepresented(icPrintableCard_back.id).r_free();
+
+            //img
+            qrcodeImg_p(card.getIdentifier())
+            .then(img => {
+              rep_free__composite.parts.image.img = img;
+            });
+
+          });
+
+        return icPrintableCard_back;
       }
 
       static ic_template__printableCard_back(infiniteCanvas, trueRect_card) {
@@ -50076,36 +50121,36 @@
         const icRect = infiniteCanvas.createIcRect(trueRect_background);
         icRect.fill = "white";
         icRect.strokeWidth = 2;
-        icRect.strokeColor = "black";
+        icRect.stroke = "black";
 
 
         //img
-        // const trueRect_img = {
-        //   x: 75,
-        //   y: 75,
-        //   width:  100,
-        //   height: 100,
-        // };
-        // const icImage = infiniteCanvas.createIcImage(trueRect_img.x,trueRect_img.y,null);
+        const trueRect_img = {
+          x: trueRect_background.width  * 0.15,
+          y: trueRect_background.height * 0.15,
+          width:  trueRect_background.width * 0.66,
+          height: trueRect_background.width * 0.66,
+        };
+        const icImage = infiniteCanvas.createIcImage(trueRect_img.x,trueRect_img.y,null);
 
         //operator
-        const trueRect_operator = {
-          x: trueRect_background.width  * 0.2,
-          y: trueRect_background.height * 0.6,
-          width: 100,
-          height: 100,
-        };
-        // const icGMOperator = infiniteCanvas.createIcGMOperator(trueRect_operator, "x 2");
-        const icLabel__operator = infiniteCanvas.createIcText(trueRect_operator.x, trueRect_operator.y, "");
+        // const trueRect_operator = {
+        //   x: trueRect_background.width  * 0.15,
+        //   y: trueRect_background.height * 0.15,
+        //   width: 100,
+        //   height: 100,
+        // };
+        // // const icGMOperator = infiniteCanvas.createIcGMOperator(trueRect_operator, "x 2");
+        // const icLabel__operator = infiniteCanvas.createIcText(trueRect_operator.x, trueRect_operator.y, "");
 
 
 
         //composite
         const parts = {
           "bg":         icRect,
-          // "image":      icImage,
+          "image":      icImage,
           // "gmOperator": icGMOperator,
-          "label__operator": icLabel__operator,
+          // "label__operator": icLabel__operator,
         };
 
         const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
@@ -50113,7 +50158,7 @@
 
         const trueRect_composite = trueRect_background;
         const icComposite = infiniteCanvas.createIcComposite(trueRect_composite, parts, compositeConfig);
-        icComposite.cType = "GET100_PrintableCard_front";
+        icComposite.cType = "GET100_PrintableCard_back";
         icComposite.fill  = "";
 
         outIcObj = icComposite;
@@ -50153,12 +50198,20 @@
     //
     //     return output;
     // }
-    // const arr_partition  = partitionArray(cardCollection.arr_card, 12);
+    //
+    // const nb_row = 4;
+    // const nb_col = 4;
+    // const nb_card_per_page = nb_row * nb_col;
+    //
+    // const arr_partition  = partitionArray(cardCollection.arr_card, nb_card_per_page);
     // arr_partition.forEach((arr_card, i) => {
-    //   const printableCardSheet = new GET100_PrintableCardSheet(infiniteCanvas, arr_card);
+    //   const printableCardSheet = new GET100_PrintableCardSheet(infiniteCanvas, arr_card, nb_row, nb_col);
+    //
     //   const icPage_front = printableCardSheet.ic__page_front();
-    //   //SHU
-    //   const icPage_back  = printableCardSheet.ic__page_back();
+    //   infiniteCanvas.addIcObject(icPage_front);
+    //
+    //   const icPage_back = printableCardSheet.ic__page_back();
+    //   infiniteCanvas.addIcObject(icPage_back);
     //
     // });
 
