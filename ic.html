@@ -208,7 +208,7 @@
           constructor() {
             this.initialize();
 
-            this.hush(this);
+            // this.hush(this);
           }
 
           initialize() {
@@ -458,13 +458,14 @@
         //   return ImageUtils.qrcode__decode_imageData(imageData);
         // }
 
-        // static qrcode__decode_image_p(img) {
+
+        // static qrcode__decode_image_p__zxing(img) {
         //   const codeReader = new ZXing.BrowserMultiFormatReader();
         //   // logger.log("codeReader", codeReader);
         //   return codeReader.decodeFromImage(img);
         // }
 
-        // static qrcode__decode_imageData(imageData) {
+        // static qrcode__decode_imageData__zxing(imageData) {
         //   logger.log("log1", "qrcode__decode_imageData", imageData);
         //
         //   const BarcodeFormat      = ZXing.BarcodeFormat;
@@ -492,7 +493,10 @@
         //   return reader.decode(binaryBitmap, hints);
         // }
 
-        static qrcode__decode_image_p(img) {
+
+
+
+        static qrcode__decode_image_p(img, shouldTryWithFilters = true) {
 
           //create
           const id__reader = "reader";
@@ -501,6 +505,7 @@
           logger.log("readerElt", readerElt);
           readerElt.setAttribute("id",id__reader);
           readerElt.setAttribute("width","600px");
+          // readerElt.setAttribute("width","100px"); //test
 
           document.body.appendChild(readerElt);
 
@@ -510,20 +515,49 @@
           const file = FileIntegration.fileForImg(img);
 
           const result_p = reader.scanFile(file, true)
-          // .then(decodedText => {
-          //   // success, use decodedText
-          //   logger.log(decodedText);
-          //   return decodedText;
-          // })
+          .then(decodedText => {
+            logger.log("decodedText", decodedText);
+            return decodedText;
+          })
           .catch(err => {
             // failure, handle it.
-            console.log(`Error scanning file. Reason: ${err}`)
+            logger.log(`Error scanning file. Reason: ${err}`);
+
+            if(shouldTryWithFilters) {
+              //retry with different brightness and contrast
+              const value__brightness = 0.10;
+              const value__contrast   = 0.30;
+              const img__filtered = ImageUtils.image_filtered(img, value__brightness, value__contrast);
+
+              return ImageUtils.qrcode__decode_image_p(img__filtered, false);
+            }
+
           })
           .finally(() => {
             readerElt.remove();
           });
 
           return result_p;
+        }
+
+
+        //filters
+
+        static image_filtered(img, value_brightness, value_contrast) {
+          const fObj = new fabric.Image(img);
+          const filter__brightness = new fabric.Image.filters.Brightness({
+            brightness: value_brightness,
+          });
+          const filter__contrast = new fabric.Image.filters.Contrast({
+            contrast: value_contrast,
+          });
+          fObj.filters.push(filter__brightness);
+          fObj.filters.push(filter__contrast);
+          fObj.applyFilters();
+
+          //get image from fObj
+          const img__filtered = fObj.toDataURL();
+          return img__filtered;
         }
 
       }
@@ -565,11 +599,14 @@
       // logger.log("log1", "ZXing", ZXing);
     </script> -->
     <script src="lib/html5-qrcode.min.js" type="text/javascript"></script>
+    <!-- <script>
+      logger.log("log1", "Html5Qrcode", Html5Qrcode);
+    </script> -->
 
     <script src='lib/nodeqrcode.browserified.bundle.js' type='text/javascript'></script>
     <script>
       const NodeQRCode = Bundle_NQ.NodeQRCode;
-      logger.log("log1", "NodeQRCode", NodeQRCode);
+      // logger.log("log1", "NodeQRCode", NodeQRCode);
     </script>
     <!-- convenience -->
     <script>
@@ -5699,38 +5736,43 @@
                   logger.log("log1", "startRefreshLoop");
 
                   /// get context from canvas (canvas not shown in example)
-                  var ctx    = canvas.getContext('2d'),
-                      toggle = true;                  /// this is used to reduce FPS
+                  var ctx    = canvas.getContext('2d');
+
+                  var counter = 1;                  /// this is used to reduce FPS
 
                   /// register refresh loop
                   function refreshLoop() {
 
-                      const represented  = infiniteCanvas.getRepresented(icVideo.id);
-                      // console.log("represented", represented);
-                      const rep_official = represented.r_official();
-                      const rep_free     = represented.r_free();
+                    const represented  = infiniteCanvas.getRepresented(icVideo.id);
+                    // console.log("represented", represented);
+                    const rep_official = represented.r_official();
+                    const rep_free     = represented.r_free();
 
-                      const video = icVideo.video;
+                    const video = icVideo.video;
 
-                      /// reduce frame-rate to half
-                      // toggle = !toggle;
 
-                      // if (toggle) {
-                        setNewFrame();
-                      // }
+                    /// reduce frame-rate
+                    const nb_skipped_frames__video = 0;
+                    if (counter % (nb_skipped_frames__video + 1) == 0) {
+                      setNewFrame();
+                      counter = 1;
+                    } else {
+                      counter = counter + 1;
+                    }
 
-                      function setNewFrame() {
-                        // logger.log("log1", "setNewFrame");
+                    if(icObj.isShouldRequestAnimationFrame) {
+                      requestAnimationFrame(refreshLoop);
+                    }
 
-                        ImageUtils.imageFromVideo_p(video).then((img) => {
-                          rep_free.img = img;
-                        });
 
-                        if(icObj.isShouldRequestAnimationFrame) {
-                          requestAnimationFrame(refreshLoop);
-                        }
+                    function setNewFrame() {
+                      // logger.log("log1", "setNewFrame");
 
-                      }
+                      ImageUtils.imageFromVideo_p(video).then((img) => {
+                        rep_free.img = img;
+                      });
+
+                    }
 
                   }
 
@@ -13492,7 +13534,6 @@
 
 
 
-
         //add
       addIcObject(icObj) {
         console.log("addIcObject", icObj);
@@ -13785,6 +13826,7 @@
       //
       //   this.setChanged(true);
       // }
+
 
 
       createIcEvent__icObjUpdate(icObj, outerUpdatesDict) {
@@ -26886,8 +26928,8 @@
               function refreshLoop() {
 
                   /// reduce frame-rate
-                  const nb_skipped_frames = 9;
-                  if (counter % (nb_skipped_frames + 1) == 0) {
+                  const nb_skipped_frames__eye = 9;
+                  if (counter % (nb_skipped_frames__eye + 1) == 0) {
                     captureNewFrame();
                     counter = 1;
                   } else {
@@ -49313,6 +49355,13 @@
 
 
         const ic__gameInput = this.ic__gameInput(infiniteCanvas, this.gameInput);
+        infiniteCanvas.onceOnAddRepresentedForIcObject(ic__gameInput, (ic__gameInput) => {
+          const rep_free = infiniteCanvas.getRepresented(ic__gameInput.id).r_free();
+          rep_free.position = {
+            x: 50,
+            y: 300,
+          };
+        });
         infiniteCanvas.addIcObject(ic__gameInput);
         this.dict_view["gameInput"] = ic__gameInput;
 
@@ -49403,11 +49452,15 @@
           infiniteCanvas.onceOnAddRepresentedForIcObject(ic__webcam, (ic__webcam) => {
             const rep_free = infiniteCanvas.getRepresented(ic__webcam.id).r_free();
             rep_free.position = {
-              x: 50,
-              y: 400,
+              x: 0,
+              y: 200,
             };
-            rep_free.scale.X = 0.31;
-            rep_free.scale.Y = 0.31;
+            // rep_free.scale.X = 0.31;
+            // rep_free.scale.Y = 0.31;
+            // rep_free.scale.X = 0.62;
+            // rep_free.scale.Y = 0.62;
+            rep_free.scale.X = 1;
+            rep_free.scale.Y = 1;
           });
           infiniteCanvas.addIcObject(ic__webcam);
           this.dict_view["webcam"] = ic__webcam;
@@ -49521,9 +49574,9 @@
 
         const trueRect_icEye = {
           x: 50,
-          y: 400,
-          width:  200,
-          height: 200,
+          y: 200,
+          width:  600,
+          height: 600,
         };
 
         const icEye = infiniteCanvas.createIcEye(trueRect_icEye);
@@ -49549,7 +49602,7 @@
                           game.manageGameInput__rawInput(rawInput);
                         }
                     }).catch((err) => {
-                        console.error(err);
+                        // console.error(err);
                     });
             }
 
@@ -49562,7 +49615,7 @@
               attemptDecoding();
               loopDecode();
 
-            }, 500);
+            }, 300);
 
           }
 
@@ -49854,18 +49907,19 @@
         // const arr_opSymbol_valueb =  [["+", 100]];
 
         const arr_add      = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15].map(value_b => ["+", value_b]);
+        // const arr_add      = [0,1,2,3,4,5,6,7,8,9,10].map(value_b => ["+", value_b]);
         const arr_subtract = [0,1,2,3,4,5,6,7,8,9,10].map(value_b => ["-", value_b]);
         const arr_multiply = [0,1,2,3,4,5,6,7,8,9,10].map(value_b => ["x", value_b]);
         const arr_divide   = [1,2,3,4,5,6,7,8,9].map(value_b => ["/", value_b]);
 
-        // const arr_opSymbol_valueb =  [...arr_add,
-        //                               ...arr_add,
-        //                               ...arr_subtract,
-        //                               ...arr_subtract,
-        //                               ...arr_multiply,
-        //                               ...arr_divide];
+        const arr_opSymbol_valueb =  [...arr_add,
+                                      ...arr_add,
+                                      ...arr_subtract,
+                                      ...arr_subtract,
+                                      ...arr_multiply,
+                                      ...arr_divide];
 
-        const arr_opSymbol_valueb =  [...arr_add];
+        // const arr_opSymbol_valueb =  [...arr_add];
 
         outArr = arr_opSymbol_valueb.map(([string__opSymbol,value_b]) => {
           const op     = Operator.fromString_binary(string__opSymbol);
@@ -49883,10 +49937,14 @@
         //parsing
         const arr_elt = identifier__card.split("#");
         const index = arr_elt[1];
+        // logger.log("index", index);
 
         const opSimpleName = arr_elt[0].split("__")[1];
+        // logger.log("opSimpleName", opSimpleName);
 
         const card = this.dict_card[opSimpleName][index];
+        // logger.log("card", card);
+
         return card;
       }
 
@@ -50387,11 +50445,67 @@
     //   setTimeout(function () {
     //     infiniteCanvas.exportCanvasRectContainingObj_asImg(icPage_front);
     //     infiniteCanvas.exportCanvasRectContainingObj_asImg(icPage_back);
-    //   }, 6000);
+    //   }, 6000 + i * 3000);
     //
     // });
 
     </script>
+
+    <!-- <script>
+      //debug
+      const trueRect_img = {
+        x: 0,
+        y: 0,
+        width:  100,
+        height: 100,
+      };
+      qrcodeImg_p("GET100__+ 2#0")
+      .then(img => {
+        const icObj_front = infiniteCanvas.createIcImage(trueRect_img.x, trueRect_img.y, img);
+        icObj_front.scale.X = 1.0;
+        icObj_front.scale.Y = 1.0;
+        icObj_front.zIndex = 100;
+        // icObj_front.width  = trueRect_img.width;
+        // icObj_front.height = trueRect_img.height;
+        infiniteCanvas.addIcObject(icObj_front);
+      });
+    </script> -->
+
+    <!-- <script>
+      //SHU: MYSTERY
+
+      //debug
+      setTimeout(function () {
+
+        const icEye         = infiniteCanvas.getAllRepresentedWithType("eye")[0].r_official();
+        logger.log("log2", "icEye", icEye);
+        const rep_free__eye = infiniteCanvas.getRepresented(icEye.id).r_free();
+        const img__captured = rep_free__eye.img__captured;
+
+        const arr_brightness = [...Array(11).keys()].map(index => index * 0.1);
+        const arr_contrast   = [...Array(11).keys()].map(index => index * 0.1);
+
+        arr_brightness.forEach((value__brightness, i) => {
+          arr_contrast.forEach((value__contrast, j) => {
+            // logger.log("log2", "value__brightness", value__brightness, "value__contrast", value__contrast);
+            const img__filtered = ImageUtils.image_filtered(img__captured, value__brightness, value__contrast);
+            // logger.log("log2", "img__filtered", img__filtered);
+
+            const trueRect_img = {
+              x: i * 100,
+              y: j * 100,
+              width:  100,
+              height: 100,
+            };
+
+            const icObj_front = infiniteCanvas.createIcImage(trueRect_img.x, trueRect_img.y, img__filtered);
+            infiniteCanvas.addIcObject(icObj_front);
+          });
+        });
+
+      }, 6000);
+
+    </script> -->
 
 
 
