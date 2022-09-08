@@ -149,6 +149,17 @@
             return outArr;
           }
 
+          static partitionArray(arr, spacing) {
+            var output = [];
+
+            for (var i = 0; i < arr.length; i += spacing)
+            {
+                output[output.length] = arr.slice(i, i + spacing);
+            }
+
+            return output;
+          }
+
         }
 
 
@@ -392,6 +403,19 @@
           return image;
         }
 
+        static imageFromDataUrl_p(dataUrl) {
+          const image_p = new Promise(function(resolve, reject) {
+            if (dataUrl == null) return reject();
+
+            var image = new Image();
+            image.addEventListener('load', function() {
+              resolve(image, false);
+            });
+            image.src     = dataUrl;
+          });
+          return image_p;
+        }
+
         static imageFromVideo_p(video) {
 
           canvas__tool.height = video.videoHeight;
@@ -527,9 +551,13 @@
               //retry with different brightness and contrast
               const value__brightness = 0.10;
               const value__contrast   = 0.30;
-              const img__filtered = ImageUtils.image_filtered(img, value__brightness, value__contrast);
 
-              return ImageUtils.qrcode__decode_image_p(img__filtered, false);
+              const img__filtered_p         = ImageUtils.image_filtered_p(img, value__brightness, value__contrast);
+              const decodedText__filtered_p = img__filtered_p.then(image_filtered => {
+                return ImageUtils.qrcode__decode_image_p(img__filtered, false);
+              });
+
+              return decodedText__filtered_p;
             }
 
           })
@@ -543,7 +571,7 @@
 
         //filters
 
-        static image_filtered(img, value_brightness, value_contrast) {
+        static image_filtered_p(img, value_brightness, value_contrast) {
           const fObj = new fabric.Image(img);
           const filter__brightness = new fabric.Image.filters.Brightness({
             brightness: value_brightness,
@@ -556,8 +584,9 @@
           fObj.applyFilters();
 
           //get image from fObj
-          const img__filtered = fObj.toDataURL();
-          return img__filtered;
+          const dataUrl = fObj.toDataURL();
+          const img__filtered_p = ImageUtils.imageFromDataUrl_p(dataUrl);
+          return img__filtered_p;
         }
 
       }
@@ -49345,7 +49374,7 @@
           const rep_free = infiniteCanvas.getRepresented(ic__gameState.id).r_free();
           rep_free.position = {
             x: 50,
-            y: 500,
+            y: 0,
           };
         });
         infiniteCanvas.addIcObject(ic__gameState);
@@ -49359,7 +49388,7 @@
           const rep_free = infiniteCanvas.getRepresented(ic__gameInput.id).r_free();
           rep_free.position = {
             x: 50,
-            y: 300,
+            y: 400,
           };
         });
         infiniteCanvas.addIcObject(ic__gameInput);
@@ -49452,15 +49481,15 @@
           infiniteCanvas.onceOnAddRepresentedForIcObject(ic__webcam, (ic__webcam) => {
             const rep_free = infiniteCanvas.getRepresented(ic__webcam.id).r_free();
             rep_free.position = {
-              x: 0,
-              y: 200,
+              x: 50,
+              y: 400,
             };
             // rep_free.scale.X = 0.31;
             // rep_free.scale.Y = 0.31;
-            // rep_free.scale.X = 0.62;
-            // rep_free.scale.Y = 0.62;
-            rep_free.scale.X = 1;
-            rep_free.scale.Y = 1;
+            rep_free.scale.X = 0.62;
+            rep_free.scale.Y = 0.62;
+            // rep_free.scale.X = 1;
+            // rep_free.scale.Y = 1;
           });
           infiniteCanvas.addIcObject(ic__webcam);
           this.dict_view["webcam"] = ic__webcam;
@@ -49555,7 +49584,7 @@
 
         const trueRect_composite = {
           x: 0,
-          y: 500,
+          y: 0,
           width:  200,
           height: 400,
         };
@@ -49575,8 +49604,8 @@
         const trueRect_icEye = {
           x: 50,
           y: 200,
-          width:  600,
-          height: 600,
+          width:  300,
+          height: 300,
         };
 
         const icEye = infiniteCanvas.createIcEye(trueRect_icEye);
@@ -50368,144 +50397,212 @@
 
     class GET100_PrintableCardCollection {
 
-      constructor() {
+      constructor(cardCollection, nb_row__page, nb_col__page) {
+
+        this.cardCollection = cardCollection;
+
+        this.nb_row__page  = nb_row__page;
+        this.nb_col__page  = nb_col__page;
+        this.nb_card__page = nb_row__page * nb_col__page;
 
       }
 
+      spawn_to_ic() {
+
+        const nb_row = this.nb_row__page;
+        const nb_col = this.nb_col__page;
+
+        const arr_partition  = Utils.partitionArray(this.cardCollection.arr_card, this.nb_card__page);
+        arr_partition.forEach((arr_card, i) => {
+          const printableCardSheet = new GET100_PrintableCardSheet(infiniteCanvas, arr_card, nb_row, nb_col);
+
+          const trueRect_page_front = {
+            x:      (2*i) * (printableCardSheet.width  + 50),
+            y:         i  * (printableCardSheet.height + 50),
+            width:  printableCardSheet.width,
+            height: printableCardSheet.height,
+          };
+
+          const icPage_front = printableCardSheet.ic__page_front();
+          infiniteCanvas.onceOnAddRepresentedForIcObject(icPage_front, (icPage_front) => {
+
+            const rep_free__composite = infiniteCanvas.getRepresented(icPage_front.id).r_free();
+            rep_free__composite.position = {
+              x: trueRect_page_front.x,
+              y: trueRect_page_front.y,
+            };
+
+          });
+          infiniteCanvas.addIcObject(icPage_front);
+
+          const trueRect_page_back = {
+            x:      (2*i + 1) * (printableCardSheet.width  + 50),
+            y:             i  * (printableCardSheet.height + 50),
+            width:  printableCardSheet.width,
+            height: printableCardSheet.height,
+          };
+
+          const icPage_back = printableCardSheet.ic__page_back();
+          infiniteCanvas.onceOnAddRepresentedForIcObject(icPage_back, (icPage_back) => {
+
+            const rep_free__composite = infiniteCanvas.getRepresented(icPage_back.id).r_free();
+            rep_free__composite.position = {
+              x: trueRect_page_back.x,
+              y: trueRect_page_back.y,
+            };
+
+          });
+          infiniteCanvas.addIcObject(icPage_back);
 
 
+          //save as img
+          setTimeout(function () {
+            infiniteCanvas.exportCanvasRectContainingObj_asImg(icPage_front);
+            infiniteCanvas.exportCanvasRectContainingObj_asImg(icPage_back);
+          }, 6000 + i * 3000);
+
+        });
+
+      }
     }
 
 
-    </script>
-    <script>
-    // const game__GET100 = new GET100_Game(infiniteCanvas);
+    class GET100__Atelier {
 
+        constructor() {
 
-    // const cardCollection = new GET100_CardCollection();
-    //
-    // function partitionArray(arr, spacing)
-    // {
-    //     var output = [];
-    //
-    //     for (var i = 0; i < arr.length; i += spacing)
-    //     {
-    //         output[output.length] = arr.slice(i, i + spacing);
-    //     }
-    //
-    //     return output;
-    // }
-    //
-    // const nb_row = 4;
-    // const nb_col = 4;
-    // const nb_card_per_page = nb_row * nb_col;
-    //
-    // const arr_partition  = partitionArray(cardCollection.arr_card, nb_card_per_page);
-    // arr_partition.forEach((arr_card, i) => {
-    //   const printableCardSheet = new GET100_PrintableCardSheet(infiniteCanvas, arr_card, nb_row, nb_col);
-    //
-    //   const trueRect_page_front = {
-    //     x:      (2*i) * (printableCardSheet.width  + 50),
-    //     y:         i  * (printableCardSheet.height + 50),
-    //     width:  printableCardSheet.width,
-    //     height: printableCardSheet.height,
-    //   };
-    //
-    //   const icPage_front = printableCardSheet.ic__page_front();
-    //   infiniteCanvas.onceOnAddRepresentedForIcObject(icPage_front, (icPage_front) => {
-    //
-    //     const rep_free__composite = infiniteCanvas.getRepresented(icPage_front.id).r_free();
-    //     rep_free__composite.position = {
-    //       x: trueRect_page_front.x,
-    //       y: trueRect_page_front.y,
-    //     };
-    //
-    //   });
-    //   infiniteCanvas.addIcObject(icPage_front);
-    //
-    //   const trueRect_page_back = {
-    //     x:      (2*i + 1) * (printableCardSheet.width  + 50),
-    //     y:             i  * (printableCardSheet.height + 50),
-    //     width:  printableCardSheet.width,
-    //     height: printableCardSheet.height,
-    //   };
-    //
-    //   const icPage_back = printableCardSheet.ic__page_back();
-    //   infiniteCanvas.onceOnAddRepresentedForIcObject(icPage_back, (icPage_back) => {
-    //
-    //     const rep_free__composite = infiniteCanvas.getRepresented(icPage_back.id).r_free();
-    //     rep_free__composite.position = {
-    //       x: trueRect_page_back.x,
-    //       y: trueRect_page_back.y,
-    //     };
-    //
-    //   });
-    //   infiniteCanvas.addIcObject(icPage_back);
-    //
-    //   setTimeout(function () {
-    //     infiniteCanvas.exportCanvasRectContainingObj_asImg(icPage_front);
-    //     infiniteCanvas.exportCanvasRectContainingObj_asImg(icPage_back);
-    //   }, 6000 + i * 3000);
-    //
-    // });
+        }
 
-    </script>
-
-    <!-- <script>
-      //debug
-      const trueRect_img = {
-        x: 0,
-        y: 0,
-        width:  100,
-        height: 100,
-      };
-      qrcodeImg_p("GET100__+ 2#0")
-      .then(img => {
-        const icObj_front = infiniteCanvas.createIcImage(trueRect_img.x, trueRect_img.y, img);
-        icObj_front.scale.X = 1.0;
-        icObj_front.scale.Y = 1.0;
-        icObj_front.zIndex = 100;
-        // icObj_front.width  = trueRect_img.width;
-        // icObj_front.height = trueRect_img.height;
-        infiniteCanvas.addIcObject(icObj_front);
-      });
-    </script> -->
-
-    <!-- <script>
-      //SHU: MYSTERY
-
-      //debug
-      setTimeout(function () {
-
-        const icEye         = infiniteCanvas.getAllRepresentedWithType("eye")[0].r_official();
-        logger.log("log2", "icEye", icEye);
-        const rep_free__eye = infiniteCanvas.getRepresented(icEye.id).r_free();
-        const img__captured = rep_free__eye.img__captured;
-
-        const arr_brightness = [...Array(11).keys()].map(index => index * 0.1);
-        const arr_contrast   = [...Array(11).keys()].map(index => index * 0.1);
-
-        arr_brightness.forEach((value__brightness, i) => {
-          arr_contrast.forEach((value__contrast, j) => {
-            // logger.log("log2", "value__brightness", value__brightness, "value__contrast", value__contrast);
-            const img__filtered = ImageUtils.image_filtered(img__captured, value__brightness, value__contrast);
-            // logger.log("log2", "img__filtered", img__filtered);
-
-            const trueRect_img = {
-              x: i * 100,
-              y: j * 100,
-              width:  100,
-              height: 100,
-            };
-
-            const icObj_front = infiniteCanvas.createIcImage(trueRect_img.x, trueRect_img.y, img__filtered);
+        static spawn_virtual_card() {
+          //debug
+          const trueRect_img = {
+            x: 0,
+            y: 0,
+            width:  100,
+            height: 100,
+          };
+          qrcodeImg_p("GET100__+ 2#0")
+          .then(img => {
+            const icObj_front = infiniteCanvas.createIcImage(trueRect_img.x, trueRect_img.y, img);
+            icObj_front.scale.X = 1.0;
+            icObj_front.scale.Y = 1.0;
+            icObj_front.zIndex = 100;
+            // icObj_front.width  = trueRect_img.width;
+            // icObj_front.height = trueRect_img.height;
             infiniteCanvas.addIcObject(icObj_front);
           });
-        });
 
-      }, 6000);
+        }
 
-    </script> -->
+        static debug_filters() {
+
+          setTimeout(function () {
+
+            const icEye         = infiniteCanvas.getAllRepresentedWithType("eye")[0].r_official();
+            logger.log("log2", "icEye", icEye);
+            const rep_free__eye = infiniteCanvas.getRepresented(icEye.id).r_free();
+            const img__captured = rep_free__eye.img__captured;
+
+            const arr_brightness = [...Array(11).keys()].map(index => index * 0.1);
+            const arr_contrast   = [...Array(11).keys()].map(index => index * 0.1);
+
+            arr_brightness.forEach((value__brightness, i) => {
+              arr_contrast.forEach((value__contrast, j) => {
+                // logger.log("log2", "value__brightness", value__brightness, "value__contrast", value__contrast);
+                const img__filtered_p = ImageUtils.image_filtered_p(img__captured, value__brightness, value__contrast);
+
+                img__filtered_p.then(img__filtered => {
+                  logger.log("log2", "img__filtered", img__filtered);
+
+                  const trueRect_img = {
+                    x: i * 100,
+                    y: j * 100,
+                    width:  100,
+                    height: 100,
+                  };
+
+                  const icObj_img = infiniteCanvas.createIcImage(trueRect_img.x, trueRect_img.y, img__filtered);
+                  infiniteCanvas.onceOnAddRepresentedForIcObject(icObj_img, (icObj_img) => {
+                    logger.log("log2", "icObj_img", icObj_img.position.x, icObj_img.size.width);
+
+                    const rep_free = infiniteCanvas.getRepresented(icObj_img.id).r_free();
+                    rep_free.position = {
+                      x: trueRect_img.x,
+                      y: trueRect_img.y,
+                    };
+
+                  });
+                  infiniteCanvas.addIcObject(icObj_img);
+
+                });
+
+              });
+            });
+
+          }, 6000);
+
+        }
+
+        static debug_filters_2() {
+
+          setTimeout(function () {
+
+            const icEye         = infiniteCanvas.getAllRepresentedWithType("eye")[0].r_official();
+            logger.log("log2", "icEye", icEye);
+            const rep_free__eye = infiniteCanvas.getRepresented(icEye.id).r_free();
+            const img__captured = rep_free__eye.img__captured;
+
+            const value__brightness = 0.3;
+            const value__contrast   = 0.3;
+
+            const img__filtered_p = ImageUtils.image_filtered_p(img__captured, value__brightness, value__contrast);
+
+            img__filtered_p.then(img__filtered => {
+              logger.log("log2", "img__filtered", img__filtered);
+
+              const trueRect_img = {
+                x:      100,
+                y:      100,
+                width:  100,
+                height: 100,
+              };
+
+              const icObj_img = infiniteCanvas.createIcImage(trueRect_img.x, trueRect_img.y, img__filtered);
+              infiniteCanvas.onceOnAddRepresentedForIcObject(icObj_img, (icObj_img) => {
+                logger.log("log2", "icObj_img", icObj_img.position.x, icObj_img.size.width);
+
+                const rep_free = infiniteCanvas.getRepresented(icObj_img.id).r_free();
+                rep_free.position = {
+                  x: trueRect_img.x,
+                  y: trueRect_img.y,
+                };
+
+              });
+              infiniteCanvas.addIcObject(icObj_img);
+
+            });
+
+          }, 6000);
+
+        }
+
+    }
+
+    </script>
+    <script>
+    //launch game
+    // const game__GET100 = new GET100_Game(infiniteCanvas);
+
+    //to print cards
+    // const cardCollection          = new GET100_CardCollection();
+    // const printableCardCollection = new GET100_PrintableCardCollection(cardCollection,4,4);
+    // printableCardCollection.spawn_to_ic();
+
+    //debug
+    // GET100__Atelier.spawn_virtual_card();
+    // GET100__Atelier.debug_filters();
+    // GET100__Atelier.debug_filters_2();
+    </script>
 
 
 
