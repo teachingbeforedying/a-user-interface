@@ -49327,8 +49327,13 @@
       constructor(infiniteCanvas) {
         this.infiniteCanvas = infiniteCanvas;
 
+        //config
         const value__initial = 0;
         const value__target  = 100;
+
+        this.isUsingIcCards = false;
+
+
 
         //model
         this.gameState = new GET100_GameState(value__initial, value__target);
@@ -49352,7 +49357,10 @@
         //view
         this.dict_view = {};
         this.bindToIc__state_and_input(infiniteCanvas);
-        // this.bindToIc__cards(infiniteCanvas);
+
+        if(this.isUsingIcCards) {
+          this.bindToIc__cards(infiniteCanvas);
+        }
 
 
         //"outer" view
@@ -49439,36 +49447,50 @@
         const game = this;
 
 
-        const ic__dict_card = {};
-        this.arr_card.forEach((card, i) => {
+        const ic__dict_card = this.arr_card.reduce((acc, x) => {
           const ic__card = GET100_Game.ic__card(infiniteCanvas, card);
-          infiniteCanvas.addIcObject(ic__card);
+          // infiniteCanvas.addIcObject(ic__card);
 
           const identifier          = card.getIdentifier();
-          ic__dict_card[identifier] = ic__card;
-        });
+          acc[identifier] = ic__card;
+        }, {});
         this.dict_view["dict_card"] = ic__dict_card;
+
+
+        Object.values(ic__dict_card).forEach((ic__card, i) => {
+          infiniteCanvas.addIcObject(ic__card);
+        });
 
 
         //--control--
 
         //hooks
-        Hooker.installHooks(GET100_Game, "manageGameAction__playCard");      //SHU: I tried to install hooks on instance but it did not work... (does it really matter ?)
-        GET100_Game.did["manageGameAction__playCard"].on((game, card) => {
-          logger.log("did playCard", game, card);
+        // Hooker.installHooks(GET100_Game, "manageGameAction__playCard");      //SHU: I tried to install hooks on instance but it did not work... (does it really matter ?)
+        // GET100_Game.did["manageGameAction__playCard"].on((game, card) => {
+        //   logger.log("did playCard", game, card);
+        //   game.didPlayCard(card);    //SHU: here, it is too late
+        // });
 
-          //destroy view
+
+      }
+
+      didPlayCard(card) {
+        logger.log("didPlayCard", "card.getIdentifier()", card.getIdentifier());
+
+        const game = this;
+
+        //destroy view (if any)
+        if(this.isUsingIcCards) {
           const identifier = card.getIdentifier();
           const ic__card = game.dict_view.dict_card[identifier];
           const rep_free = infiniteCanvas.getRepresented(ic__card.id).r_free();
           infiniteCanvas.killComposite(rep_free);
+        }
 
-          //destroy model
-          const opSimpleName = card.get100Operator.getSimpleName();
-          const index_card   = card.index;
-          delete game.dict_card[opSimpleName][index_card];
-        });
-
+        //destroy model
+        const opSimpleName = card.get100Operator.getSimpleName();
+        const index_card   = card.index;
+        delete game.dict_card[opSimpleName][index_card];
 
       }
 
@@ -49798,6 +49820,9 @@
 
         //green blink
         game.dict_view.func_validInput();
+
+        //force card single use
+        game.didPlayCard(card);
 
 
         const value__current    = game.gameState.value__current;
