@@ -23,6 +23,8 @@ _Composites_
 _Conveyors_    
 _Vessels_   
 _Pathmade operators_    
+_Platform operators_    
+_Cores_    
 ...and many others, scattered here and there    
 
 ## Video
