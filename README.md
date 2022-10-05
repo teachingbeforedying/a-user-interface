@@ -28,7 +28,7 @@ _Cores_
 ...and many others, scattered here and there    
 
 ## Video
-https://tube.nocturlab.fr/videos/watch/playlist/285cab9f-8601-439b-aa6d-15ad3a4f23a7?playlistPosition=1     
+https://www.youtube.com/watch?v=ZGPzRM4oQSw
 
 ## Try it offline !
 1. Download project : [Code] (green button) > [Download ZIP]  
