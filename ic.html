@@ -22240,12 +22240,21 @@
               // const part__represented   = infiniteCanvas.getRepresented(icObj_compositePart.id);
 
               // rep_free__composite.composite.managePartUpdate(rep_free__compositePart, outerUpdatesDict);
-              if (outerUpdatesDict.position != null) {
+              if ( (outerUpdatesDict.position != null) || (outerUpdatesDict.point_start != null) ) {
 
-                const offset = {
-                  dx: outerUpdatesDict.position.new.x - outerUpdatesDict.position.old.x,
-                  dy: outerUpdatesDict.position.new.y - outerUpdatesDict.position.old.y,
-                };
+                var offset;
+                if(outerUpdatesDict.position != null) {
+                  offset = {
+                    dx: outerUpdatesDict.position.new.x - outerUpdatesDict.position.old.x,
+                    dy: outerUpdatesDict.position.new.y - outerUpdatesDict.position.old.y,
+                  };
+                } else {
+                  //moved part was segment
+                  offset = {
+                    dx: outerUpdatesDict.point_start.new.x - outerUpdatesDict.point_start.old.x,
+                    dy: outerUpdatesDict.point_start.new.y - outerUpdatesDict.point_start.old.y,
+                  };
+                }
 
                 const parts = handle__rep_free.parts;
 
@@ -22266,12 +22275,26 @@
                   //mutate
                   // logger.log("mutating part:", rep_free.id);
                   {
-                    const position_new = {
-                      x: rep_free.position.x + offset.dx,
-                      y: rep_free.position.y + offset.dy,
-                    };
+                    if(rep_free.position != null) {
+                      const position_new = {
+                        x: rep_free.position.x + offset.dx,
+                        y: rep_free.position.y + offset.dy,
+                      };
 
-                    rep_free.position = position_new;
+                      rep_free.position = position_new;
+                    } else if(rep_free.point_start != null) {
+                      //move other segment parts
+                      const point_start_new = {
+                        x: rep_free.point_start.x + offset.dx,
+                        y: rep_free.point_start.y + offset.dy,
+                      };
+                      rep_free.point_start = point_start_new;
+                      const point_end_new = {
+                        x: rep_free.point_end.x + offset.dx,
+                        y: rep_free.point_end.y + offset.dy,
+                      };
+                      rep_free.point_end = point_end_new;
+                    }
                   }
 
                   //listen:on
@@ -22335,13 +22358,27 @@
                 //mutate
                 // logger.log("mutating part:", part__rep_free.id);
                 {
-                  const position_new = {
-                    x: part__rep_free.position.x + offset.dx,
-                    y: part__rep_free.position.y + offset.dy,
-                  };
+                    if(part__rep_free.position != null) {
+                      const position_new = {
+                        x: part__rep_free.position.x + offset.dx,
+                        y: part__rep_free.position.y + offset.dy,
+                      };
 
-                  part__rep_free.position = position_new;
-                }
+                      part__rep_free.position = position_new;
+                    } else if(part__rep_free.point_start != null) {
+                      //move segment parts
+                      const point_start_new = {
+                        x: part__rep_free.point_start.x + offset.dx,
+                        y: part__rep_free.point_start.y + offset.dy,
+                      };
+                      part__rep_free.point_start = point_start_new;
+                      const point_end_new = {
+                        x: part__rep_free.point_end.x + offset.dx,
+                        y: part__rep_free.point_end.y + offset.dy,
+                      };
+                      part__rep_free.point_end = point_end_new;
+                    }
+                  }
 
                 //listen:on
                 part__rep_free.onInnerUpdate(listener);
@@ -25910,7 +25947,6 @@
                 // if(icObj.type == "sparkle") {
                 //
                 // }
-
               }
 
             };
@@ -29087,6 +29123,18 @@
             this.addInteraction_hold(fObj);
           }
 
+          if (icObj.canBeMoved) {
+            this.addInteraction_move(fObj);
+          }
+          if (icObj.canBeResized) {
+            this.addInteraction_resize2(fObj);
+          }
+          if (icObj.canBeRotated) {
+            this.addInteraction_rotate(fObj);
+          }
+
+
+
           return fObj;
         }
 
@@ -29556,41 +29604,27 @@
         addInteraction_move(fObj) {
 
           const infiniteCanvas = this.infiniteCanvas;
-          const fabricCanvas = this.fabricCanvas;
+          const fabricCanvas   = this.fabricCanvas;
+
+          fabricCanvas.on('before:transform', function (options) {
+            logger.log("before:transform", "options", options);
+
+            if(fObj.icObj.type == "segment") {
+              fObj.point_start__original = fObj.icObj.point_start;
+              fObj.point_end__original   = fObj.icObj.point_end;
+
+              fObj.position__target__original = Geometry.createPoint(options.transform.target.left, options.transform.target.top);
+            }
+
+          });
 
           fObj.on('moving', function (options) {
-            // console.log("moving", "options", options);
-
-            const target = options.target;
+            logger.log("moving", "options", options);
 
             const offset = infiniteCanvas.offset;
-            const scale = infiniteCanvas.scale;
-
-            // const trueRect_left__new = (target.left / scale - offset.dx);
-            // const trueRect_top__new  = (target.top  / scale - offset.dy);
-            //
-            // const trueRect_update = {
-            //   left: trueRect_left__new,
-            //   top:  trueRect_top__new,
-            // };
-            // Object.assign(target.trueRect, trueRect_update);
-
-
+            const scale  = infiniteCanvas.scale;
 
             const icObj = fObj.icObj;
-
-            const screenPoint = {
-              x: target.left,
-              y: target.top,
-            };
-
-            const position_update = infiniteCanvas.toTruePoint(screenPoint);
-
-
-            //---old style---
-            // const icObj_new = Object.assign({}, icObj);
-            // Object.assign(icObj_new.position, position_update);
-            // icObj.update(icObj_new, false);
 
             //---new style: rep inner update---
             const rep_free = fObj.icObj;
@@ -29601,8 +29635,42 @@
             rep_free.offInnerUpdate(listener);
 
             //mutate
-            {
-              rep_free.position = position_update;
+            switch(icObj.type) {
+              case "segment":
+                {
+                  const transform = options.transform;
+
+                  // const offset__transform__screen1 = Geometry.createPoint(transform.offsetX, transform.offsetY);   //NOT WORKING
+                  // logger.log("offset__transform__screen1", offset__transform__screen1);
+                  
+                  const offset__transform__screen2 = Geometry.createPoint(options.target.left - fObj.position__target__original.x, options.target.top - fObj.position__target__original.y); 
+                  logger.log("offset__transform__screen2", offset__transform__screen2);
+                  
+                  const offset__transform__ic      = infiniteCanvas.toTruePoint(offset__transform__screen2);
+
+                  const v = Geometry.vector_2d(infiniteCanvas.toTruePoint(Geometry.createPoint(0,0)), offset__transform__ic);
+
+                  //update .point_start and .point_end
+                  rep_free.point_start = Geometry.translatedPoint(fObj.point_start__original, v);
+                  rep_free.point_end   = Geometry.translatedPoint(fObj.point_end__original,   v); 
+
+                }
+                break;
+              default:
+                {
+                  const target = options.target;
+
+                  const screenPoint = {
+                    x: target.left,
+                    y: target.top,
+                  };
+
+                  const position_update = infiniteCanvas.toTruePoint(screenPoint);
+
+                  //update .position
+                  rep_free.position = position_update;
+                }
+                break;
             }
 
             //listen:on
