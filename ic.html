@@ -6846,18 +6846,18 @@
 
         const height__end = ratio__wh_end * width;
 
-        const point_end1_T = Geometry.createPoint(pointL.x, pointL.y - height__end);
-        const point_end1_B = Geometry.createPoint(pointL.x, pointL.y + height__end);
+        const point_endL_T = Geometry.createPoint(pointL.x, pointL.y - height__end);
+        const point_endL_B = Geometry.createPoint(pointL.x, pointL.y + height__end);
 
-        const icSegment__end1 = infiniteCanvas.createIcSegment(point_end1_T, point_end1_B);
-        // infiniteCanvas.addIcObject(icObj_Segment__end1);
+        const icSegment__endL = infiniteCanvas.createIcSegment(point_endL_T, point_endL_B);
+        // infiniteCanvas.addIcObject(icObj_Segment__endL);
 
 
-        const point_end2_T = Geometry.createPoint(pointR.x, pointR.y - height__end);
-        const point_end2_B = Geometry.createPoint(pointR.x, pointR.y + height__end);
+        const point_endR_T = Geometry.createPoint(pointR.x, pointR.y - height__end);
+        const point_endR_B = Geometry.createPoint(pointR.x, pointR.y + height__end);
 
-        const icSegment__end2 = infiniteCanvas.createIcSegment(point_end2_T, point_end2_B);
-        // infiniteCanvas.addIcObject(icObj_Segment__end2);
+        const icSegment__endR = infiniteCanvas.createIcSegment(point_endR_T, point_endR_B);
+        // infiniteCanvas.addIcObject(icObj_Segment__endR);
 
 
 
@@ -6898,20 +6898,34 @@
           height:  ratio__wh_spot * width,
         };
 
-        const icSpotPoint = infiniteCanvas.createIcSpotPoint(pointL, size__spot);
-        icSpotPoint.viewType = "circle";
+        // const icSpotPoint = infiniteCanvas.createIcSpotPoint(pointL, size__spot);
+        // icSpotPoint.viewType = "circle";
+
+
+        const icPoint__L        = infiniteCanvas.createIcPoint(pointL);
+        icPoint__L.pointType    = "circle";
+
+        const icPoint__R        = infiniteCanvas.createIcPoint(pointR);
+        icPoint__R.pointType    = "circle";
+
+        const icPoint__knob     = infiniteCanvas.createIcPoint(pointL);
+        icPoint__knob.pointType = "circle";
+        icPoint__knob.fill      = "lime";
+
 
 
         const parts = {
           "segment":  icSegment__segment,
-          "end1":     icSegment__end1,
-          "end2":     icSegment__end2,
+          "endL":     icSegment__endL,
+          "endR":     icSegment__endR,
 
-          "knob":     icSpotPoint,
+          "pointL":   icPoint__L,
+          "pointR":   icPoint__R,
+          "knob":     icPoint__knob,
         };
 
         const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
-        compositeConfig[icSpotPoint.id].isMobile = true;
+        // compositeConfig[icPoint.id].isMobile = true;
 
         const icComposite = this.createIcComposite(trueRect, parts, compositeConfig);
         icComposite.cType = "slider";
@@ -6923,7 +6937,8 @@
           value__L: sliderConfig.value__L,
           value__R: sliderConfig.value__R,
 
-          value: sliderConfig.value,
+          // value: sliderConfig.value,
+          mathNode: new math.ConstantNode(sliderConfig.value),
         };
 
         const icSlider = Object.assign(icComposite, icSlider_spec);
@@ -6933,6 +6948,16 @@
         const sliderEngine = new SliderEngine();
         infiniteCanvas.installEngineOnIcObj(icSlider, "slider", sliderEngine);
 
+
+        //debug
+        infiniteCanvas.onceOnAddRepresentedForIcObject(icSlider, (icSlider) => {
+          const rep_free = infiniteCanvas.getRepresented(icSlider.id).r_free();
+          
+          setTimeout(() => {
+            rep_free.mathNode = new math.ConstantNode(50);
+          }, 3000);
+
+        })
 
 
 
@@ -23496,6 +23521,164 @@
           };
 
 
+          this.createHandleListener = function () {
+            const handle__listener = (representation, propName, oldValue, newValue) => {
+              const updatesDict = {
+                [propName]: {
+                  old: oldValue,
+                  new: newValue,
+                },
+              };
+              this.manageHandleUpdate(representation, updatesDict);
+            };
+
+            return handle__listener;
+          };
+
+
+
+
+          // this.counter__partListeners = 0;
+          // this.createPartListener = function () {
+
+          //   // const index__partListener = this.counter__partListeners;
+
+          //   const part__listener = (representation, propName, oldValue, newValue) => {
+          //     // logger.log("partListener", index__partListener);
+          //     const updatesDict = {
+          //       [propName]: {
+          //         old: oldValue,
+          //         new: newValue,
+          //       },
+          //     };
+          //     this.managePartUpdate(representation, updatesDict);
+          //   };
+
+          //   // this.counter__partListeners += 1;
+
+          //   return part__listener;
+          // };
+
+
+
+          this.createListeners = function () {
+            var outListenersDict = {};
+
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const handle         = this.scopeObj.engineCarrier;
+
+
+            //get free_rep
+            const handle__represented = infiniteCanvas.getRepresented(handle.id);
+            const handle__rep_free = handle__represented.r_free();
+
+
+
+            const handle__listener = this.createHandleListener();
+
+            // outListenersDict["handle"] = handle__listener;
+            outListenersDict[handle.id] = handle__listener;
+
+            
+            // const parts = handle__rep_free.parts;
+            // const part_listeners = Object.entries(parts).reduce((acc, [partName, part__rep_free]) => {
+
+            //   const part__listener = this.createPartListener();
+
+            //   // acc[partName] = part__listener;
+            //   acc[part__rep_free.id] = part__listener;
+
+            //   return acc;
+            // }, {});
+
+            // Object.assign(outListenersDict, part_listeners);
+
+            return outListenersDict;
+          };
+
+
+          //handle update
+          this.manageHandleUpdate = function (icObj_composite, outerUpdatesDict) {
+            console.log("manageHandleUpdate", icObj_composite);
+
+            if (outerUpdatesDict.mathNode != null) {
+              logger.log("outerUpdatesDict.mathNode != null", outerUpdatesDict.mathNode);
+
+              const mathNode = outerUpdatesDict.mathNode.new;
+
+              this.updateKnobWithMathNode(mathNode);
+            }
+
+          };
+
+          this.updateKnobWithMathNode = function(mathNode) {
+            var value;
+            if(mathNode.value != null) {
+              value    = mathNode.value;
+            } else {
+              value    = mathNode.evaluate({});
+            }
+
+            this.updateKnobWithValue(value);
+          }
+
+          this.updateKnobWithValue = function(value) {
+
+            const icObj_composite     = this.scopeObj.engineCarrier;
+
+            //get free_rep
+            const handle__represented = infiniteCanvas.getRepresented(icObj_composite.id);
+            const handle__rep_free    = handle__represented.r_free();
+
+            const knob__rep_free      = handle__rep_free.parts.knob;
+
+            //compute knob new center position
+            const position = this.positionForValue(value);
+
+            //unlock knob position (in composite)
+            const compositeConfig = this.scopeObj.engineCarrier.compositeConfig;
+            compositeConfig[knob__rep_free.id].isMobile = true;
+
+            //change knob position
+            knob__rep_free.position = position;
+
+            //lock knob position (in composite)
+            compositeConfig[knob__rep_free.id].isMobile = false;
+          };
+
+          //model --> view
+
+          this.positionForValue = function(value) {
+            const value__L = this.scopeObj.engineCarrier.value__L;
+            const value__R = this.scopeObj.engineCarrier.value__R;
+
+            const progress = (value - value__L) / (value__R - value__L);
+            
+            const position = this.positionForProgress(progress);
+
+            return position;
+          };  
+
+          this.positionForProgress = function(progress) {
+            const point__L = this.scopeObj.engineCarrier.parts.pointL.position;
+            const point__R = this.scopeObj.engineCarrier.parts.pointR.position;
+
+            const point__progress = Geometry.pointOnSegment__progress(point__L, point__R, progress);
+
+            return point__progress;
+          };
+
+          //view --> model
+
+          this.valueForPosition = function(position) {
+
+          };
+
+          this.progressForPosition = function(position) {
+
+          };
+
+
           //part update
           this.manageValueUpdate = function (valueUpdateDict) {
 
@@ -23533,40 +23716,45 @@
 
           }
 
-          this.updateViewWithModel = function(model) {
+          // this.updateViewWithModel = function(model) {
 
 
-          };
+          // };
 
-          this.updateKnobWithValue = function(value) {
-
-
-          };
-
-          this.updateKnobWithProgress = function(progress) {
+          // this.updateKnobWithValue = function(value) {
 
 
-          };
+          // };
+
+          // this.updateKnobWithProgress = function(progress) {
+
+
+          // };
 
 
           this.start = function () {
             console.log("SliderEngine::start, this", this);
             console.log("SliderEngine::start", "this.scopeObj", this.scopeObj);
 
-            // this.listeners = this.createListeners();
+            //initialize view
+            const mathNode = this.scopeObj.engineCarrier.mathNode;
+            this.updateKnobWithMathNode(mathNode);
 
-            // const infiniteCanvas = this.scopeObj.infiniteCanvas;
-            // const handle = this.scopeObj.engineCarrier;
 
-            // console.log("SliderEngine.start", handle.id);
+            this.listeners = this.createListeners();
 
-            // //get free_rep
-            // const handle__represented = infiniteCanvas.getRepresented(handle.id);
-            // const handle__rep_free = handle__represented.r_free();
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const handle         = this.scopeObj.engineCarrier;
 
-            // //listen to handle
-            // const handle__listener = this.listeners[handle.id];
-            // handle__rep_free.onInnerUpdate(handle__listener);
+            //get free_rep
+            const handle__represented = infiniteCanvas.getRepresented(handle.id);
+            const handle__rep_free = handle__represented.r_free();
+
+            //listen to handle
+            const handle__listener = this.listeners[handle.id];
+            handle__rep_free.onInnerUpdate(handle__listener);
+
+
 
             // //listen to parts
             // const parts = handle__rep_free.parts;
@@ -23612,18 +23800,17 @@
           };
 
           this.stop = function () {
+            console.log("sliderEngine.stop", handle);
 
-            // const infiniteCanvas = this.scopeObj.infiniteCanvas;
-            // const handle = this.scopeObj.engineCarrier;
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const handle         = this.scopeObj.engineCarrier;
 
-            // console.log("compositeEngine.stop", handle);
+            //get free_rep
+            const handle__represented = infiniteCanvas.getRepresented(handle.id);
+            const handle__rep_free = handle__represented.r_free();
 
-            // //get free_rep
-            // const handle__represented = infiniteCanvas.getRepresented(handle.id);
-            // const handle__rep_free = handle__represented.r_free();
-
-            // const handle__listener = this.listeners[handle.id];
-            // handle__rep_free.offInnerUpdate(handle__listener);
+            const handle__listener = this.listeners[handle.id];
+            handle__rep_free.offInnerUpdate(handle__listener);
 
             // const parts = handle__rep_free.parts;
             // const arr_parts_all = Object.values(parts);
@@ -23634,6 +23821,9 @@
 
             //   this.removePart(part__rep_free);
             // });
+
+
+            this.listeners = null;
 
           };
 
@@ -33552,6 +33742,15 @@
           //get point at arc position : progress * total_length
 
         }
+
+        static pointOnSegment__progress(point1, point2, progress) {
+          const v = {
+            X: (point2.x - point1.x) * progress,
+            Y: (point2.y - point1.y) * progress,
+          };
+          return Geometry.translatedPoint(point1, v);
+        }
+
 
 
         static pointOnSquare__angleInRadians(pointCenter, radius, angleInRadians) {
