@@ -45,6 +45,19 @@
   <link href="lib/video-js.min.css" rel="stylesheet">
   <script src="lib/video.min.js"></script>
 
+  <!-- global -->
+  <script>
+
+    class Globals {
+      constructor() {
+        this.isEditing = false;
+      }
+    }
+
+    const globalsSingleton = new Globals(); 
+
+  </script>
+
   <!-- utils -->
   <script>
 
@@ -6091,6 +6104,8 @@
         icMathNode.edit.start = function () {
           console.log("icMathNode.edit.start");
 
+          globalsSingleton.isEditing = true;
+
           //mathQuill
           {
             //create mathField
@@ -6200,6 +6215,8 @@
               const rep_free = represented.r_free();
 
               rep_free.edit.stop(mathField);
+
+              globalsSingleton.isEditing = false;
             }
 
 
@@ -6861,33 +6878,7 @@
 
 
 
-        function mark_divide(point1, point2, nb_sectors, ratio_wh_marker) {
-
-          function mark_solo(point1, point2, point__mark) {
-
-            const height__marker = ratio__wh_marker * width;
-
-            const x__mid = math.mean(pointL.x, pointR.x);
-            const y__mid = math.mean(pointL.y, pointR.y);
-
-            const point_mid_T = Geometry.createPoint(x__mid, y__mid - height__marker);
-            const point_mid_B = Geometry.createPoint(x__mid, y__mid + height__marker);
-
-            const icObj_Segment__mid = infiniteCanvas.createIcSegment(point_mid_T, point_mid_B);
-            infiniteCanvas.addIcObject(icObj_Segment__mid);
-
-          }
-
-        }
-
-        //mark divide: mid
-
-
-        //mark divide: left
-
-
-        //mark divide: right
-
+        
 
 
         //valueify segment
@@ -6914,10 +6905,49 @@
 
 
 
+
+        function mark_divide(point1, point2, nb_sectors, ratio_wh_marker) {
+
+        }
+
+        function createMarkerWithValue(icSegment, value_min, value_max, value) {
+          const progress          = (value - value_min) / (value_max - value_min);
+          const icSegment__marker = createMarkerWithProgress(icSegment, progress);
+          return icSegment__marker; 
+        }
+
+        function createMarkerWithProgress(icSegment, progress) {
+
+          const pointL = icSegment.point_start;
+          const pointR = icSegment.point_end;
+
+          const vSegment = Geometry.vector_2d(icSegment.point_start, icSegment.point_end);
+          const width    = Geometry.norm_2d(vSegment);
+          
+          const height__marker = ratio__wh_marker * width;
+
+          const x__progress = pointL.x + progress * (pointR.x - pointL.x);
+          const y__progress = pointL.y + progress * (pointR.y - pointL.y);
+
+          const point__marker_T = Geometry.createPoint(x__progress, y__progress - height__marker);
+          const point__marker_B = Geometry.createPoint(x__progress, y__progress + height__marker);
+
+          const icSegment__marker = infiniteCanvas.createIcSegment(point__marker_T, point__marker_B);
+          return icSegment__marker;
+        } 
+
+
+        const icSegment__marker_0 = createMarkerWithValue(icSegment__segment, sliderConfig.value__L, sliderConfig.value__R, 0);
+        const icSegment__marker_1 = createMarkerWithValue(icSegment__segment, sliderConfig.value__L, sliderConfig.value__R, 1);
+
+
         const parts = {
           "segment":  icSegment__segment,
           "endL":     icSegment__endL,
           "endR":     icSegment__endR,
+
+          "marker_0": icSegment__marker_0,
+          "marker_1": icSegment__marker_1,
 
           "pointL":   icPoint__L,
           "pointR":   icPoint__R,
@@ -6949,15 +6979,15 @@
         infiniteCanvas.installEngineOnIcObj(icSlider, "slider", sliderEngine);
 
 
-        //debug
-        infiniteCanvas.onceOnAddRepresentedForIcObject(icSlider, (icSlider) => {
-          const rep_free = infiniteCanvas.getRepresented(icSlider.id).r_free();
+        // //debug
+        // infiniteCanvas.onceOnAddRepresentedForIcObject(icSlider, (icSlider) => {
+        //   const rep_free = infiniteCanvas.getRepresented(icSlider.id).r_free();
           
-          setTimeout(() => {
-            rep_free.mathNode = new math.ConstantNode(50);
-          }, 3000);
+        //   setTimeout(() => {
+        //     rep_free.mathNode = new math.ConstantNode(50);
+        //   }, 3000);
 
-        })
+        // })
 
 
 
@@ -18841,7 +18871,8 @@
 
         icObj.editEnterListeners = [];
         icObj.nowEditEnter = () => {
-          icObj.isEditing = true;
+          icObj.isEditing   = true;
+          globalsSingleton.isEditing = true;
           icObj.editEnterListeners.forEach((listener, i) => {
             listener(icObj);
           });
@@ -18855,7 +18886,8 @@
 
         icObj.editExitListeners = [];
         icObj.nowEditExit = () => {
-          icObj.isEditing = false;
+          icObj.isEditing   = false;
+          globalsSingleton.isEditing = false;
           icObj.editExitListeners.forEach((listener, i) => {
             listener(icObj);
           });
@@ -27202,8 +27234,8 @@
           // console.log("homeSize_screen", homeSize_screen);
 
           fObj.set({
-            left: position_screen.x - radius__default,    //SHU: ??? where is infiniteCanvas.offset taking part ???
-            top:  position_screen.y - radius__default,
+            left: position_screen.x,    //SHU: ??? where is infiniteCanvas.offset taking part ???
+            top:  position_screen.y,
 
             // width:  homeSize_screen.width,
             // height: homeSize_screen.height,
@@ -27227,6 +27259,9 @@
             strokeWidth: 2,
 
             // opacity: 0.7,
+
+            originX: "center",
+            originY: "center",
 
             // icObjId  : icObj.id,
             // trueRect : trueRect,
@@ -29281,6 +29316,8 @@
             // strokeWidth: icObj.strokeWidth,
             // fill:        icObj.fill,
 
+            originY: "center",    //SHU: temporary solution: only working for horizontal segments
+
             icObj: icObj,
           });
 
@@ -30462,7 +30499,7 @@
         addInteraction_doubleClick(fObj) {
 
           const infiniteCanvas = this.infiniteCanvas;
-          const fabricCanvas = this.fabricCanvas;
+          const fabricCanvas   = this.fabricCanvas;
 
           fObj.on('mousedblclick', function (options) {
             console.log("mousedblclick", "options", options);
@@ -37248,6 +37285,11 @@
           function handleKeyUp(e) {
             logger.log("handleKeyUp", "e", e);
 
+            logger.log("globalsSingleton.isEditing", globalsSingleton.isEditing);
+            if(globalsSingleton.isEditing) {
+              return;
+            }
+
             if (fabricIntegration.shouldIgnoreShortcutInput()) {
               return;
             }
@@ -38011,6 +38053,11 @@
 
           function handleKeyDown(e) {
             //console.log("handleKeyDown", "e.code", e.code);
+
+            logger.log("globalsSingleton.isEditing", globalsSingleton.isEditing);
+            if(globalsSingleton.isEditing) {
+              return;
+            }
 
             if (fabricIntegration.shouldIgnoreShortcutInput()) {
               return;
@@ -49582,6 +49629,26 @@
 
           
 
+          //debug
+          // infiniteCanvas.onceOnAddRepresentedForIcObject(icSlider, (icSlider) => {
+            
+          const rep_free__slider    = infiniteCanvas.getRepresented(icSlider.id).r_free();
+          const rep_free__mathNode1 = infiniteCanvas.getRepresented(icMathNode1.id).r_free();
+
+          rep_free__mathNode1.onInnerUpdate((rep_free__mathNode1, propName, oldValue, newValue) => {
+            logger.log("log3, rep_free__mathNode1.onInnerUpdate", "propName", propName);
+            if(propName == "mathNode") {
+              rep_free__slider.mathNode = newValue;
+            }            
+          });
+
+          // rep_free__mathNode1.onOuterUpdate((rep_free__mathNode1, updateDict) => {
+          //   logger.log("log3, rep_free__mathNode1.onOuterUpdate", "updateDict", updateDict);
+          //   if(updateDict.propName == "mathNode") {
+          //     rep_free__slider.mathNode = updateDict.mathNode.new;
+          //   }            
+          // });
+
         }
 
 
@@ -52823,6 +52890,25 @@
 
 
 
+
+
+    <script>
+
+      class TargetM100100Game {
+
+        
+
+      }
+
+
+
+
+    </script>
+    <script>
+      //launch game
+      const game__targetM100100 = new TargetM100100Game(infiniteCanvas);
+
+    </script>
 
 
 
