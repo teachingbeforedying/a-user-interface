@@ -4754,6 +4754,8 @@
 
         // zoom amount
         this.scale = Object.assign({}, this.coords_initial.scale);
+        // this.rx_scale_subject    = new Subject();
+        // this.rx_scale_observable = rx_scale_subject.asObservable();
 
         this.orientation = this.coords_initial.orientation;
 
@@ -23869,6 +23871,98 @@
       }
 
 
+      class MixedScaleEngine {
+
+        constructor() {
+
+          this.initialized = false;
+
+          this.initialize = function (scopeObj) {
+
+            //"wake up":
+            //bind all funcs
+            // function isFunction(functionToCheck) {
+            //   return functionToCheck && {}.toString.call(functionToCheck) === '[object Function]';
+            // }
+            const isFunction = value => value && (Object.prototype.toString.call(value) === "[object Function]" || "function" === typeof value || value instanceof Function);
+
+            this.awoken = {
+              'i_am': "awoken",
+            };
+            console.log("this.virgin", this.virgin);
+            Object.entries(this.virgin)
+              .filter(([propName, prop]) => isFunction(prop))
+              .forEach(([propName, prop], i) => {
+                this.awoken[propName] = prop.bind(this.awoken);
+              });
+
+            // this.scopeObj  = scopeObj;
+            //engineCarrier,
+            //infiniteCanvas,
+            this.awoken.scopeObj = scopeObj;
+
+            this.initialized = true;
+          };
+
+
+          this.updateScaleWithICScale = function(icScale) {
+            logger.log("mixedScaleEngine::updateScaleWithICScale", icScale);
+
+            const icObj    = this.scopeObj.engineCarrier;
+            const rep_free = infiniteCanvas.getRepresented(icObj.id).r_free();
+
+            if (icScale.X < rep_free.scale__mixed.X) {
+              rep_free.isScaleless = false;
+            } else {
+              rep_free.isScaleless = true;
+            }
+
+          };
+          
+
+          this.start = function () {
+            console.log("MixedScaleEngine::start, this", this);
+            console.log("MixedScaleEngine::start", "this.scopeObj", this.scopeObj);
+            const engine = this;
+
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const icObj          = this.scopeObj.engineCarrier;
+
+            //listen to iC
+            // infiniteCanvas.rx_scale_observable.subscribe({
+            //   next: (value) => {
+
+            //   },
+            // });
+            infiniteCanvas.didUpdateListenersDict["scaleChanged"].push((infiniteCanvas) => {
+              const icScale = infiniteCanvas.scale;
+              engine.updateScaleWithICScale(icScale);
+            });
+
+          };
+
+          this.stop = function () {
+            console.log("MixedScaleEngine::stop");
+
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const handle         = this.scopeObj.engineCarrier;
+
+            // infiniteCanvas.didUpdateListenersDict["scaleChanged"].pop((infiniteCanvas) => {
+            //   const icScale = infiniteCanvas.scale;
+            //   engine.updateScaleWithICScale(icScale);
+            // });
+
+            this.listeners = null;
+          };
+
+
+
+          this.virgin = Object.assign({}, this);  //virgin == not bound
+        }
+
+      }
+
+
 
 
 
@@ -31855,6 +31949,10 @@
             case "segment":
             case "line":
               return;
+          }
+
+          if(fObj.icObj.isScaleless) {    //for mixedScale objects
+            return;
           }
 
           // if(fObj.icObj.type == "sparkle") {
@@ -49624,6 +49722,14 @@
             height: 100,
           };
           const icMathNode1 = infiniteCanvas.createIcMathNode(trueRect_mathNode1.x, trueRect_mathNode1.y, mathNode1);
+          
+          icMathNode1.scale__mixed = {
+            X: 0.5,
+            Y: 0.5,
+          };
+          const mixedScaleEngine = new MixedScaleEngine();
+          infiniteCanvas.installEngineOnIcObj(icMathNode1, "mixedScale", mixedScaleEngine);
+          
           infiniteCanvas.addIcObject(icMathNode1);
 
 
@@ -49642,12 +49748,7 @@
             }            
           });
 
-          // rep_free__mathNode1.onOuterUpdate((rep_free__mathNode1, updateDict) => {
-          //   logger.log("log3, rep_free__mathNode1.onOuterUpdate", "updateDict", updateDict);
-          //   if(updateDict.propName == "mathNode") {
-          //     rep_free__slider.mathNode = updateDict.mathNode.new;
-          //   }            
-          // });
+
 
         }
 
@@ -52896,7 +52997,7 @@
 
       class TargetM100100Game {
 
-        
+
 
       }
 
