@@ -4933,24 +4933,16 @@
 
       createRepresentedIcObject(icObj) {
 
-        const icObj__represented = RepresentedFactory.initial(icObj);
-        const icObj__rep_official = icObj__represented.r_official();
-
-        const icObj__rep_free = icObj__represented.createNewRepresentation("free");
-        icObj__rep_free.addInteraction_hold();
+        var icObj__represented;
 
         if (icObj.type == "composite") {
 
-          icObj__represented.parts = {};
-          icObj__rep_official.parts = {};
-          icObj__rep_free.parts = {};
-
-          // icObj__represented.compositeConfig  = {};
-          // icObj__rep_official.compositeConfig = {};
-          // icObj__rep_free.compositeConfig     = {};
+          //create represented for parts (if needed)
+          const parts__represented  = {};
+          const parts__rep_official = {};
+          const parts__rep_free     = {};
 
 
-          // const parts = icObj.compositeConfig.parts;
           const parts = icObj.parts;
 
           Object.entries(parts)
@@ -4959,40 +4951,60 @@
               const id_icObj = part_icObj.id;
               const represented_check = this.getRepresented(id_icObj);
               if (represented_check != null) {
-                console.log("represented already added");
+                logger.log("represented already added for part", part_icObj);
 
                 // if(part_icObj.isMobile) {
-                const part__represented = represented_check;
+                const part__represented  = represented_check;
                 const part__rep_official = part__represented.r_official();
-                const part__rep_free = part__represented.r_free();
+                const part__rep_free     = part__represented.r_free();
                 // if(part__rep_free.holdListeners == null) {
                 //   part__rep_free.addInteraction_hold();
                 // }
                 // }
 
-                icObj__represented.parts[partName] = part__represented;
-                icObj__rep_official.parts[partName] = part__rep_official;
-                icObj__rep_free.parts[partName] = part__rep_free;
+                parts__represented[partName]  = part__represented;
+                parts__rep_official[partName] = part__rep_official;
+                parts__rep_free[partName]     = part__rep_free;
                 // icObj__represented.compositeConfig.parts[partName]  = part__represented;
                 // icObj__rep_official.compositeConfig.parts[partName] = part__rep_official;
                 // icObj__rep_free.compositeConfig.parts[partName]     = part__rep_free;
 
               } else {
+                logger.log("create represented for part", part_icObj);
 
-                const part__represented = this.createRepresentedIcObject(part_icObj);
+                const part__represented  = this.createRepresentedIcObject(part_icObj);
                 const part__rep_official = part__represented.r_official();
-                const part__rep_free = part__represented.createNewRepresentation("free");
+                const part__rep_free     = part__represented.createNewRepresentation("free");
                 if (part__rep_free.nowHeld == null) {
                   part__rep_free.addInteraction_hold();
                 }
 
-                icObj__represented.parts[partName] = part__represented;
-                icObj__rep_official.parts[partName] = part__rep_official;
-                icObj__rep_free.parts[partName] = part__rep_free;
+                parts__represented[partName]  = part__represented;
+                parts__rep_official[partName] = part__rep_official;
+                parts__rep_free[partName]     = part__rep_free;
 
               }
 
             });
+
+            //create representations
+            icObj__represented  = RepresentedFactory.initial(icObj);
+            icObj__represented.parts  = parts__represented;
+
+            const icObj__rep_official = icObj__represented.r_official();
+            icObj__rep_official.parts = parts__rep_official;
+
+            const icObj__rep_free     = icObj__represented.createNewRepresentation("free");
+            icObj__rep_free.parts     = parts__rep_free;
+            icObj__rep_free.addInteraction_hold();
+
+        } else {
+
+          //create representations
+          icObj__represented  = RepresentedFactory.initial(icObj);
+          const icObj__rep_official = icObj__represented.r_official();
+          const icObj__rep_free     = icObj__represented.createNewRepresentation("free");
+          icObj__rep_free.addInteraction_hold();
         }
 
         return icObj__represented;
@@ -6904,8 +6916,31 @@
         const icPoint__knob     = infiniteCanvas.createIcPoint(pointL);
         icPoint__knob.pointType = "circle";
         icPoint__knob.fill      = "lime";
+        // infiniteCanvas.addIcObject(icPoint__knob);
+        
 
 
+        const mathNode__knob   = new math.ConstantNode(7);
+        const icMathNode__knob = infiniteCanvas.createIcMathNode(icPoint__knob.position.x, icPoint__knob.position.y, mathNode__knob);
+        // const mixedScaleEngine = new MixedScaleEngine();
+        // infiniteCanvas.installEngineOnIcObj(icMathNode__knob, "mixedScale", mixedScaleEngine);
+        // infiniteCanvas.addIcObject(icMathNode__knob);
+
+        const parts__knob = {
+          "point":     icPoint__knob,
+          "mathNode":  icMathNode__knob,
+        };
+        const compositeConfig__knob = Compositer.defaultCompositeConfig(parts__knob, false);
+        // compositeConfig__knob[icMathNode__knob.id].isMobile = true;
+        const trueRect__knob = {
+          x:      icPoint__knob.position.x,
+          y:      icPoint__knob.position.y,
+          width:  icPoint__knob.size.width,
+          height: icPoint__knob.size.height,
+        };
+        logger.log("trueRect__knob", trueRect__knob);
+        const icLabeledPoint__knob = this.createIcComposite(trueRect__knob, parts__knob, compositeConfig__knob);
+        icLabeledPoint__knob.cType = "labeledPoint";
 
 
         function mark_divide(point1, point2, nb_sectors, ratio_wh_marker) {
@@ -6953,7 +6988,9 @@
 
           "pointL":   icPoint__L,
           "pointR":   icPoint__R,
-          "knob":     icPoint__knob,
+
+          // "knob":     icPoint__knob,
+          "knob":     icLabeledPoint__knob,
         };
 
         const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
@@ -8795,10 +8832,10 @@
 
         const type = "composite";
 
-        const position = Geometry.createPoint(trueRect.x, trueRect.y);
-        const size = Geometry.createSize(trueRect.width, trueRect.height);
+        const position  = Geometry.createPoint(trueRect.x, trueRect.y);
+        const size      = Geometry.createSize(trueRect.width, trueRect.height);
         const homeScale = Object.assign({}, this.scale);
-        const icObj = this.createIcObject(type, position, size, homeScale);
+        const icObj     = this.createIcObject(type, position, size, homeScale);
 
 
         const icComposite_spec = {
@@ -8816,7 +8853,7 @@
         const icComposite = Object.assign(icObj, icComposite_spec);
 
         const engine = new CompositeEngine();
-        const eType = "composite";
+        const eType  = "composite";
 
         const icEngined = infiniteCanvas.installEngineOnIcObj(icComposite, eType, engine);
 
@@ -14099,8 +14136,12 @@
       addIcObject(icObj) {
         console.log("addIcObject", icObj);
 
-        const represented = this.createRepresentedIcObject(icObj);
-        this.addRepresented(represented);
+        if(this.getRepresented(icObj.id) != null) {
+          //ignore
+        } else {
+          const represented = this.createRepresentedIcObject(icObj);
+          this.addRepresented(represented);
+        }
 
       }
 
@@ -14128,7 +14169,15 @@
       }
 
       addRepresented(represented) {
-        console.log("addRepresented", represented);
+        logger.log("addRepresented", represented);
+
+        if (represented.r_official().type == "composite") {
+          Object.values(represented.parts).forEach((part__represented, i) => {
+            logger.log("adding part: ", part__represented);
+            // this.addRepresented(part__represented);
+            this.addIcObject(part__represented.r_official());   //SHU HORROR
+          });
+        }
 
         const id_icObj = represented.r_official().id;
         const represented_check = this.getRepresented(id_icObj);
@@ -14150,11 +14199,12 @@
         const rep_free = represented.r_free();
         this.addRepresentation(represented, rep_free);
 
-        if (rep_official.type == "composite") {
-          Object.values(represented.parts).forEach((part__represented, i) => {
-            this.addRepresented(part__represented);
-          });
-        }
+        // if (rep_official.type == "composite") {
+        //   Object.values(represented.parts).forEach((part__represented, i) => {
+        //     logger.log("adding part: ", part__represented);
+        //     this.addRepresented(part__represented);
+        //   });
+        // }
 
         this.didAddRepresented(represented);
       }
@@ -19655,6 +19705,7 @@
         }
 
         createNewRepresentation(repName, repType = "std") {
+          logger.log("createNewRepresentation", repName, repType);
           const rep_new = this.backingObj.getNewRepresentation(repType);
           rep_new.represented = this;
 
@@ -19747,7 +19798,7 @@
 
       //representation "plus"
       function createRepresentation(target, id_rep, arr_backingObj/*, dict_ignoredPropName = {}*/) {
-        // console.log("createRepresentation", "target", target);
+        logger.log("createRepresentation", "target", target);
         // console.log("createRepresentation", JSON.stringify(target));
 
         // const targetClass = target.constructor;
@@ -22411,36 +22462,41 @@
                 const listener = this.listeners[part__rep_free.id];
 
                 //listen:off
-                part__rep_free.offInnerUpdate(listener);
+                // if(typeof part__rep_free.offInnerUpdate === "function") { //SHU HORROR
+                  part__rep_free.offInnerUpdate(listener);
+                // }
+                
 
 
                 //mutate
                 // logger.log("mutating part:", part__rep_free.id);
                 {
-                    if(part__rep_free.position != null) {
-                      const position_new = {
-                        x: part__rep_free.position.x + offset.dx,
-                        y: part__rep_free.position.y + offset.dy,
-                      };
+                  if(part__rep_free.position != null) {
+                    const position_new = {
+                      x: part__rep_free.position.x + offset.dx,
+                      y: part__rep_free.position.y + offset.dy,
+                    };
 
-                      part__rep_free.position = position_new;
-                    } else if(part__rep_free.point_start != null) {
-                      //move segment parts
-                      const point_start_new = {
-                        x: part__rep_free.point_start.x + offset.dx,
-                        y: part__rep_free.point_start.y + offset.dy,
-                      };
-                      part__rep_free.point_start = point_start_new;
-                      const point_end_new = {
-                        x: part__rep_free.point_end.x + offset.dx,
-                        y: part__rep_free.point_end.y + offset.dy,
-                      };
-                      part__rep_free.point_end = point_end_new;
-                    }
+                    part__rep_free.position = position_new;
+                  } else if(part__rep_free.point_start != null) {
+                    //move segment parts
+                    const point_start_new = {
+                      x: part__rep_free.point_start.x + offset.dx,
+                      y: part__rep_free.point_start.y + offset.dy,
+                    };
+                    part__rep_free.point_start = point_start_new;
+                    const point_end_new = {
+                      x: part__rep_free.point_end.x + offset.dx,
+                      y: part__rep_free.point_end.y + offset.dy,
+                    };
+                    part__rep_free.point_end = point_end_new;
                   }
+                }
 
                 //listen:on
-                part__rep_free.onInnerUpdate(listener);
+                // if(typeof part__rep_free.onInnerUpdate === "function") { //SHU HORROR
+                  part__rep_free.onInnerUpdate(part__listener);
+                // }
 
               });
 
@@ -22586,7 +22642,10 @@
               //'activate' listeners
               logger.log("this.listeners", this.listeners);
               const part__listener = this.listeners[part__rep_free.id];
-              part__rep_free.onInnerUpdate(part__listener);
+              // if(typeof part__rep_free.onInnerUpdate === "function") { //SHU HORROR
+                logger.log("part__rep_free", part__rep_free);
+                part__rep_free.onInnerUpdate(part__listener);
+              // }
             });
 
 
@@ -45684,7 +45743,10 @@
 
           // this.debug_gemini();
 
-          this.debug_number_line();
+          // this.debug_number_line();
+
+          this.debug_composite_of_composite();
+
 
 
           // this.debug_th();
@@ -49749,6 +49811,129 @@
           });
 
 
+
+        }
+
+        debug_composite_of_composite() {
+
+          const trueRect = {
+            x: 200,
+            y: 200,
+            width: 800,
+            height: 200,
+          };
+
+          /*
+          const icRect1 = infiniteCanvas.createIcRect(trueRect);
+          const icRect2 = infiniteCanvas.createIcRect(trueRect);
+
+          const parts__comp1 = {
+            "rect1":  icRect1,
+            "rect2":  icRect2,
+          };
+          const compositeConfig__comp1 = Compositer.defaultCompositeConfig(parts__comp1, false);
+          // compositeConfig__knob[icMathNode__knob.id].isMobile = true;
+          const trueRect__comp1 = {
+            x:      trueRect.x,
+            y:      trueRect.y,
+            width:  100,
+            height: 100,
+          };
+          logger.log("trueRect__comp1", trueRect__comp1);
+          const icComp1 = infiniteCanvas.createIcComposite(trueRect__comp1, parts__comp1, compositeConfig__comp1);
+          icComp1.cType = "comp1";
+
+          infiniteCanvas.addIcObject(icComp1);
+
+
+
+
+          const icRect3 = infiniteCanvas.createIcRect(trueRect);
+
+          const parts__comp2 = {
+            "rect3":  icRect3,
+            "comp1":  icComp1,
+          };
+          const compositeConfig__comp2 = Compositer.defaultCompositeConfig(parts__comp2, false);
+          // compositeConfig__knob[icMathNode__knob.id].isMobile = true;
+          const trueRect__comp2 = {
+            x:      trueRect.x,
+            y:      trueRect.y,
+            width:  100,
+            height: 100,
+          };
+          logger.log("trueRect__comp2", trueRect__comp2);
+          const icComp2 = infiniteCanvas.createIcComposite(trueRect__comp2, parts__comp2, compositeConfig__comp2);
+          icComp2.cType = "comp_of_comp";
+
+          infiniteCanvas.addIcObject(icComp2);
+          */
+
+          
+          const pointL = {
+            x: trueRect.x,
+            y: trueRect.y,
+          };
+
+          const icPoint__knob     = infiniteCanvas.createIcPoint(pointL);
+          icPoint__knob.pointType = "circle";
+          icPoint__knob.fill      = "lime";
+
+          const mathNode__knob   = new math.ConstantNode(7);
+          const icMathNode__knob = infiniteCanvas.createIcMathNode(icPoint__knob.position.x, icPoint__knob.position.y, mathNode__knob);
+         
+         
+          icMathNode__knob.scale__mixed = {
+            X: 0.5,
+            Y: 0.5,
+          };
+          const mixedScaleEngine = new MixedScaleEngine();
+          infiniteCanvas.installEngineOnIcObj(icMathNode__knob, "mixedScale", mixedScaleEngine);
+          // infiniteCanvas.addIcObject(icMathNode__knob);
+
+          const parts__knob = {
+            "point":     icPoint__knob,
+            "mathNode":  icMathNode__knob,
+          };
+          const compositeConfig__knob = Compositer.defaultCompositeConfig(parts__knob, false);
+          // compositeConfig__knob[icMathNode__knob.id].isMobile = true;
+          const trueRect__knob = {
+            x:      icPoint__knob.position.x,
+            y:      icPoint__knob.position.y,
+            width:  icPoint__knob.size.width,
+            height: icPoint__knob.size.height,
+          };
+          logger.log("trueRect__knob", trueRect__knob);
+          const icLabeledPoint__knob = infiniteCanvas.createIcComposite(trueRect__knob, parts__knob, compositeConfig__knob);
+          icLabeledPoint__knob.cType = "labeledPoint";
+
+          // infiniteCanvas.addIcObject(icLabeledPoint__knob);
+          
+
+          
+          const icRect = infiniteCanvas.createIcRect(trueRect);
+
+          const parts__comp2 = {
+            "rect":          icRect,
+            "labeledPoint":  icLabeledPoint__knob,
+          };
+          const compositeConfig__comp2 = Compositer.defaultCompositeConfig(parts__comp2, false);
+          // compositeConfig__knob[icMathNode__knob.id].isMobile = true;
+          const trueRect__comp2 = {
+            x:      trueRect.x,
+            y:      trueRect.y,
+            width:  100,
+            height: 100,
+          };
+          logger.log("trueRect__comp2", trueRect__comp2);
+          const icComp2 = infiniteCanvas.createIcComposite(trueRect__comp2, parts__comp2, compositeConfig__comp2);
+          icComp2.cType = "comp_of_comp";
+
+          infiniteCanvas.addIcObject(icComp2);
+          
+
+
+          
 
         }
 
