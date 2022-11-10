@@ -3778,6 +3778,11 @@
       }
 
     }
+
+    const MathSingleton = {
+        node__empty: new math.SymbolNode(""),
+    };
+
   </script>
   <script>
     //debug
@@ -6852,6 +6857,8 @@
       createIcSlider(trueRect, sliderConfig) {
         // console.log("createIcSlider", trueRect, sliderConfig);
 
+        const infiniteCanvas = this;
+
         const type      = "slider";
         const position  = Geometry.createPoint(trueRect.x, trueRect.y);
         const size      = Geometry.createSize(trueRect.width, trueRect.height);
@@ -6903,51 +6910,52 @@
           height:  ratio__wh_spot * width,
         };
 
-        // const icSpotPoint = infiniteCanvas.createIcSpotPoint(pointL, size__spot);
-        // icSpotPoint.viewType = "circle";
+
+        function createLabeledPoint(point, value) {
+
+          const icPoint     = infiniteCanvas.createIcPoint(point);
+          icPoint.pointType = "circle";
+          // icPoint.fill      = "lime";
 
 
-        const icPoint__L        = infiniteCanvas.createIcPoint(pointL);
-        icPoint__L.pointType    = "circle";
-
-        const icPoint__R        = infiniteCanvas.createIcPoint(pointR);
-        icPoint__R.pointType    = "circle";
+          const mathNode   = new math.ConstantNode(value);
+          const icMathNode = infiniteCanvas.createIcMathNode(icPoint.position.x, icPoint.position.y, mathNode);
 
 
+          const mixedScaleEngine = new MixedScaleEngine();
+          infiniteCanvas.installEngineOnIcObj(icMathNode, "mixedScale", mixedScaleEngine);
+          icMathNode.scale__mixed = {
+            X: 0.5,
+            Y: 0.5,
+          };
+          const parts = {
+            "point":     icPoint,
+            "mathNode":  icMathNode,
+          };
+          const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+          // compositeConfig__knob[icMathNode.id].isMobile = true;
+          const trueRect__composite = {
+            x:      icPoint.position.x,
+            y:      icPoint.position.y,
+            // width:  icPoint.size.width,
+            // height: icPoint.size.height,
+            width:  0,
+            height: 0,
+          };
+          // logger.log("trueRect__composite", trueRect__composite);
+          const icLabeledPoint = infiniteCanvas.createIcComposite(trueRect__composite, parts, compositeConfig);
+          icLabeledPoint.cType = "labeledPoint";
 
+          return icLabeledPoint;
+        }
 
-        const icPoint__knob     = infiniteCanvas.createIcPoint(pointL);
-        icPoint__knob.pointType = "circle";
-        icPoint__knob.fill      = "lime";
-
-
-        const mathNode__knob   = new math.ConstantNode(7);
-        const icMathNode__knob = infiniteCanvas.createIcMathNode(icPoint__knob.position.x, icPoint__knob.position.y, mathNode__knob);
-
-
-        const mixedScaleEngine = new MixedScaleEngine();
-        infiniteCanvas.installEngineOnIcObj(icMathNode__knob, "mixedScale", mixedScaleEngine);
-        icMathNode__knob.scale__mixed = {
-          X: 0.5,
-          Y: 0.5,
-        };
-        const parts__knob = {
-          "point":     icPoint__knob,
-          "mathNode":  icMathNode__knob,
-        };
-        const compositeConfig__knob = Compositer.defaultCompositeConfig(parts__knob, false);
-        // compositeConfig__knob[icMathNode__knob.id].isMobile = true;
-        const trueRect__knob = {
-          x:      icPoint__knob.position.x,
-          y:      icPoint__knob.position.y,
-          width:  icPoint__knob.size.width,
-          height: icPoint__knob.size.height,
-        };
-        logger.log("trueRect__knob", trueRect__knob);
-        const icLabeledPoint__knob = this.createIcComposite(trueRect__knob, parts__knob, compositeConfig__knob);
-        icLabeledPoint__knob.cType = "labeledPoint";
-
-
+        const icLabeledPoint__L            = createLabeledPoint(pointL, sliderConfig.value__L);
+        icLabeledPoint__L.parts.point.fill = "orange";
+        const icLabeledPoint__R            = createLabeledPoint(pointR, sliderConfig.value__R);
+        icLabeledPoint__R.parts.point.fill = "orange";
+        
+        const icLabeledPoint__knob            = createLabeledPoint(pointL, sliderConfig.value);
+        icLabeledPoint__knob.parts.point.fill = "lime";
 
 
 
@@ -6994,11 +7002,12 @@
           "marker_0": icSegment__marker_0,
           "marker_1": icSegment__marker_1,
 
-          "pointL":   icPoint__L,
-          "pointR":   icPoint__R,
-
+          // "pointL":   icPoint__L,
+          // "pointR":   icPoint__R,
           // "knob":     icPoint__knob,
-          "knob":     icLabeledPoint__knob,
+          "labeledPoint_L":    icLabeledPoint__L,
+          "labeledPoint_R":    icLabeledPoint__R,
+          "labeledPoint_knob": icLabeledPoint__knob,
         };
 
         const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
@@ -23730,7 +23739,8 @@
             const handle__represented = infiniteCanvas.getRepresented(icObj_composite.id);
             const handle__rep_free    = handle__represented.r_free();
 
-            const knob__rep_free      = handle__rep_free.parts.knob;
+            // const knob__rep_free      = handle__rep_free.parts.knob;
+            const knob__rep_free      = handle__rep_free.parts.labeledPoint_knob;
 
             //compute knob new center position
             const position = this.positionForValue(value);
@@ -23741,6 +23751,10 @@
 
             //change knob position
             knob__rep_free.position = position;
+
+            //change knob value
+            const mathNode__rep_free = knob__rep_free.parts.mathNode;
+            mathNode__rep_free.mathNode = new math.ConstantNode(value);
 
             //lock knob position (in composite)
             compositeConfig[knob__rep_free.id].isMobile = false;
@@ -23760,12 +23774,15 @@
           };  
 
           this.positionForProgress = function(progress) {
-            const point__L = this.scopeObj.engineCarrier.parts.pointL.position;
-            const point__R = this.scopeObj.engineCarrier.parts.pointR.position;
+            const icPoint__L = this.scopeObj.engineCarrier.parts.labeledPoint_L.parts.point;
+            const icPoint__R = this.scopeObj.engineCarrier.parts.labeledPoint_R.parts.point;
 
-            const point__progress = Geometry.pointOnSegment__progress(point__L, point__R, progress);
+            const position_L = icPoint__L.position;
+            const position_R = icPoint__R.position;
 
-            return point__progress;
+            const position__progress = Geometry.pointOnSegment__progress(position_L, position_R, progress);
+
+            return position__progress;
           };
 
           //view --> model
@@ -49760,6 +49777,8 @@
 
         debug_number_line() {
 
+          //SLIDER
+
           const trueRect = {
             x: 200,
             y: 200,
@@ -49779,27 +49798,115 @@
 
 
 
+          //ZONE
+
+          const zoneConfig = {
+            value__L: -20,
+            value__R: +10,
+          };
+          const position__zone_L = icSlider.dict_engine["slider"].engine.awoken.positionForValue(zoneConfig.value__L);
+          const position__zone_R = icSlider.dict_engine["slider"].engine.awoken.positionForValue(zoneConfig.value__R);
+
+          const width__zone  = position__zone_R.x - position__zone_L.x;  
+          const height__zone = 50;
+          const trueRect__zone = {
+            x:      position__zone_L.x,
+            y:      position__zone_R.y - height__zone / 2.0,
+            width:  width__zone,
+            height: height__zone,
+          }
+          const icRect__zone = infiniteCanvas.createIcRect(trueRect__zone);
+          icRect__zone.fill    = "yellow";
+          icRect__zone.opacity = 0.35;
+          infiniteCanvas.addIcObject(icRect__zone);
 
 
-          const mathNode1 = new math.ConstantNode(7);
-          logger.log("mathNode1.value", mathNode1.value);
 
-          const trueRect_mathNode1 = {
+          //INPUT AREA
+          {
+            const mathNode1 = new math.ConstantNode(7);
+            const trueRect_mathNode1 = {
+              x: 0,
+              y: 500,
+              width:  100,
+              height: 100,
+            };
+            const icMathNode1 = infiniteCanvas.createIcMathNode(trueRect_mathNode1.x, trueRect_mathNode1.y, mathNode1);
+            infiniteCanvas.addIcObject(icMathNode1);
+
+
+            const mathNode__op = new math.OperatorNode("+", "add", [MathSingleton.node__empty, MathSingleton.node__empty]);
+            const trueRect_mathNode__op = {
+              x: 150,
+              y: 500,
+              width:  100,
+              height: 100,
+            };
+            const icMathNode__op = infiniteCanvas.createIcMathNode(trueRect_mathNode__op.x, trueRect_mathNode__op.y, mathNode__op);
+            infiniteCanvas.addIcObject(icMathNode__op);
+
+
+            const mathNode2 = new math.ConstantNode(7);
+            const trueRect_mathNode2 = {
+              x: 300,
+              y: 500,
+              width:  100,
+              height: 100,
+            };
+            const icMathNode2 = infiniteCanvas.createIcMathNode(trueRect_mathNode2.x, trueRect_mathNode2.y, mathNode2);
+            infiniteCanvas.addIcObject(icMathNode2);
+
+
+            // const mathNode__eq = new math.RelationalNode(["equal"], [MathSingleton.node__empty, MathSingleton.node__empty]);
+            // const trueRect_mathNode__eq = {
+            //   x: 450,
+            //   y: 500,
+            //   width:  100,
+            //   height: 100,
+            // };
+            // const icMathNode__eq = infiniteCanvas.createIcMathNode(trueRect_mathNode__eq.x, trueRect_mathNode__eq.y, mathNode__eq);
+            // infiniteCanvas.addIcObject(icMathNode__eq);
+
+
+            const mathNode__eq = new math.RelationalNode(["equal"], [MathSingleton.node__empty, MathSingleton.node__empty]);
+            const trueRect_mathNode__eq = {
+              x: 450,
+              y: 500,
+              width:  100,
+              height: 100,
+            };
+            const icMathNode__eq = infiniteCanvas.createIcMathNode(trueRect_mathNode__eq.x, trueRect_mathNode__eq.y, mathNode__eq);
+            infiniteCanvas.addIcObject(icMathNode__eq);
+
+          }
+
+
+
+
+
+
+
+          //REMOTE CONTROL
+          /*
+          const mathNodeRC = new math.ConstantNode(7);
+          logger.log("mathNodeRC.value", mathNodeRC.value);
+
+          const trueRect_mathNodeRC = {
             x: 500,
             y: 500,
             width:  100,
             height: 100,
           };
-          const icMathNode1 = infiniteCanvas.createIcMathNode(trueRect_mathNode1.x, trueRect_mathNode1.y, mathNode1);
+          const icMathNodeRC = infiniteCanvas.createIcMathNode(trueRect_mathNodeRC.x, trueRect_mathNodeRC.y, mathNodeRC);
           
-          icMathNode1.scale__mixed = {
+          icMathNodeRC.scale__mixed = {
             X: 0.5,
             Y: 0.5,
           };
-          const mixedScaleEngine = new MixedScaleEngine();
-          infiniteCanvas.installEngineOnIcObj(icMathNode1, "mixedScale", mixedScaleEngine);
+          const mixedScaleEngine__RC = new MixedScaleEngine();
+          infiniteCanvas.installEngineOnIcObj(icMathNodeRC, "mixedScale", mixedScaleEngine__RC);
           
-          infiniteCanvas.addIcObject(icMathNode1);
+          infiniteCanvas.addIcObject(icMathNodeRC);
 
 
           
@@ -49808,15 +49915,15 @@
           // infiniteCanvas.onceOnAddRepresentedForIcObject(icSlider, (icSlider) => {
             
           const rep_free__slider    = infiniteCanvas.getRepresented(icSlider.id).r_free();
-          const rep_free__mathNode1 = infiniteCanvas.getRepresented(icMathNode1.id).r_free();
+          const rep_free__mathNodeRC = infiniteCanvas.getRepresented(icMathNodeRC.id).r_free();
 
-          rep_free__mathNode1.onInnerUpdate((rep_free__mathNode1, propName, oldValue, newValue) => {
-            logger.log("log3, rep_free__mathNode1.onInnerUpdate", "propName", propName);
+          rep_free__mathNodeRC.onInnerUpdate((rep_free__mathNodeRC, propName, oldValue, newValue) => {
+            logger.log("log3, rep_free__mathNodeRC.onInnerUpdate", "propName", propName);
             if(propName == "mathNode") {
               rep_free__slider.mathNode = newValue;
             }            
           });
-
+          */
 
 
         }
