@@ -15564,6 +15564,38 @@
 
 
 
+      getIcActiveSelection() {
+        // return this.getAllRepresentedWithType("activeSelection").find(e => true).rep_free();
+        return this.activeSelection;
+      }
+
+      operateOnActiveSelection__moveStep(step_x, step_y) {
+        logger.log("operateOnActiveSelection__moveStep", step_x, step_y);
+
+        //getIcActiveSelection
+        const icActiveSelection = this.getIcActiveSelection();
+        logger.log("icActiveSelection", icActiveSelection);
+
+        moveStep(icActiveSelection, step_x, step_y);
+        icActiveSelection.children.forEach(icObj => {
+          moveStep(icObj, step_x, step_y);
+        });
+
+        
+        function moveStep(icObj, step_x, step_y) {
+
+          const default_moveStep_length = 100;
+
+          icObj.position = Object.assign(icObj.position, {
+            x: icObj.position.x + step_x * default_moveStep_length,
+            y: icObj.position.y + step_y * default_moveStep_length,
+          });
+        }
+
+      }
+
+
+
       getActiveObject() {
 
       }
@@ -30711,16 +30743,38 @@
             const activeObject = this.fabricCanvas.getActiveObject();
 
             if (activeObject instanceof fabric.ActiveSelection) {
+              logger.log("activeObject instanceof fabric.ActiveSelection");
+
               const activeSelection = activeObject;
-              // console.log("activeSelection", activeSelection);
+              console.log("activeSelection", activeSelection);
 
               //inject 'initial' props
-              activeSelection.icObj = infiniteCanvas.createIcActiveSelection_from_activeSelectionFObj(activeSelection);
+              const icActiveSelection = infiniteCanvas.createIcActiveSelection_from_activeSelectionFObj(activeSelection);
+
+              activeSelection.icObj = icActiveSelection;
 
               activeSelection.forEachObject((fObj, index, arr_fObj) => {
                 setGroupCoords(fObj, activeSelection);
                 savePrivateCoords(fObj, activeSelection);
               }, fabricIntegration.fabricCanvas.context);
+
+              //store
+              infiniteCanvas.activeSelection = icActiveSelection; 
+
+            } else {
+              logger.log("activeObject is not fabric.ActiveSelection", typeof activeObject);
+
+              const activeSelection = activeObject;
+              console.log("activeSelection", activeSelection);
+
+              //inject 'initial' props
+              const icActiveSelection    = infiniteCanvas.createIcActiveSelection_from_activeSelectionFObj(activeSelection);
+              icActiveSelection.children = [activeObject.icObj];
+
+              activeSelection.icObj   = icActiveSelection;
+
+              //store
+              infiniteCanvas.activeSelection = icActiveSelection; 
             }
 
           });
@@ -37347,6 +37401,8 @@
           function configureKeyDownTimeouts() {
 
             const default_timeout_delayInMs = 17; //17 ms == 60 fps
+            const arrows_timeout_delayInMs  = 500;
+
             keyboardIntegration.keyDownTimeouts = {
 
               a: new KeyDownTimeout("a", KeyDownToggle.defaultKeyDownFunc(["KeyQ"]), () => {
@@ -37379,6 +37435,23 @@
                 const scaleAmount = default_timeout_delayInMs / 100 * scaleAmount_for_100ms;
                 keyboardIntegration.infiniteCanvas.manageScaleUpdateWithScaleAmount(scaleAmount);
               }, default_timeout_delayInMs),
+
+
+              //arrows
+
+              arrow_up: new KeyDownTimeout("arrow_up", KeyDownToggle.defaultKeyDownFunc(["ArrowUp"]), () => {
+                keyboardIntegration.infiniteCanvas.operateOnActiveSelection__moveStep(0, -1);
+              }, arrows_timeout_delayInMs),
+              arrow_down: new KeyDownTimeout("arrow_down", KeyDownToggle.defaultKeyDownFunc(["ArrowDown"]), () => {
+                keyboardIntegration.infiniteCanvas.operateOnActiveSelection__moveStep(0, +1);
+              }, arrows_timeout_delayInMs),
+              arrow_left: new KeyDownTimeout("arrow_left", KeyDownToggle.defaultKeyDownFunc(["ArrowLeft"]), () => {
+                keyboardIntegration.infiniteCanvas.operateOnActiveSelection__moveStep(-1, 0);
+              }, arrows_timeout_delayInMs),
+              arrow_right: new KeyDownTimeout("arrow_right", KeyDownToggle.defaultKeyDownFunc(["ArrowRight"]), () => {
+                keyboardIntegration.infiniteCanvas.operateOnActiveSelection__moveStep(+1, 0);
+              }, arrows_timeout_delayInMs),
+
             };
 
           }
@@ -45773,6 +45846,11 @@
 
 
 
+          this.debug_remoteControl();
+          // this.debug_grid_maze();
+
+
+
           // this.debug_th();
 
           // this.debug_startingScreen();
@@ -50053,7 +50131,16 @@
 
         }
 
+        debug_remoteControl() {
+          
 
+
+        }
+
+        debug_grid_maze() {
+          
+
+        }
 
 
 
