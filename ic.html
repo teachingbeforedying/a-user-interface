@@ -222,7 +222,7 @@
         return outArr;
       }
 
-      static hexToRgb(hex, opacity) {
+      static hexToArrRgba(hex, opacity255) {
         opacity = Math.round(opacity * 255) || 255;
         hex = hex.replace('#', '');
         var rgb = [], re = new RegExp('(.{' + hex.length / 3 + '})', 'g');
@@ -230,6 +230,13 @@
           rgb.push(parseInt(hex.length % 2 ? l + l : l, 16));
         });
         return rgb.concat(opacity);
+      }
+
+      static arrRgbaFromRgbaString(rgbaString) {
+        const fColor = new fabric.Color(rgbaString);
+        const arr_comp = [...fColor.getSource()];
+        arr_comp[3] = Math.floor(arr_comp[3] * 255);
+        return arr_comp; 
       }
 
 
@@ -328,6 +335,7 @@
       });
       logger.log("fabricCanvas__tool", fabricCanvas__tool);
     </script> -->
+
   <script>
     class ImageUtils {
 
@@ -19296,20 +19304,52 @@
         this.eltsDict["red_dot"].style.visibility = isRecording ? "visible" : "hidden";
       }
 
+      setActiveColor(rgbaString) {
+        if(this.idTimeout__activeColor != null) {
+          clearTimeout(this.idTimeout__activeColor);
+        } 
+        this.eltsDict["color_triangle"].style.visibility = "visible";
+
+        this.eltsDict["color_triangle"].style.borderTopColor = rgbaString;
+
+        this.idTimeout__activeColor = setTimeout(() => {
+          this.eltsDict["color_triangle"].style.visibility = "hidden";
+          this.idTimeout__activeColor = null;
+        }, 444);
+
+      }
+
     }
   </script>
 
   <div id="ic_HUD_container" style="position:absolute; left:0; top: 0; font-size: 60px; pointer-events: none;">
     <div>
+      <!-- color triangle -->
+      <style>
+        #triangle-topleft {
+          width: 0;
+          height: 0;
+          border-top: 100px solid red;
+          border-right: 100px solid transparent;
+        }
+      </style>
+      <div id="triangle-topleft"></div>
+
+      <!-- red dot when recording  -->
       <div
-        style="display: block; position:absolute; left: 15px; top: 15px; background-color: red; width: 70px; height: 70px; opacity: 0.7; border-radius: 35px;"
+        style="display: block; position:absolute; left: 60px; top: 60px; background-color: red; width: 70px; height: 70px; opacity: 0.7; border-radius: 35px;"
         id="ic_HUD_red_dot"></div>
-    </div>
+      </div>
+
     <script>
       const icHUD_eltsDict = {
-        red_dot: document.getElementById("ic_HUD_red_dot"),
+        color_triangle: document.getElementById("triangle-topleft"), 
+        red_dot:        document.getElementById("ic_HUD_red_dot"),
       };
       const ic_HUD = new Ic_HUD(icHUD_eltsDict);
+      //debug
+      // ic_HUD.setActiveColor("rgba(200,100,50,0.6)");
+
     </script>
 
 
@@ -33056,8 +33096,10 @@
 
         floodFillAroundCursor() {
 
-          // const fillColor     = infiniteCanvas.getActiveColor__secondary();
-          const fillColor     = "#AA11BB";
+          const rgbaString__activeColor = inputProperties.getActiveRgbaColorString();
+          const arrRgba__activeColor    = ColorUtils.arrRgbaFromRgbaString(rgbaString__activeColor);
+
+          const fillColor     = arrRgba__activeColor;
           const fillTolerance = 2;
 
 
@@ -33072,7 +33114,7 @@
           var mouseX = cursor.x, mouseY = cursor.y,
             canvas = fcanvas.lowerCanvasEl,
             context = canvas.getContext('2d'),
-            parsedColor = ColorUtils.hexToRgb(fillColor),
+            parsedColor = arrRgba__activeColor,
             imageData = context.getImageData(0, 0, canvas.width, canvas.height),
             getPointOffset = function (x, y) {
               return 4 * (y * imageData.width + x)
@@ -33082,7 +33124,7 @@
 
           if (FloodFill.withinTolerance(target, 0, parsedColor, fillTolerance)) {
             // Trying to fill something which is (essentially) the fill color
-            console.log('Ignore... same color')
+            logger.log('Ignore... same color')
             return;
           }
 
@@ -37159,6 +37201,7 @@
 
 
           //debug
+          ic_HUD.setActiveColor(this.getActiveRgbaColorString());
           debug.setActiveColor(this.getActiveRgbaColorString());
         }
 
@@ -37195,6 +37238,7 @@
           }
 
           //debug
+          ic_HUD.setActiveColor(this.getActiveRgbaColorString());
           debug.setActiveColor(this.getActiveRgbaColorString());
         }
 
@@ -37204,7 +37248,7 @@
           if (this.fColor__working != null) {
             outString = this.fColor__working.toRgba();
           } else {
-            const color = this.getActiveColor();
+            const color   = this.getActiveColor();
             const opacity = this.getActiveOpacity();
 
             const fColor = new fabric.Color(color);
