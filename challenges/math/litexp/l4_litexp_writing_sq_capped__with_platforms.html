@@ -9113,7 +9113,11 @@
 
         rep.die = () => {
           logger.log("log4", "greenMouse, die", rep);
-          rep.im_dying_now = true;
+          if(rep.shield > 0 ) {
+            rep.shield = rep.shield - 1; 
+          } else {
+            rep.im_dying_now = true;
+          }
         };
 
         rep.curse_greenMouse_do = (icObj) => {
@@ -9305,8 +9309,10 @@
       }
 
 
-      createIcGMSafetyZone(trueRect) {
+      createIcGMSafetyZone(trueRect, cfg_in) {
         logger.log("createIcGMSafetyZone", trueRect);
+
+        const isTriggerBornAgain = cfg_in.isTriggerBornAgain;
 
         const icPlatform = infiniteCanvas.createIcPlatform(trueRect);
 
@@ -9323,8 +9329,12 @@
 
             if(isGreenMouse) {
               logger.log("log4", "isGreenMouse");
-              icObj.isSafe = true;
-              logger.log("log4", "set .isSafe: true");
+              if(isTriggerBornAgain) {
+                icObj.shield = 1;
+              } else {
+                icObj.isSafe = true;
+              }
+              logger.log("log4", "set .isSafe:", icObj.isSafe);
 
               transformationOutput = new TransformationOutput("mutated", icObj, icObj);
             } else {
@@ -9365,6 +9375,215 @@
         icGMSafetyZone.parts.dropTouchSlot.fill = "#FFFFFF";
 
         return icGMSafetyZone;
+      }
+
+      createIcGMConductiveOperator(trueRect, cfg_in = null) {
+        logger.log("createIcGMConductiveOperator", trueRect, cfg_in);
+
+        var cfg = cfg_in;
+        if(cfg == null) {
+          cfg = {
+            opString: "+",
+          };
+        }
+
+        var mathOperatorSymbol_in = cfg_in.opString;
+
+        //require isTriggerBornAgain
+        cfg.isTriggerBornAgain = true;
+
+        const trueRect__platform = Object.assign({}, trueRect, {width: 300, height: 300});
+        const icSafetyZone = infiniteCanvas.createIcGMSafetyZone(trueRect__platform, cfg);
+        infiniteCanvas.addIcObject(icSafetyZone);                         //SHU: workaround.  One day, find out how to create fresh composite containing fresh composite
+
+        const touchSlotConfig = {
+          transformationFunc: function(icObj) {
+            // logger.log("transformationFunc, default", icObj);
+            return new TransformationOutput("mutated", icObj, icObj);
+            // return icObj;
+          },
+        };
+
+        const touchSlot    = infiniteCanvas.createIcTouchSlot(trueRect, touchSlotConfig);
+        touchSlot.fill     = "";
+        // touchSlot.isMobile = false;
+
+
+
+        const text         = mathOperatorSymbol_in;
+        const facade       = infiniteCanvas.createIcText(trueRect.x, trueRect.y, text);
+        facade.backgroundColor = "blanchedalmond";
+        // facade.isMobile    = false;
+        // facade.isTouchable = false;
+
+        const parts = {
+          "safetyZone":     icSafetyZone,
+          "touchSlot":      touchSlot,
+          "facade":         facade,
+        };
+
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+        const icComposite     = this.createIcComposite(trueRect, parts, compositeConfig);
+        icComposite.cType     = "gm_conductiveOperator";
+        // icComposite.isTouchable = false;
+
+
+        const icGMConductiveOperator = icComposite;
+
+        //rework
+        infiniteCanvas.onceOnAddRepresentedForIcObject(icGMConductiveOperator, (icGMConductiveOperator) => {
+
+          const rep_free__conductiveOperator = infiniteCanvas.getRepresented(icGMConductiveOperator.id).r_free();
+
+          // const rep_free__platform = rep_free__conductiveOperator.parts.platform;
+          // logger.log("rep_free__platform", rep_free__platform);
+
+          const rep_free__touchSlot = rep_free__conductiveOperator.parts.touchSlot;
+
+          const mathOperatorSymbol   = mathOperatorSymbol_in;
+
+          switch(mathOperatorSymbol) {
+            case "+":
+            case "-":
+            case "x":
+            case "/":
+              {
+                const gmOperatorTextChangeEngine = new GMOperatorTextChangeEngine();
+                const mathOperatorFuncName = gmOperatorTextChangeEngine.mathOperatorFuncNameForSymbol(mathOperatorSymbol);
+
+                const transformationFunc = (icObj) => {
+                  var transformationOutput;
+
+                  logger.log("transformationFunc__touch", icObj);
+
+                  const rep_free__safetyZone = rep_free__conductiveOperator.parts.safetyZone;
+                  logger.log("rep_free__safetyZone", rep_free__safetyZone);
+
+                  // const icObj__sadness = icObjToIcObjFunc(icObj);
+
+                  const conducted_operands = rep_free__safetyZone.parts.terrace.parts;
+                  const arr_conducted_operands = Object.values(conducted_operands);
+
+                  if(arr_conducted_operands.length > 0) {
+
+                    if(icObj.type == "mathNode") {
+
+                      //check if transformation is allowed
+                      function isTransformationAllowed_atomic(mathNode_a, mathNode_b) {
+                        var outBool;
+
+                        //fractions mode
+                        if(MathUtils.isFraction(mathNode_a) && MathUtils.isFraction(mathNode_b)) {
+
+                          const mathNode__denominator_a = mathNode_a.args[1];
+                          const mathNode__denominator_b = mathNode_b.args[1];
+
+                          const isSameDenominator = (mathNode__denominator_a.value == mathNode__denominator_b.value);   //SHU: this should be improved (symbols, parentheses...)
+
+                          outBool = isSameDenominator;
+
+                        } else {
+                          outBool = true;
+                        }
+
+                        return outBool;
+                      }
+
+                      const arr_conducted_mathNodes = arr_conducted_operands.filter(icObj => icObj.type == "mathNode").map(icObj => icObj.mathNode);
+                      logger.log("arr_conducted_mathNodes", arr_conducted_mathNodes);
+
+                      const mathNode__initial = icObj.mathNode.cloneDeep();
+                      mathNode__initial.autoSimplify = icObj.mathNode.autoSimplify;
+
+                      const isTransformationAllowed = Utils.early_break_reduce(arr_conducted_mathNodes, (acc,x,i,arr) => {
+                        return acc && isTransformationAllowed_atomic(mathNode__initial, x);
+                      }, true, (acc, x, i, arr) => {
+                        return (acc == false);
+                      });
+
+                      if(isTransformationAllowed) {
+
+                        // const mathNode__new = arr_conducted_mathNodes.reduce((acc, mathNode_conducted) => {
+                        const mathNode__new = arr_conducted_operands.reduce((acc, icObj_conducted) => {
+
+                          const mathNode__acc      = acc;
+                          const mathNode_conducted = icObj_conducted.mathNode;
+
+                          if(!cfg.isRetaining) {
+                            rep_free__platform.parts.terrace.engine.awoken.removePart(icObj_conducted);
+                            icObj_conducted.im_dying_now = true;
+                          }
+
+                          const transformationFunc   = gmOperatorTextChangeEngine.createTransformationFunc(mathOperatorSymbol, mathOperatorFuncName, mathNode_conducted);
+
+                          const transformationFunc__decorated = function(mathNode) {
+                            var outMathNode;
+
+                            outMathNode = transformationFunc(mathNode);
+
+                            return outMathNode;
+                          };
+
+                          //SHU: addition de fractions:
+                          // const transformationFunc__decorated = function(mathNode) {
+                          //   var outMathNode;
+                          //
+                          //   // outMathNode = transformationFunc(mathNode);
+                          //   // outMathNode = Simplifier.simplify_fraction(outMathNode);
+                          //
+                          //   logger.log("mathNode__acc", mathNode__acc);
+                          //
+                          //   const mathNode_numerator__acc       = mathNode__acc.args[0];
+                          //   const mathNode_numerator__conducted = mathNode_conducted.args[0];
+                          //
+                          //   const value__numerator      = mathNode_numerator__acc.value + mathNode_numerator__conducted.value;
+                          //   const mathNode__numerator   = new math.ConstantNode(value__numerator);
+                          //   const mathNode__denominator = mathNode__acc.args[1];
+                          //
+                          //   outMathNode = new math.OperatorNode("/", "divide", [mathNode__numerator, mathNode__denominator]);
+                          //
+                          //   return outMathNode;
+                          // };
+
+                          acc = transformationFunc__decorated(acc);
+
+                          return acc;
+                        }, mathNode__initial);
+                        logger.log("mathNode__new", mathNode__new);
+
+                        const icObj__new = icObj.clone();
+                        icObj__new.mathNode = mathNode__new;
+
+                        transformationOutput = new TransformationOutput("mutated", icObj__new, icObj);
+
+                      } else {
+                        transformationOutput = new TransformationOutput("old", icObj, icObj);
+                      }
+
+                    } else {
+                      transformationOutput = new TransformationOutput("old", icObj, icObj);
+                    }
+
+                  } else {
+                    icObj.fill = Color.randomColor();
+                    // icObj.mathNode = new math.ConstantNode(42);
+                    transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+                  }
+
+                  return transformationOutput;
+                };
+
+                rep_free__touchSlot.touchSlotConfig.transformationFunc = transformationFunc;
+              }
+              break;
+            default:
+              throw new Error("Unsupported mathOperatorSymbol: " + mathOperatorSymbol);
+              break;
+          }
+
+        });
+
+        return icGMConductiveOperator;
       }
 
 
@@ -14758,6 +14977,26 @@
 
         const icGMSafetyZone = this.createIcGMSafetyZone(trueRect);
         this.addNewIcObject(icGMSafetyZone);
+      }
+
+      addNewGMConductiveOperator() {
+        const true_cursor = this.getTrueCursor();
+
+        const left = true_cursor.x;
+        const top  = true_cursor.y;
+
+        const width  = 150;   //"information" size
+        const height = 150;
+
+        const trueRect = {
+          x: left,
+          y: top,
+          width: width,
+          height: height,
+        };
+
+        const icGMConductiveOperator = this.createIcGMConductiveOperator(trueRect, {opString: "+",});
+        this.addNewIcObject(icGMConductiveOperator);
       }
 
       addNewGMOperator() {
@@ -33679,7 +33918,8 @@
                   // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("split__top_layer");
                   // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("decomposition__product_primes");
 
-                  keyboardIntegration.infiniteCanvas.addNewGMSafetyZone();
+                  // keyboardIntegration.infiniteCanvas.addNewGMSafetyZone();
+                  keyboardIntegration.infiniteCanvas.addNewGMConductiveOperator();
                 }
                 break;
 
@@ -37390,7 +37630,7 @@
         }
 
 
-        static configByAddingSafetyZone(config_in) {
+        static configByAddingGMSafetyZone(config_in) {
           var outConfig;
 
           outConfig = Object.assign({}, config_in);
@@ -37398,6 +37638,9 @@
           outConfig.components.safetyZone = {
             type: "gm_safetyZone",
             zIndex: 0,
+            config: {
+              isTriggerBornAgain: false,
+            },
             rect_rel: {
               l:  0.10,
               r:  0.50,
@@ -37409,22 +37652,23 @@
           return outConfig;
         }
 
-        static configByAddingPlatformOp(config_in, opString_in) {
+        static configByAddingGMConductiveOperator(config_in, opString_in) {
           var outConfig;
 
           outConfig = Object.assign({}, config_in);
 
-          outConfig.components.platformOp1 = {
-            type: "gm_platformOp",
+          outConfig.components.conductiveOperator1 = {
+            type: "gm_conductiveOperator",
             config: {
               opString: opString_in,
+              isTriggerBornAgain: true,
             },
             zIndex: 0,
             rect_rel: {
-              l: 0.85,
+              l: 0.70,
               r: 0.95,
-              t: 0.40,
-              b: 0.50,
+              t: -0.40,
+              b: 0.00,
             },
           };
 
@@ -37565,7 +37809,7 @@
               outIcObj = infiniteCanvas.createIcFractionOneOperator(trueRect__component);
               }
               break;
-            case "gm_conductive_operator":
+            case "conductive_operator":   //this one is not a safety zone for GM, it can only hold "normal"(==uncursed) numbers
               {
               const config         = componentConfig.config;
               const operatorString = config.operatorString;
@@ -37595,17 +37839,16 @@
 
             case "gm_safetyZone":
               {
-              outIcObj = infiniteCanvas.createIcGMSafetyZone(trueRect__component);
+              const config = componentConfig.config;
+              outIcObj = infiniteCanvas.createIcGMSafetyZone(trueRect__component, config);
               }
               break;
 
-            case "gm_platformOp":
+            case "gm_conductiveOperator":
               {
               const config   = componentConfig.config;
-              const opString = config.opString;
-
-              const value = config.value;
-              outIcObj = infiniteCanvas.createIcGMPlatformOp(trueRect__component, opString);
+              // const opString = config.opString;
+              outIcObj = infiniteCanvas.createIcGMConductiveOperator(trueRect__component, config);
               }
               break;
 
@@ -38366,8 +38609,8 @@
 
           // const golfCourseConfig = GolfCourseConfig.template_challenge_with_safetyZone_and_platformPlus();
 
-          golfCourseConfig = GolfCourseConfig.configByAddingSafetyZone(golfCourseConfig);
-          // golfCourseConfig = GolfCourseConfig.configByAddingPlatformOp(golfCourseConfig, "+");
+          golfCourseConfig = GolfCourseConfig.configByAddingGMSafetyZone(golfCourseConfig);
+          // golfCourseConfig = GolfCourseConfig.configByAddingGMConductiveOperator(golfCourseConfig, "+");
 
           const golfCourse       = new GolfCourse(infiniteCanvas, golfCourseConfig);
           this.golfCourse = golfCourse;
