@@ -5166,12 +5166,23 @@
       }
 
       getAllRepresentedWithType(type) {
-        const arr_represented = Object.values(this.represented).filter(represented => {
+        const arr_represented = this.getArrRepresented().filter(represented => {
           const rep_official = represented.r_official();
           const isRequestedType = (rep_official.type == type);
           return isRequestedType;
         });
         return arr_represented;
+      }
+
+      getArr_represented() {
+        return Object.values(this.represented);
+      }
+
+      getArr_icObj(repName = "official") {
+        return this.getArr_represented().map(represented => {
+          const rep = represented.getRepresentation(repName);
+          return rep;
+        });
       }
 
 
@@ -15620,6 +15631,49 @@
 
       }
 
+      operateOnSupervessel__grab() {
+        
+        const infiniteCanvas = this;
+        const icSupervessel  = this.getSupervessel();
+        logger.log("operateOnSupervessel__grab", icSupervessel);
+
+        if(Object.values(icSupervessel.parts).length == 0) {
+          attemptGrabbing(icSupervessel);
+        } else {
+          attemptUngrabbing(icSupervessel);
+        }
+
+        function attemptGrabbing(icSupervessel) {
+
+          const arr_icObj__other        = getArr_everyoneBut(icSupervessel);
+          const arr_icObj__intersecting = getArr_intersecting(icSupervessel, arr_icObj__other);
+
+          icSupervessel.dict_engine["composite"].engine.awoken.addParts(arr_icObj__intersecting);
+        }
+
+        function attemptUngrabbing(icSupervessel) {
+          const isUngrabbingAllowed = true;
+
+          if(isUngrabbingAllowed) {
+            icSupervessel.dict_engine["composite"].engine.awoken.removeAllParts();
+          }
+
+        }
+
+        function getArr_intersecting(icObj_solo, arr_icObj__other) {
+          return arr_icObj__other.filter(icObj => {
+            return Touch2Singleton.sharedInstance().isIntersecting(icObj, icObj_solo);
+          });
+        }
+
+        function getArr_everyoneBut(icObj_solo) {
+          const arr_all = infiniteCanvas.getArr_icObj("free");
+          const arr_everyoneElse = arr_all.filter(icObj => icObj.id != icObj_solo.id);
+          return arr_everyoneElse;
+        }
+
+      }
+
 
 
       getIcActiveSelection() {
@@ -22746,6 +22800,32 @@
 
             //remove partConfig
             delete handle__rep_free.compositeConfig[part__rep_free.id];
+
+          };
+
+
+          this.addParts = function(arr_icObj) {
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const handle = this.scopeObj.engineCarrier;
+
+            const handle__represented = infiniteCanvas.getRepresented(handle.id);
+            const handle__rep_free    = handle__represented.r_free();
+
+            arr_icObj.forEach(icObj__part => {
+              this.addPart(icObj__part, false);
+            });
+          };
+
+          this.removeAllParts = function() {
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const handle = this.scopeObj.engineCarrier;
+
+            const handle__represented = infiniteCanvas.getRepresented(handle.id);
+            const handle__rep_free    = handle__represented.r_free();
+
+            Object.values(handle__rep_free.parts).forEach(icObj__part => {
+              this.removePart(icObj__part);
+            });
 
           };
 
@@ -35166,8 +35246,7 @@
           this.fabricIntegration = fabricIntegration;
         }
 
-        canTouch(icObj_over, icObj_below) {
-
+        isIntersecting(icObj_over, icObj_below) {
           //flemme: use fabric fObj.intersectsWithObject(fObj2)
 
           //const over__represented  = infiniteCanvas.getRepresented(icObj_over.id);
@@ -35186,6 +35265,10 @@
           logger.log("isIntersecting", isIntersecting);
 
           return isIntersecting;
+        }
+
+        canTouch(icObj_over, icObj_below) {
+          return this.isIntersecting(icObj_over, icObj_below);
         }
 
         canUntouch(icObj_over, icObj_below) {
@@ -37354,28 +37437,34 @@
           if (updateValue != null) {
             if (this.isActive != updateValue) {
               this.isActive = updateValue;
-              console.log("KeyDownTimeout::update", this.name, this.isActive);
+              logger.log("KeyDownTimeout::update", this.name, this.isActive);
 
               const keyDownTimeout = this;
 
               function theFunc() {
-                console.log("KeyDownTimeout", "call triggeredFunc()");
+                logger.log("KeyDownTimeout", "call triggeredFunc()");
                 keyDownTimeout.triggeredFunc();
               }
 
               function mayRepeat(theFunc) {
-
-                setTimeout(function () {
-                  if (keyDownTimeout.isActive) {
-                    theFunc();
-                    mayRepeat(theFunc);
-                  }
-                }, keyDownTimeout.delayInMs);
+                  return setTimeout(function () {
+                    if (keyDownTimeout.isActive) {
+                      theFunc();
+                      keyDownTimeout.id_timeout = mayRepeat(theFunc);
+                    }
+                  }, keyDownTimeout.delayInMs);
               }
 
-              theFunc();
-              mayRepeat(theFunc);
-
+              if(this.isActive) {
+                theFunc();
+                this.id_timeout = mayRepeat(theFunc);
+              } else {
+                if(this.id_timeout != null) {
+                  clearTimeout(this.id_timeout);
+                  this.id_timeout = null;
+                }
+              }
+              
             }
           }
         }
@@ -37466,8 +37555,8 @@
 
           const fabricIntegration = this.fabricIntegration;
 
-          document.addEventListener('keyup', logKey);
-          document.addEventListener('keyup', handleKeyUp);
+          // document.addEventListener('keyup', logKey);
+          document.addEventListener('keyup',   handleKeyUp);
           document.addEventListener('keydown', handleKeyDown);
 
 
@@ -37738,7 +37827,7 @@
 
 
           function logKey(e) {
-            //console.log("logKey", "e.code", e.code);
+            logger.log("logKey", "e.code", e.code);
           }
 
           function handleKeyUp(e) {
@@ -38306,7 +38395,10 @@
                     fabricIntegration.linkSelectedObjects();
                   } else {
                     //group
-                    fabricIntegration.groupSelectedObjects();
+                    // fabricIntegration.groupSelectedObjects();
+
+                    //supervessel grab
+                    keyboardIntegration.infiniteCanvas.operateOnSupervessel__grab();
                   }
                 }
                 break;
