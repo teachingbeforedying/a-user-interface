@@ -45,6 +45,9 @@
   <link href="lib/video-js.min.css" rel="stylesheet">
   <script src="lib/video.min.js"></script>
 
+  <script src="lib/jszip.min.js"     type='text/javascript'> </script>
+  <script src="lib/FileSaver.min.js" type='text/javascript'> </script>
+
   <!-- global -->
   <script>
 
@@ -2898,6 +2901,19 @@
         outMathNode = math.simplify(outMathNode);
 
         return outMathNode;
+      }
+
+      static simplify_litexp_2(mathNode_litexp) {
+        var str__raw = mathNode_litexp.toString();
+        str__raw = str__raw.replaceAll("×", "*");
+        str__raw = str__raw.replaceAll("+ -", "-");
+
+
+        const str__simplified = Algebrite.run(str__raw);
+        logger.log("str__simplified", str__simplified);
+
+        const mathNode = math.parse(str__simplified);
+        return mathNode;
       }
 
       static simplify_equation(mathNode_equation) {
@@ -6809,6 +6825,31 @@
       }
 
 
+      createIcVibratingSegment(point__attach, base_length, cfg_in) {
+        // console.log("createIcSegment", point_start, point_end);
+
+        const type = "segment";
+        const position = null;
+        const size = null;
+        const homeScale = { X: 1, Y: 1 };
+
+        const icObj = this.createIcObject(type, position, size, homeScale);
+
+        const icSegment_spec = {
+          // left: left,
+          // top:  top,
+          // width: width,
+          // height: height,
+          point_start: point_start,
+          point_end: point_end,
+        };
+
+        const icSegment = Object.assign(icObj, icSegment_spec);
+
+        return icSegment;
+      }
+
+
 
       createIcSpotLine_start() {
         // console.log("createIcLine_start");
@@ -10492,24 +10533,23 @@
       createIcGMSafetyZone(trueRect) {
         logger.log("createIcGMSafetyZone", trueRect);
 
-        const touchSlotConfig = {
-          transformationFunc__touch: function (icObj) {
+        const icPlatform = infiniteCanvas.createIcPlatform(trueRect);
+
+        //rework
+        infiniteCanvas.onceOnAddRepresentedForIcObject(icPlatform, (icPlatform) => {
+
+          const rep_free__platform = infiniteCanvas.getRepresented(icPlatform.id).r_free();
+
+          const transformationFunc__touch = (icObj) => {
             var transformationOutput;
 
-            logger.log("icGMSafetyZone, transformationFunc__touch", icObj);
-            //debug
-            // icObj.fill = ColorUtils.randomColor();
+            logger.log("log4", "icGMSafetyZone, transformationFunc__touch", icObj);
+            const isGreenMouse = icObj.isGM;
 
-            const isGreenMouse = (icObj.die != null);
-
-            if (isGreenMouse) {
-
-              const rep_free__greenMouse = icObj;
-
-              const bornAgainFunc = rep_free__greenMouse.bornAgainFunc;
-              if (bornAgainFunc) {
-                rep_free__greenMouse.did["die"].off(bornAgainFunc);
-              }
+            if(isGreenMouse) {
+              logger.log("log4", "isGreenMouse");
+              icObj.isSafe = true;
+              logger.log("log4", "set .isSafe: true");
 
               transformationOutput = new TransformationOutput("mutated", icObj, icObj);
             } else {
@@ -10517,24 +10557,19 @@
             }
 
             return transformationOutput;
-          },
-          transformationFunc__untouch: function (icObj) {
+            // return icObj;
+          };
+          rep_free__platform.parts.dropTouchSlot.touchSlotConfig.transformationFunc__touch = transformationFunc__touch;
+
+          const transformationFunc__untouch = (icObj) => {
             var transformationOutput;
+            logger.log("log4", "icGMSafetyZone, transformationFunc__untouch", icObj);
+            const isGreenMouse = icObj.isGM;
 
-            logger.log("icGMSafetyZone, transformationFunc__untouch", icObj);
-            //debug
-            // icObj.fill = ColorUtils.randomColor();
-
-            const isGreenMouse = (icObj.die != null);
-
-            if (isGreenMouse) {
-
-              const rep_free__greenMouse = icObj;
-
-              const bornAgainFunc = rep_free__greenMouse.bornAgainFunc;
-              if (bornAgainFunc) {
-                rep_free__greenMouse.did["die"].on(bornAgainFunc);
-              }
+            if(isGreenMouse) {
+              logger.log("log4", "isGreenMouse");
+              icObj.isSafe = false;
+              logger.log("log4", "set .isSafe: false");
 
               transformationOutput = new TransformationOutput("mutated", icObj, icObj);
             } else {
@@ -10542,64 +10577,74 @@
             }
 
             return transformationOutput;
-          },
-        };
+            // return icObj;
+          };
+          rep_free__platform.parts.dropTouchSlot.touchSlotConfig.transformationFunc__untouch = transformationFunc__untouch;
 
-        const touchSlot = infiniteCanvas.createIcTouchSlot(trueRect, touchSlotConfig);
-        touchSlot.fill = "honeydew";
-        // touchSlot.isMobile = false;
+        });
 
-        const icGMSafetyZone = touchSlot;
+        const icGMSafetyZone  = icPlatform;
+        
+        icGMSafetyZone.parts.terrace.fill       = "#FF8822";
+        icGMSafetyZone.parts.terrace.opacity    = 0.4;
+        icGMSafetyZone.parts.dropTouchSlot.fill = "#FFFFFF";
 
         return icGMSafetyZone;
       }
 
 
-
-      createIcGMOperator(trueRect, operatorString_in = null) {
-        console.log("createIcGMOperator", trueRect);
-
+      createIcGMOperator(trueRect, cfg_in = null) {
+        // logger.log("createIcGMOperator", trueRect, cfg_in);
         var operatorConfig;
-        if (operatorString_in == null) {
-          const rank = this.getNextTouchSlotRank();
+
+        if(cfg_in == null) {
+          const rank     = this.getNextTouchSlotRank();
           operatorConfig = GMOperatorMama.operatorConfigForRank(rank);
         } else {
-          const text_in = operatorString_in;
-          // const transformationFunc_oldStyle = (new GMOperatorTextChangeEngine()).transformationFuncForText(text_in);
 
-          // const transformationFunc = function(icObj) {
-          //   var transformationOutput;
-          //
-          //   const icObj__mutated = transformationFunc_oldStyle(icObj);
-          //   transformationOutput = new TransformationOutput("mutated", icObj__mutated, icObj);
-          //
-          //   return transformationOutput;
-          // };
+          const operatorString_in     = cfg_in.operatorString;
+          const text_in               = operatorString_in;
 
-          const transformationFunc = (new GMOperatorTextChangeEngine()).transformationFuncForText(text_in);
+          const transformationFunc_in = cfg_in.transformationFunc;
+          if(transformationFunc_in != null) {
+            operatorConfig = new OperatorConfig(text_in, transformationFunc_in);
+          } else {
+            const transformationFunc = (new GMOperatorTextChangeEngine()).transformationFuncForText(text_in);
+            operatorConfig = new OperatorConfig(text_in, transformationFunc);
+          }
 
-          operatorConfig = new OperatorConfig(text_in, transformationFunc);
         }
 
         const touchSlotConfig = {
           transformationFunc: operatorConfig.transformationFunc,
         };
 
-        const touchSlot = infiniteCanvas.createIcTouchSlot(trueRect, touchSlotConfig);
-        touchSlot.fill = "";
+        const touchSlot    = infiniteCanvas.createIcTouchSlot(trueRect, touchSlotConfig);
+        touchSlot.fill     = "";
         // touchSlot.isMobile = false;
 
-        const text = operatorConfig.name;
-        const facade = infiniteCanvas.createIcText(trueRect.x, trueRect.y, text);
+
+        var facade;
+
+        const operatorNode_in = cfg_in.operatorNode;
+        if(operatorNode_in != null) {
+          facade = infiniteCanvas.createIcMathNode(trueRect.x, trueRect.y, operatorNode_in);
+          //SHULOLILOL
+          facade.zIndex = 100;
+        } else {
+          const text = operatorConfig.name;
+          facade = infiniteCanvas.createIcText(trueRect.x, trueRect.y, text);
+          // const tex = text;
+          // facade = infiniteCanvas.createIcTex(trueRect.x, trueRect.y, tex);
+        }
+
         facade.backgroundColor = "blanchedalmond";
         // facade.isMobile    = false;
         // facade.isTouchable = false;
 
-        facade.zIndex = 100;
-
         const parts = {
           "touchSlot": touchSlot,
-          "facade": facade,
+          "facade":    facade,
         };
 
         const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
@@ -10614,6 +10659,7 @@
 
         return icComposite;
       }
+
 
       createIcGMOperator_withType(trueRect, gmOperatorType, cfg = {}) {
         console.log("createIcGMOperator_withType", trueRect, gmOperatorType);
@@ -14668,7 +14714,7 @@
 
 
       icObjDidUpdate(icObj, outerUpdatesDict) {
-        logger.log("icObjDidUpdate", icObj, outerUpdatesDict);
+        // logger.log("icObjDidUpdate", icObj, outerUpdatesDict);
 
         //SHU FLUID
         //create event
@@ -14683,7 +14729,7 @@
 
         //original iC update forwarding
         this.icObjListeners.forEach((listener, i) => {
-          logger.log("icObjDidUpdate", "listener()", listener);
+          // logger.log("icObjDidUpdate", "listener()", listener);
           listener(icObj, outerUpdatesDict);
         });
       }
@@ -16260,7 +16306,7 @@
         FileIntegration.save_image(dataURL);
       }
 
-      exportCanvasRectContainingObj_asImg(icObj) {
+      dataUrl_for_canvasRectContainingObj(icObj, filename = null) {
         logger.log("exportObj_asImg", icObj);
         const fObj = fabricIntegration.getFObjForIcObj(icObj);    //SHU: magic rabbit: "fabricIntegration"...
         logger.log("fObj", fObj);
@@ -16274,11 +16320,16 @@
           height: fObj.height,
         };
         const dataURL = FileIntegration.dataURLForRect(fCanvas, rect);
+        
+        return dataURL;
+      }
+
+      exportCanvasRectContainingObj_asImg(icObj, filename = null) {
+        const dataURL = this.dataUrl_for_canvasRectContainingObj(icObj, filename);
         logger.log("dataURL", dataURL);
 
         // const img = FileIntegration.imageFromImgSrc_p(dataURL);
-
-        FileIntegration.save_image(dataURL);
+        FileIntegration.save_image(dataURL, filename);
       }
 
 
@@ -25181,6 +25232,7 @@
           };
 
           this.transformationFuncForText = function (text) {
+            logger.log("transformationFuncForText", text);
 
             const components = text.split(" ");
             const mathOperatorSymbol = components[0];
@@ -25856,8 +25908,8 @@
           const infiniteCanvas = this.infiniteCanvas;
 
           const trueRect_0 = {
-            x: 200,
-            y: 200,
+            x: -200,
+            y: -200,
             width: 100,
             height: 100,
           };
@@ -36539,6 +36591,13 @@
 
         //file utils
 
+        static base64_for_dataUrl(dataUrl) {
+          // logger.log("base64_for_dataUrl", dataUrl);
+          const idx = dataUrl.indexOf('base64,') + 'base64,'.length;
+          const content = dataUrl.substring(idx);
+          return content;
+        }
+
         static getFileData_p(file) {
           ////console.log("getFileData_p", file);
 
@@ -41203,1319 +41262,1076 @@
 
       class GolfCourseConfig {
 
-        constructor(rect, componentsConfig) {
-          this.rect = rect;
-          this.componentsConfig = componentsConfig;
+constructor(rect, componentsConfig) {
+  this.rect = rect;
+  this.componentsConfig = componentsConfig;
+}
+
+static instance_begin(titleString) {
+  var outCourseConfig;
+
+  const courseConfig = GolfCourseConfig.template_begin();
+
+  courseConfig.components.title.config.text = titleString;
+
+  outCourseConfig = courseConfig;
+
+  return outCourseConfig;
+}
+
+static instance_end(titleString) {
+  var outCourseConfig;
+
+  const courseConfig = GolfCourseConfig.template_end();
+
+  courseConfig.components.title.config.text = titleString;
+
+  outCourseConfig = courseConfig;
+
+  return outCourseConfig;
+}
+
+// static instance_challenge() {
+//
+// }
+
+static template_begin() {
+  var outConfig;
+
+  const components = {
+    "bg": {
+      type: "rect",
+      zIndex: -10,
+      config: {
+        // fill: "green",
+        // fill: "lightgreen",
+        // fill: "orange",
+      },
+      rect_rel: {
+        l: 0.0,
+        r: 1.0,
+        t: 0.0,
+        b: 1.0,
+      },
+    },
+
+    "title": {
+      type: "rect",
+      zIndex: 0,
+      config: {
+        // fill: "green",
+        fill: "almond",
+        text: "<title>",
+      },
+      rect_rel: {
+        l: 0.2,
+        r: 0.8,
+        t: 0.2,
+        b: 0.4,
+      },
+    },
+
+    "button_start": {
+      type: "button",
+      zIndex: 20,
+      config: {
+        // fill: "green",
+        fill: "almond",
+        text: "<start>",
+      },
+      rect_rel: {
+        l: 0.2,
+        r: 0.8,
+        t: 0.6,
+        b: 0.8,
+      },
+    },
+  };
+
+  const config = {
+    rect: {
+      x:           0,
+      y:           0,
+      width:    1600,
+      height:   1000,
+    },
+    components: components,
+  };
+
+  outConfig = config;
+
+  return outConfig;
+}
+
+static template_end() {
+  var outConfig;
+
+  const components = {
+    "bg": {
+      type: "rect",
+      zIndex: -10,
+      config: {
+        // fill: "green",
+        // fill: "lightgreen",
+        fill: "orange",
+
+      },
+      rect_rel: {
+        l: 0.0,
+        r: 1.0,
+        t: 0.0,
+        b: 1.0,
+      },
+    },
+
+    "title": {
+      type: "rect",
+      zIndex: 0,
+      config: {
+        // fill: "green",
+        fill: "almond",
+        text: "<title>",
+      },
+      rect_rel: {
+        l: 0.2,
+        r: 0.8,
+        t: 0.2,
+        b: 0.4,
+      },
+    },
+
+    "total_score": {
+      type: "labelValue",
+      zIndex: 0,
+      config: {
+        // fill: "green",
+        fill: "almond",
+        text: "total score:",
+      },
+      rect_rel: {
+        l: 0.3,
+        r: 0.7,
+        t: 0.3,
+        b: 0.5,
+      },
+    },
+
+    "total_par": {
+      type: "labelValue",
+      zIndex: 0,
+      config: {
+        // fill: "green",
+        fill: "almond",
+        text: "total par:",
+      },
+      rect_rel: {
+        l: 0.3,
+        r: 0.7,
+        t: 0.5,
+        b: 0.8,
+      },
+    },
+
+    // "medal": {
+    //   type: "img",
+    //   zIndex: 0,
+    //   config: {
+    //     // fill: "green",
+    //     fill: "almond",
+    //   },
+    //   rect_rel: {
+    //     l: 0.7,
+    //     r: 0.9,
+    //     t: 0.3,
+    //     b: 0.6,
+    //   },
+    // },
+
+  };
+
+  const config = {
+    rect: {
+      x:           0,
+      y:           0,
+      width:    1600,
+      height:   1000,
+    },
+    components: components,
+  };
+
+  outConfig = config;
+
+  return outConfig;
+}
+
+static template_challenge() {
+  var outConfig;
+
+  const components = {
+    "bg": {
+      type: "rect",
+      zIndex: -10,
+      config: {
+        // fill: "green",
+        // fill: "lightgreen",
+        // fill: "orange",
+        fill: "lightyellow",
+      },
+      rect_rel: {
+        l: 0.0,
+        r: 1.0,
+        t: 0.0,
+        b: 1.0,
+      },
+    },
+
+    "tee": {
+      type: "rect",
+      zIndex: 100,
+      config: {
+        fill: "lightgreen",
+      },
+      rect_rel: {
+        l: 0.05,
+        r: 0.15,
+        t: 0.40,
+        b: 0.50,
+      },
+    },
+
+    // "bumpers": {
+      "bumper1": {
+        type: "gm_operator",
+        zIndex: 51,
+        config: {
+          operatorString: "+ 1",
+          //SHULOLILOL
+          operatorNode: MathSingleton.node__empty,
+        },
+        rect_rel: {
+          l: 0.15,
+          r: 0.25,
+          t: 0.80,
+          b: 0.90,
+        },
+      },
+      "bumper2": {
+        type: "gm_operator",
+        zIndex: 52,
+        config: {
+          operatorString: "+ 10",
+          //SHULOLILOL
+          operatorNode: MathSingleton.node__empty,
+        },
+        rect_rel: {
+          l: 0.35,
+          r: 0.45,
+          t: 0.80,
+          b: 0.90,
+        },
+      },
+      "bumper3": {
+        type: "gm_operator",
+        zIndex: 53,
+        config: {
+          operatorString: "x 2",
+          //SHULOLILOL
+          operatorNode: MathSingleton.node__empty,
+        },
+        rect_rel: {
+          l: 0.55,
+          r: 0.65,
+          t: 0.80,
+          b: 0.90,
+        },
+      },
+      "bumper4": {
+        type: "gm_operator",
+        zIndex: 54,
+        config: {
+          operatorString: "x (-1)",
+          //SHULOLILOL
+          operatorNode: MathSingleton.node__empty,
+        },
+        rect_rel: {
+          l: 0.75,
+          r: 0.85,
+          t: 0.80,
+          b: 0.90,
+        },
+      },
+    // },
+
+
+
+
+    "hole": {
+      type: "gm_targetTouchSlot",
+      zIndex: 10,
+      config: {
+        value: -48,
+      },
+      rect_rel: {
+        l: 0.85,
+        r: 0.95,
+        t: 0.40,
+        b: 0.50,
+      },
+    },
+  };
+
+  const config = {
+    rect: {
+      x:           0,
+      y:           0,
+      width:    1600,
+      height:   1000,
+    },
+    components: components,
+  };
+
+  outConfig = config;
+
+  return outConfig;
+}
+
+static template_challenge_with_placeholders() {
+  var outConfig;
+
+  const components = {
+    "bg": {
+      type: "rect",
+      zIndex: -10,
+      config: {
+        // fill: "green",
+        // fill: "lightgreen",
+        // fill: "orange",
+        fill: "lightyellow",
+      },
+      rect_rel: {
+        l: 0.0,
+        r: 1.0,
+        t: 0.0,
+        b: 1.0,
+      },
+    },
+
+    "tee": {
+      type: "rect",
+      zIndex: 100,
+      config: {
+        fill: "lightgreen",
+      },
+      rect_rel: {
+        l: 0.05,
+        r: 0.15,
+        t: 0.40,
+        b: 0.50,
+      },
+    },
+
+    // "bumpers": {
+      "bumper1": {
+        type: "gm_operator",
+        zIndex: 51,
+        config: {
+          operatorString: "+ 1",
+          //SHULOLILOL
+          operatorNode: MathSingleton.node__empty,
+        },
+        rect_rel: {
+          l: 0.15,
+          r: 0.25,
+          t: 0.80,
+          b: 0.90,
+        },
+      },
+      "bumper2": {
+        type: "gm_operator",
+        zIndex: 52,
+        config: {
+          operatorString: "+ 10",
+          //SHULOLILOL
+          operatorNode: MathSingleton.node__empty,
+        },
+        rect_rel: {
+          l: 0.35,
+          r: 0.45,
+          t: 0.80,
+          b: 0.90,
+        },
+      },
+      "bumper3": {
+        type: "gm_operator",
+        zIndex: 53,
+        config: {
+          operatorString: "x 2",
+          //SHULOLILOL
+          operatorNode: MathSingleton.node__empty,
+        },
+        rect_rel: {
+          l: 0.55,
+          r: 0.65,
+          t: 0.80,
+          b: 0.90,
+        },
+      },
+      "bumper4": {
+        type: "gm_operator",
+        zIndex: 54,
+        config: {
+          operatorString: "x (-1)",
+          //SHULOLILOL
+          operatorNode: MathSingleton.node__empty,
+        },
+        rect_rel: {
+          l: 0.75,
+          r: 0.85,
+          t: 0.80,
+          b: 0.90,
+        },
+      },
+    // },
+
+    "operatorWallPlaceholder1": {
+      type: "placeholder",
+      zIndex: 55,
+      config: {
+        fill: "gray",
+      },
+      rect_rel: {
+        l: 0.15,
+        r: 0.25,
+        t: 0.10,
+        b: 0.20,
+      },
+    },
+    "operatorWallPlaceholder2": {
+      type: "placeholder",
+      zIndex: 56,
+      config: {
+        fill: "gray",
+      },
+      rect_rel: {
+        l: 0.35,
+        r: 0.45,
+        t: 0.10,
+        b: 0.20,
+      },
+    },
+    "operatorWallPlaceholder3": {
+      type: "placeholder",
+      zIndex: 57,
+      config: {
+        fill: "gray",
+      },
+      rect_rel: {
+        l: 0.55,
+        r: 0.65,
+        t: 0.10,
+        b: 0.20,
+      },
+    },
+    "operatorWallPlaceholder4": {
+      type: "placeholder",
+      zIndex: 58,
+      config: {
+        fill: "gray",
+      },
+      rect_rel: {
+        l: 0.75,
+        r: 0.85,
+        t: 0.10,
+        b: 0.20,
+      },
+    },
+
+
+    "hole": {
+      type: "gm_targetTouchSlot",
+      zIndex: 10,
+      config: {
+        value: -48,
+      },
+      rect_rel: {
+        l: 0.85,
+        r: 0.95,
+        t: 0.40,
+        b: 0.50,
+      },
+    },
+  };
+
+  const config = {
+    rect: {
+      x:           0,
+      y:           0,
+      width:    1600,
+      height:   1000,
+    },
+    components: components,
+  };
+
+  outConfig = config;
+
+  return outConfig;
+}
+
+
+static template_challenge__fraction_add() {
+  var outConfig;
+
+  const components = {
+    "bg": {
+      type: "rect",
+      zIndex: -10,
+      config: {
+        // fill: "green",
+        // fill: "lightgreen",
+        // fill: "orange",
+        fill: "lightyellow",
+      },
+      rect_rel: {
+        l: 0.0,
+        r: 1.0,
+        t: 0.0,
+        b: 1.0,
+      },
+    },
+
+    "tee1": {
+      type: "rect",
+      zIndex: 100,
+      config: {
+        fill: "lightgreen",
+      },
+      rect_rel: {
+        l: 0.05,
+        r: 0.15,
+        t: 0.30,
+        b: 0.40,
+      },
+    },
+
+    "tee2": {
+      type: "rect",
+      zIndex: 100,
+      config: {
+        fill: "lightgreen",
+      },
+      rect_rel: {
+        l: 0.05,
+        r: 0.15,
+        t: 0.50,
+        b: 0.60,
+      },
+    },
+
+    // "bumpers": {
+      "bumper1": {
+        type: "gm_fractionOne_operator",
+        zIndex: 51,
+        config: {
+          operatorString: "fractionOne:x 2",
+        },
+        rect_rel: {
+          l: 0.15,
+          r: 0.25,
+          t: 0.80,
+          b: 0.90,
+        },
+      },
+      "bumper2": {
+        type: "gm_fractionOne_operator",
+        zIndex: 52,
+        config: {
+          operatorString: "fractionOne:x 3",
+        },
+        rect_rel: {
+          l: 0.35,
+          r: 0.45,
+          t: 0.80,
+          b: 0.90,
+        },
+      },
+      "bumper3": {
+        type: "gm_fractionOne_operator",
+        zIndex: 53,
+        config: {
+          operatorString: "fractionOne:x 5",
+        },
+        rect_rel: {
+          l: 0.55,
+          r: 0.65,
+          t: 0.80,
+          b: 0.90,
+        },
+      },
+      "bumper4": {
+        type: "gm_fractionOne_operator",
+        zIndex: 54,
+        config: {
+          operatorString: "fractionOne:x 7",
+        },
+        rect_rel: {
+          l: 0.75,
+          r: 0.85,
+          t: 0.80,
+          b: 0.90,
+        },
+      },
+    // },
+
+    "conductiveOp": {
+      type: "gm_conductive_operator",
+      zIndex: 55,
+      config: {
+        operatorString: "+",
+      },
+      rect_rel: {
+        l: 0.45,
+        r: 0.65,
+        t: 0.30,
+        b: 0.60,
+      },
+    },
+
+
+    // "operatorWallPlaceholder1": {
+    //   type: "placeholder",
+    //   zIndex: 55,
+    //   config: {
+    //     fill: "gray",
+    //   },
+    //   rect_rel: {
+    //     l: 0.15,
+    //     r: 0.25,
+    //     t: 0.10,
+    //     b: 0.20,
+    //   },
+    // },
+    // "operatorWallPlaceholder2": {
+    //   type: "placeholder",
+    //   zIndex: 56,
+    //   config: {
+    //     fill: "gray",
+    //   },
+    //   rect_rel: {
+    //     l: 0.35,
+    //     r: 0.45,
+    //     t: 0.10,
+    //     b: 0.20,
+    //   },
+    // },
+    // "operatorWallPlaceholder3": {
+    //   type: "placeholder",
+    //   zIndex: 57,
+    //   config: {
+    //     fill: "gray",
+    //   },
+    //   rect_rel: {
+    //     l: 0.55,
+    //     r: 0.65,
+    //     t: 0.10,
+    //     b: 0.20,
+    //   },
+    // },
+    // "operatorWallPlaceholder4": {
+    //   type: "placeholder",
+    //   zIndex: 58,
+    //   config: {
+    //     fill: "gray",
+    //   },
+    //   rect_rel: {
+    //     l: 0.75,
+    //     r: 0.85,
+    //     t: 0.10,
+    //     b: 0.20,
+    //   },
+    // },
+
+
+    "hole": {
+      type: "gm_targetTouchSlot",
+      zIndex: 10,
+      config: {
+        value: -48,
+      },
+      rect_rel: {
+        l: 0.85,
+        r: 0.95,
+        t: 0.40,
+        b: 0.50,
+      },
+    },
+  };
+
+  const config = {
+    rect: {
+      x:           0,
+      y:           0,
+      width:    1600,
+      height:   1000,
+    },
+    components: components,
+  };
+
+  outConfig = config;
+
+  return outConfig;
+}
+
+
+static configByAddingSafetyZone(config_in) {
+  var outConfig;
+
+  outConfig = Object.assign({}, config_in);
+
+  outConfig.components.safetyZone = {
+    type: "gm_safetyZone",
+    zIndex: 0,
+    rect_rel: {
+      l:  0.10,
+      r:  0.50,
+      t: -0.20,
+      b:  0.20,
+    },
+  };
+
+  return outConfig;
+}
+
+static configByAddingPlatformOp(config_in, opString_in) {
+  var outConfig;
+
+  outConfig = Object.assign({}, config_in);
+
+  outConfig.components.platformOp1 = {
+    type: "gm_platformOp",
+    config: {
+      opString: opString_in,
+    },
+    zIndex: 0,
+    rect_rel: {
+      l: 0.85,
+      r: 0.95,
+      t: 0.40,
+      b: 0.50,
+    },
+  };
+
+  return outConfig;
+}
+
+
+
+
+static challengeCourseConfigMiniObj_fromMiniString(challengeCourseMiniString) {
+
+  const arr_courseStringComponent = challengeCourseMiniString.split(",");
+  const nb_compoments = arr_courseStringComponent.length;
+
+  const courseConfigMiniObj = arr_courseStringComponent.reduce((acc, x, i) => {
+
+    const componentString = x;
+
+    switch(i) {
+      case 0:
+        const initial = parseInt(componentString);
+        acc["initial"] = initial;
+        break;
+      case (nb_compoments - 1):
+        const target = parseInt(componentString);
+        acc["target"] = target;
+        break;
+      default:
+        const operatorString = componentString;
+        if(acc["operators"] == null) {
+          acc["operators"] = [];
         }
+        acc["operators"].push(operatorString);
+        break;
+    }
 
-        static instance_begin(titleString) {
-          var outCourseConfig;
+    return acc;
+  }, {});
 
-          const courseConfig = GolfCourseConfig.template_begin();
+  return courseConfigMiniObj;
+}
 
-          courseConfig.components.title.config.text = titleString;
 
-          outCourseConfig = courseConfig;
+static challengeCourseConfig_fromMiniString(courseMiniString) {
+  var outCourseConfig;
 
-          return outCourseConfig;
-        }
+  const courseConfigMiniObj = GolfCourseConfig.challengeCourseConfigMiniObj_fromMiniString(courseMiniString);
 
-        static instance_end(titleString) {
-          var outCourseConfig;
+  const courseConfig = GolfCourseConfig.template_challenge();
 
-          const courseConfig = GolfCourseConfig.template_end();
+  // courseConfig.components.ball.config.value = courseConfigMiniObj.initial;
+  courseConfig.initial = courseConfigMiniObj.initial;
 
-          courseConfig.components.title.config.text = titleString;
+  courseConfig.components.hole.config.value = courseConfigMiniObj.target;
 
-          outCourseConfig = courseConfig;
+  //SHU TODO: remove this ugliness
+  // const entries_bumper = Object.entries(courseConfig.components).filter(([componentName, component]) => componentName.startsWith("bumper"));
+  const entries_bumper = Object.entries(courseConfig.components).filter(([componentName, component]) => component.type == "gm_operator");
+  entries_bumper.forEach(([componentName, component], i) => {
+    component.config.operatorString = courseConfigMiniObj.operators[i];
+  });
 
-          return outCourseConfig;
-        }
+  outCourseConfig = courseConfig;
 
-        // static instance_challenge() {
-        //
-        // }
+  return outCourseConfig;
+}
 
-        static template_begin() {
-          var outConfig;
+}
 
-          const components = {
-            "bg": {
-              type: "rect",
-              zIndex: -10,
-              config: {
-                // fill: "green",
-                // fill: "lightgreen",
-                // fill: "orange",
-              },
-              rect_rel: {
-                l: 0.0,
-                r: 1.0,
-                t: 0.0,
-                b: 1.0,
-              },
-            },
 
-            "title": {
-              type: "rect",
-              zIndex: 0,
-              config: {
-                // fill: "green",
-                fill: "almond",
-                text: "<title>",
-              },
-              rect_rel: {
-                l: 0.2,
-                r: 0.8,
-                t: 0.2,
-                b: 0.4,
-              },
-            },
+class GolfCourse {
 
-            "button_start": {
-              type: "button",
-              zIndex: 20,
-              config: {
-                // fill: "green",
-                fill: "almond",
-                text: "<start>",
-              },
-              rect_rel: {
-                l: 0.2,
-                r: 0.8,
-                t: 0.6,
-                b: 0.8,
-              },
-            },
-          };
+constructor(infiniteCanvas, golfCourseConfig) {
+  console.log("GolfCourse, constructor", golfCourseConfig);
+  this.infiniteCanvas = infiniteCanvas;
 
-          const config = {
-            rect: {
-              x: 0,
-              y: 0,
-              width: 1600,
-              height: 1000,
-            },
-            components: components,
-          };
+  this.rect = golfCourseConfig.rect;
 
-          outConfig = config;
+  // this.components =
+  const components = Object.entries(golfCourseConfig.components).reduce((acc, [componentName, componentConfig]) => {
+    // logger.log("componentName", componentName);
 
-          return outConfig;
-        }
+    const icObj = this.createIcObjForComponent(infiniteCanvas, componentConfig);
+    infiniteCanvas.addIcObject(icObj);
 
-        static template_end() {
-          var outConfig;
+    const represented = infiniteCanvas.getRepresented(icObj.id);
+    const rep_free    = represented.r_free();
 
-          const components = {
-            "bg": {
-              type: "rect",
-              zIndex: -10,
-              config: {
-                // fill: "green",
-                // fill: "lightgreen",
-                fill: "orange",
+    const component = new GolfObject(componentConfig.type, rep_free);
 
-              },
-              rect_rel: {
-                l: 0.0,
-                r: 1.0,
-                t: 0.0,
-                b: 1.0,
-              },
-            },
+    acc[componentName] = component;
 
-            "title": {
-              type: "rect",
-              zIndex: 0,
-              config: {
-                // fill: "green",
-                fill: "almond",
-                text: "<title>",
-              },
-              rect_rel: {
-                l: 0.2,
-                r: 0.8,
-                t: 0.2,
-                b: 0.4,
-              },
-            },
+    return acc;
+  }, {});
+  this.components = components;
+}
 
-            "total_score": {
-              type: "labelValue",
-              zIndex: 0,
-              config: {
-                // fill: "green",
-                fill: "almond",
-                text: "total score:",
-              },
-              rect_rel: {
-                l: 0.3,
-                r: 0.7,
-                t: 0.3,
-                b: 0.5,
-              },
-            },
 
-            "total_par": {
-              type: "labelValue",
-              zIndex: 0,
-              config: {
-                // fill: "green",
-                fill: "almond",
-                text: "total par:",
-              },
-              rect_rel: {
-                l: 0.3,
-                r: 0.7,
-                t: 0.5,
-                b: 0.8,
-              },
-            },
+createIcObjForComponent(infiniteCanvas, componentConfig) {
+  console.log("createIcObjForComponent", componentConfig);
+  var outIcObj;
 
-            // "medal": {
-            //   type: "img",
-            //   zIndex: 0,
-            //   config: {
-            //     // fill: "green",
-            //     fill: "almond",
-            //   },
-            //   rect_rel: {
-            //     l: 0.7,
-            //     r: 0.9,
-            //     t: 0.3,
-            //     b: 0.6,
-            //   },
-            // },
+  const rect_rel__component = componentConfig.rect_rel;
+  const trueRect__component = Geometry.rectForRectRel(this.rect, rect_rel__component);
 
-          };
-
-          const config = {
-            rect: {
-              x: 0,
-              y: 0,
-              width: 1600,
-              height: 1000,
-            },
-            components: components,
-          };
-
-          outConfig = config;
-
-          return outConfig;
-        }
-
-        static template_challenge(nb_op) {
-          var outConfig;
-
-          switch (nb_op) {
-            case 2:
-              outConfig = GolfCourseConfig.template_challenge__2();
-              break;
-            default:
-              outConfig = GolfCourseConfig.template_challenge__4();
-              break;
-          }
-
-          return outConfig;
-        }
-
-        static template_challenge__2() {
-          var outConfig;
-
-          const components = {
-            "bg": {
-              type: "rect",
-              zIndex: -10,
-              config: {
-                // fill: "green",
-                // fill: "lightgreen",
-                // fill: "orange",
-                fill: "lightyellow",
-              },
-              rect_rel: {
-                l: 0.0,
-                r: 1.0,
-                t: 0.0,
-                b: 1.0,
-              },
-            },
-
-            "tee": {
-              type: "rect",
-              zIndex: 100,
-              config: {
-                fill: "lightgreen",
-              },
-              rect_rel: {
-                l: 0.05,
-                r: 0.15,
-                t: 0.40,
-                b: 0.50,
-              },
-            },
-
-            // "bumpers": {
-            "bumper1": {
-              type: "gm_operator",
-              zIndex: 51,
-              config: {
-                operatorString: "+ 1",
-                //SHULOLILOL
-                operatorNode: MathSingleton.node__empty,
-              },
-              rect_rel: {
-                l: 0.25,
-                r: 0.35,
-                t: 0.80,
-                b: 0.90,
-              },
-            },
-            "bumper2": {
-              type: "gm_operator",
-              zIndex: 52,
-              config: {
-                operatorString: "+ 10",
-                //SHULOLILOL
-                operatorNode: MathSingleton.node__empty,
-              },
-              rect_rel: {
-                l: 0.55,
-                r: 0.65,
-                t: 0.80,
-                b: 0.90,
-              },
-            },
-            // },
-
-
-
-
-            "hole": {
-              type: "gm_targetTouchSlot",
-              zIndex: 10,
-              config: {
-                value: -48,
-              },
-              rect_rel: {
-                l: 0.85,
-                r: 0.95,
-                t: 0.40,
-                b: 0.50,
-              },
-            },
-          };
-
-          const config = {
-            rect: {
-              x: 0,
-              y: 0,
-              width: 1600,
-              height: 1000,
-            },
-            components: components,
-          };
-
-          outConfig = config;
-
-          return outConfig;
-        }
-
-        static template_challenge__4() {
-          var outConfig;
-
-          const components = {
-            "bg": {
-              type: "rect",
-              zIndex: -10,
-              config: {
-                // fill: "green",
-                // fill: "lightgreen",
-                // fill: "orange",
-                fill: "lightyellow",
-              },
-              rect_rel: {
-                l: 0.0,
-                r: 1.0,
-                t: 0.0,
-                b: 1.0,
-              },
-            },
-
-            "tee": {
-              type: "rect",
-              zIndex: 100,
-              config: {
-                fill: "lightgreen",
-              },
-              rect_rel: {
-                l: 0.05,
-                r: 0.15,
-                t: 0.40,
-                b: 0.50,
-              },
-            },
-
-            // "bumpers": {
-            "bumper1": {
-              type: "gm_operator",
-              zIndex: 51,
-              config: {
-                operatorString: "+ 1",
-                //SHULOLILOL
-                operatorNode: MathSingleton.node__empty,
-              },
-              rect_rel: {
-                l: 0.15,
-                r: 0.25,
-                t: 0.80,
-                b: 0.90,
-              },
-            },
-            "bumper2": {
-              type: "gm_operator",
-              zIndex: 52,
-              config: {
-                operatorString: "+ 10",
-                //SHULOLILOL
-                operatorNode: MathSingleton.node__empty,
-              },
-              rect_rel: {
-                l: 0.35,
-                r: 0.45,
-                t: 0.80,
-                b: 0.90,
-              },
-            },
-            "bumper3": {
-              type: "gm_operator",
-              zIndex: 53,
-              config: {
-                operatorString: "x 2",
-                //SHULOLILOL
-                operatorNode: MathSingleton.node__empty,
-              },
-              rect_rel: {
-                l: 0.55,
-                r: 0.65,
-                t: 0.80,
-                b: 0.90,
-              },
-            },
-            "bumper4": {
-              type: "gm_operator",
-              zIndex: 54,
-              config: {
-                operatorString: "x (-1)",
-                //SHULOLILOL
-                operatorNode: MathSingleton.node__empty,
-              },
-              rect_rel: {
-                l: 0.75,
-                r: 0.85,
-                t: 0.80,
-                b: 0.90,
-              },
-            },
-            // },
-
-
-
-
-            "hole": {
-              type: "gm_targetTouchSlot",
-              zIndex: 10,
-              config: {
-                value: -48,
-              },
-              rect_rel: {
-                l: 0.85,
-                r: 0.95,
-                t: 0.40,
-                b: 0.50,
-              },
-            },
-          };
-
-          const config = {
-            rect: {
-              x: 0,
-              y: 0,
-              width: 1600,
-              height: 1000,
-            },
-            components: components,
-          };
-
-          outConfig = config;
-
-          return outConfig;
-        }
-
-
-        static template_challenge_with_placeholders(nb_op) {
-          var outConfig;
-
-          switch (nb_op) {
-            case 2:
-              outConfig = GolfCourseConfig.template_challenge_with_placeholders__2();
-              break;
-            default:
-              outConfig = GolfCourseConfig.template_challenge_with_placeholders__4();
-              break;
-          }
-
-          return outConfig;
-        }
-
-        static template_challenge_with_placeholders__2() {
-          var outConfig;
-
-          const components = {
-            "bg": {
-              type: "rect",
-              zIndex: -10,
-              config: {
-                // fill: "green",
-                // fill: "lightgreen",
-                // fill: "orange",
-                fill: "lightyellow",
-              },
-              rect_rel: {
-                l: 0.0,
-                r: 1.0,
-                t: 0.0,
-                b: 1.0,
-              },
-            },
-
-            "tee": {
-              type: "rect",
-              zIndex: 100,
-              config: {
-                fill: "lightgreen",
-              },
-              rect_rel: {
-                l: 0.05,
-                r: 0.15,
-                t: 0.40,
-                b: 0.50,
-              },
-            },
-
-            // "bumpers": {
-            "bumper1": {
-              type: "gm_operator",
-              zIndex: 51,
-              config: {
-                operatorString: "+ 1",
-                //SHULOLILOL
-                operatorNode: MathSingleton.node__empty,
-              },
-              rect_rel: {
-                l: 0.25,
-                r: 0.35,
-                t: 0.80,
-                b: 0.90,
-              },
-            },
-            "bumper2": {
-              type: "gm_operator",
-              zIndex: 52,
-              config: {
-                operatorString: "+ 10",
-                //SHULOLILOL
-                operatorNode: MathSingleton.node__empty,
-              },
-              rect_rel: {
-                l: 0.55,
-                r: 0.65,
-                t: 0.80,
-                b: 0.90,
-              },
-            },
-            // "bumper3": {
-            //   type: "gm_operator",
-            //   zIndex: 53,
-            //   config: {
-            //     operatorString: "x 2",
-            //   },
-            //   rect_rel: {
-            //     l: 0.55,
-            //     r: 0.65,
-            //     t: 0.80,
-            //     b: 0.90,
-            //   },
-            // },
-            // "bumper4": {
-            //   type: "gm_operator",
-            //   zIndex: 54,
-            //   config: {
-            //     operatorString: "x (-1)",
-            //   },
-            //   rect_rel: {
-            //     l: 0.75,
-            //     r: 0.85,
-            //     t: 0.80,
-            //     b: 0.90,
-            //   },
-            // },
-            // },
-
-            "operatorWallPlaceholder1": {
-              type: "placeholder",
-              zIndex: 55,
-              config: {
-                fill: "gray",
-              },
-              rect_rel: {
-                l: 0.25,
-                r: 0.35,
-                t: 0.10,
-                b: 0.20,
-              },
-            },
-            "operatorWallPlaceholder2": {
-              type: "placeholder",
-              zIndex: 56,
-              config: {
-                fill: "gray",
-              },
-              rect_rel: {
-                l: 0.55,
-                r: 0.65,
-                t: 0.10,
-                b: 0.20,
-              },
-            },
-            // "operatorWallPlaceholder3": {
-            //   type: "placeholder",
-            //   zIndex: 57,
-            //   config: {
-            //     fill: "gray",
-            //   },
-            //   rect_rel: {
-            //     l: 0.55,
-            //     r: 0.65,
-            //     t: 0.10,
-            //     b: 0.20,
-            //   },
-            // },
-            // "operatorWallPlaceholder4": {
-            //   type: "placeholder",
-            //   zIndex: 58,
-            //   config: {
-            //     fill: "gray",
-            //   },
-            //   rect_rel: {
-            //     l: 0.75,
-            //     r: 0.85,
-            //     t: 0.10,
-            //     b: 0.20,
-            //   },
-            // },
-
-
-            "hole": {
-              type: "gm_targetTouchSlot",
-              zIndex: 10,
-              config: {
-                value: -48,
-              },
-              rect_rel: {
-                l: 0.85,
-                r: 0.95,
-                t: 0.40,
-                b: 0.50,
-              },
-            },
-          };
-
-          const config = {
-            rect: {
-              x: 0,
-              y: 0,
-              width: 1600,
-              height: 1000,
-            },
-            components: components,
-          };
-
-          outConfig = config;
-
-          return outConfig;
-        }
-
-
-        static template_challenge_with_placeholders__4() {
-          var outConfig;
-
-          const components = {
-            "bg": {
-              type: "rect",
-              zIndex: -10,
-              config: {
-                // fill: "green",
-                // fill: "lightgreen",
-                // fill: "orange",
-                fill: "lightyellow",
-              },
-              rect_rel: {
-                l: 0.0,
-                r: 1.0,
-                t: 0.0,
-                b: 1.0,
-              },
-            },
-
-            "tee": {
-              type: "rect",
-              zIndex: 100,
-              config: {
-                fill: "lightgreen",
-              },
-              rect_rel: {
-                l: 0.05,
-                r: 0.15,
-                t: 0.40,
-                b: 0.50,
-              },
-            },
-
-            // "bumpers": {
-            "bumper1": {
-              type: "gm_operator",
-              zIndex: 51,
-              config: {
-                operatorString: "+ 1",
-                //SHULOLILOL
-                operatorNode: MathSingleton.node__empty,
-              },
-              rect_rel: {
-                l: 0.15,
-                r: 0.25,
-                t: 0.80,
-                b: 0.90,
-              },
-            },
-            "bumper2": {
-              type: "gm_operator",
-              zIndex: 52,
-              config: {
-                operatorString: "+ 10",
-                //SHULOLILOL
-                operatorNode: MathSingleton.node__empty,
-              },
-              rect_rel: {
-                l: 0.35,
-                r: 0.45,
-                t: 0.80,
-                b: 0.90,
-              },
-            },
-            "bumper3": {
-              type: "gm_operator",
-              zIndex: 53,
-              config: {
-                operatorString: "x 2",
-                //SHULOLILOL
-                operatorNode: MathSingleton.node__empty,
-              },
-              rect_rel: {
-                l: 0.55,
-                r: 0.65,
-                t: 0.80,
-                b: 0.90,
-              },
-            },
-            "bumper4": {
-              type: "gm_operator",
-              zIndex: 54,
-              config: {
-                operatorString: "x (-1)",
-                //SHULOLILOL
-                operatorNode: MathSingleton.node__empty,
-              },
-              rect_rel: {
-                l: 0.75,
-                r: 0.85,
-                t: 0.80,
-                b: 0.90,
-              },
-            },
-            // },
-
-            "operatorWallPlaceholder1": {
-              type: "placeholder",
-              zIndex: 55,
-              config: {
-                fill: "gray",
-              },
-              rect_rel: {
-                l: 0.15,
-                r: 0.25,
-                t: 0.10,
-                b: 0.20,
-              },
-            },
-            "operatorWallPlaceholder2": {
-              type: "placeholder",
-              zIndex: 56,
-              config: {
-                fill: "gray",
-              },
-              rect_rel: {
-                l: 0.35,
-                r: 0.45,
-                t: 0.10,
-                b: 0.20,
-              },
-            },
-            "operatorWallPlaceholder3": {
-              type: "placeholder",
-              zIndex: 57,
-              config: {
-                fill: "gray",
-              },
-              rect_rel: {
-                l: 0.55,
-                r: 0.65,
-                t: 0.10,
-                b: 0.20,
-              },
-            },
-            "operatorWallPlaceholder4": {
-              type: "placeholder",
-              zIndex: 58,
-              config: {
-                fill: "gray",
-              },
-              rect_rel: {
-                l: 0.75,
-                r: 0.85,
-                t: 0.10,
-                b: 0.20,
-              },
-            },
-
-
-            "hole": {
-              type: "gm_targetTouchSlot",
-              zIndex: 10,
-              config: {
-                value: -48,
-              },
-              rect_rel: {
-                l: 0.85,
-                r: 0.95,
-                t: 0.40,
-                b: 0.50,
-              },
-            },
-          };
-
-          const config = {
-            rect: {
-              x: 0,
-              y: 0,
-              width: 1600,
-              height: 1000,
-            },
-            components: components,
-          };
-
-          outConfig = config;
-
-          return outConfig;
-        }
-
-
-        static template_challenge__fraction_add() {
-          var outConfig;
-
-          const components = {
-            "bg": {
-              type: "rect",
-              zIndex: -10,
-              config: {
-                // fill: "green",
-                // fill: "lightgreen",
-                // fill: "orange",
-                fill: "lightyellow",
-              },
-              rect_rel: {
-                l: 0.0,
-                r: 1.0,
-                t: 0.0,
-                b: 1.0,
-              },
-            },
-
-            "tee1": {
-              type: "rect",
-              zIndex: 100,
-              config: {
-                fill: "lightgreen",
-              },
-              rect_rel: {
-                l: 0.05,
-                r: 0.15,
-                t: 0.30,
-                b: 0.40,
-              },
-            },
-
-            "tee2": {
-              type: "rect",
-              zIndex: 100,
-              config: {
-                fill: "lightgreen",
-              },
-              rect_rel: {
-                l: 0.05,
-                r: 0.15,
-                t: 0.50,
-                b: 0.60,
-              },
-            },
-
-            // "bumpers": {
-            "bumper1": {
-              type: "gm_fractionOne_operator",
-              zIndex: 51,
-              config: {
-                operatorString: "fractionOne:x 2",
-              },
-              rect_rel: {
-                l: 0.15,
-                r: 0.25,
-                t: 0.80,
-                b: 0.90,
-              },
-            },
-            "bumper2": {
-              type: "gm_fractionOne_operator",
-              zIndex: 52,
-              config: {
-                operatorString: "fractionOne:x 3",
-              },
-              rect_rel: {
-                l: 0.35,
-                r: 0.45,
-                t: 0.80,
-                b: 0.90,
-              },
-            },
-            "bumper3": {
-              type: "gm_fractionOne_operator",
-              zIndex: 53,
-              config: {
-                operatorString: "fractionOne:x 5",
-              },
-              rect_rel: {
-                l: 0.55,
-                r: 0.65,
-                t: 0.80,
-                b: 0.90,
-              },
-            },
-            "bumper4": {
-              type: "gm_fractionOne_operator",
-              zIndex: 54,
-              config: {
-                operatorString: "fractionOne:x 7",
-              },
-              rect_rel: {
-                l: 0.75,
-                r: 0.85,
-                t: 0.80,
-                b: 0.90,
-              },
-            },
-            // },
-
-            "conductiveOp": {
-              type: "gm_conductive_operator",
-              zIndex: 55,
-              config: {
-                operatorString: "+",
-              },
-              rect_rel: {
-                l: 0.45,
-                r: 0.65,
-                t: 0.30,
-                b: 0.60,
-              },
-            },
-
-
-            // "operatorWallPlaceholder1": {
-            //   type: "placeholder",
-            //   zIndex: 55,
-            //   config: {
-            //     fill: "gray",
-            //   },
-            //   rect_rel: {
-            //     l: 0.15,
-            //     r: 0.25,
-            //     t: 0.10,
-            //     b: 0.20,
-            //   },
-            // },
-            // "operatorWallPlaceholder2": {
-            //   type: "placeholder",
-            //   zIndex: 56,
-            //   config: {
-            //     fill: "gray",
-            //   },
-            //   rect_rel: {
-            //     l: 0.35,
-            //     r: 0.45,
-            //     t: 0.10,
-            //     b: 0.20,
-            //   },
-            // },
-            // "operatorWallPlaceholder3": {
-            //   type: "placeholder",
-            //   zIndex: 57,
-            //   config: {
-            //     fill: "gray",
-            //   },
-            //   rect_rel: {
-            //     l: 0.55,
-            //     r: 0.65,
-            //     t: 0.10,
-            //     b: 0.20,
-            //   },
-            // },
-            // "operatorWallPlaceholder4": {
-            //   type: "placeholder",
-            //   zIndex: 58,
-            //   config: {
-            //     fill: "gray",
-            //   },
-            //   rect_rel: {
-            //     l: 0.75,
-            //     r: 0.85,
-            //     t: 0.10,
-            //     b: 0.20,
-            //   },
-            // },
-
-
-            "hole": {
-              type: "gm_targetTouchSlot",
-              zIndex: 10,
-              config: {
-                value: -48,
-              },
-              rect_rel: {
-                l: 0.85,
-                r: 0.95,
-                t: 0.40,
-                b: 0.50,
-              },
-            },
-          };
-
-          const config = {
-            rect: {
-              x: 0,
-              y: 0,
-              width: 1600,
-              height: 1000,
-            },
-            components: components,
-          };
-
-          outConfig = config;
-
-          return outConfig;
-        }
-
-
-
-        static challengeCourseConfigMiniObj_fromMiniString(challengeCourseMiniString) {
-
-          const arr_courseStringComponent = challengeCourseMiniString.split(",");
-          const nb_compoments = arr_courseStringComponent.length;
-
-          const courseConfigMiniObj = arr_courseStringComponent.reduce((acc, x, i) => {
-
-            const componentString = x;
-
-            switch (i) {
-              case 0:
-                const initial = parseInt(componentString);
-                acc["initial"] = initial;
-                break;
-              case (nb_compoments - 1):
-                const target = parseInt(componentString);
-                acc["target"] = target;
-                break;
-              default:
-                const operatorString = componentString;
-                if (acc["operators"] == null) {
-                  acc["operators"] = [];
-                }
-                acc["operators"].push(operatorString);
-                break;
-            }
-
-            return acc;
-          }, {});
-
-          return courseConfigMiniObj;
-        }
-
-
-        static challengeCourseConfig_fromMiniString(courseMiniString) {
-          var outCourseConfig;
-
-          const courseConfigMiniObj = GolfCourseConfig.challengeCourseConfigMiniObj_fromMiniString(courseMiniString);
-
-          const courseConfig = GolfCourseConfig.template_challenge();
-
-          // courseConfig.components.ball.config.value = courseConfigMiniObj.initial;
-          courseConfig.initial = courseConfigMiniObj.initial;
-
-          courseConfig.components.hole.config.value = courseConfigMiniObj.target;
-
-          //SHU TODO: remove this ugliness
-          // const entries_bumper = Object.entries(courseConfig.components).filter(([componentName, component]) => componentName.startsWith("bumper"));
-          const entries_bumper = Object.entries(courseConfig.components).filter(([componentName, component]) => component.type == "gm_operator");
-          entries_bumper.forEach(([componentName, component], i) => {
-            component.config.operatorString = courseConfigMiniObj.operators[i];
-          });
-
-          outCourseConfig = courseConfig;
-
-          return outCourseConfig;
-        }
-
+  switch(componentConfig.type) {
+    case "rect":
+      {
+      const config = componentConfig.config;
+      const fill   = config.fill;
+      outIcObj = infiniteCanvas.createIcRect(trueRect__component);
+      outIcObj.fill = fill;
       }
-
-
-      class GolfCourse {
-
-        constructor(infiniteCanvas, golfCourseConfig) {
-          console.log("GolfCourse, constructor", golfCourseConfig);
-          this.infiniteCanvas = infiniteCanvas;
-
-          this.rect = golfCourseConfig.rect;
-
-          // this.components =
-          const components = Object.entries(golfCourseConfig.components).reduce((acc, [componentName, componentConfig]) => {
-            // logger.log("componentName", componentName);
-
-            const icObj = this.createIcObjForComponent(infiniteCanvas, componentConfig);
-            infiniteCanvas.addIcObject(icObj);
-
-            const represented = infiniteCanvas.getRepresented(icObj.id);
-            const rep_free = represented.r_free();
-
-            const component = new GolfObject(componentConfig.type, rep_free);
-
-            acc[componentName] = component;
-
-            return acc;
-          }, {});
-          this.components = components;
-        }
-
-
-        createIcObjForComponent(infiniteCanvas, componentConfig) {
-          console.log("createIcObjForComponent", componentConfig);
-          var outIcObj;
-
-          const rect_rel__component = componentConfig.rect_rel;
-          const trueRect__component = Geometry.rectForRectRel(this.rect, rect_rel__component);
-
-          switch (componentConfig.type) {
-            case "rect":
-              {
-                const config = componentConfig.config;
-                const fill = config.fill;
-                outIcObj = infiniteCanvas.createIcRect(trueRect__component);
-                outIcObj.fill = fill;
-              }
-              break;
-            case "gm_clickWell":
-              {
-                const config = componentConfig.config;
-                const value = config.value;
-                // outIcObj = infiniteCanvas.createIcGMClickWell(trueRect__component, value);
-                outIcObj = infiniteCanvas.createIcBornAgainGreenMouse(trueRect__component, value);
-              }
-              break;
-            case "gm_operator":
-              {
-                const config = componentConfig.config;
-                const operatorString = config.operatorString;
-                outIcObj = infiniteCanvas.createIcGMOperator(trueRect__component, operatorString);
-              }
-              break;
-
-            case "gm_fractionOne_operator":
-              {
-                // const config         = componentConfig.config;
-                // const operatorString = config.operatorString;
-                outIcObj = infiniteCanvas.createIcFractionOneOperator(trueRect__component);
-              }
-              break;
-            case "gm_conductive_operator":
-              {
-                const config = componentConfig.config;
-                const operatorString = config.operatorString;
-                outIcObj = infiniteCanvas.createIcConductiveOperator(trueRect__component);
-              }
-              break;
-
-            case "gm_targetTouchSlot":
-              {
-                const config = componentConfig.config;
-                const value__core = config.value;
-                const value__facade = config.value__facade;
-
-                const value = config.value;
-                outIcObj = infiniteCanvas.createIcGMTargetTouchSlot(trueRect__component, value);
-
-                /*
-                const mathNode__core   = math.parse("42");
-                const mathNode__facade = math.parse("1000");
-                outIcObj = infiniteCanvas.createIcGMEqTargetTouchSlot(trueRect__component, mathNode__core, mathNode__facade);
-                */
-
-                // outIcObj = infiniteCanvas.createIcGMBoxTargetTouchSlot(trueRect__component, value);
-                // outIcObj = infiniteCanvas.createIcGMBlob(trueRect__component, value);
-              }
-              break;
-
-
-            case "button":
-              {
-                const config = componentConfig.config;
-                const fill = config.fill;
-                outIcObj = infiniteCanvas.createIcButton(trueRect__component);
-                outIcObj.fill = fill;
-              }
-              break;
-
-            case "labelValue":
-              {
-                const config = componentConfig.config;
-                const fill = config.fill;
-                const text = config.text;
-                outIcObj = infiniteCanvas.createIcLabelValue(trueRect__component, text, 0);
-                outIcObj.fill = fill;
-              }
-              break;
-
-            // case "img":
-            //   {
-            //   const config = componentConfig.config;
-            //   const fill   = config.fill;
-            //   const text   = config.text;
-            //   outIcObj = infiniteCanvas.createIcImage(trueRect__component, null);
-            //   outIcObj.fill = fill;
-            //   }
-            //   break;
-
-            case "placeholder":
-              {
-                // const config = componentConfig.config;
-                // const fill   = config.fill;
-                // outIcObj = infiniteCanvas.createIcRect(trueRect__component);
-                // outIcObj.fill = fill;
-                const operatorString = "x 1";
-                outIcObj = infiniteCanvas.createIcGMOperator(trueRect__component, operatorString);
-
-                outIcObj.isPlaceholder = true;
-              }
-              break;
-
-
-            default:
-              throw new Error("unsupported type: " + componentConfig.type);
-              break;
-          }
-
-          //common props
-          const zIndex = componentConfig.zIndex;
-          outIcObj.zIndex = zIndex;
-
-          return outIcObj;
-        }
-
-        fillHole() {
-          const icObj_hole = this.components["hole"].icObj;
-          // icObj_hole.parts["facade"].fill = "yellow";
-          icObj_hole.parts["touchSlot"].fill = "yellow";
-        }
-
-        freeHole() {
-          const icObj_hole = this.components["hole"].icObj;
-          // icObj_hole.parts["facade"].fill = "yellow";
-          icObj_hole.parts["touchSlot"].fill = "";
-        }
-
-
-        mutateIntoScoreLabel(score) {
-
-          const golfCourse = this;
-          const infiniteCanvas = this.infiniteCanvas;
-
-          //remove almost all golfCourse components
-          // Object.entries(golfCourse.components)
-          // .filter(([componentName, component]) => {
-          //   return (componentName != "bg");
-          // })
-          // .forEach(([componentName, component], i) => {
-          //   const icObj = component.icObj;
-          //
-          //   // icObj.im_dying_now = true;
-          //   // infiniteCanvas.removeIcObject(icObj);
-          //
-          //   const represented = icObj.represented;
-          //   infiniteCanvas.removeRepresented(represented, true);
-          // });
-
-          //change bg color
-          const icObj_bg = golfCourse.components["bg"].icObj;
-
-          // function colorForScore(score) {
-          //   var outColor;
-          //
-          //   switch(score.medal) {
-          //     case "bronze":
-          //     outColor = "bronze";
-          //     break;
-          //     case "silver":
-          //     outColor = "silver";
-          //     break;
-          //     case "gold":
-          //     outColor = "gold";
-          //     break;
-          //   }
-          //
-          //   return outColor;
-          // }
-          icObj_bg.fill = "gold";
-
-          //add score label
-          const rect__scoreLabel = {
-            x: golfCourse.rect.x,
-            y: golfCourse.rect.y,
-            width: golfCourse.rect.width,
-            height: golfCourse.rect.height,
-          };
-          const scoreLabel = infiniteCanvas.createIcText(rect__scoreLabel.x, rect__scoreLabel.y, "" + score);     //SHU TODO: createIcLabel(trueRect, text)
-          infiniteCanvas.addIcObject(scoreLabel);
-
-
-        }
-
+      break;
+    case "gm_clickWell":
+      {
+      const config = componentConfig.config;
+      const value  = config.value;
+      // outIcObj = infiniteCanvas.createIcGMClickWell(trueRect__component, value);
+      outIcObj = infiniteCanvas.createIcBornAgainGreenMouse(trueRect__component, value);
       }
+      break;
+    case "gm_operator":
+      {
+      const config = componentConfig.config;
+      const cfg = {
+        operatorString: config.operatorString,
+        operatorNode:   config.operatorNode,
+      };
+      outIcObj = infiniteCanvas.createIcGMOperator(trueRect__component, cfg);
+      }
+      break;
+
+    case "gm_fractionOne_operator":
+      {
+      // const config         = componentConfig.config;
+      // const operatorString = config.operatorString;
+      outIcObj = infiniteCanvas.createIcFractionOneOperator(trueRect__component);
+      }
+      break;
+    case "gm_conductive_operator":
+      {
+      const config         = componentConfig.config;
+      const operatorString = config.operatorString;
+      outIcObj = infiniteCanvas.createIcConductiveOperator(trueRect__component);
+      }
+      break;
+
+    case "gm_targetTouchSlot":
+      {
+      const config = componentConfig.config;
+      const value__core   = config.value;
+      const value__facade = config.value__facade;
+
+      const value = config.value;
+      outIcObj = infiniteCanvas.createIcGMTargetTouchSlot(trueRect__component, value);
+
+      /*
+      const mathNode__core   = math.parse("42");
+      const mathNode__facade = math.parse("1000");
+      outIcObj = infiniteCanvas.createIcGMEqTargetTouchSlot(trueRect__component, mathNode__core, mathNode__facade);
+      */
+
+      // outIcObj = infiniteCanvas.createIcGMBoxTargetTouchSlot(trueRect__component, value);
+      // outIcObj = infiniteCanvas.createIcGMBlob(trueRect__component, value);
+      }
+      break;
+
+    case "gm_safetyZone":
+      {
+      outIcObj = infiniteCanvas.createIcGMSafetyZone(trueRect__component);
+      }
+      break;
+
+    case "gm_platformOp":
+      {
+      const config   = componentConfig.config;
+      const opString = config.opString;
+
+      const value = config.value;
+      outIcObj = infiniteCanvas.createIcGMPlatformOp(trueRect__component, opString);
+      }
+      break;
+
+
+    case "button":
+      {
+      const config = componentConfig.config;
+      const fill   = config.fill;
+      outIcObj = infiniteCanvas.createIcButton(trueRect__component);
+      outIcObj.fill = fill;
+      }
+      break;
+
+    case "labelValue":
+      {
+      const config = componentConfig.config;
+      const fill   = config.fill;
+      const text   = config.text;
+      outIcObj = infiniteCanvas.createIcLabelValue(trueRect__component, text, 0);
+      outIcObj.fill = fill;
+      }
+      break;
+
+    // case "img":
+    //   {
+    //   const config = componentConfig.config;
+    //   const fill   = config.fill;
+    //   const text   = config.text;
+    //   outIcObj = infiniteCanvas.createIcImage(trueRect__component, null);
+    //   outIcObj.fill = fill;
+    //   }
+    //   break;
+
+    case "placeholder":
+      {
+      // const config = componentConfig.config;
+      // const fill   = config.fill;
+      // outIcObj = infiniteCanvas.createIcRect(trueRect__component);
+      // outIcObj.fill = fill;
+      const operatorString = "x 1";
+      const cfg = {
+        operatorString: operatorString,
+
+        //SHULOLILOL
+        operatorNode: MathSingleton.node__empty,
+      };
+      outIcObj = infiniteCanvas.createIcGMOperator(trueRect__component, cfg);
+
+      outIcObj.isPlaceholder = true;
+      }
+      break;
+
+
+    default:
+      throw new Error("unsupported type: " + componentConfig.type);
+      break;
+  }
+
+  //common props
+  const zIndex = componentConfig.zIndex;
+  outIcObj.zIndex = zIndex;
+
+  return outIcObj;
+}
+
+fillHole() {
+  const icObj_hole = this.components["hole"].icObj;
+  // icObj_hole.parts["facade"].fill = "yellow";
+  icObj_hole.parts["touchSlot"].fill = "yellow";
+}
+
+freeHole() {
+  const icObj_hole = this.components["hole"].icObj;
+  // icObj_hole.parts["facade"].fill = "yellow";
+  icObj_hole.parts["touchSlot"].fill = "";
+}
+
+
+mutateIntoScoreLabel(score) {
+
+  const golfCourse     = this;
+  const infiniteCanvas = this.infiniteCanvas;
+
+  //remove almost all golfCourse components
+  // Object.entries(golfCourse.components)
+  // .filter(([componentName, component]) => {
+  //   return (componentName != "bg");
+  // })
+  // .forEach(([componentName, component], i) => {
+  //   const icObj = component.icObj;
+  //
+  //   // icObj.im_dying_now = true;
+  //   // infiniteCanvas.removeIcObject(icObj);
+  //
+  //   const represented = icObj.represented;
+  //   infiniteCanvas.removeRepresented(represented, true);
+  // });
+
+  //change bg color
+  const icObj_bg = golfCourse.components["bg"].icObj;
+
+  // function colorForScore(score) {
+  //   var outColor;
+  //
+  //   switch(score.medal) {
+  //     case "bronze":
+  //     outColor = "bronze";
+  //     break;
+  //     case "silver":
+  //     outColor = "silver";
+  //     break;
+  //     case "gold":
+  //     outColor = "gold";
+  //     break;
+  //   }
+  //
+  //   return outColor;
+  // }
+  icObj_bg.fill = "gold";
+
+  //add score label
+  const rect__scoreLabel = {
+    x:      golfCourse.rect.x,
+    y:      golfCourse.rect.y,
+    width:  golfCourse.rect.width,
+    height: golfCourse.rect.height,
+  };
+  const scoreLabel = infiniteCanvas.createIcText(rect__scoreLabel.x, rect__scoreLabel.y, "" + score);     //SHU TODO: createIcLabel(trueRect, text)
+  infiniteCanvas.addIcObject(scoreLabel);
+
+
+}
+
+}
 
       class GolfStepConfig {
         constructor(type, golfCourseName, par, componentSpecs, gmItemConfig) {
@@ -43140,24 +42956,30 @@
           this.infiniteCanvas = infiniteCanvas;
 
           //create golfCourse
-          const golfCourseConfig = GolfCourseConfig.template_challenge_with_placeholders();
+          var golfCourseConfig = GolfCourseConfig.template_challenge();
+          // const golfCourseConfig = GolfCourseConfig.template_challenge_with_placeholders();
           // const golfCourseConfig = GolfCourseConfig.template_challenge__fraction_add();
 
-          const golfCourse = new GolfCourse(infiniteCanvas, golfCourseConfig);
+          // const golfCourseConfig = GolfCourseConfig.template_challenge_with_safetyZone_and_platformPlus();
+
+          golfCourseConfig = GolfCourseConfig.configByAddingSafetyZone(golfCourseConfig);
+          // golfCourseConfig = GolfCourseConfig.configByAddingPlatformOp(golfCourseConfig, "+");
+
+          const golfCourse       = new GolfCourse(infiniteCanvas, golfCourseConfig);
           this.golfCourse = golfCourse;
 
           //prepare golf course
           this.prepareGolfCourse(golfCourse);
 
           //setup step generator
-          //numbers
+            //numbers
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance1(infiniteCanvas, golfCourse, stepGeneratorFunc);
-          //litterals
+            //litterals
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance2(infiniteCanvas, golfCourse, stepGeneratorFunc);
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance3(infiniteCanvas, golfCourse, stepGeneratorFunc);
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance4(infiniteCanvas, golfCourse, stepGeneratorFunc); //broken
 
-          //fractions
+            //fractions
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__frac_to_one(infiniteCanvas, golfCourse, stepGeneratorFunc);
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__one_to_frac(infiniteCanvas, golfCourse, stepGeneratorFunc);
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__frac_to_frac(infiniteCanvas, golfCourse, stepGeneratorFunc);
@@ -43171,11 +42993,17 @@
 
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice__frac_add.randomInstance__frac_add(infiniteCanvas, golfCourse, stepGeneratorFunc);
 
-          //equations
+            //equations
           // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__equation_1(infiniteCanvas, golfCourse, stepGeneratorFunc);
 
-          //litexp writing
-          const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__litexp_writing_1(infiniteCanvas, golfCourse, stepGeneratorFunc);
+            //litexp writing
+              //degree:1
+          // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__litexp_writing_1(infiniteCanvas, golfCourse, stepGeneratorFunc);
+              //[* 2x] operator
+          // const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__litexp_writing_2(infiniteCanvas, golfCourse, stepGeneratorFunc);
+
+              //degree:2
+          const stepGeneratorFunc = () => GolfGameStep__Endless_Practice.randomInstance__litexp_writing_3(infiniteCanvas, golfCourse, stepGeneratorFunc);
 
 
           //create first step
@@ -43191,7 +43019,7 @@
           const infiniteCanvas = this.infiniteCanvas;
 
           //clear
-          //nothing to clear
+            //nothing to clear
 
           //add "Impossible" button
           {
@@ -43214,10 +43042,10 @@
 
 
 
-          if (golfCourse.components["hole"]) {
-            const icObj__hole = golfCourse.components["hole"].icObj;
+          if(golfCourse.components["hole"]) {
+            const icObj__hole      = golfCourse.components["hole"].icObj;
 
-            const icObj__facade = icObj__hole.parts["facade"];
+            const icObj__facade    = icObj__hole.parts["facade"];
             const icObj__touchSlot = icObj__hole.parts["touchSlot"];
 
             // logger.log("icObj__facade", icObj__facade);
@@ -43225,11 +43053,11 @@
             // icObj__facade.fill = "blue";
             // logger.log("icObj__facade", icObj__facade);
 
-            const rep_free__hole = infiniteCanvas.getRepresented(icObj__hole.id).r_free();
+            const rep_free__hole =  infiniteCanvas.getRepresented(icObj__hole.id).r_free();
             const rep_free__facade = rep_free__hole.parts.facade;
             const rep_free__touchSlot = rep_free__hole.parts.touchSlot;
 
-            rep_free__hole.compositeConfig[rep_free__facade.id].isMobile = true;
+            rep_free__hole.compositeConfig[rep_free__facade.id].isMobile    = true;
             rep_free__hole.compositeConfig[rep_free__touchSlot.id].isMobile = true;
 
 
@@ -43245,7 +43073,7 @@
             };
 
 
-            rep_free__hole.compositeConfig[rep_free__facade.id].isMobile = false;
+            rep_free__hole.compositeConfig[rep_free__facade.id].isMobile    = false;
             rep_free__hole.compositeConfig[rep_free__touchSlot.id].isMobile = false;
 
 
@@ -43319,9 +43147,9 @@
           });
 
           const gmItemConfig = {
-            initial: gmItem__initial,
-            target: gmItem__target,
-            operators: arr_gmItem_operator,
+            initial:    gmItem__initial,
+            target :    gmItem__target,
+            operators:  arr_gmItem_operator,
           };
 
           return gmItemConfig;
@@ -43360,12 +43188,12 @@
           });
 
 
-          const gmItem__target = GMMaker.createGMItemTarget__x_to_expr(gmItem__initial, arr_gmItem_operator, 4);
+          const gmItem__target   = GMMaker.createGMItemTarget__x_to_expr(gmItem__initial, arr_gmItem_operator, 4);
 
           const gmItemConfig = {
-            initial: gmItem__initial,
-            target: gmItem__target,
-            operators: arr_gmItem_operator,
+            initial:    gmItem__initial,
+            target :    gmItem__target,
+            operators:  arr_gmItem_operator,
           };
 
           return gmItemConfig;
@@ -43406,12 +43234,12 @@
           });
 
 
-          const gmItem__target = GMMaker.createGMItemTarget__x_to_expr(gmItem__initial, arr_gmItem_operator, 4);
+          const gmItem__target   = GMMaker.createGMItemTarget__x_to_expr(gmItem__initial, arr_gmItem_operator, 4);
 
           const gmItemConfig = {
-            initial: gmItem__initial,
-            target: gmItem__target,
-            operators: arr_gmItem_operator,
+            initial:    gmItem__initial,
+            target :    gmItem__target,
+            operators:  arr_gmItem_operator,
           };
 
           return gmItemConfig;
@@ -43453,10 +43281,10 @@
             return gmItem__operator;
           });
 
-          const depth__initial = 4;
+          const depth__initial    = 4;
           // const depth__initial    = 10;
 
-          const gmItem__initial = GMMaker.createGMItemTarget__x_to_expr(gmItem__target, arr_gmItem_operator, depth__initial);
+          const gmItem__initial   = GMMaker.createGMItemTarget__x_to_expr(gmItem__target, arr_gmItem_operator, depth__initial);
           const mathNode__initial = gmItem__initial.content;
           mathNode__initial.autoSimplify = true;
 
@@ -43480,8 +43308,8 @@
           });
 
           const gmItemConfig = {
-            initial: gmItem__initial,
-            target: gmItem__target,
+            initial:    gmItem__initial,
+            target :    gmItem__target,
 
             // operators:  arr_gmItem_operator,
             operators: arr_gmItem_operator__inverse,
@@ -43520,7 +43348,7 @@
             };
 
             const op_multiply = Operator.multiply();
-            const op_divide = Operator.divide();
+            const op_divide   = Operator.divide();
             const arr_op = [
               op_multiply,
               op_divide,
@@ -43554,12 +43382,12 @@
             return gmItem__operator;
           });
 
-          const depth__initial = 4;
+          const depth__initial    = 4;
           // const depth__initial    = 10;
 
           const gmItem__initial_seed = gmItem__target.clone();
           gmItem__initial_seed.content.autoSimplify = true;
-          const gmItem__initial = GMMaker.createGMItemTarget__x_to_expr(gmItem__initial_seed, arr_gmItem_operator, depth__initial);
+          const gmItem__initial   = GMMaker.createGMItemTarget__x_to_expr(gmItem__initial_seed, arr_gmItem_operator, depth__initial);
           const mathNode__initial = gmItem__initial.content;
           mathNode__initial.autoSimplify = true;
 
@@ -43573,7 +43401,7 @@
 
             const name = operatorNodeFuncWrapper.semantics.name;
             const func = operatorNodeFuncWrapper.func;
-            const func_decorated = function (mathNode_in) {
+            const func_decorated = function(mathNode_in) {
               logger.log("func_decorated, mathNode_in", mathNode_in);
               var outMathNode;
 
@@ -43598,8 +43426,8 @@
           });
 
           const gmItemConfig = {
-            initial: gmItem__initial,
-            target: gmItem__target,
+            initial:    gmItem__initial,
+            target :    gmItem__target,
 
             // operators:  arr_gmItem_operator,
             operators: arr_gmItem_operator__inverse,
@@ -43635,7 +43463,7 @@
             };
 
             const op_multiply = Operator.multiply();
-            const op_divide = Operator.divide();
+            const op_divide   = Operator.divide();
             const arr_op = [
               op_multiply,
               op_divide,
@@ -43646,7 +43474,7 @@
             const name = operatorNodeFuncWrapper.semantics.name;
 
             const func = operatorNodeFuncWrapper.func;
-            const func_decorated = function (mathNode_in) {
+            const func_decorated = function(mathNode_in) {
               logger.log("func_decorated, mathNode_in", mathNode_in);
               var outMathNode;
 
@@ -43678,7 +43506,7 @@
 
             const name = operatorNodeFuncWrapper.semantics.name;
             const func = operatorNodeFuncWrapper.func;
-            const func_decorated = function (mathNode_in) {
+            const func_decorated = function(mathNode_in) {
               logger.log("func_decorated, mathNode_in", mathNode_in);
               var outMathNode;
 
@@ -43702,19 +43530,19 @@
           });
 
 
-          const depth__target = 4;
+          const depth__target    = 4;
 
-          const gmItem__target = GMMaker.createGMItemTarget__x_to_expr(gmItem__initial, arr_gmItem_operator, depth__target);
+          const gmItem__target   = GMMaker.createGMItemTarget__x_to_expr(gmItem__initial, arr_gmItem_operator, depth__target);
           const mathNode__target = gmItem__target.content;
           mathNode__target.autoSimplify = true;
 
 
           const gmItemConfig = {
-            initial: gmItem__initial,
-            target: gmItem__target,
+            initial:    gmItem__initial,
+            target :    gmItem__target,
 
-            operators: arr_gmItem_operator,
-            operators__inverse: arr_gmItem_operator__inverse,
+            operators:           arr_gmItem_operator,
+            operators__inverse:  arr_gmItem_operator__inverse,
           };
 
           return gmItemConfig;
@@ -43747,7 +43575,7 @@
             };
 
             const op_multiply = Operator.multiply();
-            const op_divide = Operator.divide();
+            const op_divide   = Operator.divide();
             const arr_op = [
               op_multiply,
               op_divide,
@@ -43758,7 +43586,7 @@
             const name = operatorNodeFuncWrapper.semantics.name;
 
             const func = operatorNodeFuncWrapper.func;
-            const func_decorated = function (mathNode_in) {
+            const func_decorated = function(mathNode_in) {
               logger.log("func_decorated, mathNode_in", mathNode_in);
               var outMathNode;
 
@@ -43790,7 +43618,7 @@
 
             const name = operatorNodeFuncWrapper.semantics.name;
             const func = operatorNodeFuncWrapper.func;
-            const func_decorated = function (mathNode_in) {
+            const func_decorated = function(mathNode_in) {
               logger.log("func_decorated, mathNode_in", mathNode_in);
               var outMathNode;
 
@@ -43814,26 +43642,26 @@
           });
 
 
-          const depth__initial = 4;
+          const depth__initial    = 4;
 
-          const gmItem__initial = GMMaker.createGMItemTarget__x_to_expr(gmItem__one, arr_gmItem_operator__inverse, depth__initial);
+          const gmItem__initial   = GMMaker.createGMItemTarget__x_to_expr(gmItem__one, arr_gmItem_operator__inverse, depth__initial);
           const mathNode__initial = gmItem__initial.content;
           mathNode__initial.autoSimplify = true;
 
 
-          const depth__target = 4;
+          const depth__target    = 4;
 
-          const gmItem__target = GMMaker.createGMItemTarget__x_to_expr(gmItem__initial, arr_gmItem_operator, depth__target);
+          const gmItem__target   = GMMaker.createGMItemTarget__x_to_expr(gmItem__initial, arr_gmItem_operator, depth__target);
           const mathNode__target = gmItem__target.content;
           mathNode__target.autoSimplify = true;
 
 
           const gmItemConfig = {
-            initial: gmItem__initial,
-            target: gmItem__target,
+            initial:    gmItem__initial,
+            target :    gmItem__target,
 
-            operators: arr_gmItem_operator,
-            operators__inverse: arr_gmItem_operator__inverse,
+            operators:           arr_gmItem_operator,
+            operators__inverse:  arr_gmItem_operator__inverse,
           };
 
           return gmItemConfig;
@@ -43866,7 +43694,7 @@
             };
 
             const op_multiply = Operator.multiply();
-            const op_divide = Operator.divide();
+            const op_divide   = Operator.divide();
             const arr_op = [
               op_multiply,
               op_divide,
@@ -43877,7 +43705,7 @@
             const name = operatorNodeFuncWrapper.semantics.name;
 
             const func = operatorNodeFuncWrapper.func;
-            const func_decorated = function (mathNode_in) {
+            const func_decorated = function(mathNode_in) {
               logger.log("func_decorated, mathNode_in", mathNode_in);
               var outMathNode;
 
@@ -43910,7 +43738,7 @@
 
             const name = operatorNodeFuncWrapper.semantics.name;
             const func = operatorNodeFuncWrapper.func;
-            const func_decorated = function (mathNode_in) {
+            const func_decorated = function(mathNode_in) {
               logger.log("func_decorated, mathNode_in", mathNode_in);
               var outMathNode;
 
@@ -43935,28 +43763,28 @@
           });
 
 
-          const depth__initial = 4;
+          const depth__initial    = 4;
 
-          const gmItem__initial = GMMaker.createGMItemTarget__x_to_expr(gmItem__one, arr_gmItem_operator__inverse, depth__initial);
+          const gmItem__initial   = GMMaker.createGMItemTarget__x_to_expr(gmItem__one, arr_gmItem_operator__inverse, depth__initial);
           const mathNode__initial = gmItem__initial.content;
           gmItem__initial.content = Rewriter.decomposition_product_primes(mathNode__initial);
           mathNode__initial.autoSimplify = true;
 
 
-          const depth__target = 4;
+          const depth__target    = 4;
 
-          const gmItem__target = GMMaker.createGMItemTarget__x_to_expr(gmItem__initial, arr_gmItem_operator, depth__target);
+          const gmItem__target   = GMMaker.createGMItemTarget__x_to_expr(gmItem__initial, arr_gmItem_operator, depth__target);
           const mathNode__target = gmItem__target.content;
           gmItem__target.content = Rewriter.decomposition_product_primes(mathNode__target);
           mathNode__target.autoSimplify = true;
 
 
           const gmItemConfig = {
-            initial: gmItem__initial,
-            target: gmItem__target,
+            initial:    gmItem__initial,
+            target :    gmItem__target,
 
-            operators: arr_gmItem_operator,
-            operators__inverse: arr_gmItem_operator__inverse,
+            operators:           arr_gmItem_operator,
+            operators__inverse:  arr_gmItem_operator__inverse,
           };
 
           return gmItemConfig;
@@ -43985,12 +43813,12 @@
                 //   min: +1,
                 //   max: +10,
                 // },
-                arr: [2, 3, 5, 7],
+                arr: [2,3,5,7],
               },
             };
 
             const op_multiply = Operator.multiply();
-            const op_divide = Operator.divide();
+            const op_divide   = Operator.divide();
             const arr_op = [
               op_multiply,
               op_divide,
@@ -44001,7 +43829,7 @@
             const name = operatorNodeFuncWrapper.semantics.name;
 
             const func = operatorNodeFuncWrapper.func;
-            const func_decorated = function (mathNode_in) {
+            const func_decorated = function(mathNode_in) {
               logger.log("func_decorated, mathNode_in", mathNode_in);
               var outMathNode;
 
@@ -44034,7 +43862,7 @@
 
             const name = operatorNodeFuncWrapper.semantics.name;
             const func = operatorNodeFuncWrapper.func;
-            const func_decorated = function (mathNode_in) {
+            const func_decorated = function(mathNode_in) {
               logger.log("func_decorated, mathNode_in", mathNode_in);
               var outMathNode;
 
@@ -44059,28 +43887,28 @@
           });
 
 
-          const depth__initial = 4;
+          const depth__initial    = 4;
 
-          const gmItem__initial = GMMaker.createGMItemTarget__x_to_expr(gmItem__one, arr_gmItem_operator__inverse, depth__initial);
+          const gmItem__initial   = GMMaker.createGMItemTarget__x_to_expr(gmItem__one, arr_gmItem_operator__inverse, depth__initial);
           const mathNode__initial = gmItem__initial.content;
           gmItem__initial.content = Rewriter.decomposition_product_primes(mathNode__initial);
           mathNode__initial.autoSimplify = true;
 
 
-          const depth__target = 4;
+          const depth__target    = 4;
 
-          const gmItem__target = GMMaker.createGMItemTarget__x_to_expr(gmItem__initial, arr_gmItem_operator, depth__target);
+          const gmItem__target   = GMMaker.createGMItemTarget__x_to_expr(gmItem__initial, arr_gmItem_operator, depth__target);
           const mathNode__target = gmItem__target.content;
           gmItem__target.content = Rewriter.decomposition_product_primes(mathNode__target);
           mathNode__target.autoSimplify = true;
 
 
           const gmItemConfig = {
-            initial: gmItem__initial,
-            target: gmItem__target,
+            initial:    gmItem__initial,
+            target :    gmItem__target,
 
-            operators: arr_gmItem_operator,
-            operators__inverse: arr_gmItem_operator__inverse,
+            operators:           arr_gmItem_operator,
+            operators__inverse:  arr_gmItem_operator__inverse,
           };
 
           return gmItemConfig;
@@ -44113,7 +43941,7 @@
             };
 
             const op_multiply = Operator.multiply();
-            const op_divide = Operator.divide();
+            const op_divide   = Operator.divide();
             const arr_op = [
               op_multiply,
               op_divide,
@@ -44124,7 +43952,7 @@
             const name = operatorNodeFuncWrapper.semantics.name;
 
             const func = operatorNodeFuncWrapper.func;
-            const func_decorated = function (mathNode_in) {
+            const func_decorated = function(mathNode_in) {
               logger.log("func_decorated, mathNode_in", mathNode_in);
               var outMathNode;
 
@@ -44157,7 +43985,7 @@
 
             const name = operatorNodeFuncWrapper.semantics.name;
             const func = operatorNodeFuncWrapper.func;
-            const func_decorated = function (mathNode_in) {
+            const func_decorated = function(mathNode_in) {
               logger.log("func_decorated, mathNode_in", mathNode_in);
               var outMathNode;
 
@@ -44182,28 +44010,28 @@
           });
 
 
-          const depth__initial = 4;
+          const depth__initial    = 4;
 
-          const gmItem__initial = GMMaker.createGMItemTarget__x_to_expr(gmItem__one, arr_gmItem_operator__inverse, depth__initial);
+          const gmItem__initial   = GMMaker.createGMItemTarget__x_to_expr(gmItem__one, arr_gmItem_operator__inverse, depth__initial);
           const mathNode__initial = gmItem__initial.content;
           gmItem__initial.content = Rewriter.decomposition_product_primes(mathNode__initial);
           mathNode__initial.autoSimplify = true;
 
 
-          const depth__target = 4;
+          const depth__target    = 4;
 
-          const gmItem__target = GMMaker.createGMItemTarget__x_to_expr(gmItem__initial, arr_gmItem_operator, depth__target);
+          const gmItem__target   = GMMaker.createGMItemTarget__x_to_expr(gmItem__initial, arr_gmItem_operator, depth__target);
           const mathNode__target = gmItem__target.content;
           gmItem__target.content = Rewriter.decomposition_product_primes(mathNode__target);
           mathNode__target.autoSimplify = true;
 
 
           const gmItemConfig = {
-            initial: gmItem__initial,
-            target: gmItem__target,
+            initial:    gmItem__initial,
+            target :    gmItem__target,
 
-            operators: arr_gmItem_operator,
-            operators__inverse: arr_gmItem_operator__inverse,
+            operators:           arr_gmItem_operator,
+            operators__inverse:  arr_gmItem_operator__inverse,
           };
 
           return gmItemConfig;
@@ -44219,13 +44047,13 @@
 
           function createInitialGMItem(index) {
 
-            const mathNode__numerator = new math.ConstantNode(1);
-            const value__denominator = Utils.randomElementInArray([2, 3, 4, 5, 6, 7, 8, 9]);
+            const mathNode__numerator   = new math.ConstantNode(1);
+            const value__denominator    = Utils.randomElementInArray([2,3,4,5,6,7,8,9]);
             const mathNode__denominator = new math.ConstantNode(value__denominator);
 
             const mathNode__initial = new math.OperatorNode("/", "divide", [mathNode__numerator, mathNode__denominator]);
 
-            const gmItem__initial = GMItem.value(mathNode__initial, "initial_" + index, "");
+            const gmItem__initial   = GMItem.value(mathNode__initial, "initial_" + index, "");
             gmItem__initial.content = Rewriter.decomposition_product_primes(mathNode__initial);
             gmItem__initial.content.autoSimplify = true;
 
@@ -44236,17 +44064,17 @@
           const arr_gmItem_initial = [...Array(nb_initial).keys()].map(createInitialGMItem);
           const arr_mathNode_initial = arr_gmItem_initial.map(gmItem => gmItem.content);
 
-          const arr_factor = [2, 3, 5, 7];
+          const arr_factor = [2,3,5,7];
           const arr_gmItem_operator = arr_factor.map(factor => {
 
-            const op = Operator.fromString_binary("x");
+            const op     = Operator.fromString_binary("x");
             const node_b = new math.ConstantNode(factor);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
 
             const name = operatorNodeFuncWrapper.semantics.name;
 
             const func = operatorNodeFuncWrapper.func;
-            const func_decorated = function (mathNode_in) {
+            const func_decorated = function(mathNode_in) {
               logger.log("func_decorated, mathNode_in", mathNode_in);
               var outMathNode;
 
@@ -44269,19 +44097,19 @@
             return gmItem__operator;
           });
 
-          const depth__target = 4;
+          const depth__target    = 4;
 
           const mathNode__target = new math.OperatorNode("+", "add", arr_mathNode_initial);
-          const gmItem__target = GMItem.value(mathNode__target, "target", "");
+          const gmItem__target   = GMItem.value(mathNode__target, "target", "");
           // gmItem__target.content = Rewriter.decomposition_product_primes(mathNode__target);
           // mathNode__target.autoSimplify = true;
 
 
           const gmItemConfig = {
             initial: arr_gmItem_initial,
-            target: gmItem__target,
+            target : gmItem__target,
 
-            operators: arr_gmItem_operator,
+            operators:  arr_gmItem_operator,
             // operators__inverse:  arr_gmItem_operator__inverse,
           };
 
@@ -44293,10 +44121,10 @@
         static random_challengeGMItemConfig__equation_1() {
           logger.log("random_challengeGMItemConfig__equation_1");
 
-          const mathNode__left = new math.SymbolNode("x");
+          const mathNode__left   = new math.SymbolNode("x");
 
           // const mathNode__right  = new math.ConstantNode(3);
-          const mathNode__right = random_terminal_mathNode_withType_inArr(["ConstantNode"]);
+          const mathNode__right  = random_terminal_mathNode_withType_inArr(["ConstantNode"]);
 
           const mathNode__target = new math.RelationalNode(["equal"], [mathNode__left, mathNode__right]);
           mathNode__target.isEquation = true;
@@ -44322,8 +44150,8 @@
             };
 
             const op_multiply = Operator.multiply();
-            const op_divide = Operator.divide();
-            const op_add = Operator.fromString_binary("+");
+            const op_divide   = Operator.divide();
+            const op_add      = Operator.fromString_binary("+");
             const op_subtract = Operator.fromString_binary("-");
 
             const arr_op = [
@@ -44339,7 +44167,7 @@
             const name = operatorNodeFuncWrapper.semantics.name;
 
             const func = operatorNodeFuncWrapper.func;
-            const func_decorated = function (mathNode_in) {
+            const func_decorated = function(mathNode_in) {
               logger.log("func_decorated, mathNode_in", mathNode_in);
               var outMathNode;
 
@@ -44359,14 +44187,14 @@
               funcWrapper: operatorNodeFuncWrapper,
             };
 
-            const transformationFunc = function (icObj) {
+            const transformationFunc = function(icObj) {
               var transformationOutput;
 
               logger.log("transformationFunc", icObj);
 
               const facade = icObj;
 
-              const mathNode__in = facade.mathNode;
+              const mathNode__in  = facade.mathNode;
               mathNode__in.isEquation = true;
               const mathNode__new = func_decorated(mathNode__in);
               mathNode__new.isEquation = true;
@@ -44384,14 +44212,14 @@
 
 
 
-          const depth__initial = 4;
+          const depth__initial    = 4;
           // const depth__initial    = 10;
 
           const gmItem__initial_seed = gmItem__target.clone();
           gmItem__initial_seed.content.autoSimplify = true;
-          gmItem__initial_seed.content.isEquation = true;
+          gmItem__initial_seed.content.isEquation   = true;
 
-          const gmItem__initial = GMMaker.createGMItemTarget__x_to_expr(gmItem__initial_seed, arr_gmItem_operator, depth__initial);
+          const gmItem__initial   = GMMaker.createGMItemTarget__x_to_expr(gmItem__initial_seed, arr_gmItem_operator, depth__initial);
           const mathNode__initial = gmItem__initial.content;
           mathNode__initial.autoSimplify = true;
 
@@ -44411,7 +44239,7 @@
 
             const name = operatorNodeFuncWrapper.semantics.name;
             const func = operatorNodeFuncWrapper.func;
-            const func_decorated = function (mathNode_in) {
+            const func_decorated = function(mathNode_in) {
               logger.log("func_decorated, mathNode_in", mathNode_in);
               var outMathNode;
 
@@ -44430,14 +44258,14 @@
               funcWrapper: operatorNodeFuncWrapper,
             };
 
-            const transformationFunc = function (icObj) {
+            const transformationFunc = function(icObj) {
               var transformationOutput;
 
               logger.log("transformationFunc", icObj);
 
               const facade = icObj;
 
-              const mathNode__in = facade.mathNode;
+              const mathNode__in  = facade.mathNode;
               mathNode__in.isEquation = true;
               const mathNode__new = func_decorated(mathNode__in);
               mathNode__new.isEquation = true;
@@ -44455,11 +44283,11 @@
           });
 
           const gmItemConfig = {
-            initial: gmItem__initial,
-            target: gmItem__target,
+            initial:    gmItem__initial,
+            target :    gmItem__target,
 
-            operators: arr_gmItem_operator__inverse,
-            operators__inverse: arr_gmItem_operator,
+            operators:           arr_gmItem_operator__inverse,
+            operators__inverse:  arr_gmItem_operator,
           };
 
           return gmItemConfig;
@@ -44467,7 +44295,7 @@
 
 
 
-        //equations
+        //litexp writing
 
         static random_challengeGMItemConfig__litexp_writing_1() {
           logger.log("random_challengeGMItemConfig__litexp_writing_1");
@@ -44487,8 +44315,8 @@
             };
 
             const op_multiply = Operator.multiply();
-            const op_divide = Operator.divide();
-            const op_add = Operator.fromString_binary("+");
+            const op_divide   = Operator.divide();
+            const op_add      = Operator.fromString_binary("+");
             const op_subtract = Operator.fromString_binary("-");
 
             const arr_op = [
@@ -44504,7 +44332,7 @@
             const name = operatorNodeFuncWrapper.semantics.name;
 
             const func = operatorNodeFuncWrapper.func;
-            const func_decorated = function (mathNode_in) {
+            const func_decorated = function(mathNode_in) {
               logger.log("func_decorated, mathNode_in", mathNode_in);
               var outMathNode;
 
@@ -44524,14 +44352,14 @@
               funcWrapper: operatorNodeFuncWrapper,
             };
 
-            const transformationFunc = function (icObj) {
+            const transformationFunc = function(icObj) {
               var transformationOutput;
 
               logger.log("transformationFunc", icObj);
 
               const facade = icObj;
 
-              const mathNode__in = facade.mathNode;
+              const mathNode__in  = facade.mathNode;
               mathNode__in.isEquation = false;
               const mathNode__new = func_decorated(mathNode__in);
               mathNode__new.isEquation = false;
@@ -44549,14 +44377,14 @@
 
 
 
-          const depth__target = 4;
+          const depth__target    = 4;
           // const depth__target = 10;
 
           const mathNode__initial = new math.SymbolNode("x");
-          const gmItem__initial = GMItem.value(mathNode__initial, "target", "");
+          const gmItem__initial   = GMItem.value(mathNode__initial, "target", "");
           logger.log("gmItem__initial", gmItem__initial);
 
-          const gmItem__target = GMMaker.createGMItemTarget__x_to_expr(gmItem__initial, arr_gmItem_operator, depth__target);
+          const gmItem__target   = GMMaker.createGMItemTarget__x_to_expr(gmItem__initial, arr_gmItem_operator, depth__target);
           logger.log("gmItem__target", gmItem__target);
           const mathNode__target = gmItem__target.content;
           // mathNode__target.autoSimplify = true;
@@ -44572,7 +44400,7 @@
 
             const name = operatorNodeFuncWrapper.semantics.name;
             const func = operatorNodeFuncWrapper.func;
-            const func_decorated = function (mathNode_in) {
+            const func_decorated = function(mathNode_in) {
               logger.log("func_decorated, mathNode_in", mathNode_in);
               var outMathNode;
 
@@ -44591,14 +44419,14 @@
               funcWrapper: operatorNodeFuncWrapper,
             };
 
-            const transformationFunc = function (icObj) {
+            const transformationFunc = function(icObj) {
               var transformationOutput;
 
               logger.log("transformationFunc", icObj);
 
               const facade = icObj;
 
-              const mathNode__in = facade.mathNode;
+              const mathNode__in  = facade.mathNode;
               mathNode__in.isEquation = false;
               const mathNode__new = func_decorated(mathNode__in);
               mathNode__new.isEquation = false;
@@ -44616,15 +44444,498 @@
           });
 
           const gmItemConfig = {
-            initial: gmItem__initial,
-            target: gmItem__target,
+            initial:    gmItem__initial,
+            target :    gmItem__target,
 
-            operators: arr_gmItem_operator__inverse,
-            operators__inverse: arr_gmItem_operator,
+            operators:           arr_gmItem_operator__inverse,
+            operators__inverse:  arr_gmItem_operator,
           };
 
           return gmItemConfig;
         }
+
+
+
+        static random_challengeGMItemConfig__litexp_writing_2() {
+          logger.log("random_challengeGMItemConfig__litexp_writing_2");
+
+          const nb_operators = 4;
+
+          const nb_operators__constant = 2;
+          const arr_gmItem_operator__constant = [...new Array(nb_operators__constant).keys()].map(index => {
+
+            const operatorParams = {
+              node_b: {
+                types: ["ConstantNode"],
+                range: {
+                  min: +1,
+                  max: +10,
+                },
+              },
+            };
+
+            const op_multiply = Operator.multiply();
+            const op_divide   = Operator.divide();
+            const op_add      = Operator.fromString_binary("+");
+            const op_subtract = Operator.fromString_binary("-");
+
+            const arr_op = [
+              // op_multiply,
+              op_divide,
+
+              op_add,
+              // op_subtract,
+            ];
+
+            const operatorNodeFuncWrapper = random_operatorNodeFactoryFuncWrapper_binary(operatorParams, arr_op);
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+
+            const func = operatorNodeFuncWrapper.func;
+            const func_decorated = function(mathNode_in) {
+              logger.log("func_decorated, mathNode_in", mathNode_in);
+              var outMathNode;
+
+              //legacy
+              outMathNode = func(mathNode_in);
+
+              //decoration
+              outMathNode = Simplifier.simplify_litexp_2(outMathNode);
+              // logger.log("func_decorated, outMathNode", outMathNode);
+
+              return outMathNode;
+            };
+            // const func_decorated = func;
+
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+            };
+
+            const transformationFunc = function(icObj) {
+              var transformationOutput;
+
+              logger.log("transformationFunc", icObj);
+
+              const facade = icObj;
+
+              const mathNode__in  = facade.mathNode;
+              mathNode__in.isEquation = false;
+              const mathNode__new = func_decorated(mathNode__in);
+              mathNode__new.isEquation = false;
+
+              const facade__new = icObj.clone();
+              facade__new.mathNode = mathNode__new;
+              transformationOutput = new TransformationOutput("mutated", facade__new, facade);
+
+              return transformationOutput;
+            };
+
+            const gmItem__operator = GMItem.operator(transformationFunc, name, "", specs);
+            return gmItem__operator;
+          });
+
+          const nb_operators__symbol = 2;
+          const arr_gmItem_operator__symbol = [...new Array(nb_operators__symbol).keys()].map(index => {
+
+            const operatorParams = {
+              node_b: {
+                types: ["SymbolNode"],
+                arr:["x"],
+              },
+              premultiplier: {
+                range: {
+                  min: +1,
+                  max: +10,
+                },
+              },
+            };
+
+            const op_multiply = Operator.multiply();
+            const op_divide   = Operator.divide();
+            const op_add      = Operator.fromString_binary("+");
+            const op_subtract = Operator.fromString_binary("-");
+
+            const arr_op = [
+              // op_multiply,
+              // op_divide,
+
+              op_add,
+              op_subtract,
+            ];
+
+            const operatorNodeFuncWrapper = random_operatorNodeFactoryFuncWrapper_binary(operatorParams, arr_op);
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+
+            const func = operatorNodeFuncWrapper.func;
+            const func_decorated = function(mathNode_in) {
+              logger.log("func_decorated, mathNode_in", mathNode_in);
+              var outMathNode;
+
+              //legacy
+              outMathNode = func(mathNode_in);
+
+              //decoration
+              outMathNode = Simplifier.simplify_litexp_2(outMathNode);
+              // logger.log("func_decorated, outMathNode", outMathNode);
+
+              return outMathNode;
+            };
+            // const func_decorated = func;
+
+            const specs = {
+              funcWrapper:  operatorNodeFuncWrapper,
+              // operatorNode: operatorNodeFuncWrapper.operatorNode,
+            };
+
+            const transformationFunc = function(icObj) {
+              var transformationOutput;
+
+              logger.log("transformationFunc", icObj);
+
+              const facade = icObj;
+
+              const mathNode__in  = facade.mathNode;
+              mathNode__in.isEquation = false;
+              const mathNode__new = func_decorated(mathNode__in);
+              mathNode__new.isEquation = false;
+
+              const facade__new = icObj.clone();
+              facade__new.mathNode = mathNode__new;
+              transformationOutput = new TransformationOutput("mutated", facade__new, facade);
+
+              return transformationOutput;
+            };
+
+            const gmItem__operator = GMItem.operator(transformationFunc, name, "", specs);
+            return gmItem__operator;
+          });
+
+          const arr_gmItem_operator = [...arr_gmItem_operator__symbol, ...arr_gmItem_operator__constant];
+
+
+
+          const depth__target    = 4;
+          // const depth__target = 10;
+
+          const mathNode__initial = new math.SymbolNode("x");
+          const gmItem__initial   = GMItem.value(mathNode__initial, "target", "");
+          // logger.log("gmItem__initial", gmItem__initial);
+
+          const gmItem__target   = GMMaker.createGMItemTarget__x_to_expr(gmItem__initial, arr_gmItem_operator, depth__target);
+          // logger.log("gmItem__target", gmItem__target);
+          const mathNode__target = gmItem__target.content;
+          //simplify target
+          gmItem__target.content = Simplifier.simplify_litexp_2(mathNode__target);
+
+
+          const arr_gmItem_operator__inverse = arr_gmItem_operator.map((gmItem__operator) => {
+
+            const operatorNodeFuncWrapper = gmItem__operator.specs.funcWrapper.inverse;
+            // logger.log("operatorNodeFuncWrapper", operatorNodeFuncWrapper);
+
+            const operator__inverse = operatorNodeFuncWrapper.semantics.operator;
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+            const func = operatorNodeFuncWrapper.func;
+            const func_decorated = function(mathNode_in) {
+              logger.log("func_decorated, mathNode_in", mathNode_in);
+              var outMathNode;
+
+              //legacy
+              outMathNode = func(mathNode_in);
+
+              //decoration
+              outMathNode = Simplifier.simplify_litexp_2(outMathNode);
+              // logger.log("func_decorated, outMathNode", outMathNode);
+
+              return outMathNode;
+            };
+
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+            };
+
+            const transformationFunc = function(icObj) {
+              var transformationOutput;
+
+              logger.log("transformationFunc", icObj);
+
+              const facade = icObj;
+
+              const mathNode__in  = facade.mathNode;
+              mathNode__in.isEquation = false;
+              const mathNode__new = func_decorated(mathNode__in);
+              mathNode__new.isEquation = false;
+
+              const facade__new = icObj.clone();
+              facade__new.mathNode = mathNode__new;
+              transformationOutput = new TransformationOutput("mutated", facade__new, facade);
+
+              return transformationOutput;
+            };
+
+            const gmItem__operator__inverse = GMItem.operator(transformationFunc, name, "", specs);
+
+            return gmItem__operator__inverse;
+          });
+
+          const gmItemConfig = {
+            initial:    gmItem__initial,
+            target :    gmItem__target,
+
+            operators:           arr_gmItem_operator__inverse,
+            operators__inverse:  arr_gmItem_operator,
+          };
+
+          return gmItemConfig;
+        }
+
+
+
+        static random_challengeGMItemConfig__litexp_writing_3() {
+          logger.log("random_challengeGMItemConfig__litexp_writing_3");
+
+          const nb_operators = 4;
+
+          const nb_operators__constant = 2;
+          const arr_gmItem_operator__constant = [...new Array(nb_operators__constant).keys()].map(index => {
+
+            const operatorParams = {
+              node_b: {
+                types: ["ConstantNode"],
+                range: {
+                  min: +1,
+                  max: +10,
+                },
+              },
+            };
+
+            const op_multiply = Operator.multiply();
+            const op_divide   = Operator.divide();
+            const op_add      = Operator.fromString_binary("+");
+            const op_subtract = Operator.fromString_binary("-");
+
+            const arr_op = [
+              op_multiply,
+              // op_divide,
+
+              op_add,
+              // op_subtract,
+            ];
+
+            const operatorNodeFuncWrapper = random_operatorNodeFactoryFuncWrapper_binary(operatorParams, arr_op);
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+
+            const func = operatorNodeFuncWrapper.func;
+            const func_decorated = function(mathNode_in) {
+              logger.log("func_decorated, mathNode_in", mathNode_in);
+              var outMathNode;
+
+              //legacy
+              outMathNode = func(mathNode_in);
+
+              //decoration
+              outMathNode = Simplifier.simplify_litexp_2(outMathNode);
+              // logger.log("func_decorated, outMathNode", outMathNode);
+
+              return outMathNode;
+            };
+            // const func_decorated = func;
+
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+            };
+
+            const transformationFunc = function(icObj) {
+              var transformationOutput;
+
+              logger.log("transformationFunc", icObj);
+
+              const facade = icObj;
+
+              const mathNode__in  = facade.mathNode;
+              mathNode__in.isEquation = false;
+              const mathNode__new = func_decorated(mathNode__in);
+              mathNode__new.isEquation = false;
+
+              const facade__new = icObj.clone();
+              facade__new.mathNode = mathNode__new;
+              transformationOutput = new TransformationOutput("mutated", facade__new, facade);
+
+              return transformationOutput;
+            };
+
+            const gmItem__operator = GMItem.operator(transformationFunc, name, "", specs);
+            return gmItem__operator;
+          });
+
+          const nb_operators__symbol = 2;
+          const arr_gmItem_operator__symbol = [...new Array(nb_operators__symbol).keys()].map(index => {
+
+            const operatorParams = {
+              node_b: {
+                types: ["SymbolNode"],
+                arr:["x"],
+              },
+              premultiplier: {
+                range: {
+                  min: +1,
+                  max: +10,
+                },
+              },
+            };
+
+            const op_multiply = Operator.multiply();
+            const op_divide   = Operator.divide();
+            const op_add      = Operator.fromString_binary("+");
+            const op_subtract = Operator.fromString_binary("-");
+
+            const arr_op = [
+              op_multiply,
+              // op_divide,
+
+              op_add,
+              // op_subtract,
+            ];
+
+            // const operatorNodeFuncWrapper = random_operatorNodeFactoryFuncWrapper_binary(operatorParams, arr_op);
+              //kill random
+            const operatorNodeFuncWrapper = random_operatorNodeFactoryFuncWrapper_binary(operatorParams, arr_op.slice(index, index + 1));
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+
+            const func = operatorNodeFuncWrapper.func;
+            const func_decorated = function(mathNode_in) {
+              logger.log("func_decorated, mathNode_in", mathNode_in);
+              var outMathNode;
+
+              //legacy
+              outMathNode = func(mathNode_in);
+
+              //decoration
+              outMathNode = Simplifier.simplify_litexp_2(outMathNode);
+              // logger.log("func_decorated, outMathNode", outMathNode);
+
+              return outMathNode;
+            };
+            // const func_decorated = func;
+
+            const specs = {
+              funcWrapper:  operatorNodeFuncWrapper,
+              // operatorNode: operatorNodeFuncWrapper.operatorNode,
+            };
+
+            const transformationFunc = function(icObj) {
+              var transformationOutput;
+
+              logger.log("transformationFunc", icObj);
+
+              const facade = icObj;
+
+              const mathNode__in  = facade.mathNode;
+              mathNode__in.isEquation = false;
+              const mathNode__new = func_decorated(mathNode__in);
+              mathNode__new.isEquation = false;
+
+              const facade__new = icObj.clone();
+              facade__new.mathNode = mathNode__new;
+              transformationOutput = new TransformationOutput("mutated", facade__new, facade);
+
+              return transformationOutput;
+            };
+
+            const gmItem__operator = GMItem.operator(transformationFunc, name, "", specs);
+            return gmItem__operator;
+          });
+
+          const arr_gmItem_operator = [...arr_gmItem_operator__symbol, ...arr_gmItem_operator__constant];
+
+
+
+          const depth__target    = 4;
+          // const depth__target = 10;
+
+          const mathNode__x = new math.SymbolNode("x");
+          const mathNode__0 = new math.ConstantNode(0);
+          const mathNode__1 = new math.ConstantNode(1);
+          const mathNode__2 = new math.ConstantNode(2);
+
+          const mathNode__initial = Utils.randomElementInArray([mathNode__x, mathNode__0, mathNode__1]);
+          const gmItem__initial   = GMItem.value(mathNode__initial, "initial", "");
+          // logger.log("gmItem__initial", gmItem__initial);
+
+          const gmItem__target   = GMMaker.createGMItemTarget__x_to_expr(gmItem__initial, arr_gmItem_operator, depth__target);
+          // logger.log("gmItem__target", gmItem__target);
+          const mathNode__target = gmItem__target.content;
+          //simplify target
+          const mathNode__target__simplified = Simplifier.simplify_litexp_2(mathNode__target);
+          gmItem__target.content = mathNode__target__simplified;
+
+          const arr_gmItem_operator__inverse = arr_gmItem_operator.map((gmItem__operator) => {
+
+            const operatorNodeFuncWrapper = gmItem__operator.specs.funcWrapper.inverse;
+            // logger.log("operatorNodeFuncWrapper", operatorNodeFuncWrapper);
+
+            const operator__inverse = operatorNodeFuncWrapper.semantics.operator;
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+            const func = operatorNodeFuncWrapper.func;
+            const func_decorated = function(mathNode_in) {
+              logger.log("func_decorated, mathNode_in", mathNode_in);
+              var outMathNode;
+
+              //legacy
+              outMathNode = func(mathNode_in);
+
+              //decoration
+              outMathNode = Simplifier.simplify_litexp_2(outMathNode);
+              // logger.log("func_decorated, outMathNode", outMathNode);
+
+              return outMathNode;
+            };
+
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+            };
+
+            const transformationFunc = function(icObj) {
+              var transformationOutput;
+
+              logger.log("transformationFunc", icObj);
+
+              const facade = icObj;
+
+              const mathNode__in  = facade.mathNode;
+              mathNode__in.isEquation = false;
+              const mathNode__new = func_decorated(mathNode__in);
+              mathNode__new.isEquation = false;
+
+              const facade__new = icObj.clone();
+              facade__new.mathNode = mathNode__new;
+              transformationOutput = new TransformationOutput("mutated", facade__new, facade);
+
+              return transformationOutput;
+            };
+
+            const gmItem__operator__inverse = GMItem.operator(transformationFunc, name, "", specs);
+
+            return gmItem__operator__inverse;
+          });
+
+          const gmItemConfig = {
+            initial:    gmItem__initial,
+            target :    gmItem__target,
+
+            operators:           arr_gmItem_operator,
+            operators__inverse:  [],
+          };
+
+          return gmItemConfig;
+        }
+
+
 
       }
 
@@ -44638,7 +44949,7 @@
 
           this.infiniteCanvas = infiniteCanvas;
           // this.golfStepConfig = golfStepConfig;
-          this.golfCourse = golfCourse;
+          this.golfCourse     = golfCourse;
 
           this.stepGeneratorFunc = stepGeneratorFunc;
 
@@ -44654,8 +44965,8 @@
           //   // game: game,
           // };
 
-          const range_initial = { min: 0, max: 10, step: 1 };
-          const range_target = { min: -100, max: 100, step: 1 };
+          const range_initial = {min: 0, max: 10, step: 1};
+          const range_target  = {min: -100, max: 100, step: 1};
 
           const challengeGMItemConfig = GolfGame__Endless_Practice.random_challengeGMItemConfig(range_initial, range_target);
           const stepConfig = {
@@ -44865,6 +45176,31 @@
           return step;
         }
 
+        static randomInstance__litexp_writing_2(infiniteCanvas, golfCourse, stepGeneratorFunc) {
+
+          const challengeGMItemConfig = GolfGame__Endless_Practice.random_challengeGMItemConfig__litexp_writing_2();
+          const stepConfig = {
+            challengeGMItemConfig: challengeGMItemConfig,
+          };
+
+          const step = new GolfGameStep__Endless_Practice(infiniteCanvas, stepConfig, golfCourse, stepGeneratorFunc);
+
+          return step;
+        }
+
+        static randomInstance__litexp_writing_3(infiniteCanvas, golfCourse, stepGeneratorFunc) {
+
+          const challengeGMItemConfig = GolfGame__Endless_Practice.random_challengeGMItemConfig__litexp_writing_3();
+          const stepConfig = {
+            challengeGMItemConfig: challengeGMItemConfig,
+          };
+
+          const step = new GolfGameStep__Endless_Practice(infiniteCanvas, stepConfig, golfCourse, stepGeneratorFunc);
+
+          return step;
+        }
+
+
 
 
         configure(golfStepConfig) {
@@ -44877,7 +45213,7 @@
         }
 
         start() {
-          const golfCourse = this.golfCourse;
+          const golfCourse        = this.golfCourse;
           const stepGeneratorFunc = this.stepGeneratorFunc;
 
           this.invest(golfCourse);
@@ -44894,28 +45230,28 @@
           const step = this;
           const infiniteCanvas = this.infiniteCanvas;
 
-          step.rep_free__hole.parts.touchSlot.fill = "yellow";
+          step.rep_free__hole.parts.touchSlot.fill  = "yellow";
 
           //destroy ball
-          //end curses
+            //end curses
           // step.rep_free__ball.curse_bornAgain_end();
           // step.rep_free__ball.curse_greenMouse_end();
           step.rep_free__ball.parts.facade.curse_greenMouse_end();
 
 
-          //remove "die" hooks listeners
+            //remove "die" hooks listeners
           step.rep_free__ball.will["die"].listeners = [];
 
-          //remove
+            //remove
           step.rep_free__ball.im_dying_now = true;
-          step.rep_free__ball.parts.facade.im_dying_now = true;
+          step.rep_free__ball.parts.facade.im_dying_now      = true;
           step.rep_free__ball.parts.contactArea.im_dying_now = true;
 
           // infiniteCanvas.removeRepresented(step.rep_free__ball.represented);
 
           //remove all listeners
-          const touchSlot__rep_free = step.rep_free__hole.parts.touchSlot;
-          const touchSlotEngine = touchSlot__rep_free.engine;
+          const touchSlot__rep_free       = step.rep_free__hole.parts.touchSlot;
+          const touchSlotEngine           = touchSlot__rep_free.engine;
           touchSlotEngine.awoken.did["touch"].off(this.listener_targetDidTouch);
 
         }
@@ -44928,9 +45264,9 @@
 
           const icObj__tee = golfCourse.components["tee"].icObj;
           const trueRect__ball = {
-            x: icObj__tee.position.x,
-            y: icObj__tee.position.y,
-            width: 50,
+            x:      icObj__tee.position.x,
+            y:      icObj__tee.position.y,
+            width:  50,
             height: 50,
           };
 
@@ -44941,8 +45277,9 @@
 
           // const icObj = infiniteCanvas.createIcBornAgainGreenMouseBox(trueRect__ball, mathNode__initial);
           const icObj = infiniteCanvas.createIcGreenMouseBox(trueRect__ball, mathNode__initial);
-
           // const icObj = infiniteCanvas.createIcMathNode(trueRect__ball.x, trueRect__ball.y, mathNode__initial);
+
+          icObj.zIndex = -100;
 
           infiniteCanvas.addIcObject(icObj);
 
@@ -44951,18 +45288,18 @@
           rep_free__ball.did["die"].on(() => {
             // logger.log("did die");
 
-            rep_free__ball.parts.facade.im_dying_now = true;
+            rep_free__ball.parts.facade.im_dying_now      = true;
             rep_free__ball.parts.contactArea.im_dying_now = true;
 
             step.addNewBall();
           });
 
-          step.rep_free__ball = rep_free__ball;
+          step.rep_free__ball  = rep_free__ball;
         }
 
         invest(golfCourse) {
 
-          const step = this;
+          const step           = this;
           const infiniteCanvas = this.infiniteCanvas;
 
           //clear: remove objects
@@ -44973,37 +45310,37 @@
           {
             const infiniteCanvas = this.infiniteCanvas;
 
-            //add label/value: score
+              //add label/value: score
             function addLabel_score() {
               const rect__score = golfCourse.rect;
-              rect__score.width = 300;
+              rect__score.width  = 300;
               rect__score.height = 150;
 
               const string__score = "score:";
-              const value__score = 0;
+              const value__score  = 0;
 
-              const icObj__score = infiniteCanvas.createIcLabelValue(rect__score, string__score, value__score);
+              const icObj__score  = infiniteCanvas.createIcLabelValue(rect__score, string__score, value__score);
               icObj__score.zIndex = 200;
 
               infiniteCanvas.addIcObject(icObj__score);
 
               const rep_free__score_valueLabel = infiniteCanvas.getRepresented(icObj__score.id).r_free();
-              step.rep_free__score_valueLabel = rep_free__score_valueLabel;
-              step.rep_free__score_value = rep_free__score_valueLabel.parts["value"];
+              step.rep_free__score_valueLabel  = rep_free__score_valueLabel;
+              step.rep_free__score_value       = rep_free__score_valueLabel.parts["value"];
             }
             // addLabel_score();
 
-            //add label/value: par
+              //add label/value: par
             function addLabelValue_par() {
               const rect__par = {
                 x: step.rep_free__score_valueLabel.position.x,
                 y: step.rep_free__score_valueLabel.position.y + 120,
-                width: 300,
+                width:  300,
                 height: 150,
               };
 
               const string__par = "par:";
-              const value__par = step.par;
+              const value__par  = step.par;
 
               const icObj__par = infiniteCanvas.createIcLabelValue(rect__par, string__par, value__par);
               icObj__par.zIndex = 201;
@@ -45011,8 +45348,8 @@
               infiniteCanvas.addIcObject(icObj__par);
 
               const rep_free__par_valueLabel = infiniteCanvas.getRepresented(icObj__par.id).r_free();
-              step.rep_free__par_valueLabel = rep_free__par_valueLabel;
-              step.rep_free__par_value = rep_free__par_valueLabel.parts["value"];
+              step.rep_free__par_valueLabel  = rep_free__par_valueLabel;
+              step.rep_free__par_value       = rep_free__par_valueLabel.parts["value"];
 
               setTimeout(() => {
                 step.rep_free__par_value.position = {
@@ -45024,14 +45361,14 @@
             // addLabelValue_par();
 
 
-            //add ball:
-            step.addNewBall();
+              //add ball:
+              step.addNewBall();
 
 
-            //add button: restart
+              //add button: restart
 
 
-            //add button: impossible
+              //add button: impossible
 
           }
 
@@ -45044,116 +45381,119 @@
 
 
           //employ: now you do X
-          //initial
-          const mathNode__initial = step.challengeGMItemConfig.initial.content;
+            //initial
+          const mathNode__initial      = step.challengeGMItemConfig.initial.content;
           step.rep_free__ball.mathNode = mathNode__initial;
           // logger.log("mathNode__initial", mathNode__initial);
 
 
 
           //target
-          {
-            const mathNode__target = step.challengeGMItemConfig.target.content;
-            step.rep_free__hole.parts.touchSlot.fill = "";
+        {
+          const mathNode__target       = step.challengeGMItemConfig.target.content;
+          step.rep_free__hole.parts.touchSlot.fill  = "";
 
-            //core
-            // step.rep_free__hole.parts.facade.mathNode = mathNode__target;
-            // step.rep_free__hole.parts.core.mathNode = mathNode__target;
+          //core
+          // step.rep_free__hole.parts.facade.mathNode = mathNode__target;
+          // step.rep_free__hole.parts.core.mathNode = mathNode__target;
 
-            //facade
-            /*
-            // const mathNode__left  = new math.SymbolNode("x");
-            // const mathNode__right = new math.SymbolNode(" ?");
-            // step.rep_free__hole.parts.facade.mathNode = new math.RelationalNode(["equal"], [mathNode__left, mathNode__right]);
-            */
-            step.rep_free__hole.parts.facade.mathNode = mathNode__target;
+          //facade
+          /*
+          // const mathNode__left  = new math.SymbolNode("x");
+          // const mathNode__right = new math.SymbolNode(" ?");
+          // step.rep_free__hole.parts.facade.mathNode = new math.RelationalNode(["equal"], [mathNode__left, mathNode__right]);
+          */
+          step.rep_free__hole.parts.facade.mathNode = mathNode__target;
 
-            step.rep_free__hole.parts.facade.originX = "center";
+          step.rep_free__hole.parts.facade.originX = "center";
 
 
-            //touchSlot
-            const rep_free__touchSlot = step.rep_free__hole.parts.touchSlot;
+          //touchSlot
+          const rep_free__touchSlot = step.rep_free__hole.parts.touchSlot;
 
-            const canTouchFunc_geometryWise = function (above, below, context) {
-              // const canTouchFunc = Touch.canTouch;
-              const touch2Singleton = Touch2Singleton.sharedInstance();
-              const canTouchFunc = touch2Singleton.canTouch.bind(touch2Singleton);
+          const canTouchFunc_geometryWise = function(above, below, context) {
+            // const canTouchFunc = Touch.canTouch;
+            const canTouchFunc = Touch2Singleton.sharedInstance().canTouch;
 
-              return canTouchFunc(above, below);
-            };
+            return canTouchFunc(above, below);
+          };
 
-            const canTouchFunc_valueWise = function (icObj) {
-              var outBool;
+          const canTouchFunc_valueWise = function(icObj) {
+            var outBool;
 
-              if (icObj.cType == "gm_box") {
+            if(icObj.cType == "gm_box") {
 
-                /* //equations
-                // const mathNode__core = step.rep_free__hole.parts.core.mathNode;
-                // const isSameRightMember = icObj.parts.facade.mathNode.params[1].value == mathNode__core.params[1].value;
-                // outBool = isSameRightMember;
-                */
+              /* //equations
+              // const mathNode__core = step.rep_free__hole.parts.core.mathNode;
+              // const isSameRightMember = icObj.parts.facade.mathNode.params[1].value == mathNode__core.params[1].value;
+              // outBool = isSameRightMember;
+              */
 
-                function isSameExpression(mathNode_1, mathNode_2) {
-                  var outBool;
+              function isSameExpression(mathNode_1, mathNode_2) {
+                var outBool;
 
-                  var expr__mathNode_1 = mathNode_1.toString();
-                  expr__mathNode_1 = expr__mathNode_1.replaceAll("×", "*");
-                  var expr__mathNode_2 = mathNode_2.toString();
-                  expr__mathNode_2 = expr__mathNode_2.replaceAll("×", "*");
+                var expr__mathNode_1 = mathNode_1.toString();
+                expr__mathNode_1 = expr__mathNode_1.replaceAll("×", "*");
+                var expr__mathNode_2 = mathNode_2.toString();
+                expr__mathNode_2 = expr__mathNode_2.replaceAll("×", "*");
 
-                  const expr__equality = expr__mathNode_1 + " == " + expr__mathNode_2;
-                  logger.log("expr__equality", expr__equality);
-                  const algebrite_result = Algebrite.run(expr__equality);
+                const expr__equality = expr__mathNode_1 + " == " + expr__mathNode_2;
+                logger.log("expr__equality", expr__equality);
+                const algebrite_result = Algebrite.run(expr__equality);
 
-                  outBool = (algebrite_result == true);
+                outBool = (algebrite_result == true);
 
-                  return outBool;
-                }
+                return outBool;
+              }
 
+              if(icObj.parts.facade != null) {
                 const mathNode__icObj = icObj.parts.facade.mathNode;
                 logger.log("mathNode__icObj", mathNode__icObj);
-                const mathNode__hole = step.rep_free__hole.parts.facade.mathNode;
+                const mathNode__hole  = step.rep_free__hole.parts.facade.mathNode;
                 logger.log("mathNode__hole", mathNode__hole);
 
                 const isSameExpression_ = isSameExpression(mathNode__icObj, mathNode__hole);
                 outBool = isSameExpression_;
-
               } else {
                 outBool = false;
               }
 
-              return outBool;
-            };
+            } else {
+              outBool = false;
+            }
 
-            const canTouchFuncs = {
-              "geometry": canTouchFunc_geometryWise,
-              "value": canTouchFunc_valueWise,
-            };
+            return outBool;
+          };
 
-            const canTouchFunc_allWise = (above, below, context) => {
-              return Object.entries(canTouchFuncs).reduce((acc, [canTouchFunc_xWiseName, canTouchFunc_xWise]) => {
-                const canTouch_xWise = canTouchFunc_xWise(above, below, context);
-                console.log("canTouch_xWise", canTouchFunc_xWiseName, canTouch_xWise);
-                return acc && canTouch_xWise;
-              }, true);
-            };
+          const canTouchFuncs = {
+            "geometry": canTouchFunc_geometryWise,
+            "value":    canTouchFunc_valueWise,
+          };
 
-            const canTouchFunc = canTouchFunc_allWise;
+          const canTouchFunc_allWise = (above, below, context) => {
+            return Object.entries(canTouchFuncs).reduce((acc, [canTouchFunc_xWiseName, canTouchFunc_xWise]) => {
+              const canTouch_xWise = canTouchFunc_xWise(above,below, context);
+              console.log("canTouch_xWise", canTouchFunc_xWiseName, canTouch_xWise);
+              return acc && canTouch_xWise;
+            }, true);
+          };
 
-            rep_free__touchSlot.touchSlotConfig.canTouchFunc = canTouchFunc;
+          const canTouchFunc = canTouchFunc_allWise;
 
-            const transformationFunc = function (icObj) {
-              var transformationOutput;
+          rep_free__touchSlot.touchSlotConfig.canTouchFunc = canTouchFunc;
 
-              transformationOutput = new TransformationOutput("old", icObj, icObj);
+          const transformationFunc = function(icObj) {
+            var transformationOutput;
 
-              return transformationOutput;
-            };
-            rep_free__touchSlot.touchSlotConfig.transformationFunc = transformationFunc;
-          }
+            transformationOutput = new TransformationOutput("old", icObj, icObj);
+
+            return transformationOutput;
+          };
+          rep_free__touchSlot.touchSlotConfig.transformationFunc = transformationFunc;
+        }
 
 
-          //operators
+            //operators
           {
             const arr_gm_operator = Object.values(golfCourse.components).filter(component => component.type == "gm_operator");
             const arr_rep_free__operator = arr_gm_operator.map((gm_operator, i) => {
@@ -45173,7 +45513,7 @@
               const rep_free__touchSlot = rep_free__operator.parts["touchSlot"];
 
               const transformationFunc = gmItem_operator.content;
-              const transformationFunc__decorated = function (icObj) {
+              const transformationFunc__decorated = function(icObj) {
                 var transformationOutput;
 
                 const icObj__new = icObj.clone();
@@ -45183,7 +45523,7 @@
                 //   delete icObj__new.mathNode;     //SHU666: true sadness
                 // }
 
-                if (icObj.cType == "gm_box") {
+                if(icObj.cType == "gm_box") {
                   // logger.log("gm_box");
 
                   const facade = icObj.parts.facade;
@@ -45202,7 +45542,9 @@
 
               //facade
               const rep_free__facade = rep_free__operator.parts["facade"];
-              rep_free__facade.text = gmItem_operator.name;
+              // logger.log("rep_free__facade", rep_free__facade);
+              // rep_free__facade.text = gmItem_operator.name;
+              rep_free__facade.mathNode = gmItem_operator.specs.funcWrapper.semantics.operatorNode;
 
               rep_free__facade.originX = "center";
 
@@ -45210,7 +45552,7 @@
           }
 
 
-          //operators__inverse
+            //operators__inverse
           {
             const arr_gm_operator__inverse = Object.values(golfCourse.components).filter(component => component.type == "placeholder");
             const arr_rep_free__operator__inverse = arr_gm_operator__inverse.map((gm_operator, i) => {
@@ -45230,7 +45572,7 @@
               const rep_free__touchSlot = rep_free__operator.parts["touchSlot"];
 
               const transformationFunc = gmItem_operator.content;
-              const transformationFunc__decorated = function (icObj) {
+              const transformationFunc__decorated = function(icObj) {
                 var transformationOutput;
 
                 const icObj__new = icObj.clone();
@@ -45240,7 +45582,7 @@
                 //   delete icObj__new.mathNode;     //SHU666: true sadness
                 // }
 
-                if (icObj.cType == "gm_box") {
+                if(icObj.cType == "gm_box") {
                   // logger.log("gm_box");
 
                   const facade = icObj.parts.facade;
@@ -45259,7 +45601,9 @@
 
               //facade
               const rep_free__facade = rep_free__operator.parts["facade"];
-              rep_free__facade.text = gmItem_operator.name;
+              // rep_free__facade.text = gmItem_operator.name;
+              rep_free__facade.mathNode = gmItem_operator.specs.funcWrapper.semantics.operatorNode;
+
 
               rep_free__facade.originX = "center";
 
@@ -45285,7 +45629,7 @@
           const step = this;
 
           const segueConfig = {};
-          const step_from = step;
+          const step_from   = step;
 
           const golfCourse_to = step_from.golfCourse;
 
@@ -45301,7 +45645,7 @@
 
           this.listeners_completed = [];
 
-          this.onCompleted = (listener) => {
+          this.onCompleted  = (listener) => {
             this.listeners_completed.push(listener);
           };
           this.offCompleted = (listener) => {
@@ -45361,10 +45705,10 @@
 
           function listenToOperatorTouches(icObj__rep_free) {
 
-            const touchSlot__rep_free = icObj__rep_free.parts["touchSlot"];
+            const touchSlot__rep_free  = icObj__rep_free.parts["touchSlot"];
             // logger.log("touchSlot__rep_free", touchSlot__rep_free);
 
-            const touchSlotEngine = touchSlot__rep_free.dict_engine["touchSlot"].engine;
+            const touchSlotEngine = touchSlot__rep_free.engine;
 
             Hooker.installHooks(touchSlotEngine.awoken, "touch");
             touchSlotEngine.awoken.did["touch"].on((...args) => {
@@ -45382,8 +45726,8 @@
 
               // const rep_free__curseFacade = step.rep_free__hole.parts.curseFacade;
               const rep_free__curseFacade = step.rep_free__hole.parts.curseFacade;
-              if (rep_free__curseFacade != null) {
-                const rep_free__facade = step.rep_free__hole.parts.facade;
+              if(rep_free__curseFacade != null) {
+                const rep_free__facade      = step.rep_free__hole.parts.facade;
                 rep_free__facade.curse_metamorphosis.curseTrigger.impulse();
               }
 
@@ -45407,7 +45751,7 @@
 
           const touchSlot__rep_free = targetTouchSlot__rep_free.parts["touchSlot"];
 
-          const touchSlotEngine = touchSlot__rep_free.dict_engine["touchSlot"].engine;
+          const touchSlotEngine = touchSlot__rep_free.engine;
 
           Hooker.installHooks(touchSlotEngine.awoken, "touch");
           const listener_targetDidTouch = (...args) => {
@@ -45489,15 +45833,15 @@
             // this.infiniteCanvas.show_rect(golfCourse_to.rect);    //SHU TODO
 
             const rect__makeshift = {
-              x: this.golfCourse_to.rect.x + this.golfCourse_to.rect.width * 0.30,
-              y: this.golfCourse_to.rect.y - this.golfCourse_to.rect.height * 0.15,
-              width: this.golfCourse_to.rect.width + this.golfCourse_to.rect.width * 0.30 / 1.0,
-              height: this.golfCourse_to.rect.height + this.golfCourse_to.rect.height * 0.30 / 1.0,
+              x:      this.golfCourse_to.rect.x       + this.golfCourse_to.rect.width  * 0.30,
+              y:      this.golfCourse_to.rect.y       - this.golfCourse_to.rect.height * 0.15,
+              width:  this.golfCourse_to.rect.width   + this.golfCourse_to.rect.width  * 0.30 / 1.0,
+              height: this.golfCourse_to.rect.height  + this.golfCourse_to.rect.height * 0.30 / 1.0,
             };
             this.infiniteCanvas.show_rect(rect__makeshift);
 
 
-            if (this.step_to == null) {
+            if(this.step_to == null) {
               // const step = GolfGameStep__Endless_Practice.randomInstance1(infiniteCanvas, golfCourse_to);
               const step = this.stepGeneratorFunc();
               this.step_to = step;
@@ -45518,7 +45862,7 @@
 
           this.infiniteCanvas = infiniteCanvas;
           // this.golfStepConfig = golfStepConfig;
-          this.golfCourse = golfCourse;
+          this.golfCourse     = golfCourse;
 
           this.stepGeneratorFunc = stepGeneratorFunc;
 
@@ -45551,7 +45895,7 @@
         }
 
         start() {
-          const golfCourse = this.golfCourse;
+          const golfCourse        = this.golfCourse;
           const stepGeneratorFunc = this.stepGeneratorFunc;
 
           this.invest(golfCourse);
@@ -45568,7 +45912,7 @@
           const step = this;
           const infiniteCanvas = this.infiniteCanvas;
 
-          step.rep_free__hole.parts.touchSlot.fill = "yellow";
+          step.rep_free__hole.parts.touchSlot.fill  = "yellow";
 
           //destroy ball
           const arr_rep_free_ball = [
@@ -45578,21 +45922,21 @@
 
           arr_rep_free_ball.forEach((rep_free__ball, i) => {
 
-            //end curses
+              //end curses
             rep_free__ball.parts.facade.curse_greenMouse_end();
 
-            //remove "die" hooks listeners
+              //remove "die" hooks listeners
             rep_free__ball.will["die"].listeners = [];
 
-            //remove
+              //remove
             rep_free__ball.im_dying_now = true;
-            rep_free__ball.parts.facade.im_dying_now = true;
+            rep_free__ball.parts.facade.im_dying_now      = true;
             rep_free__ball.parts.contactArea.im_dying_now = true;
           });
 
           //remove all listeners
-          const touchSlot__rep_free = step.rep_free__hole.parts.touchSlot;
-          const touchSlotEngine = touchSlot__rep_free.engine;
+          const touchSlot__rep_free       = step.rep_free__hole.parts.touchSlot;
+          const touchSlotEngine           = touchSlot__rep_free.engine;
           touchSlotEngine.awoken.did["touch"].off(this.listener_targetDidTouch);
 
         }
@@ -45606,15 +45950,15 @@
           const name__tee = "tee" + (index + 1);
           const icObj__tee = golfCourse.components[name__tee].icObj;
           const trueRect__ball = {
-            x: icObj__tee.position.x,
-            y: icObj__tee.position.y,
-            width: 50,
+            x:      icObj__tee.position.x,
+            y:      icObj__tee.position.y,
+            width:  50,
             height: 50,
           };
 
           // const value = 0;
           //debug
-          const gmItem__initial = step.challengeGMItemConfig.initial[index];
+          const gmItem__initial   = step.challengeGMItemConfig.initial[index];
           const mathNode__initial = gmItem__initial.content;
           // const value = mathNode__initial.value;
 
@@ -45631,7 +45975,7 @@
           const bornAgainFunc = () => {
             logger.log("did die");
 
-            rep_free__ball.parts.facade.im_dying_now = true;
+            rep_free__ball.parts.facade.im_dying_now      = true;
             rep_free__ball.parts.contactArea.im_dying_now = true;
 
             step.addNewBall(index);
@@ -45644,7 +45988,7 @@
 
         invest(golfCourse) {
 
-          const step = this;
+          const step           = this;
           const infiniteCanvas = this.infiniteCanvas;
 
           //clear: remove objects
@@ -45655,37 +45999,37 @@
           {
             const infiniteCanvas = this.infiniteCanvas;
 
-            //add label/value: score
+              //add label/value: score
             function addLabel_score() {
               const rect__score = golfCourse.rect;
-              rect__score.width = 300;
+              rect__score.width  = 300;
               rect__score.height = 150;
 
               const string__score = "score:";
-              const value__score = 0;
+              const value__score  = 0;
 
-              const icObj__score = infiniteCanvas.createIcLabelValue(rect__score, string__score, value__score);
+              const icObj__score  = infiniteCanvas.createIcLabelValue(rect__score, string__score, value__score);
               icObj__score.zIndex = 200;
 
               infiniteCanvas.addIcObject(icObj__score);
 
               const rep_free__score_valueLabel = infiniteCanvas.getRepresented(icObj__score.id).r_free();
-              step.rep_free__score_valueLabel = rep_free__score_valueLabel;
-              step.rep_free__score_value = rep_free__score_valueLabel.parts["value"];
+              step.rep_free__score_valueLabel  = rep_free__score_valueLabel;
+              step.rep_free__score_value       = rep_free__score_valueLabel.parts["value"];
             }
             // addLabel_score();
 
-            //add label/value: par
+              //add label/value: par
             function addLabelValue_par() {
               const rect__par = {
                 x: step.rep_free__score_valueLabel.position.x,
                 y: step.rep_free__score_valueLabel.position.y + 120,
-                width: 300,
+                width:  300,
                 height: 150,
               };
 
               const string__par = "par:";
-              const value__par = step.par;
+              const value__par  = step.par;
 
               const icObj__par = infiniteCanvas.createIcLabelValue(rect__par, string__par, value__par);
               icObj__par.zIndex = 201;
@@ -45693,8 +46037,8 @@
               infiniteCanvas.addIcObject(icObj__par);
 
               const rep_free__par_valueLabel = infiniteCanvas.getRepresented(icObj__par.id).r_free();
-              step.rep_free__par_valueLabel = rep_free__par_valueLabel;
-              step.rep_free__par_value = rep_free__par_valueLabel.parts["value"];
+              step.rep_free__par_valueLabel  = rep_free__par_valueLabel;
+              step.rep_free__par_value       = rep_free__par_valueLabel.parts["value"];
 
               setTimeout(() => {
                 step.rep_free__par_value.position = {
@@ -45706,15 +46050,15 @@
             // addLabelValue_par();
 
 
-            //add balls:
-            step.addNewBall(0);
-            step.addNewBall(1);
+              //add balls:
+              step.addNewBall(0);
+              step.addNewBall(1);
 
 
-            //add button: restart
+              //add button: restart
 
 
-            //add button: impossible
+              //add button: impossible
 
           }
 
@@ -45727,21 +46071,21 @@
 
 
           //employ: now you do X
-          //initial
+            //initial
           const arr_initial = step.challengeGMItemConfig.initial;
           arr_initial.forEach((gmItem__initial, index) => {
-            const mathNode__initial = gmItem__initial.content;
+            const mathNode__initial      = gmItem__initial.content;
             // logger.log("mathNode__initial", mathNode__initial);
             step["rep_free__ball" + index].mathNode = mathNode__initial;
           });
 
-          //target
+            //target
           const mathNode__target = step.challengeGMItemConfig.target.content;
           step.rep_free__hole.parts.facade.mathNode = mathNode__target;
-          step.rep_free__hole.parts.touchSlot.fill = "";
+          step.rep_free__hole.parts.touchSlot.fill  = "";
 
 
-          //operators
+            //operators
           {
             const arr_gm_operator = Object.values(golfCourse.components).filter(component => component.type == "gm_fractionOne_operator");
             const arr_rep_free__operator = arr_gm_operator.map((gm_operator, i) => {
@@ -45770,13 +46114,13 @@
                 outIcObj = icObj.clone();
                 // logger.log("outIcObj", outIcObj);
 
-                if (outIcObj.mathNode) {
+                if(outIcObj.mathNode) {
                   delete outIcObj.mathNode;     //SHU666: true sadness
                 }
 
 
 
-                if (icObj.cType == "gm_box") {
+                if(icObj.cType == "gm_box") {
                   // logger.log("gm_box");
 
                   const facade = icObj.parts.facade;
@@ -45795,14 +46139,15 @@
 
               //facade
               const rep_free__facade = rep_free__operator.parts["facade"];
-              rep_free__facade.text = gmItem_operator.name;
+              // rep_free__facade.text = gmItem_operator.name;
+              rep_free__facade.mathNode = gmItem_operator.specs.funcWrapper.semantics.operatorNode;
 
               rep_free__facade.originX = "center";
 
             });
           }
 
-          //conductive operator
+            //conductive operator
           {
             // rep_free__ball.did["die"].on(bornAgainFunc);
             // rep_free__ball.bornAgainFunc = bornAgainFunc;
@@ -45867,7 +46212,7 @@
           const step = this;
 
           const segueConfig = {};
-          const step_from = step;
+          const step_from   = step;
 
           const golfCourse_to = step_from.golfCourse;
 
@@ -45883,7 +46228,7 @@
 
           this.listeners_completed = [];
 
-          this.onCompleted = (listener) => {
+          this.onCompleted  = (listener) => {
             this.listeners_completed.push(listener);
           };
           this.offCompleted = (listener) => {
@@ -45943,7 +46288,7 @@
 
           function listenToOperatorTouches(icObj__rep_free) {
 
-            const touchSlot__rep_free = icObj__rep_free.parts["touchSlot"];
+            const touchSlot__rep_free  = icObj__rep_free.parts["touchSlot"];
             // logger.log("touchSlot__rep_free", touchSlot__rep_free);
 
             const touchSlotEngine = touchSlot__rep_free.engine;
@@ -45964,8 +46309,8 @@
 
               // const rep_free__curseFacade = step.rep_free__hole.parts.curseFacade;
               const rep_free__curseFacade = step.rep_free__hole.parts.curseFacade;
-              if (rep_free__curseFacade != null) {
-                const rep_free__facade = step.rep_free__hole.parts.facade;
+              if(rep_free__curseFacade != null) {
+                const rep_free__facade      = step.rep_free__hole.parts.facade;
                 rep_free__facade.curse_metamorphosis.curseTrigger.impulse();
               }
 
@@ -46168,6 +46513,7 @@
           // this.debug_remoteControl();
           // this.debug_grid_maze();
 
+          this.debug_vibrating_segment();
 
 
           // this.debug_th();
@@ -50480,6 +50826,17 @@
 
         }
 
+        
+        debug_vibrating_segment() {
+         
+          
+
+
+        }
+
+
+
+
 
 
         debug_th() {
@@ -53246,6 +53603,13 @@
           const icPrintableCard_front = GET100_PrintableCardSheet.ic_template__printableCard_front(infiniteCanvas, trueRect_card);
 
 
+          //enrich
+          const icCard_spec = {
+            card: card,
+          };
+          Object.assign(icPrintableCard_front, icCard_spec);
+
+
           //invest
 
           //position
@@ -53406,6 +53770,13 @@
           const icPrintableCard_back = GET100_PrintableCardSheet.ic_template__printableCard_back(infiniteCanvas, trueRect_card);
 
 
+          //enrich
+          const icCard_spec = {
+            card: card,
+          };
+          Object.assign(icPrintableCard_back, icCard_spec);
+
+
           //invest
 
           //position
@@ -53563,13 +53934,56 @@
               };
 
             });
-            infiniteCanvas.addIcObject(icPage_back);
+            infiniteCanvas.addIcObject(icPage_back);            
 
 
             //save as img
             setTimeout(function () {
-              infiniteCanvas.exportCanvasRectContainingObj_asImg(icPage_front);
-              infiniteCanvas.exportCanvasRectContainingObj_asImg(icPage_back);
+              //print pages
+              // infiniteCanvas.exportCanvasRectContainingObj_asImg(icPage_front);
+              // infiniteCanvas.exportCanvasRectContainingObj_asImg(icPage_back);
+
+              //print cards
+              function getDictIcCardFromIcPage(icPage) {
+                const dict_card = Object.assign({}, icPage.parts);
+                delete dict_card["bg"];
+                return dict_card;
+              }
+
+              
+              // logger.log("log7, icPage_front", icPage_front);
+              const dict_card__front = getDictIcCardFromIcPage(icPage_front);
+              const arr_card__front  = Object.values(dict_card__front);
+
+              //debug
+              // const icObj__card = arr_card__front.find(e => true);
+              // logger.log("log7, icObj__card", icObj__card);
+              // infiniteCanvas.exportCanvasRectContainingObj_asImg(icObj__card);
+
+              arr_card__front.forEach((icObj__card) => {
+                const card = icObj__card.card;
+                logger.log("log7", "card", card);
+                const id_card = card.getIdentifier();
+                // infiniteCanvas.exportCanvasRectContainingObj_asImg(icObj__card, id_card);
+
+                const dataUrl__card = infiniteCanvas.dataUrl_for_canvasRectContainingObj(icObj__card, id_card);
+                const base64__card  = FileIntegration.base64_for_dataUrl(dataUrl__card);
+
+              
+                const jsZip = new JSZip();
+                jsZip.file("Hello.txt", "Hello World\n");
+                
+                var folder__img = jsZip.folder("images");
+                folder__img.file("card.png", base64__card, {base64: true});
+
+                jsZip.generateAsync({type:"blob"})
+                .then(function(content) {
+                    // see FileSaver.js
+                    saveAs(content, "example.zip");
+                });
+
+              });
+
             }, 6000 + i * 3000);
 
           });
@@ -53704,7 +54118,7 @@
     //launch game
     // const game__GET100 = new GET100_Game(infiniteCanvas);
 
-    //to print cards
+    //to print cards //SHU888
     // const cardCollection          = new GET100_CardCollection();
     // const printableCardCollection = new GET100_PrintableCardCollection(cardCollection,4,4);
     // printableCardCollection.spawn_to_ic();
