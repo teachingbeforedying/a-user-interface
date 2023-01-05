@@ -184,6 +184,10 @@
       }
 
 
+      static zip(a, b) {
+        return a.map((k, i) => [k, b[i]]);
+      }
+
     }
 
 
@@ -267,16 +271,22 @@
 
     class Vibration {
 
-      constructor(value__base, seed_in = null) {
+      constructor(seed_in = null) {
         const seed = seed_in ? seed_in : math.randomInt(1, 1000000000) * 3000;
-        this.func__vibration = Vibration.createFunc(value__base, seed);
+        this.func__vibration = Vibration.createFunc(seed);
+        this.counter = 0;
       }
 
-      next(x) {
-        return (this.func__vibration)(x);
+      // next(x) {
+      //   return (this.func__vibration)(x);
+      // }
+
+      next() {
+        this.counter += 1; 
+        return (this.func__vibration)(this.counter);
       }
 
-      static createFunc(value__base, seed) {
+      static createFunc(seed) {
         const nb_func = 10;
         const magicValue__modulo_amplitude =  77;
         const magicValue__modulo_frequency = 777;
@@ -287,8 +297,7 @@
         // logger.log("arr_amplitude", arr_amplitude);
         // logger.log("arr_frequency", arr_frequency);
         
-        const zip = (a, b) => a.map((k, i) => [k, b[i]]);
-        const arr_func_sine      = zip(arr_amplitude, arr_frequency).map(([k, v]) => {
+        const arr_func_sine      = Utils.zip(arr_amplitude, arr_frequency).map(([k, v]) => {
           const func_sine = function(x) {
             return k * math.sin(v*x);
           };
@@ -296,37 +305,19 @@
         });
 
         const func_vibration = function(x) {
-          const dx__raw = arr_func_sine.reduce((acc, func_sine) => {
+          const amp__raw = arr_func_sine.reduce((acc, func_sine) => {
             return acc + func_sine(x);
           }, 0);
           // logger.log("func_vibration(", x, ")", x__transformed);
           const amplitude__sum = arr_amplitude.reduce((acc, x) => acc + x, 0);
-          const dx__normalized = dx__raw / amplitude__sum;
-          logger.log("dx__normalized", dx__normalized);
-          
-          // const x__transformed = x + dx__normalized * value__base * (7.77 / 100);
-          const x__transformed = value__base + dx__normalized * value__base * (17.77 / 100);
-          
-          return x__transformed;
+          const amp__normalized = 0.5 + 0.5 * ((amp__raw) / (amplitude__sum));  //to yield number in [0,1]
+          logger.log("amp__normalized", amp__normalized);
+
+          return amp__normalized;
         };
 
         return func_vibration;
       }
-
-      // static lol() {
-      //   var rumbler = function(){				
-      //       var rx = Math.floor(Math.random() * (x+1)) -x/2,
-      //       ry = Math.floor(Math.random() * (y+1)) -y/2,
-      //       rrot = Math.floor(Math.random() * (rot+1)) -rot/2,
-      //       ropac = opac ? Math.random() + opacm : 1;
-            
-      //     /*========================================================*/
-      //     /* Ensure Movement From Original Position
-      //     /*========================================================*/				
-      //     rx = (rx === 0 && x !== 0) ? ((Math.random() < .5) ? 1 : -1) : rx;
-      //     ry = (ry === 0 && y !== 0) ? ((Math.random() < .5) ? 1 : -1) : ry;	
-      //   }
-      // }
 
     }
 
@@ -6865,7 +6856,7 @@
 
         // this.createIcLine(creationManager__line.point_start, creationManager__line.point_end);
         const icSegment = this.createIcSegment(creationManager__line.point_start, creationManager__line.point_end);
-        this.addIcObject(icSegment);
+        this.addNewIcObject(icSegment);
 
         delete this.creationManagers["line"];
       }
@@ -7000,6 +6991,14 @@
 
                   var counter = 1;                  /// this is used to reduce FPS
 
+                  //easing
+                  const x = icObj.point_end.x;
+
+                  var counter__easing = 0;
+                  const nb_steps__easing = 5;
+                  var x__prev   = x;
+                  var x__target = null;
+
                   /// register refresh loop
                   function refreshLoop() {
 
@@ -7007,7 +7006,8 @@
                     const rep_free    = represented.r_free();
 
                     /// reduce frame-rate
-                    const nb_skipped_frames__lengthVibration = 6;
+                    const nb_skipped_frames__lengthVibration = 4;
+
                     if (counter % (nb_skipped_frames__lengthVibration + 1) == 0) {
                       setNewFrame();
                       counter = 1;
@@ -7021,10 +7021,25 @@
 
 
                     function setNewFrame() {
-                      const x = icObj.point_end.x;
+                      const vibration       = icObj.vibration;
+                      const amp__normalized = vibration.next();
 
-                      const vibration = icObj.vibration;
-                      const x__next   = vibration.next(x);
+                      if(counter__easing == 0) {
+                        if(x__target != null) {
+                          x__prev   = x__target;
+                        }
+                        x__target = length__base + length__base * amp__normalized * 0.2;
+                        logger.log("x__target", x__target);
+                      }
+
+                      const progress = 1.0 * counter__easing / nb_steps__easing;
+                      logger.log("progress", progress);
+                      const x__next   = math.floor(progress * x__target + (1 - progress) * x__prev);
+                      logger.log("x__next", x__next);
+
+                      counter__easing += 1;
+                      counter__easing = counter__easing % nb_steps__easing;
+                      logger.log("counter__easing", counter__easing);
                       
                       rep_free.point_end = {
                         x: x__next,
@@ -7058,7 +7073,7 @@
 
         const seed          = math.randomInt(1, 1000000000) * 3000;
         const symbol__inner = MathUtils.randomSymbolNode__kanji(seed); 
-        const vibration     = new Vibration(length__base, seed);
+        const vibration     = new Vibration(seed);
 
         const icVibratingSegment_spec = {
           seed:           seed,
@@ -7150,14 +7165,25 @@
 
 
                     function setNewFrame() {
-                      const string__colorHex = icObj.stroke.slice(1);
-                      const value            = ColorUtils.intForHexString(string__colorHex);
 
                       const vibration   = icObj.vibration;
-                      const value__next = vibration.next(value);
-                      
-                      const string__colorHex__next = "#" + ColorUtils.hexStringForInt(value__next);
-                      rep_free.strokeColor         = string__colorHex__next; 
+
+                      const arr_comp255__base1   = [ 50,100,150];
+                      const arr_comp255__base2   = [240, 50,  0];
+                      const arr_comp255__all     = Utils.zip(arr_comp255__base1, arr_comp255__base2);
+
+                      const amp__normalized = vibration.next();
+
+                      const arr_comp255 = arr_comp255__all.map(([comp255__base1, comp255__base2]) => { 
+                        const comp255 = math.floor(comp255__base1 * amp__normalized + comp255__base2 * (1 - amp__normalized));
+                        return comp255; 
+                      });
+
+                      const arr_compHex = arr_comp255.map(comp255 => math.hex(comp255).slice(2));
+
+                      const string__colorHex__next = arr_compHex.reduce((acc, compHex) => acc.concat(compHex), "#");
+                      logger.log("string__colorHex__next", string__colorHex__next);
+                      rep_free.stroke = string__colorHex__next; 
                     }
 
                   }
@@ -7241,7 +7267,7 @@
 
         // this.createIcLine(creationManager__line.point_start, creationManager__line.point_end);
         const icSegment = this.createIcSegment(creationManager__line.point_start, creationManager__line.point_end);
-        this.addIcObject(icSegment);
+        this.addNewIcObject(icSegment);
 
         delete this.creationManagers["line"];
       }
@@ -7536,7 +7562,7 @@
 
         // this.createIcLine(creationManager__line.point_start, creationManager__line.point_end);
         const icSegment = this.createIcHUDSegment(creationManager__line.point_start, creationManager__line.point_end);
-        this.addIcObject(icSegment);
+        this.addNewIcObject(icSegment);
 
         delete this.creationManagers["HUD_line"];
       }
@@ -8633,9 +8659,7 @@
           const arr_part = Object.values(icObj.parts);
           const arr_transformationFunc = arr_pathmadeOp.map(icObj => icObj.parts.touchSlot.touchSlotConfig.transformationFunc);
 
-          const zip = (a, b) => a.map((k, i) => [k, b[i]]);
-          const arr_zipped = zip(arr_part, arr_transformationFunc);
-
+          const arr_zipped = Utils.zip(arr_part, arr_transformationFunc);
           const arr_transformationOutput = arr_zipped.map(([part, transformationFunc], i) => {
             const transformationOutput = transformationFunc(part);
           });
@@ -16306,8 +16330,7 @@
               const arr_color = ColorUtils.rainbow__random_arr_of_length(length, 1);
               logger.log("log1", "arr_color", arr_color);
 
-              const zip = (a, b) => a.map((k, i) => [k, b[i]]);
-              const arr_zipped = zip(arr_components, arr_color);
+              const arr_zipped = Utils.zip(arr_components, arr_color);
 
               const arr_icObj = arr_zipped.map(([str__component, color], i) => {
                 const position = {
@@ -26962,6 +26985,13 @@
                 // logger.log("innerUpdateListener", "backgroundColor");
                 fObj.set({
                   backgroundColor: newValue,
+                });
+                standardRedraw(fObj);
+              }
+              else if (propName == "stroke") {
+                // logger.log("innerUpdateListener", "stroke");
+                fObj.set({
+                  stroke: newValue,
                 });
                 standardRedraw(fObj);
               }
@@ -41385,12 +41415,11 @@
 
           //add logic
           //segues
-          const zip = (a, b) => a.map((k, i) => [k, b[i]]);
 
           const arr_courses = Object.values(this.courses);
           const arr_courses_from = arr_courses.slice(0, -1);
           const arr_courses_to = arr_courses.slice(1);
-          const arr_courses_zipped = zip(arr_courses_from, arr_courses_to);
+          const arr_courses_zipped = Utils.zip(arr_courses_from, arr_courses_to);
 
           this.arr_segues = arr_courses_zipped.map(([course_from, course_to]) => {
             const segueConfig = {};
@@ -42861,9 +42890,7 @@ mutateIntoScoreLabel(score) {
             });
             const arr_gmItem_operator = step.challengeGMItemConfig.operators;
 
-            const zip = (a, b) => a.map((k, i) => [k, b[i]]);
-
-            const arr_zipped = zip(arr_rep_free__operator, arr_gmItem_operator);
+            const arr_zipped = Utils.zip(arr_rep_free__operator, arr_gmItem_operator);
 
             arr_zipped.forEach(([rep_free__operator, gmItem_operator], i) => {
 
@@ -45854,9 +45881,7 @@ mutateIntoScoreLabel(score) {
             });
             const arr_gmItem_operator = step.challengeGMItemConfig.operators;
 
-            const zip = (a, b) => a.map((k, i) => [k, b[i]]);
-
-            const arr_zipped = zip(arr_rep_free__operator, arr_gmItem_operator);
+            const arr_zipped = Utils.zip(arr_rep_free__operator, arr_gmItem_operator);
 
             arr_zipped.forEach(([rep_free__operator, gmItem_operator], i) => {
 
@@ -45913,9 +45938,7 @@ mutateIntoScoreLabel(score) {
             });
             const arr_gmItem_operator__inverse = step.challengeGMItemConfig.operators__inverse;
 
-            const zip = (a, b) => a.map((k, i) => [k, b[i]]);
-
-            const arr_zipped = zip(arr_rep_free__operator__inverse, arr_gmItem_operator__inverse);
+            const arr_zipped = Utils.zip(arr_rep_free__operator__inverse, arr_gmItem_operator__inverse);
 
             arr_zipped.forEach(([rep_free__operator, gmItem_operator], i) => {
 
@@ -46446,9 +46469,7 @@ mutateIntoScoreLabel(score) {
             });
             const arr_gmItem_operator = step.challengeGMItemConfig.operators;
 
-            const zip = (a, b) => a.map((k, i) => [k, b[i]]);
-
-            const arr_zipped = zip(arr_rep_free__operator, arr_gmItem_operator);
+            const arr_zipped = Utils.zip(arr_rep_free__operator, arr_gmItem_operator);
 
             arr_zipped.forEach(([rep_free__operator, gmItem_operator], i) => {
 
