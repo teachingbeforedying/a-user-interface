@@ -4,6 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- <meta name="viewport" content= "width=device-width, user-scalable=no">--> <!--does not work -->
   <title>Infinite Canvas</title>
 
   <style>
@@ -5285,6 +5286,17 @@
         });
       }
 
+      getArrIcPoint_near(pos, repName = "official") {
+        const arr_icObj   = this.getArr_icObj(repName);
+        const arr_icPoint = arr_icObj.filter(icObj => icObj.type == "point");
+        const arr_icPoint__near = arr_icPoint.filter(icPoint => {
+          const radius = 10;
+          const isNear = Geometry.distance(icPoint.position, pos) < radius;
+          return isNear;
+        });
+        return arr_icPoint__near;
+      }
+
 
       createIcRect_withLTWH(left, top, width, height) {
 
@@ -6856,8 +6868,12 @@
         creationManager__line.point_end = Object.assign({}, true_cursor);
 
         // this.createIcLine(creationManager__line.point_start, creationManager__line.point_end);
-        const icSegment = this.createIcSegment(creationManager__line.point_start, creationManager__line.point_end);
-        this.addNewIcObject(icSegment);
+
+        // const icSegment = this.createIcSegment(creationManager__line.point_start, creationManager__line.point_end);
+        // this.addNewIcObject(icSegment);
+        
+        const icCompositeSegment = this.createIcCompositeSegment(creationManager__line.point_start, creationManager__line.point_end);
+        this.addNewIcObject(icCompositeSegment);
 
         delete this.creationManagers["line"];
       }
@@ -6912,6 +6928,7 @@
 
       createIcCompositeSegment(point_start, point_end) {
         // console.log("createIcSegment", point_start, point_end);
+        const infiniteCanvas = this;
 
         const type      = "compositeSegment";
         const position  = point_start;
@@ -6921,14 +6938,23 @@
         const icObj = this.createIcObject(type, position, size, homeScale);
 
 
+        var icPoint__start = infiniteCanvas.getArrIcPoint_near(point_start).find(e => true);
+        if(icPoint__start == null) {
+          const icPoint__start__new = infiniteCanvas.createIcPoint(point_start);
+          icPoint__start__new.pointType = "circle";
+          icPoint__start__new.fill      = "orange";
 
-        const icPoint__start = infiniteCanvas.createIcPoint(point_start);
-        icPoint__start.pointType = "circle";
-        icPoint__start.fill      = "orange";
+          icPoint__start = icPoint__start__new;
+        }
 
-        const icPoint__end   = infiniteCanvas.createIcPoint(point_end);
-        icPoint__end.pointType = "circle";
-        icPoint__end.fill      = "blue";
+        var icPoint__end = infiniteCanvas.getArrIcPoint_near(point_end).find(e => true);;
+        if(icPoint__end == null) {
+          const icPoint__end__new = infiniteCanvas.createIcPoint(point_end);
+          icPoint__end__new.pointType = "circle";
+          icPoint__end__new.fill      = "blue";
+
+          icPoint__end = icPoint__end__new;
+        }
 
         const icSegment = infiniteCanvas.createIcSegment(point_start, point_end);
         icSegment.lock();
@@ -7980,6 +8006,82 @@
 
 
 
+
+
+      // createIcSConveyor(path, replayObj) {
+        createIcUniformSConveyor(path, cfg_in = null) {
+        logger.log("createIcUniformSConveyor", path, cfg_in);
+
+        const point__start = this.startingPointFromPath(path);
+
+        const trueRect = {
+          x: point__start.x,
+          y: point__start.y,
+          width: 100,
+          height: 100,
+        };
+
+        const text_in = "pathmade:conveyor";
+
+        // const transformationFunc = this.transformationFuncForReplayObj(replayObj);
+        const transformationFunc = async function (icObj, icTouchSlot) {
+
+          //prevent original from touches while shadePossessor is running     //SHU: il faudra trouver un moyen de faire autrement car c'est moche
+          // icObj.isTouchable = false;
+
+          const transformationFunc_p = infiniteCanvas.transformationFunc_pForReplayObj(replayObj);
+          const transformationOutput = await transformationFunc_p(icObj)
+            .then(transformationOutput => {
+
+              //restore isTouchable                 //SHU: il faudra trouver un moyen de faire autrement car c'est moche
+              // if(icObj.type != "geminiShade") {
+              //   icObj.isTouchable = true;
+              // }
+
+              return transformationOutput;
+            });
+
+          return transformationOutput;
+        };
+
+        const operatorConfig = new OperatorConfig(text_in, transformationFunc);
+
+        const touchSlotConfig = {
+          transformationFunc: operatorConfig.transformationFunc,
+        };
+
+        const touchSlot = infiniteCanvas.createIcTouchSlot(trueRect, touchSlotConfig);
+        touchSlot.fill = "";
+        // touchSlot.isMobile = false;
+
+        const text = operatorConfig.name;
+        const facade = infiniteCanvas.createIcText(trueRect.x, trueRect.y, text);
+        facade.backgroundColor = "blanchedalmond";
+        // facade.isMobile    = false;
+        // facade.isTouchable = false;
+
+        const parts = {
+          "touchSlot": touchSlot,
+          "facade": facade,
+        };
+
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+
+        const icComposite = this.createIcComposite(trueRect, parts, compositeConfig);
+        icComposite.cType = "gm_operator";
+
+        const operation = new Operation(operatorConfig.transformationFunc);
+        icComposite.operation = operation;
+
+
+        const icPathmadeOperator_spec = {
+          path: path,
+        };
+
+        const icPathmadeOperator = Object.assign(icComposite, icPathmadeOperator_spec);
+
+        return icPathmadeOperator;
+      }
 
 
 
@@ -47276,7 +47378,9 @@ mutateIntoScoreLabel(score) {
 
           // this.debug_vibrating_segment();
 
-          this.debug_composite_segment();
+          // this.debug_composite_segment();
+
+          this.debug_uniformSConveyor();
 
 
           // this.debug_th();
@@ -51637,6 +51741,13 @@ mutateIntoScoreLabel(score) {
          const icCS1 = infiniteCanvas.createIcCompositeSegment(point__start, point__end);
          infiniteCanvas.addIcObject(icCS1);
          
+       }
+
+
+       debug_uniformSConveyor() {
+
+
+
        }
 
 
