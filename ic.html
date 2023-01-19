@@ -7298,6 +7298,378 @@
       }
 
 
+      createIcRegularPolygon(point_A, point_B) {
+        // console.log("createIcSegment", point_start, point_end);
+        const infiniteCanvas = this;
+
+        const type      = "regularPolygon";
+        const position  = point_start;
+        const size      = {width: 10, height: 10};
+        const homeScale = { X: 1, Y: 1 };
+
+        const icObj = this.createIcObject(type, position, size, homeScale);
+
+
+        var icPoint__start = infiniteCanvas.getArrIcPoint_near(point_start).find(e => true);
+        if(icPoint__start == null) {
+          const icPoint__start__new = infiniteCanvas.createIcPoint(point_start);
+          icPoint__start__new.pointType = "circle";
+          icPoint__start__new.fill      = "orange";
+
+          icPoint__start = icPoint__start__new;
+        }
+
+        var icPoint__end = infiniteCanvas.getArrIcPoint_near(point_end).find(e => true);;
+        if(icPoint__end == null) {
+          const icPoint__end__new = infiniteCanvas.createIcPoint(point_end);
+          icPoint__end__new.pointType = "circle";
+          icPoint__end__new.fill      = "blue";
+
+          icPoint__end = icPoint__end__new;
+        }
+
+        const icSegment = infiniteCanvas.createIcSegment(point_start, point_end);
+        icSegment.lock();
+
+        const icCompositeSegment_spec = {
+          isSnappable: false,
+
+          stroke: "red",
+          strokeWidth: 4,
+
+          parts: {
+            sstroke:     icSegment,
+            point_start: icPoint__start,
+            point_end:   icPoint__end,
+          },      
+        };
+
+        const icCompositeSegment = Object.assign(icObj, icCompositeSegment_spec);
+
+        //endPoints' handles
+
+        class CompositeSegmentEngine {
+          constructor() {
+
+            this.initialized = false;
+
+            this.initialize = function (scopeObj) {
+
+              //"wake up":
+              //bind all funcs
+              // function isFunction(functionToCheck) {
+              //   return functionToCheck && {}.toString.call(functionToCheck) === '[object Function]';
+              // }
+              const isFunction = value => value && (Object.prototype.toString.call(value) === "[object Function]" || "function" === typeof value || value instanceof Function);
+
+              this.awoken = {
+                'i_am': "awoken",
+              };
+              console.log("this.virgin", this.virgin);
+              Object.entries(this.virgin)
+                .filter(([propName, prop]) => isFunction(prop))
+                .forEach(([propName, prop], i) => {
+                  this.awoken[propName] = prop.bind(this.awoken);
+                });
+
+              // this.scopeObj  = scopeObj;
+              //engineCarrier,
+              //infiniteCanvas,
+              this.awoken.scopeObj = scopeObj;
+
+              this.initialized = true;
+            };
+
+
+            this.createSStrokeListener = function () {
+
+              const sstroke__listener = (representation, propName, oldValue, newValue) => {
+                // logger.log("sstroke__listener");
+                const updatesDict = {
+                  [propName]: {
+                    old: oldValue,
+                    new: newValue,
+                  },
+                };
+                this.manageSStrokeUpdate(representation, updatesDict);
+              };
+
+              return sstroke__listener;
+            };
+
+
+            // this.counter__pointListeners = 0;
+            this.createPointListener = function () {
+
+              // const index__pointListener = this.counter__pointListeners;
+
+              const point__listener = (representation, propName, oldValue, newValue) => {
+                // logger.log("pointListener", index__pointListener);
+                const updatesDict = {
+                  [propName]: {
+                    old: oldValue,
+                    new: newValue,
+                  },
+                };
+                this.managePointUpdate(representation, updatesDict);
+              };
+
+              // this.counter__pointListeners += 1;
+
+              return point__listener;
+            };
+
+
+
+            this.createListeners = function () {
+              var outListenersDict = {};
+
+              const infiniteCanvas = this.scopeObj.infiniteCanvas;
+              const handle         = this.scopeObj.engineCarrier;
+
+              //get free_rep
+              const handle__represented = infiniteCanvas.getRepresented(handle.id);
+              const handle__rep_free    = handle__represented.r_free();
+
+              //sstroke
+              {
+                const sstroke__listener     = this.createSStrokeListener();
+                const id__sstroke           = handle__rep_free.parts.sstroke.id;
+                outListenersDict[id__sstroke] = sstroke__listener;
+              }
+
+              //points
+                //point_start
+                {
+                  const point__listener           = this.createPointListener();
+                  const id__point_start           = handle__rep_free.parts.point_start.id;
+                  outListenersDict[id__point_start] = point__listener;
+                }
+
+                //point_end
+                {
+                  const point__listener         = this.createPointListener();
+                  const id__point_end           = handle__rep_free.parts.point_end.id;
+                  outListenersDict[id__point_end] = point__listener;
+                }
+
+              return outListenersDict;
+            };
+
+
+
+
+            // this.getArr_everyone = function () {
+
+            //   const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            //   const handle = this.scopeObj.engineCarrier;
+
+
+            //   //get free_rep
+            //   const handle__represented = infiniteCanvas.getRepresented(handle.id);
+            //   const handle__rep_free = handle__represented.r_free();
+
+            //   const parts = handle__rep_free.parts;
+
+            //   return [handle__rep_free] + Object.values(parts);
+            // };
+
+            // this.getArr_everyoneBut = function (rep) {
+            //   const arr_everyoneElse = this.getArr_everyone().filter(rep => rep.id != solo_rep.id);
+            //   return arr_everyoneElse;
+            // };
+
+            // this.onEveryoneBut = function (solo_rep) {
+            //   const arr_everyoneElse = this.getArr_everyoneBut(solo_rep);
+            //   arr_everyoneElse.forEach((rep, i) => {
+            //     const listener = this.listeners[rep.id];
+            //     rep.onInnerUpdate(listener);
+            //   });
+            // };
+
+            // this.offEveryoneBut = function (rep) {
+            //   const arr_everyoneElse = this.getArr_everyoneBut(solo_rep);
+            //   arr_everyoneElse.forEach((rep, i) => {
+            //     const listener = this.listeners[rep.id];
+            //     rep.offInnerUpdate(listener);
+            //   });
+            // };
+
+
+            //sstroke update
+            this.manageSStrokeUpdate = function (icObj_compositePart, outerUpdatesDict) {
+
+            };
+
+            //point update
+            this.managePointUpdate = function (icObj_point, outerUpdatesDict) {
+
+              //SHU FLUID
+              logger.log("managePointUpdate", icObj_point, outerUpdatesDict);
+
+              const infiniteCanvas = this.scopeObj.infiniteCanvas;
+              const handle         = this.scopeObj.engineCarrier;
+
+              const id__point = icObj_point.id;
+              console.log("id__point", id__point);
+
+              // const compositeConfig = handle.compositeConfig;
+              // console.log("compositeConfig", compositeConfig);
+              // const isMobile = compositeConfig[id__point].isMobile;
+
+              // if (isMobile) {
+
+                //get free_rep
+                const handle__represented = infiniteCanvas.getRepresented(handle.id);
+                const handle__rep_free    = handle__represented.r_free();
+
+                // const part__represented   = infiniteCanvas.getRepresented(icObj_compositePart.id);
+
+                // rep_free__composite.composite.managePartUpdate(rep_free__compositePart, outerUpdatesDict);
+                if (outerUpdatesDict.position != null) {
+
+                  // var offset = {dx: 0, dy: 0};
+                  // if (outerUpdatesDict.position != null) {
+                  //   offset = {
+                  //     dx: outerUpdatesDict.position.new.x - outerUpdatesDict.position.old.x,
+                  //     dy: outerUpdatesDict.position.new.y - outerUpdatesDict.position.old.y,
+                  //   };
+                  // }
+
+                  const rep_free__sstroke = handle__rep_free.parts.sstroke;
+                  {
+
+                    // const engine_compositeSegment = this.scopeObj.engineCarrier.dict_engine["compositeSegment"].engine.awoken;
+                    // const listener__sStroke       = engine_compositeSegment.listeners[icSStroke.id];
+                    // console.log("°°°listener", listener);
+
+                    const listener__sStroke = this.listeners[rep_free__sstroke.id];
+
+                    //listen:off
+                    // rep_free__sstroke.offInnerUpdate(listener__sStroke);   //SHU: innerUpdate must be kept on for live update of sstroke
+
+                    //mutate
+                    logger.log("mutating sstroke:", rep_free__sstroke.id);
+                    {
+                      if (icObj_point == handle__rep_free.parts.point_start) {
+                        
+                        // const point_start_new = {
+                        //   x: rep_free.point_start.x + offset.dx,
+                        //   y: rep_free.point_start.y + offset.dy,
+                        // };
+                        const point_start_new = Object.assign({}, icObj_point.position);
+                        rep_free__sstroke.point_start  = point_start_new;
+                        
+                      } else if(icObj_point == handle__rep_free.parts.point_end) {
+
+                        // const point_end_new = {
+                        //   x: rep_free.point_end.x + offset.dx,
+                        //   y: rep_free.point_end.y + offset.dy,
+                        // };
+                        const point_end_new = Object.assign({}, icObj_point.position);
+                        rep_free__sstroke.point_end  = point_end_new;
+
+                      } else {
+                        throw new Error("moved point is not handled:", icObj_point);
+                      
+                      }
+
+                    }
+
+                    //listen:on
+                    // rep_free__sstroke.onInnerUpdate(listener__sStroke);   //SHU: innerUpdate must be kept on for live update of sstroke
+                  }
+                  
+                }
+
+              // }
+
+            };
+
+  
+            this.start = function () {
+              console.log("CompositeEngine::start, this", this);
+              console.log("CompositeEngine::start", "this.scopeObj", this.scopeObj);
+
+              this.listeners = this.createListeners();
+
+              const infiniteCanvas = this.scopeObj.infiniteCanvas;
+              const handle         = this.scopeObj.engineCarrier;
+
+              console.log("CompositeEngine.start", handle.id);
+
+              //get free_rep
+              const handle__represented = infiniteCanvas.getRepresented(handle.id);
+              const handle__rep_free    = handle__represented.r_free();
+
+              //listen to handle
+              // const handle__listener = this.listeners[handle.id];
+              // handle__rep_free.onInnerUpdate(handle__listener);
+
+              //listen to points
+              // const parts = handle__rep_free.parts;
+              // const arr_parts_all = Object.values(parts);
+
+              const arr_point = [handle__rep_free.parts.point_start, handle__rep_free.parts.point_end];
+              arr_point.forEach((point__rep_free, i) => {
+                logger.log("point__rep_free", point__rep_free);
+
+                //set compositeId if not done yet         //SHU: horror
+                // part__rep_free.compositeId = handle__rep_free.id;
+
+                //'activate' listeners
+                logger.log("this.listeners", this.listeners);
+                const point__listener = this.listeners[point__rep_free.id];
+                logger.log("point__listener", point__listener);
+                // if(typeof part__rep_free.onInnerUpdate === "function") { //SHU HORROR
+                  point__rep_free.onInnerUpdate(point__listener);
+                // }
+              });
+
+            };
+
+            this.stop = function () {
+
+              const infiniteCanvas = this.scopeObj.infiniteCanvas;
+              const handle         = this.scopeObj.engineCarrier;
+
+              console.log("compositeEngine.stop", handle);
+
+              //get free_rep
+              const handle__represented = infiniteCanvas.getRepresented(handle.id);
+              const handle__rep_free = handle__represented.r_free();
+
+              // const handle__listener = this.listeners[handle.id];
+              // handle__rep_free.offInnerUpdate(handle__listener);
+
+              // const parts = handle__rep_free.parts;
+              // const arr_parts_all = Object.values(parts);
+              // arr_parts_all.forEach((part__rep_free, i) => {
+
+              //   // const part__listener = this.listeners[part__rep_free.id];
+              //   // part__rep_free.offInnerUpdate(part__listener);
+
+              //   this.removePart(part__rep_free);
+              // });
+
+            };
+
+
+
+            this.virgin = Object.assign({}, this);  //virgin == not bound
+
+
+            }
+
+        }
+
+        const engine_compositeSegment = new CompositeSegmentEngine();
+        infiniteCanvas.installEngineOnIcObj(icCompositeSegment, "compositeSegment", engine_compositeSegment);
+
+        return icCompositeSegment;
+      }
+
+
       createIcVibratingSegment(point__attach, length__base, cfg_in) {
         // console.log("createIcSegment", point_start, point_end);
 
@@ -34228,6 +34600,123 @@
         }
 
 
+        floodFillAroundCursor__area_ruler() {
+
+          const rgbaString__activeColor = inputProperties.getActiveRgbaColorString();
+          const arrRgba__activeColor    = ColorUtils.arrRgbaFromRgbaString(rgbaString__activeColor);
+
+          const fillColor     = arrRgba__activeColor;
+          const fillTolerance = 2;
+
+
+
+          const fabricIntegration = this;
+          const fcanvas           = fabricIntegration.fabricCanvas;
+
+          const infiniteCanvas    = fabricIntegration.infiniteCanvas;
+
+          const cursor            = infiniteCanvas.cursor;
+
+          var mouseX = cursor.x, mouseY = cursor.y,
+            canvas = fcanvas.lowerCanvasEl,
+            context = canvas.getContext('2d'),
+            parsedColor = arrRgba__activeColor,
+            imageData = context.getImageData(0, 0, canvas.width, canvas.height),
+            getPointOffset = function (x, y) {
+              return 4 * (y * imageData.width + x)
+            },
+            targetOffset = getPointOffset(mouseX, mouseY),
+            target = imageData.data.slice(targetOffset, targetOffset + 4);
+
+          if (FloodFill.withinTolerance(target, 0, parsedColor, fillTolerance)) {
+            // Trying to fill something which is (essentially) the fill color
+            logger.log('Ignore... same color')
+            return;
+          }
+
+          // Perform flood fill
+          var data = FloodFill.fill(
+            imageData.data,
+            getPointOffset,
+            { x: mouseX, y: mouseY },
+            parsedColor,
+            target,
+            fillTolerance,
+            imageData.width,
+            imageData.height
+          );
+
+          if (0 == data.width || 0 == data.height) {
+            return;
+          }
+
+          var tmpCanvas    = document.createElement('canvas'), tmpCtx = tmpCanvas.getContext('2d');
+          tmpCanvas.width  = canvas.width;
+          tmpCanvas.height = canvas.height;
+
+          var palette = tmpCtx.getImageData(0, 0, tmpCanvas.width, tmpCanvas.height); // x, y, w, h
+          palette.data.set(new Uint8ClampedArray(data.coords)); // Assuming values 0..255, RGBA
+          tmpCtx.putImageData(palette, 0, 0); // Repost the data.
+          var imgData = tmpCtx.getImageData(data.x, data.y, data.width, data.height); // Get cropped image
+
+          tmpCanvas.width  = data.width;
+          tmpCanvas.height = data.height;
+          tmpCtx.putImageData(imgData, 0, 0);
+
+          // Convert canvas back to image:
+          var img = new Image();
+          img.onload = function () {
+            // // "exoObject" way
+            // const fImg = new fabric.Image(img, {
+            //   left: data.x,
+            //   top:  data.y,
+            //   selectable: false
+            // });
+            // fcanvas.add(fImg);
+            
+            // fabricIntegration.manageCreatedFloodFillObjects([fImg]);
+
+            
+            //without using exoObject
+            const screenPoint__fObj    = {x: data.x, y: data.y};
+            const truePoint__fObj      = infiniteCanvas.toTruePoint(screenPoint__fObj);
+            const icImage              = infiniteCanvas.createIcImage(truePoint__fObj.x, truePoint__fObj.y, img);
+            icImage.zIndex = math.max(infiniteCanvas.getArrZIndex()) + 1;
+            infiniteCanvas.addIcObject(icImage);
+
+
+          /////////////////////
+          //compute image area: area = sum(non transparent pixels) * scale_x * scale_y;
+          function area__pixelwise(imgData) {
+            const w = imgData.width;
+            const h = imgData.height;
+            const nb_comp   = 4;
+            const pos_alpha = 3;
+            const arr_index_alpha = [...Array(w*h).keys()].map(index => index * nb_comp + pos_alpha);
+            return arr_index_alpha.reduce((acc, i) => {
+              const alpha_pixel = imgData.data[i];
+              // logger.log("alpha_pixel[", i, "]", alpha_pixel);
+              const value_pixel = (alpha_pixel != 0) ? 1 : 0;
+              acc = acc + value_pixel;
+              return acc; 
+            }, 0);
+          }
+          const value_area__raw = area__pixelwise(imgData);
+          // logger.log("value_area__raw", value_area__raw);
+          const value_area__scaled = value_area__raw * (1.0 / infiniteCanvas.scale.X) * (1.0 / infiniteCanvas.scale.Y);
+          // logger.log("value_area__scaled", value_area__scaled);
+          const text = "area: " + math.format(value_area__scaled);
+          const icText = infiniteCanvas.createIcText(truePoint__fObj.x, truePoint__fObj.y, text);
+          icText.zIndex = math.max(infiniteCanvas.getArrZIndex()) + 1;
+          infiniteCanvas.addIcObject(icText);
+          /////////////////////
+            
+          };
+          img.src = tmpCanvas.toDataURL('image/png');
+
+        }
+
+
         manageCreatedFloodFillObjects(arr_fObj) {
           console.log("manageCreatedFloodFillObjects", arr_fObj);
 
@@ -38909,7 +39398,8 @@
               case "KeyF":
                 if (keyboardIntegration.keyDownToggles.w.isActive) {
                   // keyboardIntegration.infiniteCanvas.addNewSpotPoint();
-                  fabricIntegration.floodFillAroundCursor();
+                  // fabricIntegration.floodFillAroundCursor();
+                  fabricIntegration.floodFillAroundCursor__area_ruler();
                 } else
                   if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
                     // keyboardIntegration.infiniteCanvas.addNewSpotPoint();
