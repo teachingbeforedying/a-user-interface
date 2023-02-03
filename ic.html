@@ -4903,6 +4903,8 @@
 
         this.creationManagers = {};
 
+        this.dict_pov = {};
+
 
 
         this.represented = {};
@@ -5354,6 +5356,7 @@
         const position  = Geometry.createPoint(trueRect.x, trueRect.y);
         const size      = Geometry.createSize(trueRect.width, trueRect.height);
         const homeScale = Object.assign({}, this.scale);
+        // const homeScale = Object.assign({}, {X: 1.0, Y: 1.0});
 
         const icObj = this.createIcObject(type, position, size, homeScale);
 
@@ -10439,7 +10442,7 @@
 
           stroke: "black",
           strokeWidth: 1,
-          fill: "lightgray",
+          fill: buttonConfig.fill ? buttonConfig.fill : "lightgray",
 
           buttonConfig: buttonConfig,
         };
@@ -10454,6 +10457,29 @@
 
         return icEngined;
       }
+
+      createIcButton__gotopov(trueRect, icPOVRect) {
+
+        const fColor__fill = new fabric.Color("orange");
+        fColor__fill.setAlpha(0.777);
+        const color__fill = fColor__fill.toRgba();
+
+        //create gotopov button
+        const config__button = {
+          buttonFunc: (scopeObj) => {
+            const cfg_anim__easy = {
+              duration: 3000,
+            };
+            const trueRect2_pov  = icPOVRect.getTrueRect2();
+            infiniteCanvas.move_to_rect__animation(trueRect2_pov, cfg_anim__easy);
+          },
+          fill: color__fill,
+        };
+        const icButton = infiniteCanvas.createIcButton(trueRect, config__button);
+        return icButton;
+      }
+
+
 
       createIcClickWell(trueRect, value_in = -48) {
         console.log("createIcClickWell", trueRect);
@@ -18858,8 +18884,8 @@
 
       getShownRect() {
         const screenRect = this.getScreenRect();
-        const noOrRect = this.toNoOrRect(screenRect);
-        const shownRect = Geometry.createXYRect(noOrRect);
+        const noOrRect   = this.toNoOrRect(screenRect);
+        const shownRect  = Geometry.createXYRect(noOrRect);
         return shownRect;
       }
 
@@ -19036,7 +19062,7 @@
         const noOrRect = this.toNoOrRect(screenRect);
 
         const unitsZoomed = {
-          X: noOrRect.width * scaleAmount,
+          X: noOrRect.width  * scaleAmount,
           Y: noOrRect.height * scaleAmount,
         };
         console.log("unitsZoomed", unitsZoomed);
@@ -19059,6 +19085,8 @@
 
         this.redrawCanvas(RedrawOccasion.scaleChanged);
       }
+
+
 
 
       // zIndex
@@ -19669,8 +19697,6 @@
         return pov_progress;
       }
 
-
-
       show_rect(rect) {
         //get pov to show and contain rect
         const pov = this.centeredPovForRect(rect);
@@ -19694,8 +19720,8 @@
         const infiniteCanvas = this;
 
         const rect__src = infiniteCanvas.getShownRect();
-        logger.log("rect__src", rect__src);
-        logger.log("rect__dst", rect__dst);
+        // logger.log("rect__src", rect__src);
+        // logger.log("rect__dst", rect__dst);
 
         const pointCenter__src = Geometry.getCenterPoint(Geometry.createLTRect(rect__src));
         // logger.log("pointCenter__src", pointCenter__src);
@@ -19717,7 +19743,44 @@
           X: infiniteCanvas.scale.X * scaleFactor_to_contain_dstRect,
           Y: infiniteCanvas.scale.Y * scaleFactor_to_contain_dstRect,
         };
-        logger.log("scale__dst", scale__dst);
+        // logger.log("scale__dst", scale__dst);
+
+        const size__dst = {
+          width:  rect__src.width  / scaleFactor_to_contain_dstRect, 
+          height: rect__src.height / scaleFactor_to_contain_dstRect,
+        };
+
+        const pov = new POV(scale__dst, pointCenter__dst, size__dst);
+
+        return pov;
+      }
+
+      topLeftPovForRect(rect__dst) {
+        // logger.log("centeredPovForRect", rect__dst);
+        const infiniteCanvas = this;
+
+        const rect__src = infiniteCanvas.getShownRect();
+
+        const pointCenter__src = Geometry.getCenterPoint(Geometry.createLTRect(rect__src));
+        // logger.log("pointCenter__src", pointCenter__src);
+
+        const pointCenter__dst = Geometry.getCenterPoint(Geometry.createLTRect(rect__dst));
+        // logger.log("pointCenter__dst", pointCenter__dst);
+
+        const length_max__src = Math.max(rect__src.width, rect__src.height);
+        const length_max__dst = Math.max(rect__dst.width, rect__dst.height);
+        
+        var scaleFactor_to_contain_dstRect;
+        if(rect__dst.width >= rect__dst.height) {
+          scaleFactor_to_contain_dstRect = 1.0 / (rect__dst.width / rect__src.width);
+        } else {
+          scaleFactor_to_contain_dstRect = 1.0 / (rect__dst.height / rect__src.height);
+        }
+
+        const scale__dst = {
+          X: infiniteCanvas.scale.X * scaleFactor_to_contain_dstRect,
+          Y: infiniteCanvas.scale.Y * scaleFactor_to_contain_dstRect,
+        };
 
         const size__dst = {
           width:  rect__dst.width, 
@@ -19731,6 +19794,17 @@
 
 
 
+
+
+
+      storePOVRectAtIndex(icPOVRect, index) {
+        this.dict_pov[index] = icPOVRect;
+      }
+
+      getStoredPOVRect(index) {
+        const icPOVRect = this.dict_pov[index];
+        return icPOVRect;
+      }
 
 
 
@@ -20162,6 +20236,15 @@
         };
       }
 
+      getTrueRect2() {
+        return {
+          x:      this.position.x, 
+          y:      this.position.y, 
+          width:  this.size.width  / this.homeScale.X, 
+          height: this.size.height / this.homeScale.Y,
+        };
+      }
+
       setCenter(pointCenter) {
         if (this.isUsingCenterPosition) {
           this.position = Object.assign({}, pointCenter);
@@ -20458,23 +20541,23 @@
       }
 
       lock() {
-        this.canBeMoved = false;
+        this.canBeMoved    = false;
         this.canBeSelected = false;
-        this.canBeResized = false;
-        this.canBeRotated = false;
-        this.canBeHeld = false;
+        this.canBeResized  = false;
+        this.canBeRotated  = false;
+        this.canBeHeld     = false;
 
-        this.isLocked = true;
+        this.isLocked      = true;
       }
 
       unlock() {
-        this.canBeMoved = true;
+        this.canBeMoved    = true;
         this.canBeSelected = true;
-        this.canBeResized = true;
-        this.canBeRotated = true;
-        this.canBeHeld = true;
+        this.canBeResized  = true;
+        this.canBeRotated  = true;
+        this.canBeHeld     = true;
 
-        this.isLocked = false;
+        this.isLocked      = false;
       }
 
 
@@ -20496,9 +20579,9 @@
         const screenPointTL = this.getScreenPositionWithoutOffset();
         const screenPointBR = this.getScreenPointBRWithoutOffset();
 
-        const left = screenPointTL.x;
-        const top = screenPointTL.y;
-        const width = screenPointBR.x - screenPointTL.x;
+        const left   = screenPointTL.x;
+        const top    = screenPointTL.y;
+        const width  = screenPointBR.x - screenPointTL.x;
         const height = screenPointBR.y - screenPointTL.y;
         return Geometry.createRect(left, top, width, height);
       }
@@ -39143,6 +39226,11 @@
               }),
 
               digit1: new KeyDownToggle("digit1", KeyDownToggle.defaultKeyDownFunc(["Digit1"]), (isActive) => {
+
+                if (keyboardIntegration.keyDownToggles.p.isActive) {
+                  return;
+                }
+
                 /**/
                 if (isActive) {
                   fabricIntegration.enterSlicing();
@@ -39163,6 +39251,11 @@
               // }),
 
               zIndexEditing: new KeyDownToggle("zIndexEditing", KeyDownToggle.defaultKeyDownFunc(["Digit2"]), (isActive) => {
+                
+                if (keyboardIntegration.keyDownToggles.p.isActive) {
+                  return;
+                }
+                
                 if (isActive) {
                   infiniteCanvas.enterZIndexEditing();
                 } else {
@@ -39171,6 +39264,10 @@
               }),
 
               pathmadeOperatorDrawing__conveyor: new KeyDownToggle("Digit5", KeyDownToggle.defaultKeyDownFunc(["Digit5"]), (isActive) => {
+
+                if (keyboardIntegration.keyDownToggles.p.isActive) {
+                  return;
+                }
 
                 if (isActive) {
                   var type;
@@ -39199,6 +39296,10 @@
 
               pathmadeOperatorDrawing__shadePossessor: new KeyDownToggle("Digit4", KeyDownToggle.defaultKeyDownFunc(["Digit4"]), (isActive) => {
 
+                if (keyboardIntegration.keyDownToggles.p.isActive) {
+                  return;
+                }
+
                 if (isActive) {
                   const type = "shadePossessor";
                   fabricIntegration.enterPathmadeOperatorPathDrawing__grains(type);
@@ -39209,6 +39310,10 @@
               }),
 
               pathmadeOperatorDrawing__multi: new KeyDownToggle("Digit3", KeyDownToggle.defaultKeyDownFunc(["Digit3"]), (isActive) => {
+
+                if (keyboardIntegration.keyDownToggles.p.isActive) {
+                  return;
+                }
 
                 if (isActive) {
                   const type = "conveyor";
@@ -39389,15 +39494,54 @@
             updateKeyUpABToggles(e);
 
             if (keyboardIntegration.keyDownToggles.p.isActive) {
+              logger.log("keyboardIntegration.keyDownToggles.p.isActive");
+              // if(e.code == "ShiftLeft") {
+              //   return;
+              // }
               handleKeyUp__pov(e);
             } else {
               handleKeyUp__default(e);
             }
 
-            function handleKeyUp__default(e) {
-              switch (e.code) {
-
+            function handleKeyUp__pov(e) {
+              logger.log("handleKeyUp__pov", e);
+              if(!e.code.startsWith("Digit")) {
+                return;
               }
+
+              const index = e.code.match(/\d+/).find(e=>true);
+
+              if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+                //create pov
+                const trueRect__screen  = infiniteCanvas.getShownRect();
+                // const icPOVRect         = infiniteCanvas.createIcPOVRect(trueRect__screen);
+                const trueRect__screen2 = {
+                  x:      trueRect__screen.x,
+                  y:      trueRect__screen.y,
+                  width:  trueRect__screen.width  * infiniteCanvas.scale.X,
+                  height: trueRect__screen.height * infiniteCanvas.scale.Y,
+                };
+                const icPOVRect = infiniteCanvas.createIcPOVRect(trueRect__screen2);
+                infiniteCanvas.addNewIcObject(icPOVRect);
+
+                //store pov
+                infiniteCanvas.storePOVRectAtIndex(icPOVRect, index);
+              } else {
+                //create gotopov button
+                const icPOVRect = infiniteCanvas.getStoredPOVRect(index);
+
+                const trueCursor = infiniteCanvas.getTrueCursor();
+                const trueRect__button = {
+                  x:      trueCursor.x,
+                  y:      trueCursor.y,
+                  width:  100,
+                  height: 100,
+                };
+
+                const icButton  = infiniteCanvas.createIcButton__gotopov(trueRect__button, icPOVRect);
+                infiniteCanvas.addNewIcObject(icButton);
+              }
+
             }
 
             function handleKeyUp__default(e) {
@@ -51704,8 +51848,8 @@
                 const cfg_anim__easy = {
                   duration: 3000,
                 };
-                const trueRect_pov = icPOVRect.getTrueRect();
-                infiniteCanvas.move_to_rect__animation(trueRect_pov, cfg_anim__easy);
+                const trueRect2_pov  = icPOVRect.getTrueRect2();
+                infiniteCanvas.move_to_rect__animation(trueRect2_pov, cfg_anim__easy);
               },
             };
             const icButton = infiniteCanvas.createIcButton(trueRect__gotopov, config__button);
