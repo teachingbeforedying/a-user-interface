@@ -20201,6 +20201,30 @@
         //   icObj.getScopeObj = getScopeObj;
         // }
         //SHU: TODO: icObj.dict_engine deserialization
+        if(json_icObject.dict_engine != null) {
+
+          const dict_engine = Object.entries(json_icObject.dict_engine).reduce((acc, [eType, engineMiniDict_serial] ) => {
+            const index_start   = engineMiniDict_serial.index_start;
+            const engine_serial = engineMiniDict_serial.engine;
+
+            const virgin      = deserialize(engine_serial);
+
+            const engine      = {};
+            engine.initialize = virgin.initialize.bind(engine);
+            engine.virgin     = virgin;
+
+            const engineMiniDict = {
+              index_start: index_start,
+              engine: engine,
+            };
+            acc[eType] = engineMiniDict;
+            return acc;
+          }, {});
+          icObj.dict_engine = dict_engine;
+
+          const getScopeObj = deserialize(json_icObject.getScopeObj);
+          icObj.getScopeObj = getScopeObj;
+        }
 
         const isUsingCenterPosition = json_icObject.isUsingCenterPosition;
         icObj.isUsingCenterPosition = snappedTo;
@@ -20445,6 +20469,34 @@
         //   icObj_serial.getScopeObj = serialize(icObj.getScopeObj);  //SHU: maybe this function is a bit useless
         // }
         //SHU: TODO: icObj.dict_engine serialization
+        if(icObj.dict_engine != null) {
+          //don't serialize engine directly
+          delete icObj_serial.dict_engine;
+
+          icObj_serial.getScopeObj = serialize(icObj.getScopeObj);  //SHU: maybe this function is a bit useless
+
+          const dict_virgin = Object.entries(icObj.dict_engine).reduce((acc, [eType, engineMiniDict]) => {
+
+              const index_start = engineMiniDict.index_start;
+              const engine      = engineMiniDict.engine;
+
+              //serialize the virgin version of engine (== a version which is context-free and not bound)
+              const virgin = engine.virgin;
+
+              const engine_cloned = Object.assign({}, virgin);
+              console.log("engine_cloned", engine_cloned);
+
+              const engine_serial = serialize(engine_cloned);
+              const engineMiniDict_serial= {
+                index_start: index_start,
+                engine:      engine_serial,
+              };
+              acc[eType] = engineMiniDict_serial;
+
+            return acc;
+          }, {});
+          icObj_serial.dict_engine = dict_virgin;
+        }
 
         var icObj_serial_p = Promise.resolve(icObj_serial);
 
@@ -20701,8 +20753,21 @@
         icObj.onClick = (listener) => {
           icObj.clickListeners.push(listener);
         };
-
+        icObj.offClick = (listener) => {
+          icObj.clickListeners = Utils.arrayByRemovingElement(icObj.clickListeners, listener);
+        };
       }
+
+      removeInteraction_click() {
+        console.log("IcObject::removeInteraction_click", "this.id", this.id, this.id_rep);
+        const icObj = this;
+
+        delete icObj.nowClicked;
+        delete icObj.onClick;
+        delete icObj.offClick;
+        delete icObj.clickListeners;
+      }
+
 
       lock() {
         this.canBeMoved    = false;
@@ -25951,16 +26016,20 @@
 
           this.stop = function () {
             const infiniteCanvas = this.scopeObj.infiniteCanvas;
-            const button = this.scopeObj.engineCarrier;
+            const button         = this.scopeObj.engineCarrier;
 
-            console.log("buttonEngine.start", button.id);
+            console.log("buttonEngine.stop", button.id);
 
             //get free_rep
             const button__represented = infiniteCanvas.getRepresented(button.id);
-            const button__rep_free = button__represented.r_free();
+            const button__rep_free    = button__represented.r_free();
 
             const button__listener = this.clickListener;
             button__rep_free.offClick(button__listener);
+
+            this.clickListener = null;
+
+            // button__rep_free.removeInteraction_click();
           };
 
 
@@ -32529,14 +32598,24 @@
           const infiniteCanvas = this.infiniteCanvas;
           const fabricCanvas   = this.fabricCanvas;
 
-          fObj.on('mousedown', function (options) {
-            console.log("mousedown", "options", options);
+          // fObj.on('mousedown', function (options) {
+          //   console.log("mousedown", "options", options);
+
+          fObj.handler__click = function (options) {
+            console.log("mouseup", "options", options);
 
             const icObj = fObj.icObj;
 
             icObj.nowClicked();
-          });
+          };
 
+          fObj.on('mouseup', fObj.handler__click);
+        }
+
+        removeInteraction_click(fObj) {
+
+          fObj.off('mouseup', fObj.handler__click);
+          fObj.handler__click = null;
         }
 
         addInteraction_doubleClick(fObj) {
@@ -40305,7 +40384,6 @@
                       //unlink
                       fabricIntegration.unlinkSelectedObjects();
                     } else if (keyboardIntegration.keyDownToggles.zIndexEditing.isActive) {
-                      logger.log("logKey", "KeyB", "and", "zIndexEditing.isActive");
                       keyboardIntegration.infiniteCanvas.manageZIndexEditing_sendToBack();
                     } else {
                       //ungroup
