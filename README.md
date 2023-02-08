@@ -54,7 +54,7 @@ Ideas rating: from *** (very good idea) to * (nice idea)
 <br/>   
 
 ## Development routine
-3 tabs in Atom:   
+3 tabs in VSCode:   
 programmashute: day-to-day low-level technical issues and progresses  
 ic.html:     code  
 ![still_shute](./still_shute.txt):    "ideas worth coding"  
