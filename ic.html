@@ -6832,20 +6832,23 @@
 
         const homeScale = Object.assign({}, this.scale);
 
+        //to clone or not to clone...
         const icObj = this.createIcObject(type, position, size, homeScale);
+
 
         const arr_fChild = fObj.getObjects();
         const arr_icChild = arr_fChild.map(fObj_child => {
-          logger.log("fObj_child", fObj_child);
+          logger.log("logCopy", "fObj_child", fObj_child);
 
-          // const icObj_child = fObj.icObj;
-          // logger.log("icObj_child", icObj_child);   //????
-          // icObj_child.icObj__activeSelection = icObj;
+          const icObj_child = fObj_child.icObj;
+          logger.log("logCopy", "icObj_child", icObj_child);   //????
+          icObj_child.icObj__activeSelection = icObj;
 
           fObj.activeSelection = fObj;
 
           //add position wrt group
 
+          return icObj_child;
         });
 
         const icActiveSelection_spec = {
@@ -20931,7 +20934,7 @@
       }
 
       deepClone() { //SHU TODO: pour l'instant j'ai la flemme, mais il faudra des deep copy
-        const id = this.id;
+        const id   = this.id;
         const type = this.type;
 
         const position = {
@@ -21003,9 +21006,14 @@
                   icObj__deepClone[key] = mathNode__deepClone;
                 }
                 break;
+              case "children":
+                {
+                  icObj__deepClone[key] = icObj[key].map(deepClone);
+                }
+                break;
               default:
                 {
-                  const valueCopy = value;
+                  const valueCopy       = value;
                   icObj__deepClone[key] = valueCopy;
                 }
                 break;
@@ -34390,16 +34398,62 @@
         manageCreatedFreeDrawingObjects(arr_fObj) {
           console.log("manageCreatedFreeDrawingObjects", arr_fObj);
 
-          //group newly created fabric objects (or not (for easy delete))
+          if(arr_fObj.length > 1) {
 
-          //create icObj from fObj
-          arr_fObj.forEach((fObj) => {
-            const icObj = this.infiniteCanvas.createIcFreeDrawing_from_freeDrawingFObj(fObj);
-            this.infiniteCanvas.addNewIcObject(icObj);
+            //create icFreeDrawings
+            const arr_miniDict = arr_fObj.map((fObj) => {
+              const icFreeDrawing = this.infiniteCanvas.createIcFreeDrawing_from_freeDrawingFObj(fObj);
+              const miniDict = {
+                fObj: fObj, 
+                icFreeDrawing: icFreeDrawing,
+              };
+              return miniDict;
+            });
 
-            //SHU: HERE WE COULD HAVE RECYCLED ALREADY CREATED FOBJ AND AVOID RECREATING A NEW ONE
-            this.fabricCanvas.remove(fObj);
-          });
+            const arr_icFreeDrawing = arr_miniDict.map((miniDict) => {return miniDict.icFreeDrawing;});
+
+            //create composite
+            const icFreeDrawing0 = arr_icFreeDrawing.find(e => true);
+            const trueRect__composite = {
+              x: icFreeDrawing0.position.x,
+              y: icFreeDrawing0.position.y,
+              width:  10,
+              height: 10,
+            };
+            const parts = arr_icFreeDrawing.reduce((acc, icFreeDrawing) => {
+              const partName = "freeDrawing__" + icFreeDrawing.id;
+              acc[partName] = icFreeDrawing;
+              return acc;
+            }, {});
+            const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+            const icComposite     = infiniteCanvas.createIcComposite(trueRect__composite, parts, compositeConfig); 
+            // icComposite.fillColor = "green";
+
+            //add composite 
+            this.infiniteCanvas.addNewIcObject(icComposite);
+
+            //remove temporary fObjs
+            arr_miniDict.forEach((miniDict) => {
+              const fObj          = miniDict.fObj;
+
+              //SHU: HERE WE COULD HAVE RECYCLED ALREADY CREATED FOBJ AND AVOID RECREATING A NEW ONE
+              this.fabricCanvas.remove(fObj);
+            });
+
+          } else {
+
+            //only one fObj (arr_fObj.length == 1) : don't create composite 
+            arr_fObj.forEach((fObj) => {
+              const icObj = this.infiniteCanvas.createIcFreeDrawing_from_freeDrawingFObj(fObj);
+              this.infiniteCanvas.addNewIcObject(icObj);
+
+              //SHU: HERE WE COULD HAVE RECYCLED ALREADY CREATED FOBJ AND AVOID RECREATING A NEW ONE
+              this.fabricCanvas.remove(fObj);
+            });
+
+          }
+
+          
 
         }
 
@@ -35290,12 +35344,40 @@
           // this.fabricCanvas.getActiveObject().clone(function(cloned) {
           //   clipboardIntegration.manageInnerCopy("fabric.general", cloned);
           // });
-          const icObj = this.fabricCanvas.getActiveObject().icObj;
-          const cloned = icObj.deepClone();
-          cloned.position.x += 10;
-          cloned.position.y += 10;
+          const fActiveObject = this.fabricCanvas.getActiveObject(); 
+          logger.log("logCopy", "fActiveObject", fActiveObject);
+          const icObj = fActiveObject.icObj;
 
-          clipboardIntegration.manageInnerCopy("fabric.general", cloned);
+          switch(icObj) {
+            case "activeSelection":
+              {
+                copy_group(icObj);
+              }
+              break;
+            default:
+              {
+                
+                copy_single(icObj);
+              }
+              break;
+          }
+
+          function copy_group(icObj) {
+            const cloned = icObj.deepClone();
+            cloned.position.x += 10;
+            cloned.position.y += 10;
+
+            clipboardIntegration.manageInnerCopy("fabric.general", cloned);
+          }
+
+          function copy_single(icObj) {
+            const cloned = icObj.deepClone();
+            cloned.position.x += 10;
+            cloned.position.y += 10;
+
+            clipboardIntegration.manageInnerCopy("fabric.general", cloned);
+          }
+
         }
 
         cutSelection(event) {
