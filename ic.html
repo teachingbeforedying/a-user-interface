@@ -4929,6 +4929,9 @@
         this.setupRedrawConditions();
 
         this.counter = 0;
+        this.counter__freeDrawing_frameskip = 0;
+        this.counter__freeDrawing_once = 0;
+
 
 
         this.configureInitialIcObjects();
@@ -19157,6 +19160,8 @@
       manageScaleUpdateWithScaleAmount(scaleAmount) {
         logger.log("log1", "manageScaleUpdateWithScaleAmount", scaleAmount);
 
+        const infiniteCanvas = this;
+
         const scale_new = {
           X: this.scale.X * (1 + scaleAmount),
           Y: this.scale.Y * (1 + scaleAmount),
@@ -19199,9 +19204,69 @@
         };
         console.log("dOffset", dOffset);
 
-        this.updateScaleAndDOffset(scale_new, dOffset);
 
-        this.redrawCanvas(RedrawOccasion.scaleChanged);
+        logger.log("logFreeDrawing", "manageScaleUpdateWithScaleAmount", "fabricCanvas.isDrawingMode:", fabricIntegration.fabricCanvas.isDrawingMode);
+
+
+        // if(fabricIntegration.fabricCanvas.isDrawingMode) {
+        //   //--- Simulate a natural mouse-click sequence.
+        //   logger.log("counter__freeDrawing_frameskip", this.counter__freeDrawing_frameskip);
+          
+        //   //throttle
+        //   // if(this.counter__freeDrawing_frameskip == 100) {
+        //     simulateMouseUpDown();
+        //   // }
+        //   // this.counter__freeDrawing_frameskip += 1;
+        //   // this.counter__freeDrawing_frameskip = this.counter__freeDrawing_frameskip % 101;
+
+        //   function getMouseCoords(event)
+        //   {
+        //     var pointer = canvas.getPointer(event.e);
+        //     var posX = pointer.x;
+        //     var posY = pointer.y;
+        //     console.log(posX+", "+posY);    // Log to console
+        //   }
+
+        //   function simulateMouseUpDown() {
+        //     logger.log("simulateMouseUpDown");
+        //     const targetNode = fabricIntegration.fabricCanvas.upperCanvasEl;
+
+        //     //end current freeDrawing
+        //     // const pos_cursor = fabricIntegration.fabricCanvas
+        //     const brush_width = fabricIntegration.fabricCanvas.freeDrawingBrush.width;
+        //     const brush_color = fabricIntegration.fabricCanvas.freeDrawingBrush.color;
+        //     MouseIntegration.triggerMouseEvent(targetNode, "mouseup");
+        //     fabricIntegration.leaveFreeDrawing();
+
+        //     //update scale
+        //     infiniteCanvas.updateScaleAndDOffset(scale_new, dOffset);
+        //     infiniteCanvas.redrawCanvas(RedrawOccasion.scaleChanged);
+
+        //     //start new freeDrawing
+        //     fabricIntegration.enterFreeDrawing({isCosmetic:false,});
+        //     // setTimeout(() => {
+              
+        //       // //set drawing color to "transparent"
+        //       // fabricIntegration.fabricCanvas.freeDrawingBrush.width = 0;
+        //       // fabricIntegration.fabricCanvas.freeDrawingBrush.color = "transparent";
+
+
+        //       MouseIntegration.triggerMouseEvent(targetNode, "mousedown");
+              
+        //       // //set drawing color to currentActiveColor
+        //       // fabricIntegration.fabricCanvas.freeDrawingBrush.width = brush_width;
+        //       // fabricIntegration.fabricCanvas.freeDrawingBrush.color = brush_color;
+            
+        //       // }, 1000);
+        //   }
+
+        // } else {
+
+          this.updateScaleAndDOffset(scale_new, dOffset);
+          this.redrawCanvas(RedrawOccasion.scaleChanged);
+
+        // }
+
       }
 
 
@@ -27677,6 +27742,10 @@
           fabricCanvas.on('mouse:down:before', (e) => {
             logger.log("mouse:down:before", e);
 
+            // if(keyboardIntegration.keyDownToggles.backquote.isActive) {
+            //   this.fabricCanvas.isDrawingMode = true;
+            // }
+
 
             if (this.isEnabled_supervessel) {  //SHU: debug clause
 
@@ -27770,6 +27839,13 @@
             }
 
           });
+          fabricCanvas.on('mouse:up', (e) => {
+            logger.log("logFD, mouse:up", e);
+          });
+          fabricCanvas.on('mouse:down', (e) => {
+            logger.log("logFD, mouse:down", e);
+          });
+
           fabricCanvas.on('selection:created', (e) => {
             logger.log("selection:created", e);
             selectionHandler__default(e);
@@ -31837,14 +31913,14 @@
             angle: icObj.orientation,
 
 
-            stroke: exoObject.stroke,
-            strokeDashArray: exoObject.strokeDashArray,
-            strokeLineCap: exoObject.strokeLineCap,
-            strokeLineJoin: exoObject.strokeLineJoin,
+            stroke:           exoObject.stroke,
+            strokeDashArray:  exoObject.strokeDashArray,
+            strokeLineCap:    exoObject.strokeLineCap,
+            strokeLineJoin:   exoObject.strokeLineJoin,
             strokeMiterLimit: exoObject.strokeMiterLimit,
-            strokeWidth: exoObject.strokeWidth,
+            strokeWidth:      exoObject.strokeWidth,
 
-            fill: exoObject.fill,
+            fill:             exoObject.fill,
 
             opacity: icObj.opacity,
 
@@ -34337,7 +34413,7 @@
           outBrushConfig.width = 20;
 
           const rgbaColorString = this.inputProperties.getActiveRgbaColorString();
-          outBrushConfig.color = rgbaColorString;
+          outBrushConfig.color  = rgbaColorString;
 
           const fColor = new fabric.Color(rgbaColorString);
           logger.log("fColor", fColor);
@@ -34355,16 +34431,17 @@
 
           this.fabricCanvas.isDrawingMode = true;
 
-          this.current_freeDrawing_objects = [];
+          this.arr_fObj__freeDrawing_created = [];
           function freeDrawing_objectAdded(e) {
             console.log("freeDrawing_objectAdded", e);
 
             const brushConfig = fabricIntegration.brushConfig__current;
 
-            const fColor = brushConfig.fColor;
+            const fColor   = brushConfig.fColor;
             const rgbColor = fColor.toRgb();
-            const opacity = fColor.getAlpha();
+            const opacity  = fColor.getAlpha();
 
+            //get fObj
             const fObj = e.target;
             fObj.set({
               stroke: rgbColor,
@@ -34373,30 +34450,191 @@
               isCosmetic: cfg.isCosmetic,
             });
 
-            fabricIntegration.current_freeDrawing_objects.push(e.target);
-            // console.log("fabricIntegration.current_freeDrawing_objects", fabricIntegration.current_freeDrawing_objects);
+            // {
+            //   //create/add icObj
+            //   const icObj = fabricIntegration.infiniteCanvas.createIcFreeDrawing_from_freeDrawingFObj(fObj);
+            //   // fabricIntegration.infiniteCanvas.addNewIcObject(icObj);
+
+            //   //remove fObj
+            //   // fabricIntegration.fabricCanvas.remove(fObj);
+
+            //   //store icObj
+            //   fabricIntegration.current_freeDrawing_objects.push(icObj);
+            // }
+
+            //store fObj
+            fabricIntegration.arr_fObj__freeDrawing_created.push(fObj);
+  
           }
 
           this.freeDrawing_objectAdded = freeDrawing_objectAdded;
           this.fabricCanvas.on('object:added', this.freeDrawing_objectAdded);
 
+
+          // if(this.infiniteCanvas.counter__freeDrawing_once == 0) {
+          //   setTimeout(() => {
+          //     simulateMouseUpDown();
+          //   }, 2000);
+          //   this.infiniteCanvas.counter__freeDrawing_once = 1;
+          // }
+
+          function simulateMouseUpDown() {
+            logger.log("simulateMouseUpDown");
+
+            const fabricCanvas = fabricIntegration.fabricCanvas;
+
+            //end current freeDrawing
+              //BAD IDEA
+            // MouseIntegration.triggerMouseEvent(fabricCanvas.upperCanvasEl, "mouseup");
+              //GOOD IDEA
+            const fCursor__mouseUp = fabricIntegration.getFCursor();
+            const x__mouseUp = fCursor__mouseUp.x;
+            const y__mouseUp = fCursor__mouseUp.y;
+            const mouseEvent__mouseUp = new MouseEvent("mouseup", {
+              isTrusted: true,
+              altKey : false, 
+              bubbles : true,
+              button : 0,
+              buttons : 0,
+              cancelBubble : false,
+              cancelable : true,
+              clientX: x__mouseUp,
+              clientY: y__mouseUp,
+              composed: true,
+              ctrlKey: false,
+              currentTarget: null,
+              defaultPrevented: false,
+              detail: 1,
+              eventPhase: 0,
+              fromElement: null,
+              layerX: x__mouseUp,
+              layerY: y__mouseUp,
+              metaKey: false,
+              movementX: 0,
+              movementY: 0,
+              offsetX: x__mouseUp,
+              offsetY: y__mouseUp,
+              pageX: x__mouseUp,
+              pageY: y__mouseUp,
+              relatedTarget: null,
+              returnValue: true,
+              screenX: x__mouseUp,
+              screenY: y__mouseUp,
+              shiftKey: false,
+              sourceCapabilities: new InputDeviceCapabilities({firesTouchEvents: false}),
+              srcElement: fabricCanvas.upperCanvasEl,
+              target:     fabricCanvas.upperCanvasEl,
+              timeStamp: 5848.39999999851,
+              toElement:  fabricCanvas.upperCanvasEl,
+              view: window,
+              which: 1,
+              x: x__mouseUp,
+              y: y__mouseUp,
+            });
+            const options__mouseUp = {
+              absolutePointer: fabricCanvas._absolutePointer,
+              button: 1,
+              e:       mouseEvent__mouseUp,
+              isClick: false,
+              pointer: fCursor__mouseUp,
+              subTargets: [],
+              target: null,
+              transform: null,
+            };
+            fabricCanvas.freeDrawingBrush.onMouseUp(options__mouseUp);
+
+            fabricIntegration.leaveFreeDrawing();
+
+
+
+            // //update scale
+            // this.updateScaleAndDOffset(scale_new, dOffset);
+            // this.redrawCanvas(RedrawOccasion.scaleChanged);
+
+
+
+            setTimeout(() => {
+
+              //start new freeDrawing
+                //BAD IDEA
+              // MouseIntegration.triggerMouseEvent(fabricCanvas.upperCanvasEl, "mousedown");
+                //GOOD IDEA
+              fabricIntegration.enterFreeDrawing({isCosmetic:false});
+
+              const fCursor__mouseDown = fabricIntegration.getFCursor();
+              const x__mouseDown = fCursor__mouseDown.x;
+              const y__mouseDown = fCursor__mouseDown.y;
+              const mouseEvent__mouseDown = new MouseEvent("mousedown", {
+                isTrusted: true,
+                altKey : false, 
+                bubbles : true,
+                button : 0,
+                buttons : 1,
+                cancelBubble : false,
+                cancelable : true,
+                clientX: x__mouseDown,
+                clientY: y__mouseDown,
+                composed: true,
+                ctrlKey: false,
+                currentTarget: null,
+                defaultPrevented: false,
+                detail: 1,
+                eventPhase: 0,
+                fromElement: null,
+                layerX: x__mouseDown,
+                layerY: y__mouseDown,
+                metaKey: false,
+                movementX: 0,
+                movementY: 0,
+                offsetX: x__mouseDown,
+                offsetY: y__mouseDown,
+                pageX: x__mouseDown,
+                pageY: y__mouseDown,
+                relatedTarget: null,
+                returnValue: true,
+                screenX: x__mouseDown,
+                screenY: y__mouseDown,
+                shiftKey: false,
+                sourceCapabilities: new InputDeviceCapabilities({firesTouchEvents: false}),
+                srcElement: fabricCanvas.upperCanvasEl,
+                target:     fabricCanvas.upperCanvasEl,
+                timeStamp: 5848.39999999851,
+                toElement:  fabricCanvas.upperCanvasEl,
+                view: window,
+                which: 1,
+                x: x__mouseDown,
+                y: y__mouseDown,
+              });
+              const options__mouseDown = {
+                absolutePointer: fabricCanvas._absolutePointer,
+                button: 1,
+                e:       mouseEvent__mouseDown,
+                isClick: false,
+                pointer: fabricCanvas._pointer,
+                subTargets: [],
+                target: null,
+                transform: null,
+              };
+              fabricCanvas.freeDrawingBrush.onMouseDown(fCursor__mouseDown, options__mouseDown);
+
+            }, 1000);
+          }
+        
         }
 
         leaveFreeDrawing() {
           this.fabricCanvas.isDrawingMode = false;
           this.fabricCanvas.off('object:added', this.freeDrawing_objectAdded);
 
-          //get newly created fabric objects
-          // var last = canvas_objects[canvas_objects.length -1]; //Get last object
-          const freeDrawing_objects_created = [...this.current_freeDrawing_objects];
-          this.current_freeDrawing_objects = [];
+          //get all created freeDrawing objects
+          const arr_fObj = [...this.arr_fObj__freeDrawing_created];
+          this.arr_fObj__freeDrawing_created = [];
 
-          this.manageCreatedFreeDrawingObjects(freeDrawing_objects_created);
-
+          this.manageCreatedFreeDrawingObjects(arr_fObj);
         }
 
         manageCreatedFreeDrawingObjects(arr_fObj) {
-          console.log("manageCreatedFreeDrawingObjects", arr_fObj);
+          logger.log("manageCreatedFreeDrawingObjects", arr_fObj);
 
           if(arr_fObj.length > 1) {
 
@@ -34452,8 +34690,6 @@
             });
 
           }
-
-          
 
         }
 
@@ -34891,6 +35127,13 @@
 
         }
 
+        getFCursor() {
+          const cursor              = infiniteCanvas.cursor;
+          const pos__cursor__ic     = infiniteCanvas.toNoOrPoint(cursor);
+          const pos__cursor__screen = infiniteCanvas.toScreenPoint(pos__cursor__ic);
+          return pos__cursor__screen;
+        }
+
 
 
         getFColor__under_cursor_p() {
@@ -34941,8 +35184,7 @@
             // const canvasElt = fabricCanvas.lowerCanvasEl;
             // const canvasElt = fabricCanvas.upperCanvasEl;
 
-            const pos__cursor__ic = infiniteCanvas.toNoOrPoint(cursor);
-            const pos__cursor__screen = infiniteCanvas.toScreenPoint(pos__cursor__ic);
+            const pos__cursor__screen = this.getFCursor();
 
             const canvasElt_p = Promise.resolve(canvasElt);
 
@@ -41024,6 +41266,12 @@
           //   offsetY -= unitsAddTop;
           // }
 
+        }
+
+        static triggerMouseEvent(node, eventType) {
+          var clickEvent = document.createEvent('MouseEvents');
+          clickEvent.initEvent(eventType, true, false);
+          node.dispatchEvent(clickEvent);
         }
 
       }

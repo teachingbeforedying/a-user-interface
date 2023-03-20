@@ -8759,12 +8759,54 @@ This is the quickest, easiest way to bring up the diff panels.
 19 mars 2023:
 	0 z-scroll freeDrawing
 		1 merge 2 freeDrawings
-			1 merge freeDrawings on ²(Backquote) keyup 
+			1 merge freeDrawings on ²("Backquote") keyup 
 				1 create composite
 		0 on scale change : 
-			end current freeDrawing 
-			merge if needed
-			start new freeDrawing (to be merged later)
+			1 end current freeDrawing
+				=> MouseIntegration.triggerMouseEvent (targetNode, "mouseup");
+			0 merge if #>1
+			0 start new freeDrawing (to be merged later)
+**				0 move cursor to current position (fabric)
+					1X MouseIntegration.triggerMouseEvent (targetNode, "mousedown");
+					1X 	set drawing color to transparent
+						move from origin
+						set drawing color to myColor
+						|-> freeDrawing has the same color for all its path
+					0X ? remove first point from 2nd element...
+					1X do some work involving cursor 	 before the 2nd freeDrawing
+					
+					0 check upperCanvasElement properties
+					0 check brush properties
+						_prepareForDrawing
+
+					0X replace mouseup with fabric.brush.endDrawing, mouseDown with fabric.brush.startDrawing
+***				=>	1  trigger 
+						1 fabric.brush._onMouseUp(pointer, options)
+						1 fabric.brush._onMouseDown(pointer, options)
+
+    _onMouseDown: function (e) {
+      this.__onMouseDown(e);
+      this._resetTransformEventData();
+      var canvasElement = this.upperCanvasEl,
+          eventTypePrefix = this._getEventPrefix();
+      removeListener(canvasElement, eventTypePrefix + 'move', this._onMouseMove, addEventOptions);
+      addListener(fabric.document, eventTypePrefix + 'up', this._onMouseUp);
+      addListener(fabric.document, eventTypePrefix + 'move', this._onMouseMove, addEventOptions);
+    },
+
+_onMouseDownInDrawingMode: function(e) {
+	this._isCurrentlyDrawing = true;
+	if (this.getActiveObject()) {
+		this.discardActiveObject(e).requestRenderAll();
+	}
+	var pointer = this.getPointer(e);
+	this.freeDrawingBrush.onMouseDown(pointer, { e: e, pointer: pointer });
+	this._handleEvent(e, 'down');
+},
+
+	0 finaliser le z-scroll freeDrawing				
+**		0 freeDrawing wrapper over enterFreeDrawing/leaveFreeDrawing for composite freeDrawings
+
 
 	0 bugs: select parts in composite: 
 		0 display bug (shift)
@@ -8774,7 +8816,14 @@ This is the quickest, easiest way to bring up the diff panels.
 	0 rotate: composite part(s)
 
 
+	0 bug: broadcaster.didUpdateFromInner:
+		nowHeld 		undefined
+		holdListeners 	undefined
+		onHold			undefined
 
+
+	0 fabricCanvas.allowTouchScrolling :Boolean ...
+	0 fabricjs 4.0 ...
 
 
 .
