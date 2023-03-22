@@ -19231,9 +19231,54 @@
 
       manageUpdate__color(rgbaColorString) {
 
+        if(fabricIntegration.fabricCanvas.isDrawingMode && mouseIntegration.leftMouseDown) {
+        //   //--- Simulate a natural mouse-click sequence.
+
+          const func_inBetween = function() {
+            const brushConfig = fabricIntegration.brushConfig__freeDrawing();
+            fabricIntegration.configureFreeDrawingBrush(brushConfig);
+          };
+        
+          fabricIntegration.simulateMouseUpDown(func_inBetween);
+        }
+
       }
 
       manageUpdate__opacity(opacity) {
+
+        if(fabricIntegration.fabricCanvas.isDrawingMode && mouseIntegration.leftMouseDown) {
+        //   //--- Simulate a natural mouse-click sequence.
+
+          const func_inBetween = function() {
+            const brushConfig = fabricIntegration.brushConfig__freeDrawing();
+            fabricIntegration.configureFreeDrawingBrush(brushConfig);
+          };
+        
+          fabricIntegration.simulateMouseUpDown(func_inBetween);
+        }
+
+      }
+
+      manageUpdate__brushWidth(brushWidth) {
+
+        if(fabricIntegration.fabricCanvas.isDrawingMode && mouseIntegration.leftMouseDown) {
+        //   //--- Simulate a natural mouse-click sequence.
+
+          const func_inBetween = function() {
+            inputProperties.setBrushWidth(brushWidth);
+
+            const brushConfig = fabricIntegration.brushConfig__freeDrawing();
+            fabricIntegration.configureFreeDrawingBrush(brushConfig);
+          };
+        
+          fabricIntegration.simulateMouseUpDown(func_inBetween);
+        } else {
+
+          inputProperties.setBrushWidth(brushWidth);
+
+          const brushConfig = fabricIntegration.brushConfig__freeDrawing();
+          fabricIntegration.configureFreeDrawingBrush(brushConfig);
+        }
 
       }
 
@@ -34376,7 +34421,7 @@
         brushConfig__freeDrawing() {
           var outBrushConfig = {};
 
-          outBrushConfig.width = 20;
+          outBrushConfig.width = this.inputProperties.getActiveBrushWidth();
 
           const rgbaColorString = this.inputProperties.getActiveRgbaColorString();
           outBrushConfig.color  = rgbaColorString;
@@ -34391,14 +34436,8 @@
         enterFreeDrawing__atomic(cfg) {
           const fabricIntegration = this;
 
-          // const brushConfig = this.brushConfig__freeDrawing();
-          // this.configureFreeDrawingBrush(brushConfig);
-
-          // this.fabricCanvas.isDrawingMode = true;
-
-          this.fObj__freeDrawing_created = null;
           function freeDrawing_objectAdded__atomic(e) {
-            console.log("freeDrawing_objectAdded__atomic", e);
+            logger.log("logFD", "freeDrawing_objectAdded__atomic", e);
 
             const brushConfig = fabricIntegration.brushConfig__current;
 
@@ -34415,35 +34454,41 @@
               isCosmetic: cfg.isCosmetic,
             });
 
-            //store fObj
-            fabricIntegration.fObj__freeDrawing_created = fObj;
+            fabricIntegration.manageCreatedFreeDrawingObject__atomic(fObj);
           }
 
           this.freeDrawing_objectAdded__atomic = freeDrawing_objectAdded__atomic;
           this.fabricCanvas.on('object:added', this.freeDrawing_objectAdded__atomic);
         }
 
-        leaveFreeDrawing__atomic() {
+        leaveFreeDrawing__atomic(fObj) {
+          logger.log("logFD", "leaveFreeDrawing__atomic");
           this.fabricCanvas.off('object:added', this.freeDrawing_objectAdded__atomic);
-
-          //get created freeDrawing object
-          if(this.fObj__freeDrawing_created != null) {
-            this.manageCreatedFreeDrawingObject__atomic(this.fObj__freeDrawing_created);
-          }         
+          this.freeDrawing_objectAdded__atomic = null;        
         }
 
         manageCreatedFreeDrawingObject__atomic(fObj) {
-          logger.log("manageCreatedFreeDrawingObject__atomic", fObj);
+          logger.log("logFD", "manageCreatedFreeDrawingObject__atomic", fObj);
+          
+          //listener:off 
+          this.fabricCanvas.off('object:added', this.freeDrawing_objectAdded__atomic);
 
-          const icObj = this.infiniteCanvas.createIcFreeDrawing_from_freeDrawingFObj(fObj);
-          this.infiniteCanvas.addNewIcObject(icObj);
+          //work
+          {
+            const icObj = this.infiniteCanvas.createIcFreeDrawing_from_freeDrawingFObj(fObj);
+            this.infiniteCanvas.addNewIcObject(icObj);
 
-          //clear
-          fabricIntegration.fObj__freeDrawing_created = null;
-          this.fabricCanvas.remove(fObj);
+            //clear
+            this.fabricCanvas.remove(fObj);   //SHU: recycle fObj plz
 
+            this.arr_icFreeDrawing.push(icObj);
+          }
 
-          this.arr_icFreeDrawing.push(icObj);
+          //listener:on  (wait for icObject to have its fObj counterpart added)
+          setTimeout(() => {                  //SHU: because this is awful
+            this.fabricCanvas.on('object:added', this.freeDrawing_objectAdded__atomic);
+          }, 1);
+
         }
 
         enterFreeDrawing(cfg) {
@@ -34463,9 +34508,7 @@
         }
 
         leaveFreeDrawing() {
-          if(fabricIntegration.fObj__freeDrawing_created != null) {
-            this.leaveFreeDrawing__atomic();
-          }
+          this.leaveFreeDrawing__atomic();
 
           //get all created freeDrawing objects
           this.manageCreatedFreeDrawingObjects(this.arr_icFreeDrawing);
@@ -39575,6 +39618,12 @@
 
 
           this.fColor__working = null;
+
+
+
+          this.brushWidth      = 20;
+          this.brushWidth__min = 0;
+          this.brushWidth__max = 40;
         }
 
         setScrollStep(value) {
@@ -39682,6 +39731,26 @@
 
         getActiveRgbaColorString() {
           return this.getActiveFColor().toRgba();
+        }
+
+
+
+
+        setBrushWidth(brushWidth_in) {
+          this.brushWidth = brushWidth_in;
+        }
+
+        getActiveBrushWidth() {
+          return this.brushWidth;
+        }
+
+        resulting_brushWidth_forScrement(screment) {
+          const brushWidth__prev = this.brushWidth;
+
+          const brushWidth__computed = brushWidth__prev + screment;
+          const brushWidth__bounded  = Math.min(this.brushWidth__max, Math.max(this.brushWidth__min, brushWidth__computed));
+          
+          return brushWidth__bounded;
         }
 
       }
@@ -39885,6 +39954,7 @@
 
               c: new KeyDownToggle("c", KeyDownToggle.defaultKeyDownFunc(["KeyC"])),
               v: new KeyDownToggle("v", KeyDownToggle.defaultKeyDownFunc(["KeyV"])),
+              b: new KeyDownToggle("b", KeyDownToggle.defaultKeyDownFunc(["KeyB"])),
 
 
               shiftLeft: new KeyDownToggle("shiftLeft", KeyDownToggle.defaultKeyDownFunc(["ShiftLeft"]), (isActive) => {
@@ -39924,6 +39994,13 @@
               digit1: new KeyDownToggle("digit1", KeyDownToggle.defaultKeyDownFunc(["Digit1"]), (isActive) => {
 
                 if (keyboardIntegration.keyDownToggles.p.isActive) {
+                  return;
+                } else if (keyboardIntegration.keyDownToggles.backquote.isActive) {
+                  if (isActive) {
+                    infiniteCanvas.enterRelativePan();
+                  } else {
+                    infiniteCanvas.leaveRelativePan();
+                  }
                   return;
                 }
 
@@ -41262,6 +41339,10 @@
             mouseIntegration.leftMouseDown  = false;
             mouseIntegration.rightMouseDown = false;
 
+            // if(fabricIntegration.fabricCanvas.isDrawingMode) {
+            //   fabricIntegration.leaveFreeDrawing__atomic();
+            // }
+
             infiniteCanvas.logCursor();
           }
 
@@ -41272,17 +41353,19 @@
           function onMouseWheel(event) {
 
             if (keyboardIntegration.keyDownToggles.c.isActive) {
-              colorScroll();
+              colorScroll(event);
             } else if (keyboardIntegration.keyDownToggles.v.isActive) {
-              opacityScroll();
+              opacityScroll(event);
+            } else if (keyboardIntegration.keyDownToggles.b.isActive) {
+              brushWidthScroll(event);
             } else if (infiniteCanvas.isZIndexEditing) {
-              zIndexEditingScroll();
+              zIndexEditingScroll(event);
             }
             else {
-              zoomScroll();
+              zoomScroll(event);
             }
 
-            function colorScroll() {
+            function colorScroll(event) {
               const deltaY = event.deltaY;
               const screment = deltaY > 0 ? 1 : -1;
               inputProperties.setNextColor(screment);
@@ -41291,7 +41374,7 @@
               infiniteCanvas.manageUpdate__color(rgbaColorString);
             }
 
-            function opacityScroll() {
+            function opacityScroll(event) {
               const deltaY = event.deltaY;
               const screment = deltaY > 0 ? 1 : -1;
               inputProperties.setNextOpacity(screment);
@@ -41300,13 +41383,21 @@
               infiniteCanvas.manageUpdate__opacity(opacity);
             }
 
-            function zIndexEditingScroll() {
+            function brushWidthScroll(event) {
+              const deltaY = event.deltaY;
+              const screment = deltaY > 0 ? -1 : +1;
+
+              const brushWidth__new = inputProperties.resulting_brushWidth_forScrement(screment);
+              infiniteCanvas.manageUpdate__brushWidth(brushWidth__new);
+            }
+
+            function zIndexEditingScroll(event) {
               const deltaY = event.deltaY;
               const screment = deltaY > 0 ? 1 : -1;
               infiniteCanvas.manageUpdate__zIndex_withScrement(screment);
             }
 
-            function zoomScroll() {
+            function zoomScroll(event) {
               const deltaY = event.deltaY;
               // const scaleAmount = -deltaY / 500;
               const scroll_step = mouseIntegration.inputProperties.scrollProperties.step;
