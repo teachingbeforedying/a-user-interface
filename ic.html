@@ -4737,10 +4737,47 @@
     </script> -->
 
 
-  <canvas id="myCanvas">Your browser does not support HTML5 canvas</canvas>
+  <!-- <canvas id="myCanvas">Your browser does not support HTML5 canvas</canvas> -->
+  <style>
+    #container__for_canvases {
+      position: relative;
+      border: 0px solid black;
+      width:  100%;
+      height: 100%;
+    }
+
+    #myCanvas {
+      position: absolute;
+      left: 0;
+      top: 0;
+      border: 0px solid green;
+      width: 100%;
+      height: 100%;
+    }
+
+    #innerContainer__for_hud_canvas {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      border: 0px solid red;
+    }
+
+    #hudCanvas {
+      opacity: .5;
+    }
+  </style>
+  <div id="container__for_canvases">
+    <canvas id="myCanvas">
+    <div id="innerContainer__for_hud_canvas">
+      <canvas id="hudCanvas">
+    </div>
+  </div>
   <script>
     const canvas = document.getElementById("myCanvas");
-    canvas.width = window.innerWidth;
+    canvas.width  = window.innerWidth;
     canvas.height = window.innerHeight;
   </script>
 
@@ -28173,7 +28210,15 @@
 
           // var icObj_fRep = icObj__r_free.createSisterRepresentation();
           var icObj_fRep = icObj__r_free;
-          const fObj_p = fabricIntegration.createFabricObjectWithIcObj_p(icObj_fRep);
+
+          //recycle if possible
+          var fObj_p;
+          const fObj__to_recycle = fabricIntegration.getFObj_with_id_recycle(icObj__r_free.id);
+          if(fObj__to_recycle != null) {
+            fObj_p = fabricIntegration.recycleFabricObjectForIcObj_p(icObj_fRep, fObj__to_recycle);
+          } else {
+            fObj_p = fabricIntegration.createFabricObjectWithIcObj_p(icObj_fRep);
+          }            
 
           fObj_p.then(fObj => {
             manageCreatedFObj(fObj);
@@ -28479,7 +28524,9 @@
             // }
 
 
-            if (fObj) {
+            if (fObj.id_recycle != null) {
+              fabricIntegration.addInnerFabricObject(fObj);
+            } else {
               fabricIntegration.addOuterFabricObject(fObj);
             }
 
@@ -28547,6 +28594,44 @@
           fObj.lockSkewingY = false;
 
           fObj.selectable = true;
+        }
+
+
+        recycleFabricObjectForIcObj_p(icObj, fObj) {
+          logger.log("logRecycle", "recycleFabricObjectForIcObj_p", icObj, fObj);
+
+          const infiniteCanvas = this.infiniteCanvas;
+
+          fObj.set({
+            icObj: icObj,
+          });
+
+          //event listeners
+          if (icObj.canBeHeld) {
+            this.addInteraction_hold(fObj);
+          }
+
+          if (icObj.canBeMoved) {
+            this.addInteraction_move(fObj);
+          }
+          if (icObj.canBeResized) {
+            this.addInteraction_resize2(fObj);
+          }
+          if (icObj.canBeRotated) {
+            this.addInteraction_rotate(fObj);
+          }
+
+          this.addInteraction_select(fObj);
+          // this.addListeners(fObj);
+
+
+
+          fObj.hasBorders = true;
+
+
+          const fObj_p = Promise.resolve(fObj);
+
+          return fObj_p;
         }
 
 
@@ -33430,10 +33515,17 @@
         addInnerFabricObject(fObj) {
           console.log("addInnerFabricObject", fObj);
 
-          // this.inner_fabric_objects.push(fObj);
-          this.fabric_objects.push(fObj);
+          const fabricIntegration = this;
 
-          this.fabricCanvas.add(fObj);
+          fabricIntegration.fabric_objects.push(fObj);
+
+          const icObj = fObj.icObj;
+          fabricIntegration.fObjForIcObj_dict[icObj.id] = fObj;
+
+          // fabricIntegration.fabricCanvas.add(fObj);
+
+          const zIndex_fObj__target = fabricIntegration.fObjZIndexForIcObj(fObj.icObj);
+          fObj.moveTo(zIndex_fObj__target);
         }
 
 
@@ -34476,18 +34568,23 @@
           //work
           {
             const icObj = this.infiniteCanvas.createIcFreeDrawing_from_freeDrawingFObj(fObj);
+            //recycle fObj
+            fObj.id_recycle = icObj.id;
+
             this.infiniteCanvas.addNewIcObject(icObj);
 
             //clear
-            this.fabricCanvas.remove(fObj);   //SHU: recycle fObj plz
+            // this.fabricCanvas.remove(fObj);   //SHU: recycle fObj plz
+
+            
 
             this.arr_icFreeDrawing.push(icObj);
           }
 
           //listener:on  (wait for icObject to have its fObj counterpart added)
-          setTimeout(() => {                  //SHU: because this is awful
+          // setTimeout(() => {                  //SHU: because this is awful
             this.fabricCanvas.on('object:added', this.freeDrawing_objectAdded__atomic);
-          }, 1);
+          // }, 1);
 
         }
 
@@ -36030,6 +36127,13 @@
           }
 
           return fObj;
+        }
+
+        getFObj_with_id_recycle(id_recycle) {
+          const arr_fObj = this.fabricCanvas.getObjects();
+          return arr_fObj.find(fObj => {
+            return (fObj.id_recycle == id_recycle)
+          }); 
         }
 
 
