@@ -19073,9 +19073,9 @@
 
       }
 
-      manageCursorMove_offset() {
+      manageCursorMove_offset(factor = 1) {
 
-        const noOr_cursor = this.toNoOrPoint(this.cursor);
+        const noOr_cursor         = this.toNoOrPoint(this.cursor);
         const noOr_previousCursor = this.toNoOrPoint(this.previousCursor);
 
         // move the screen
@@ -19083,8 +19083,8 @@
         const dOffsetY = (noOr_cursor.y - noOr_previousCursor.y) * this.inputProperties.moveProperties.moveMultiplier;
 
         const dOffset = {
-          dx: dOffsetX,
-          dy: dOffsetY,
+          dx: dOffsetX * factor,
+          dy: dOffsetY * factor,
         };
 
         //console.log("offset", offset);
@@ -19092,7 +19092,7 @@
         this.redrawCanvas(RedrawOccasion.offsetChanged);
       }
 
-      manageCursorMove_rotate() {
+      manageCursorMove_rotate(factor) {
 
         // console.log("this.cursor",         this.cursor);
         // console.log("this.previousCursor", this.previousCursor);
@@ -19143,7 +19143,7 @@
         // console.log("cross", cross);
         const sign = Geometry.dotProduct_3d(vn, cross) < 0 ? +1 : -1;
 
-        const angleInRadians = sign * angle_abs;
+        const angleInRadians = sign * angle_abs * factor;
 
         const angleInDegrees = angleInRadians * 180 / Math.PI;
         console.log("mcr", "angleInDegrees", angleInDegrees);
@@ -27888,10 +27888,10 @@
 
           });
           fabricCanvas.on('mouse:up', (e) => {
-            logger.log("logFD, mouse:up", e);
+            logger.log("logFD, mouse:up", e.button);
           });
           fabricCanvas.on('mouse:down', (e) => {
-            logger.log("logFD, mouse:down", e);
+            logger.log("logFD, mouse:down", e.button);
           });
 
           fabricCanvas.on('selection:created', (e) => {
@@ -33836,7 +33836,7 @@
         // }
 
         updateFabricObject_position_zScroll__container(fObj) {
-          console.log("updateFabricObject_position_zScroll__container", fObj);
+          logger.log("logZScroll", "updateFabricObject_position_zScroll__container", fObj);
           const infiniteCanvas = this.infiniteCanvas;
 
           const icObj = fObj.icObj;
@@ -33871,7 +33871,83 @@
         }
 
         updateFabricObject_position_zScroll__contained(activeSelection, fObj) {
-          console.log("updateFabricObject_position_zScroll", fObj);
+          logger.log("logZScroll", "updateFabricObject_position_zScroll__contained", fObj);
+
+          const infiniteCanvas = this.infiniteCanvas;
+
+          if(fObj.icObj.type == "composite") {
+            this.updateFabricObject_position_zScroll__composite(activeSelection, fObj);
+          } else {
+
+            const scaleFactor = {
+              X: activeSelection.scaleX,
+              Y: activeSelection.scaleY,
+            };
+
+            const factor = scaleFactor.X / fObj.icObj.scale.X;
+            logger.log("logZScroll", "factor", factor);
+
+
+            //update position
+            {
+              const icObj = fObj.icObj;
+
+              // const activeSelectionCenterX = activeSelection.width  / 2;
+              // const activeSelectionCenterY = activeSelection.height / 2;
+
+              // const fObj_pos_wrt_ASTL = {
+              //   left: fObj.left - activeSelectionCenterX,
+              //   top:  fObj.top  - activeSelectionCenterY,
+              // };
+              // logger.log("logZScroll", "fObj_pos_wrt_ASTL", fObj_pos_wrt_ASTL);
+
+
+              const screePoint__activeSelection_TL = {
+                left: activeSelection.left, 
+                top:  activeSelection.top,
+                
+                x: activeSelection.left,
+                y: activeSelection.top,
+              };
+              logger.log("logZScroll", "screePoint__activeSelection_TL", screePoint__activeSelection_TL);
+
+              const truePoint__activeSelection_TL = infiniteCanvas.toNoOrPoint(screePoint__activeSelection_TL);
+              logger.log("logZScroll", "truePoint__activeSelection_TL", truePoint__activeSelection_TL);
+
+
+              const screenPoint__fObj_TL = {
+                left: fObj.left, 
+                top: fObj.top,
+                
+                x: fObj.left,
+                y: fObj.top,
+              };
+              logger.log("logZScroll", "screenPoint__fObj_TL", screenPoint__fObj_TL);
+
+              const truePoint__fObj_TL = infiniteCanvas.toNoOrPoint(screenPoint__fObj_TL);
+              logger.log("logZScroll", "truePoint__fObj_TL", truePoint__fObj_TL);
+
+              const truePoint__fObj_TL__after_homot = Geometry.pointWithHomothety(truePoint__fObj_TL, truePoint__activeSelection_TL, factor);
+
+
+
+
+              const position_update = truePoint__fObj_TL__after_homot;
+
+
+              const icObj_new = Object.assign({}, icObj);
+              Object.assign(icObj_new.position, position_update);
+
+              icObj.update(icObj_new, false);
+
+            }
+
+          }
+
+        }
+
+        updateFabricObject_position_zScroll__composite(fObj) {
+          logger.log("logZScroll", "updateFabricObject_position_zScroll__composite", fObj);
 
           const scaleFactor = {
             X: activeSelection.scaleX,
@@ -34589,6 +34665,7 @@
         }
 
         enterFreeDrawing(cfg) {
+          logger.log("logFD", "enterFreeDrawing");
           const fabricIntegration = this;
 
           //setup brush
@@ -34605,6 +34682,7 @@
         }
 
         leaveFreeDrawing() {
+          logger.log("logFD", "leaveFreeDrawing");
           this.leaveFreeDrawing__atomic();
 
           //get all created freeDrawing objects
@@ -34614,7 +34692,7 @@
         }
 
         manageCreatedFreeDrawingObjects(arr_icFreeDrawing) {
-          logger.log("manageCreatedFreeDrawingObjects", arr_icFreeDrawing);
+          logger.log("logFD", "manageCreatedFreeDrawingObjects", arr_icFreeDrawing);
 
           if(arr_icFreeDrawing.length > 1) {
 
@@ -41356,10 +41434,10 @@
 
         constructor(canvasContainer, infiniteCanvas, inputProperties, keyboardIntegration) {
 
-          this.infiniteCanvas = infiniteCanvas;
+          this.infiniteCanvas  = infiniteCanvas;
           this.inputProperties = inputProperties;
 
-          this.leftMouseDown = false;
+          this.leftMouseDown  = false;
           this.rightMouseDown = false;
 
           this.keyboardIntegration = keyboardIntegration;
@@ -41385,26 +41463,10 @@
 
           // mouse functions
           function onMouseDown(event) {
-
-            /*
-            // update the cursor coordinates
-            const cursor = {
-              x: event.pageX,
-              y: event.pageY,
-            };
-
-            this.infiniteCanvas.updateCursor(cursor);
-            */
-
-            // detect left clicks
             if (event.button == 0) {
-              mouseIntegration.leftMouseDown = true;
-              mouseIntegration.rightMouseDown = false;
-            }
-            // detect right clicks
-            if (event.button == 2) {
+              mouseIntegration.leftMouseDown  = true;
+            } else if (event.button == 2) {
               mouseIntegration.rightMouseDown = true;
-              mouseIntegration.leftMouseDown = false;
             }
           }
 
@@ -41422,7 +41484,7 @@
             if (mouseIntegration.leftMouseDown) {
               infiniteCanvas.manageCursorMove_line();
             }
-            else if (mouseIntegration.rightMouseDown) {
+            /*else*/ if (mouseIntegration.rightMouseDown) {
               //console.log("onMouseMove", "rightMouseDown", "event", event);
 
               // console.log("keyboardIntegration.altKeyDown", keyboardIntegration.altKeyDown);
@@ -41431,21 +41493,39 @@
               // } else {
               //   mouseIntegration.infiniteCanvas.manageCursorMove_offset();
               // }
-              infiniteCanvas.manageCursorMove_offset();
 
-            } else if (keyboardIntegration.keyDownToggles.r.isActive) {
-              infiniteCanvas.manageCursorMove_rotate();
+              var factor;
+              if (mouseIntegration.leftMouseDown) {
+                //reverse pan
+                factor = -1;
+              } else {
+                factor = +1;
+              }
+              infiniteCanvas.manageCursorMove_offset(factor);
+
+            } 
+            
+            
+            /*else*/ if (keyboardIntegration.keyDownToggles.r.isActive) {
+
+              var factor;
+              if (mouseIntegration.leftMouseDown) {
+                //reverse pan
+                factor = -1;
+              } else {
+                factor = +1;
+              }
+              infiniteCanvas.manageCursorMove_rotate(factor);
             }
 
           }
 
           function onMouseUp(event) {
-            mouseIntegration.leftMouseDown  = false;
-            mouseIntegration.rightMouseDown = false;
-
-            // if(fabricIntegration.fabricCanvas.isDrawingMode) {
-            //   fabricIntegration.leaveFreeDrawing__atomic();
-            // }
+            if (event.button == 0) {
+              mouseIntegration.leftMouseDown  = false;
+            } else if (event.button == 2) {
+              mouseIntegration.rightMouseDown = false;
+            }
 
             infiniteCanvas.logCursor();
           }
