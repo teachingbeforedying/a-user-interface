@@ -17724,8 +17724,8 @@
 
         const rect = {
           left: 0,
-          top: 0,
-          width: fObj.width,
+          top:  0,
+          width:  fObj.width,
           height: fObj.height,
         };
         const dataURL = FileIntegration.dataURLForRect(fObj, rect);
@@ -17737,16 +17737,16 @@
       }
 
       dataUrl_for_canvasRectContainingObj(icObj, filename = null) {
-        logger.log("exportObj_asImg", icObj);
+        logger.log("dataUrl_for_canvasRectContainingObj", icObj);
         const fObj = fabricIntegration.getFObjForIcObj(icObj);    //SHU: magic rabbit: "fabricIntegration"...
         logger.log("fObj", fObj);
 
         const fCanvas = fabricIntegration.fabricCanvas;
 
         const rect = {
-          left: fObj.left,
-          top: fObj.top,
-          width: fObj.width,
+          left:   fObj.left,
+          top:    fObj.top,
+          width:  fObj.width,
           height: fObj.height,
         };
         const dataURL = FileIntegration.dataURLForRect(fCanvas, rect);
@@ -17755,11 +17755,32 @@
       }
 
       exportCanvasRectContainingObj_asImg(icObj, filename = null) {
-        const dataURL = this.dataUrl_for_canvasRectContainingObj(icObj, filename);
-        logger.log("dataURL", dataURL);
+        //SHU: workflow with iC.scale change is a bit ugly but it works well
 
-        // const img = FileIntegration.imageFromImgSrc_p(dataURL);
-        FileIntegration.save_image(dataURL, filename);
+        const infiniteCanvas = this;
+
+        //store iC.scale
+        const scale_tmp = Object.assign({}, infiniteCanvas.scale);
+
+        //set iC.scale = obj.scale 
+        const scale_obj = {
+          X: icObj.homeScale.X * icObj.scale.X,
+          Y: icObj.homeScale.X * icObj.scale.X,
+        };
+        infiniteCanvas.updateScaleAndDOffset(scale_obj, {dx: 0, dy: 0});
+        infiniteCanvas.redrawCanvas(RedrawOccasion.scaleChanged);
+
+        {
+          const dataURL = infiniteCanvas.dataUrl_for_canvasRectContainingObj(icObj, filename);
+          // logger.log("dataURL", dataURL);
+
+          FileIntegration.save_image(dataURL, filename);
+        }
+
+        //restore iC.scale
+        infiniteCanvas.updateScaleAndDOffset(scale_tmp, {dx: 0, dy: 0});
+        infiniteCanvas.redrawCanvas(RedrawOccasion.scaleChanged);
+
       }
 
 
@@ -28418,6 +28439,12 @@
                   stroke: newValue,
                 });
                 standardRedraw(fObj);
+              } else if (propName == "strokeWidth") {
+                // logger.log("innerUpdateListener", "strokeWidth");
+                fObj.set({
+                  strokeWidth: newValue,
+                });
+                standardRedraw(fObj);
               }
               else {
                 // logger.log("icObj_fRep","onInnerUpdate", icObj_fRep);
@@ -35786,6 +35813,19 @@
 
 
 
+        captureImageInRect(rect_in) {
+          const fabricCanvas = this.fabricCanvas;
+          const ctx          = fabricCanvas.getContext('2d');
+
+          const imageData__captured = ctx.getImageData(rect_in.left, rect_in.top, rect_in.width, rect_in.height);
+          const img__captured       = ImageUtils.imageFromImageData(imageData__captured);
+   
+          return img__captured;
+        }
+
+
+
+
 
 
         deleteSelection() {
@@ -39362,6 +39402,7 @@
         }
 
         static dataURLForRect(fObjOrfCanvas, rect__print) {
+          logger.log("dataURLForRect", fObjOrfCanvas, rect__print);
           var outDataURL;
 
           const printOptions = Object.assign({}, rect__print);
@@ -49158,6 +49199,9 @@
           // this.debug_uniformSConveyor();
 
 
+          // this.debug_workbench_image();
+
+
           // this.debug_th();
 
           // this.debug_startingScreen();
@@ -53616,10 +53660,58 @@
 
         }
 
-
         debug_uniformSConveyor() {
 
 
+
+        }
+
+
+        debug_workbench_image() {
+
+          //create workbench rect
+          const trueRect_workbench = {
+            x: 200,
+            y: 200,
+            width:  800,
+            height: 600,
+          };
+          const icRect__workbench  = infiniteCanvas.createIcRect(trueRect_workbench);
+          icRect__workbench.strokeWidth = 5;
+          icRect__workbench.stroke = "purple";
+          icRect__workbench.isSharpRect = true; 
+          infiniteCanvas.addIcObject(icRect__workbench);
+
+          //create save_as button
+          const trueRect_button = {
+            x: trueRect_workbench.x + trueRect_workbench.width  * 2./3,
+            y: trueRect_workbench.y + trueRect_workbench.height * 4./3,
+            width:  100,
+            height: 100,
+          };
+          const config__button = {
+            buttonFunc: (scopeObj) => {
+              const id__rect_workbench = scopeObj.engineCarrier.buttonConfig.id__rect_workbench;
+              logger.log("logPov", "id__rect_workbench", id__rect_workbench);
+
+              const represented__rect_workbench = scopeObj.infiniteCanvas.getRepresented(id__rect_workbench);
+              const rep_free__rect_workbench    = represented__rect_workbench.getRepresentation("free");
+
+              //remove workbench border
+              const strokeWidth_tmp = rep_free__rect_workbench.strokeWidth; 
+              rep_free__rect_workbench.strokeWidth = 0;
+
+              //capture area
+              scopeObj.infiniteCanvas.exportCanvasRectContainingObj_asImg(rep_free__rect_workbench, "ic_workbench_image.png");
+
+              //restore workbench border
+              rep_free__rect_workbench.strokeWidth = strokeWidth_tmp;
+
+            },
+            id__rect_workbench: icRect__workbench.id,
+          };
+          const icButton = infiniteCanvas.createIcButton(trueRect_button, config__button);
+          infiniteCanvas.addIcObject(icButton);
 
         }
 
