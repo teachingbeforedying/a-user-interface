@@ -391,6 +391,7 @@
 
   <!-- UI -->
   <script src='lib/fabric.min.js' type='text/javascript'></script>
+  <!-- <script src='lib/fabric53.min.js' type='text/javascript'>//SHU:TODO</script> --> 
   <script src='lib/fabricjs+floodFill.js' type='text/javascript'></script>
   <!-- "tool canvas" -->
   <!-- <canvas id="canvas__tool" style="visibility:hidden;">Your browser does not support HTML5 canvas</canvas> -->
@@ -17765,7 +17766,7 @@
         //set iC.scale = obj.scale 
         const scale_obj = {
           X: icObj.homeScale.X * icObj.scale.X,
-          Y: icObj.homeScale.X * icObj.scale.X,
+          Y: icObj.homeScale.Y * icObj.scale.Y,
         };
         infiniteCanvas.updateScaleAndDOffset(scale_obj, {dx: 0, dy: 0});
         infiniteCanvas.redrawCanvas(RedrawOccasion.scaleChanged);
@@ -19358,23 +19359,42 @@
       manageUpdate__zIndex_withScrement(screment) {
         console.log("manageUpdate__zIndex_withScrement", screment);
 
-        //get selected objects
-        const arr_rep_free = Object.values(this.represented).map(represented => represented.r_free());
-        const arr_rep_free_selected = arr_rep_free
-          .filter(rep_free => {
-            return rep_free.isSelected;
+        if(fabricIntegration.fabricCanvas.isDrawingMode && mouseIntegration.leftMouseDown) {
+        //   //--- Simulate a natural mouse-click sequence.
+
+          const func_inBetween = function() {
+
+            const brushZIndex_new = inputProperties.resulting_brushZIndex_forScrement(screment);
+
+            //set zIndex of next freeDrawing object
+            inputProperties.setBrushZIndex(brushZIndex_new);
+
+            const brushConfig = fabricIntegration.brushConfig__freeDrawing();
+            fabricIntegration.configureFreeDrawingBrush(brushConfig);
+          };
+        
+          fabricIntegration.simulateMouseUpDown(func_inBetween);
+        } else {
+
+          //get selected objects
+          const arr_rep_free = Object.values(this.represented).map(represented => represented.r_free());
+          const arr_rep_free_selected = arr_rep_free
+            .filter(rep_free => {
+              return rep_free.isSelected;
+            });
+
+          //update zIndex
+          arr_rep_free_selected.forEach((rep_free, i) => {
+            rep_free.zIndex += screment;
           });
 
-        //update zIndex
-        arr_rep_free_selected.forEach((rep_free, i) => {
-          rep_free.zIndex += screment;
-        });
+          // if(icObj_active.type == "composite") {
+          //
+          // } else {
+          //   icObj_active.zIndex += screment;
+          // }
 
-        // if(icObj_active.type == "composite") {
-        //
-        // } else {
-        //   icObj_active.zIndex += screment;
-        // }
+        }
 
       }
 
@@ -27474,7 +27494,7 @@
 
 
 
-      /**** view  / controller ****/
+      /**** view  / (controller) ****/
 
 
 
@@ -28215,6 +28235,53 @@
 
           //get index in order dict
           outIndex = dict_indexForObjectId[icObj.id];
+
+          return outIndex;
+        }
+
+        fObjZIndexForIcObjZIndex(zIndex__icObj) {
+          var outIndex;
+
+          //get zIndex-ordered icObj array
+          const arr_icObj = Object.values(fabricIntegration.fabric_objects).map(fObj => fObj.icObj);
+
+
+          //create order dict
+          var mapped = arr_icObj.map(function (icObj_elt, i) {
+            const mapped_obj = {
+              index: i,
+              object: icObj_elt,
+              sortingValue: icObj_elt.zIndex,
+            };
+
+            return mapped_obj;
+          })
+
+          mapped.sort(function (a, b) {
+            if (a.sortingValue > b.sortingValue) {
+              return 1;
+            }
+            if (a.sortingValue < b.sortingValue) {
+              return -1;
+            }
+            return 0;
+          });
+          // console.log("mapped", mapped);
+
+          const zIndex__fObj = Utils.early_break_reduce(mapped, (acc, x, i, arr) => {
+            if(zIndex__icObj < x.zIndex) {
+              acc = {
+                found: true,
+                index: i,
+              };
+            }
+            return acc;
+          }, {
+            found: false,
+            index: mapped.length,
+          }, (acc, x, i, arr) => {
+            return acc.found;  
+          }).index;
 
           return outIndex;
         }
@@ -34611,6 +34678,8 @@
 
           brush.width = brushConfig.width;
           brush.color = brushConfig.color;
+
+          brush.zIndex__ic = brushConfig.zIndex__ic;
         }
 
         brushConfig__freeDrawing() {
@@ -34624,6 +34693,8 @@
           const fColor = new fabric.Color(rgbaColorString);
           logger.log("fColor", fColor);
           outBrushConfig.fColor = fColor;
+
+          outBrushConfig.zIndex__ic = this.inputProperties.getActiveBrushZIndex();
 
           return outBrushConfig;
         }
@@ -34643,7 +34714,7 @@
             //get fObj
             const fObj = e.target;
             fObj.set({
-              stroke: rgbColor,
+              stroke:  rgbColor,
               opacity: opacity,
 
               isCosmetic: cfg.isCosmetic,
@@ -39847,6 +39918,8 @@
           this.brushWidth      = 20;
           this.brushWidth__min = 0;
           this.brushWidth__max = 40;
+
+          this.brushZIndex     = 100;
         }
 
         setScrollStep(value) {
@@ -39974,6 +40047,27 @@
           const brushWidth__bounded  = Math.min(this.brushWidth__max, Math.max(this.brushWidth__min, brushWidth__computed));
           
           return brushWidth__bounded;
+        }
+
+
+
+
+        setBrushZIndex(brushZIndex_in) {
+          this.brushZIndex = brushZIndex_in;
+        }
+
+        getActiveBrushZIndex() {
+          return this.brushZIndex;
+        }
+
+        resulting_brushZIndex_forScrement(screment) {
+          const brushZIndex__prev = this.brushZIndex;
+
+          const brushZIndex__computed = brushZIndex__prev + screment;
+          // const brushZIndex__bounded  = Math.min(this.brushZIndex__max, Math.max(this.brushZIndex__min, brushZIndex__computed));
+          
+          // return brushZIndex__bounded;
+          return brushZIndex__computed;
         }
 
       }
@@ -41579,11 +41673,17 @@
 
             if (keyboardIntegration.keyDownToggles.c.isActive) {
               colorScroll(event);
-            } else if (keyboardIntegration.keyDownToggles.v.isActive) {
+            } 
+            /**/else/**/ 
+            if (keyboardIntegration.keyDownToggles.v.isActive) {
               opacityScroll(event);
-            } else if (keyboardIntegration.keyDownToggles.b.isActive) {
+            } 
+            /**/else/**/ 
+            if (keyboardIntegration.keyDownToggles.b.isActive) {
               brushWidthScroll(event);
-            } else if (infiniteCanvas.isZIndexEditing) {
+            } 
+            /**/else/**/ 
+            if (infiniteCanvas.isZIndexEditing) {
               zIndexEditingScroll(event);
             }
             else {
@@ -49199,7 +49299,7 @@
           // this.debug_uniformSConveyor();
 
 
-          // this.debug_workbench_image();
+          this.debug_workbench_image();
 
 
           // this.debug_th();
