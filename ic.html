@@ -330,7 +330,7 @@
       constructor() {
         this.initialize();
 
-        // this.hush(this);
+        this.hush(this);
       }
 
       initialize() {
@@ -390,9 +390,11 @@
   </script>
 
   <!-- UI -->
-  <script src='lib/fabric.min.js' type='text/javascript'></script>
-  <!-- <script src='lib/fabric53.min.js' type='text/javascript'>//SHU:TODO</script> --> 
-  <script src='lib/fabricjs+floodFill.js' type='text/javascript'></script>
+  <script src='lib/fabric.531.min.js'      type='text/javascript'></script>
+
+  <script src='lib/fabric+zIndex.js'       type='text/javascript'></script>
+  <script src='lib/fabricjs+floodFill.js'  type='text/javascript'></script>
+
   <!-- "tool canvas" -->
   <!-- <canvas id="canvas__tool" style="visibility:hidden;">Your browser does not support HTML5 canvas</canvas> -->
   <!-- <script>
@@ -19374,6 +19376,14 @@
           };
         
           fabricIntegration.simulateMouseUpDown(func_inBetween);
+
+        } else if(fabricIntegration.fabricCanvas.isDrawingMode) {
+          
+          const brushZIndex_new = inputProperties.resulting_brushZIndex_forScrement(screment);
+
+          //set zIndex of next freeDrawing object
+          inputProperties.setBrushZIndex(brushZIndex_new);
+
         } else {
 
           //get selected objects
@@ -27585,6 +27595,7 @@
 
             preserveObjectStacking: true,
           });
+          installFabricZIndexUpgrade(fabricCanvas);
 
           //debug
           function install_boundingboxing() {
@@ -28239,7 +28250,7 @@
           return outIndex;
         }
 
-        fObjZIndexForIcObjZIndex(zIndex__icObj) {
+        fObjZIndexForIcZIndex(zIndex__ic) {
           var outIndex;
 
           //get zIndex-ordered icObj array
@@ -28255,7 +28266,7 @@
             };
 
             return mapped_obj;
-          })
+          });
 
           mapped.sort(function (a, b) {
             if (a.sortingValue > b.sortingValue) {
@@ -28266,10 +28277,11 @@
             }
             return 0;
           });
-          // console.log("mapped", mapped);
 
           const zIndex__fObj = Utils.early_break_reduce(mapped, (acc, x, i, arr) => {
-            if(zIndex__icObj < x.zIndex) {
+            const x__zIndex = x.sortingValue;
+
+            if(zIndex__ic < x__zIndex) {
               acc = {
                 found: true,
                 index: i,
@@ -28282,6 +28294,8 @@
           }, (acc, x, i, arr) => {
             return acc.found;  
           }).index;
+
+          outIndex = zIndex__fObj;
 
           return outIndex;
         }
@@ -32287,7 +32301,7 @@
                 break;
               default:
                 {
-                  const target = options.target;
+                  const target = options.transform.target;
 
                   const screenPoint = {
                     x: target.left,
@@ -34584,8 +34598,6 @@
 
         initializeFreeDrawing() {
 
-          // this.fabricCanvas.isDrawingMode = true;
-
           if (fabric.PatternBrush) {
             var vLinePatternBrush = new fabric.PatternBrush(canvas);
             vLinePatternBrush.getPatternSrc = function () {
@@ -34668,6 +34680,10 @@
             // texturePatternBrush.source = img;
           }
 
+
+          this.fabricCanvas.freeDrawingBrush = new fabric.ZPencilBrush(this.fabricCanvas);
+          this.fabricCanvas.freeDrawingBrush._setBrushStyles(this.fabricCanvas.contextContainer);
+
         }
 
         configureFreeDrawingBrush(brushConfig) {
@@ -34680,6 +34696,9 @@
           brush.color = brushConfig.color;
 
           brush.zIndex__ic = brushConfig.zIndex__ic;
+          brush.zIndex     = this.fObjZIndexForIcZIndex(brush.zIndex__ic);
+          // logger.log("logFD", "brush.zIndex__ic", brush.zIndex__ic);
+          // logger.log("logFD", "brush.zIndex"    , brush.zIndex);
         }
 
         brushConfig__freeDrawing() {
@@ -34720,6 +34739,12 @@
               isCosmetic: cfg.isCosmetic,
             });
 
+            logger.log("logFD", "fObj.zIndex", fObj.zIndex);
+            logger.log("logFD", "fObj", fObj);
+            fObj.moveTo(fObj.zIndex);
+
+            fObj.zIndex__ic = brushConfig.zIndex__ic;
+
             fabricIntegration.manageCreatedFreeDrawingObject__atomic(fObj);
           }
 
@@ -34742,10 +34767,13 @@
           //work
           {
             const icObj = this.infiniteCanvas.createIcFreeDrawing_from_freeDrawingFObj(fObj);
+            logger.log("logFD", "fObj.zIndex__ic", fObj.zIndex__ic);
+            icObj.zIndex = fObj.zIndex__ic;
+
             //recycle fObj
             fObj.id_recycle = icObj.id;
 
-            this.infiniteCanvas.addNewIcObject(icObj);
+            this.infiniteCanvas.addIcObject(icObj);
 
             //clear
             // this.fabricCanvas.remove(fObj);   //SHU: recycle fObj plz
@@ -49299,7 +49327,9 @@
           // this.debug_uniformSConveyor();
 
 
-          this.debug_workbench_image();
+          // this.debug_workbench_image();
+
+          this.debug_zIndexFreeDrawing();
 
 
           // this.debug_th();
@@ -53816,6 +53846,40 @@
         }
 
 
+        debug_zIndexFreeDrawing() {
+
+          const grid_square_width  = 200;
+          const grid_square_height = 200;
+
+          function createRectWith_gridRowCol_and_zIndex(row, col, zIndex) {
+              const trueRect = {
+                x:      col * grid_square_width,
+                y:      row * grid_square_height,
+                width:  100,
+                height: 100,
+              };
+              const icRect = infiniteCanvas.createIcRect(trueRect);
+
+              icRect.zIndex = zIndex;
+              icRect.fill = ColorUtils.randomColor();
+
+              return icRect;
+          }
+
+
+          [...new Array(4).keys()].forEach((row) => {
+            [...new Array(4).keys()].forEach((col) => {
+              const zIndex = 1 + 4 * row + col; 
+              const icRect = createRectWith_gridRowCol_and_zIndex(row, col, zIndex);
+              infiniteCanvas.addIcObject(icRect);
+            })            
+          });
+
+
+
+          inputProperties.setBrushZIndex(8);
+
+        }
 
 
         debug_th() {
