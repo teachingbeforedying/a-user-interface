@@ -1,5 +1,7 @@
 ![Logo](./img/ic_better_logo2.png)
 
+![ZZFreeDraw](./img/zScrollzIndexFreeDraw.png)
+
 ## Try it !
 (Keep ² key pressed (right above TAB) and click to draw)
 
