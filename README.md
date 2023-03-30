@@ -1,6 +1,5 @@
-![Logo](./img/ic_better_logo2.png)
-
-![ZZFreeDraw](./img/zScrollzIndexFreeDraw.png)
+<img src="./img/ic_better_logo2.png" width="50%" height="50%">
+<img src="./img/zScrollzIndexFreeDraw.png" width="50%" height="50%">
 
 ## Try it !
 (Keep ² key pressed (right above TAB) and click to draw)
@@ -10,14 +9,15 @@ http://mathgame.fr/ic.html
 ## About
 Infinite whiteboard with interactive elements.   
 Originally designed for students to manipulate math objects.  
-Can be used for presentations or games or both at the same time.  
+Can be used for making presentations, drawings, games or all at the same time.  
 Open for any kind of improvement, or degeneration.  
 
 ## Key features
 Infinite canvas: space is not constrained in width, height, or depth    
 Z-scroll: resize your elements in a blink   
 Z-index: bring this in front of that    
-Create and save presentations with text, images, videos, ...    
+Create and save/load presentations with text, images, videos, ...    
+_Easy yet awesome freeDraw UX_      
 Interactive objects     
 Operators      
 _Math objects_    
