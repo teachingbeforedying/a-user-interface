@@ -2,9 +2,12 @@
 <img src="./img/zScrollzIndexFreeDraw.png" width="50%" height="50%">
 
 ## Try it !
-(Keep ² key pressed (right above TAB) and click to draw)
-
-http://mathgame.fr/ic.html
+(Keep ² or ` key pressed (right above TAB) and click to draw)    
+http://mathgame.fr/ic.html    
+       
+Advice: To be very comfortable and precise,       
+reverse left click and right click in your OS mouse settings,       
+so that _index finger scrolls mouse wheel_ while middlefinger is clicking      
 
 ## About
 Infinite whiteboard with interactive elements.   
