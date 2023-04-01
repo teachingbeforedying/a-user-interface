@@ -330,7 +330,7 @@
       constructor() {
         this.initialize();
 
-        this.hush(this);
+        // this.hush(this);
       }
 
       initialize() {
@@ -941,21 +941,22 @@
       span.style.backgroundColor = "yellow";
       // span.style.width  = "100px";
       // span.style.height = "100px";
+      span.style.fontSize = "80pt";
       span.style.color = "purple";
 
 
-      span.style.textAlign = "center";
+      span.style.textAlign     = "center";
       span.style.verticalAlign = "middle";
 
       const mathField = MQ.MathField(span, {
-        handlers: {
-          edit: function () {
-            var tex = mathField.latex(); // Get entered math in LaTeX format
-            console.log("tex", tex);
-          }
-        }
+        // handlers: {
+        //   edit: function (mathField) {
+        //     var tex = mathField.latex(); // Get entered math in LaTeX format
+        //     console.log("tex", tex);
+        //   }
+        // }
       });
-      console.log("mathField", mathField);
+      //console.log("mathField", mathField);
 
       outMathField = mathField;
 
@@ -4983,6 +4984,10 @@
         this.configureInitialIcObjects();
 
         this.isZIndexEditing = false;
+
+        this.isNumberTyping         = false;
+        this.mathField_numberTyping = null;
+        this.mathNode_numberTyping  = null;
 
 
         this.counter__event = 1;  //shu: this starts at 1
@@ -19572,6 +19577,109 @@
       }
 
 
+      //number typing
+
+      enterNumberTyping() {
+        logger.log("logNT", "enterNumberTyping");
+
+        globalsSingleton.isEditing = true;
+        this.isNumberTyping        = true;
+
+        //mathQuill
+        {
+          //create mathField
+          const mathField = createMathField();
+
+          //add mathField root HTML element to canvasContainer
+          const elt = mathField.el();
+          console.log("elt", elt);
+
+          if (elt.style == null) { elt.style = {}; }
+          elt.style.position = "absolute";
+
+          const canvasContainer = infiniteCanvas.canvas.parentElement;
+          canvasContainer.appendChild(elt);    //SHU: move this to fabricIntegration
+
+          // mathField.latex("");
+          mathField.reflow();
+          
+          mathField.focus();
+
+          //clear
+          // setTimeout(() => {
+          //   mathField.latex("");
+          //   mathField.reflow();
+          // }, 0);
+          
+
+          logger.log("logMQ", "mathField", mathField);
+
+          this.mathField_numberTyping = mathField;
+        }
+
+      }
+
+      leaveNumberTyping() {
+        logger.log("logNT", "leaveNumberTyping");
+
+        const mathField = this.mathField_numberTyping;
+
+        //mathQuill
+        {
+
+          //transfer tex
+          {
+            const tex = mathField.latex();
+            console.log("tex", tex);
+
+            //this is where fun starts
+            function mathFieldTex_to_mathNode(tex) {
+              var outMathNode;
+
+              // outMathNode = math.parse(tex);
+              const mathExpression = MathExpression.fromLatex(tex);
+              const text = mathExpression.toString();
+              console.log("text", text);
+              outMathNode = math.parse(text);
+
+              //don't parse "=" into ":="
+
+              //upgrade to gmOperator when writing "x50"
+
+              return outMathNode;
+            }
+
+            const mathNode__new = mathFieldTex_to_mathNode(tex);
+            // mathNode__new.autoSimplify = true;
+
+            //store generated mathNode
+            this.mathNode_numberTyping = mathNode__new;
+          }
+
+          //remove all listeners
+          // mathField.el().removeEventListener("focusout", eventListener);
+          $(mathField.el()).off();
+
+          //remove mathField elt from canvasContainer
+          mathField.el().remove();
+
+          //destroy mathField
+          mathField.revert();
+        }
+
+        //create/add icMathNode
+        const position__icMathNode = this.getTrueCursor();
+        const mathNode   = this.mathNode_numberTyping.cloneDeep();
+        const icMathNode = this.createIcMathNode(position__icMathNode.x, position__icMathNode.y, mathNode);
+        this.addNewIcObject(icMathNode);
+
+
+        this.mathNode_numberTyping  = null;
+        this.mathField_numberTyping = null;
+
+        this.isNumberTyping         = false;
+        globalsSingleton.isEditing  = false;
+      }
 
 
       //events
@@ -40387,7 +40495,7 @@
           const fabricIntegration = this.fabricIntegration;
 
           // document.addEventListener('keyup', logKey);
-          document.addEventListener('keyup', handleKeyUp);
+          document.addEventListener('keyup',   handleKeyUp);
           document.addEventListener('keydown', handleKeyDown);
 
 
@@ -40413,7 +40521,13 @@
               }),
 
               w: new KeyDownToggle("w", KeyDownToggle.defaultKeyDownFunc(["KeyZ"]), (isActive) => {
-                //only side effect is used
+                
+                if (isActive) {
+                  infiniteCanvas.enterNumberTyping();
+                } else {
+                  infiniteCanvas.leaveNumberTyping();
+                }
+
               }),
 
               p: new KeyDownToggle("p", KeyDownToggle.defaultKeyDownFunc(["KeyP"]), (isActive) => {
@@ -40709,7 +40823,11 @@
 
             logger.log("globalsSingleton.isEditing", globalsSingleton.isEditing);
             if (globalsSingleton.isEditing) {
-              return;
+              if(infiniteCanvas.isNumberTyping && e.code == "KeyZ") {
+                //continue to process KeyZ keyup event
+              } else {
+                return;
+              }
             }
 
             if (fabricIntegration.shouldIgnoreShortcutInput()) {
@@ -40965,7 +41083,6 @@
                     //   .then(img => {
                     //     infiniteCanvas.addNewSparkle(img);
                     //   });
-
                   }
                   break;
 
@@ -41583,6 +41700,12 @@
 
             logger.log("globalsSingleton.isEditing", globalsSingleton.isEditing);
             if (globalsSingleton.isEditing) {
+              if(infiniteCanvas.isNumberTyping) {
+                //ignore KeyZ
+                if(e.code == "KeyZ") {
+                  e.preventDefault();
+                }
+              }
               return;
             }
 
@@ -41590,6 +41713,10 @@
               return;
             }
 
+            //ignore KeyZ
+            if(!infiniteCanvas.isNumberTyping && e.code == "KeyZ") {    //SHU: a bit complicated, it's to prevent MathQuill.mathField from starting with "w"
+              e.preventDefault();
+            }
             updateKeyDownToggles(e, true);
             updateKeyDownTimeouts(e, true);
 
