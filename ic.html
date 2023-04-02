@@ -19326,6 +19326,26 @@
           };
         
           fabricIntegration.simulateMouseUpDown(func_inBetween);
+        } else {
+          //get selected objects
+          const arr_rep_free_selected = this.getArr_selected_rep_free();
+
+          //update main color of object
+          arr_rep_free_selected.forEach((rep_free, i) => {
+
+            switch(rep_free.type) {
+              case "rect":
+                rep_free.fill = rgbaColorString;
+                break;
+              case "text":
+                rep_free.textColor = rgbaColorString;
+                break;
+              default:
+                rep_free.fill = rgbaColorString;
+                break;
+            }
+
+          });
         }
 
       }
@@ -19341,6 +19361,33 @@
           };
         
           fabricIntegration.simulateMouseUpDown(func_inBetween);
+        } else {
+          //get selected objects
+          const arr_rep_free_selected = this.getArr_selected_rep_free();
+
+          //version 1: update object's main color
+            // const rgbaColorString = inputProperties.getActiveRgbaColorString();
+
+            // //update main color of object
+            // arr_rep_free_selected.forEach((rep_free, i) => {
+            //   switch(rep_free.type) {
+            //     case "rect":
+            //       rep_free.fill = rgbaColorString;
+            //       break;
+            //     case "text":
+            //       rep_free.textColor = rgbaColorString;
+            //       break;
+            //     default:
+            //       rep_free.fill = rgbaColorString;
+            //       break;
+            //   }
+            // });
+
+          //version 2: update object's opacity
+          arr_rep_free_selected.forEach((rep_free, i) => {
+            rep_free.opacity = opacity;
+          });
+
         }
 
       }
@@ -19366,6 +19413,17 @@
           fabricIntegration.configureFreeDrawingBrush(brushConfig);
         }
 
+      }
+
+
+
+      getArr_selected_rep_free() {
+        const arr_rep_free = Object.values(this.represented).map(represented => represented.r_free());
+        const arr_rep_free_selected = arr_rep_free
+          .filter(rep_free => {
+            return rep_free.isSelected;
+          });
+        return arr_rep_free_selected;
       }
 
 
@@ -19425,11 +19483,7 @@
         } else {
 
           //get selected objects
-          const arr_rep_free = Object.values(this.represented).map(represented => represented.r_free());
-          const arr_rep_free_selected = arr_rep_free
-            .filter(rep_free => {
-              return rep_free.isSelected;
-            });
+          const arr_rep_free_selected = this.getArr_selected_rep_free();
 
           //update zIndex
           arr_rep_free_selected.forEach((rep_free, i) => {
@@ -19512,7 +19566,7 @@
         } else {
 
           //get selected objects
-          const arr_selected = this.getArrIcObjSelected();
+          const arr_rep_free_selected = this.getArr_selected_rep_free();
 
           //update zIndex
           arr_rep_free_selected.forEach((rep_free, i) => {
@@ -19551,7 +19605,7 @@
         } else {
 
           //get selected objects
-          const arr_selected = this.getArrIcObjSelected();
+          const arr_rep_free_selected = this.getArr_selected_rep_free();
 
           //update zIndex
           arr_rep_free_selected.forEach((rep_free, i) => {
@@ -19565,16 +19619,7 @@
 
 
 
-      getArrIcObjSelected() {
 
-        const arr_rep_free = Object.values(this.represented).map(represented => represented.r_free());
-        const arr_rep_free_selected = arr_rep_free
-          .filter(rep_free => {
-            return rep_free.isSelected;
-          });
-
-        return arr_rep_free_selected;
-      }
 
 
       //number typing
@@ -33982,36 +34027,89 @@
         }
 
         updateFabricObjectsPosition_zScroll(redrawOccasion) {
+          const infiniteCanvas = this.infiniteCanvas;
 
           const activeObject = this.fabricCanvas.getActiveObject();
 
           // const fabric_objects = this.fabric_objects;
           const fabric_objects = this.getFabricObjects();
 
+          //SHU: this case is (?) rare (?)
           if (activeObject instanceof fabric.ActiveSelection) {
+            logger.log("logZScroll", "updateFabricObjectsPosition_zScroll", "activeObject instanceof fabric.ActiveSelection");
 
-            const activeSelection = activeObject;
+            if(activeObject.icObj.isCompositePart || activeObject.icObj.type == "composite") {
 
-            this.updateFabricObject_position_zScroll__container(activeSelection);
+              //get composite
+              var icObj__composite;
+              if(activeObject.icObj.isCompositePart) {
+                const id__composite = activeObject.icObj.compositeId;
+                icObj__composite = infiniteCanvas.getRepresented(id__composite).rep_free();
+              } else {
+                icObj__composite = activeObject.icObj;
+              }
 
-            const arr_affected = activeSelection.getObjects()
-              .filter(fObj => fObj.icObj.canBeMoved);
+              //get all .isMobile==false in this composite
+              const arr_children = Object.values(icObj__composite.parts);
+              const arr_children_immobile = arr_children.filter((icObj) => {
+                return icObj.isMobile == false;
+              });
 
-            const arr1 = fabric_objects;
-            const arr2 = arr_affected;
+              arr_children_immobile.forEach((fObj, i) => {
+                this.updateFabricObject_position_zScroll__contained(activeSelection, fObj);
+              });
 
-            let difference = arr1.filter(x => !arr2.includes(x));
-            const arr_unaffected = difference;
+            } else {
 
-            arr_affected.forEach((fObj, i) => {
-              this.updateFabricObject_position_zScroll__contained(activeSelection, fObj);
-            });
+              const activeSelection = activeObject;
 
-            arr_unaffected.forEach((fObj, i) => {
-              this.updateFabricObject_position_default(fObj);
-            });
+              this.updateFabricObject_position_zScroll__container(activeSelection);
+
+              const arr_affected = activeSelection.getObjects()
+                .filter(fObj => fObj.icObj.canBeMoved);
+
+              const arr1 = fabric_objects;
+              const arr2 = arr_affected;
+
+              let difference = arr1.filter(x => !arr2.includes(x));
+              const arr_unaffected = difference;
+
+              arr_affected.forEach((fObj, i) => {
+                this.updateFabricObject_position_zScroll__contained(activeSelection, fObj);
+              });
+
+              arr_unaffected.forEach((fObj, i) => {
+                this.updateFabricObject_position_default(fObj);
+              });
+
+            }
 
           } else {
+            logger.log("logZScroll", "updateFabricObjectsPosition_zScroll", "fabric_objects", fabric_objects);
+
+            // if(activeObject.icObj.isCompositePart || activeObject.icObj.type == "composite") {
+
+            //   //get composite
+            //   var icObj__composite;
+            //   if(activeObject.icObj.isCompositePart) {
+            //     const id__composite = activeObject.icObj.compositeId;
+            //     icObj__composite = infiniteCanvas.getRepresented(id__composite).rep_free();
+            //   } else {
+            //     icObj__composite = activeObject.icObj;
+            //   }
+
+            //   //get all .isMobile==false in this composite
+            //   const arr_children = Object.values(icObj__composite.parts);
+            //   const arr_children_immobile = arr_children.filter((icObj) => {
+            //     return icObj.isMobile == false;
+            //   });
+
+            //   arr_children_immobile.forEach((fObj, i) => {
+            //     this.updateFabricObject_position_zScroll__contained(activeSelection, fObj);
+            //   });
+
+            // }
+
             fabric_objects.forEach((fObj, i) => {
 
               if (fObj == activeObject) {
@@ -41504,9 +41602,7 @@
                 //   break;
 
                 case "BackQuote":
-
-                  //nothing for now
-
+                  //this key is reserved for freeDrawing
                   break;
 
 
@@ -41610,6 +41706,21 @@
                 // case "AltRight":
                 //   keyboardIntegration.altKeyDown = false;
                 //   break;
+
+                
+                case "Slash":
+                  {
+                    const position__cursor = infiniteCanvas.getTrueCursor();
+                    const trueRect_2 = {
+                      x: position__cursor.x,
+                      y: position__cursor.y,
+                      width:  200,
+                      height: 200,
+                    } 
+                    const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect_2, "simplify:force");
+                    infiniteCanvas.addIcObject(gmOperator);
+                  }
+                  break;
 
                 case "Delete":
                   fabricIntegration.deleteSelection();
@@ -41866,12 +41977,12 @@
 
 
           canvasContainer.addEventListener('mousedown', onMouseDown);
-          canvasContainer.addEventListener('mouseup', onMouseUp, false);
-          canvasContainer.addEventListener('mouseout', onMouseOut, false);
-          canvasContainer.addEventListener('mousemove', onMouseMove, false);
-          canvasContainer.addEventListener('wheel', onMouseWheel, false);
+          canvasContainer.addEventListener('mouseup',   onMouseUp,    false);
+          canvasContainer.addEventListener('mouseout',  onMouseOut,   false);
+          canvasContainer.addEventListener('mousemove', onMouseMove,  false);
+          canvasContainer.addEventListener('wheel',     onMouseWheel, false);
 
-          // mouse functions
+          // mouse functions²
           function onMouseDown(event) {
             if (event.button == 0) {
               mouseIntegration.leftMouseDown  = true;
@@ -41931,6 +42042,8 @@
           }
 
           function onMouseUp(event) {
+            // logger.log("logMouse", "onMouseUp", event);
+
             if (event.button == 0) {
               mouseIntegration.leftMouseDown  = false;
             } else if (event.button == 2) {
