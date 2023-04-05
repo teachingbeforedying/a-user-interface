@@ -22170,7 +22170,7 @@
 
 
         broadcaster.didUpdateFromInner = (representation, propName, oldValue, newValue) => {
-          logger.log("broadcaster.didUpdateFromInner", representation, propName, oldValue, newValue);
+          // logger.log("broadcaster.didUpdateFromInner", representation, propName, oldValue, newValue);
 
           broadcaster.didUpdateFromInnerListeners.forEach((listener, i) => {
             // if(!listener) {   //SHU: oulala
@@ -24654,12 +24654,30 @@
             });
           };
 
+
           //part update
           this.managePartUpdate = function (icObj_compositePart, outerUpdatesDict) {
 
+            [...Object.keys(outerUpdatesDict)].forEach((key__update) => {
+              switch(key__update) {
+                case "position":
+                  this.managePartUpdate__position(icObj_compositePart, outerUpdatesDict);
+                  break;
+                case "homeScale":
+                  this.managePartUpdate__homeScale(icObj_compositePart, outerUpdatesDict);
+                  break;
+                default:
+                  break;
+              }
+            });
+
+          };
+
+          this.managePartUpdate__position = function (icObj_compositePart, outerUpdatesDict) {
+
             //SHU FLUID
 
-            logger.log("managePartUpdate", icObj_compositePart);
+            logger.log("managePartUpdate__position", icObj_compositePart);
 
             const infiniteCanvas = this.scopeObj.infiniteCanvas;
             const handle = this.scopeObj.engineCarrier;
@@ -24772,9 +24790,33 @@
 
           };
 
+
+          this.managePartUpdate__homeScale = function (icObj_compositePart, outerUpdatesDict) {
+
+          };
+
+
+
           //handle update
           this.manageHandleUpdate = function (icObj_composite, outerUpdatesDict) {
-            console.log("manageHandleUpdate", icObj_composite);
+
+            [...Object.keys(outerUpdatesDict)].forEach((key__update) => {
+              switch(key__update) {
+                case "position":
+                  this.manageHandleUpdate__position(icObj_composite, outerUpdatesDict);
+                  break;
+                case "homeScale":
+                  this.manageHandleUpdate__homeScale(icObj_composite, outerUpdatesDict);
+                  break;
+                default:
+                  break;
+              }
+            });
+
+          };
+
+          this.manageHandleUpdate__position = function (icObj_composite, outerUpdatesDict) {
+            console.log("manageHandleUpdate__position", icObj_composite);
 
             //get free_rep
             const handle__represented = infiniteCanvas.getRepresented(icObj_composite.id);
@@ -24820,6 +24862,139 @@
                     const point_end_new = {
                       x: part__rep_free.point_end.x + offset.dx,
                       y: part__rep_free.point_end.y + offset.dy,
+                    };
+                    part__rep_free.point_end = point_end_new;
+                  }
+                }
+
+                //listen:on
+                // if(typeof part__rep_free.onInnerUpdate === "function") { //SHU HORROR
+                part__rep_free.onInnerUpdate(listener);
+                // }
+
+              });
+
+            }
+            // else if(outerUpdatesDict.parts != null) {
+            //   logger.log("outerUpdatesDict.parts", outerUpdatesDict.parts);
+            //
+            //   // const arr_parts__old = [];
+            //   // const arr_parts__new = [];
+            //
+            //   Object.values(outerUpdatesDict.parts.new).forEach((part__rep_free, i) => {
+            //     const part__listener = this.createPartListener();
+            //     this.listeners[part__rep_free.id] = part__listener;
+            //
+            //     if(handle__rep_free.compositeConfig[part__rep_free.id] == null) {
+            //       const config__part = {
+            //         // isMobile: true,
+            //         isMobile: false,
+            //       };
+            //       handle__rep_free.compositeConfig[part__rep_free.id] = config__part;
+            //     }
+            //
+            //     //'activate' listener
+            //     // const part__listener = this.listeners[part__rep_free.id];
+            //     part__rep_free.onInnerUpdate(part__listener);
+            //
+            //   });
+            //
+            // }
+
+          };
+
+
+          this.manageHandleUpdate__homeScale = function (icObj_composite, outerUpdatesDict) {
+            logger.log("logCompZscroll", "manageHandleUpdate__homeScale", icObj_composite, outerUpdatesDict);
+
+            //get free_rep
+            const handle__represented = infiniteCanvas.getRepresented(icObj_composite.id);
+            const handle__rep_free    = handle__represented.r_free();
+
+            if (outerUpdatesDict.homeScale != null) {
+
+              const scaleFactor = {
+                X: outerUpdatesDict.homeScale.new.X / outerUpdatesDict.homeScale.old.X,
+                Y: outerUpdatesDict.homeScale.new.Y / outerUpdatesDict.homeScale.old.Y,
+              };
+              logger.log("logCompZscroll", "scaleFactor", scaleFactor);
+
+              if(scaleFactor.X == 1 && scaleFactor.Y == 1) {  //SHU: bwerk
+                //ignore
+                return;
+              }
+
+              const parts = handle__rep_free.parts;
+              const arr_parts_all = Object.values(parts);
+              arr_parts_all.forEach((part__rep_free, i) => {
+
+                const listener = this.listeners[part__rep_free.id];
+
+                //listen:off
+                // if(typeof part__rep_free.offInnerUpdate === "function") { //SHU HORROR
+                part__rep_free.offInnerUpdate(listener);
+                // }
+
+
+
+                //mutate
+                // logger.log("mutating part:", part__rep_free.id);
+                {
+
+                  //homeScale
+                  const homeScale__new__part = {
+                    X: part__rep_free.homeScale.X * scaleFactor.X,
+                    Y: part__rep_free.homeScale.Y * scaleFactor.Y,
+                  };
+                  logger.log("logCompZscroll", "homeScale__old__part", part__rep_free.homeScale);
+                  logger.log("logCompZscroll", "homeScale__new__part", homeScale__new__part);
+                  part__rep_free.homeScale = homeScale__new__part;
+
+
+                  //other (induced)
+                    //position
+                  const offset_wrt_handle__old = {
+                    dx: part__rep_free.position.x - handle__rep_free.position.x,
+                    dy: part__rep_free.position.y - handle__rep_free.position.y,
+                  };
+                  logger.log("logCompZscroll", "offset_wrt_handle__old", offset_wrt_handle__old);
+
+                  const offset_wrt_handle__new = {
+                    dx: offset_wrt_handle__old.dx / scaleFactor.X,
+                    dy: offset_wrt_handle__old.dy / scaleFactor.Y,
+                  };
+                  logger.log("logCompZscroll", "offset_wrt_handle__new", offset_wrt_handle__new);
+
+
+                  if (part__rep_free.position != null) {
+                    const position_new = {
+                      x: part__rep_free.position.x - offset_wrt_handle__old.dx + offset_wrt_handle__new.dx,
+                      y: part__rep_free.position.y - offset_wrt_handle__old.dy + offset_wrt_handle__new.dy,
+                    };
+                    logger.log("logCompZscroll", "position_new", position_new);
+
+                    part__rep_free.position = position_new;
+
+                  } else if (part__rep_free.point_start != null) {
+                    //move segment parts
+                    const point_start_new = {
+                      x: part__rep_free.point_start.x + offset_wrt_handle__new.dx,
+                      y: part__rep_free.point_start.y + offset_wrt_handle__new.dy,
+                    };
+                    part__rep_free.point_start = point_start_new;
+
+                    const v__old = {
+                      dx: part__rep_free.point_end.x - part__rep_free.point_start.x,
+                      dy: part__rep_free.point_end.y - part__rep_free.point_start.y,
+                    };
+                    const v__new = {
+                      dx: v__old.dx / scaleFactor.X,
+                      dy: v__old.dy / scaleFactor.Y,
+                    };
+
+                    const point_end_new = {
+                      x: part__rep_free.point_end.x + v__new.dx,
+                      y: part__rep_free.point_end.y + v__new.dy,
                     };
                     part__rep_free.point_end = point_end_new;
                   }
@@ -34045,28 +34220,29 @@
           if (activeObject instanceof fabric.ActiveSelection) {
             logger.log("logZScroll", "updateFabricObjectsPosition_zScroll", "activeObject instanceof fabric.ActiveSelection");
 
-            if(activeObject.icObj.isCompositePart() || activeObject.icObj.type == "composite") {
+            // if(activeObject.icObj.isCompositePart() || activeObject.icObj.type == "composite") {
 
-              //get composite
-              var icObj__composite;
-              if(activeObject.icObj.isCompositePart()) {
-                const id__composite = activeObject.icObj.compositeId;
-                icObj__composite = infiniteCanvas.getRepresented(id__composite).rep_free();
-              } else {
-                icObj__composite = activeObject.icObj;
-              }
+            //   //get composite
+            //   var icObj__composite;
+            //   if(activeObject.icObj.isCompositePart()) {
+            //     const id__composite = activeObject.icObj.compositeId;
+            //     icObj__composite = infiniteCanvas.getRepresented(id__composite).rep_free();
+            //   } else {
+            //     icObj__composite = activeObject.icObj;
+            //   }
 
-              //get all .isMobile==false in this composite
-              const arr_children = Object.values(icObj__composite.parts);
-              const arr_children_immobile = arr_children.filter((icObj) => {
-                return icObj.isMobile == false;
-              });
+            //   //get all .isMobile==false in this composite
+            //   const arr_children = Object.values(icObj__composite.parts);
+            //   const arr_children_immobile = arr_children.filter((icObj) => {
+            //     return icObj.isMobile == false;
+            //   });
 
-              arr_children_immobile.forEach((fObj, i) => {
-                this.updateFabricObject_position_zScroll__contained(activeSelection, fObj);
-              });
+            //   arr_children_immobile.forEach((fObj, i) => {
+            //     this.updateFabricObject_position_zScroll__contained(activeSelection, fObj);
+            //   });
 
-            } else {
+            // } else 
+            {
 
               const activeSelection = activeObject;
 
@@ -34561,39 +34737,43 @@
           } else {
             fabric_objects.forEach((fObj, i) => {
 
-              // if(activeObject != null && (activeObject.icObj.isCompositePart() || activeObject.icObj.type == "composite")) {
-              //   //activeObject object is part of composite: affect all objects in composite  
+              if(activeObject != null && fObj == activeObject && (fObj.icObj.isCompositePart() || fObj.icObj.type == "composite")) {
+                //activeObject object is part of composite: affect all objects in composite  
                 
-              //   if(activeObject.icObj.isCompositePart()) {
-              //     logger.log("logZScroll", "updateFabricObjectsSize_zScroll", "activeObject.icObj.isCompositePart()");
-              //   } else if(activeObject.icObj.type == "composite") {
-              //     logger.log("logZScroll", "updateFabricObjectsSize_zScroll", 'activeObject.icObj.type == "composite"');
-              //   }
+                if(fObj.icObj.isCompositePart()) {
+                  logger.log("logZScroll", "updateFabricObjectsSize_zScroll", "fObj.icObj.isCompositePart()");
+                } else if(fObj.icObj.type == "composite") {
+                  logger.log("logZScroll", "updateFabricObjectsSize_zScroll", 'activeObject.icObj.type == "composite"');
+                }
 
-              //   //get composite
-              //   var icObj__composite;
-              //   if(activeObject.icObj.isCompositePart()) {
-              //     const id__composite = activeObject.icObj.compositeId;
-              //     icObj__composite = infiniteCanvas.getRepresented(id__composite).getRepresentation("free");
-              //   } else {
-              //     icObj__composite = activeObject.icObj;
-              //   }
+                //get composite
+                var icObj__composite;
+                if(fObj.icObj.isCompositePart()) {
+                  const id__composite = fObj.icObj.compositeId;
+                  icObj__composite    = infiniteCanvas.getRepresented(id__composite).getRepresentation("free");
+                } else {
+                  icObj__composite = fObj.icObj;
+                }
 
-              //   //get all .isMobile==false in this composite
-              //   const arr_children = Object.values(icObj__composite.parts);
-              //   const arr_children_immobile = arr_children.filter((icObj) => {
-              //     return icObj.isMobile == false;
-              //   });
+                //update composite scale
+                const fObj__composite = this.getFObjForIcObj(icObj__composite);
+                this.updateFabricObject_size_zScroll(fObj__composite);
 
-              //   const arr_fObj = arr_children_immobile.map((icObj) => {
-              //     return this.getFObjForIcObj(icObj);
-              //   })
+                // //get all .isMobile==false in this composite
+                // const arr_children = Object.values(icObj__composite.parts);
+                // const arr_children_immobile = arr_children.filter((icObj) => {
+                //   return icObj.isMobile == false;
+                // });
 
-              //   arr_fObj.forEach((icObj, i) => {
-              //     this.updateFabricObject_size_zScroll(fObj);
-              //   });
+                // const arr_fObj = arr_children_immobile.map((icObj) => {
+                //   return this.getFObjForIcObj(icObj);
+                // })
 
-              // } else 
+                // arr_fObj.forEach((icObj, i) => {
+                //   this.updateFabricObject_size_zScroll(fObj);
+                // });
+
+              } else 
               if (fObj == activeObject) {
                 this.updateFabricObject_size_zScroll(fObj);
               } else if(fObj == "children of active object") {
