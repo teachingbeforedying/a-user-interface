@@ -22171,15 +22171,7 @@
 
         broadcaster.didUpdateFromInner = (representation, propName, oldValue, newValue) => {
           // logger.log("broadcaster.didUpdateFromInner", representation, propName, oldValue, newValue);
-
           broadcaster.didUpdateFromInnerListeners.forEach((listener, i) => {
-            // if(!listener) {   //SHU: oulala
-            //   // logger.log("broadcaster.didUpdateFromInnerListeners", broadcaster.didUpdateFromInnerListeners);
-            //   // throw new Error("listener == null");
-
-            //   return;
-            // }
-            // logger.log("listener", listener);
             listener(representation, propName, oldValue, newValue);
           });
         };
@@ -27960,6 +27952,18 @@
             return this.canvas.getObjects().indexOf(this);
           };
 
+          fabric.Object.prototype.getRect = function () {
+            if (!this.canvas) {          //SHU TODO: understand where this strange state originates from
+              return 0;
+            }
+            return {
+              left:    this.left,
+              top:     this.top,
+              width:   this.width,
+              height:  this.height,
+            };
+          };
+
 
           // // fabricjs group - always show border
           // fabric.Group.prototype.initialize = (function (initialize) {
@@ -33382,15 +33386,13 @@
 
           //creation
           this.fabricCanvas.on("selection:created", (options) => {
-            logger.log("selection:created", event);
+            logger.log("selection:created", options);
 
             const activeObject = this.fabricCanvas.getActiveObject();
 
             if (activeObject instanceof fabric.ActiveSelection) {
-              logger.log("activeObject instanceof fabric.ActiveSelection");
-
               const activeSelection = activeObject;
-              console.log("activeSelection", activeSelection);
+              logger.log("logAS", "selection:created", "activeSelection:", activeSelection);
 
               //inject 'initial' props
               const icActiveSelection = infiniteCanvas.createIcActiveSelection_from_activeSelectionFObj(activeSelection);
@@ -33398,9 +33400,10 @@
               activeSelection.icObj = icActiveSelection;
 
               activeSelection.forEachObject((fObj, index, arr_fObj) => {
+                logger.log("logAS", "activeSelection", "forEachObject", fObj);
                 setGroupCoords(fObj, activeSelection);
                 savePrivateCoords(fObj, activeSelection);
-              }, fabricIntegration.fabricCanvas.context);
+              }, fabricIntegration.fabricCanvas.contextTop);
 
               //store
               infiniteCanvas.activeSelection = icActiveSelection;
@@ -33424,30 +33427,37 @@
           });
 
           function setGroupCoords(fObj, activeSelection) {
+            logger.log("logAS", "setGroupCoords", fObj, activeSelection);
 
             const left__solo = fObj.left;
-            const top__solo = fObj.top;
+            const top__solo  = fObj.top;
 
             //set new "group coords"
-            const activeSelectionCL = activeSelection.left + activeSelection.width / 2;
-            const activeSelectionCT = activeSelection.top + activeSelection.height / 2;
-            fObj.left = left__solo - activeSelectionCL;
-            fObj.top = top__solo - activeSelectionCT;
+            const activeSelectionCL = activeSelection.left + activeSelection.width  / 2;
+            const activeSelectionCT = activeSelection.top  + activeSelection.height / 2;
+            logger.log("logAS", "activeSelectionCL", activeSelectionCL);
+            logger.log("logAS", "activeSelectionCT", activeSelectionCT);
 
+            fObj.left = left__solo - activeSelectionCL;
+            fObj.top =  top__solo  - activeSelectionCT;
           }
 
           function savePrivateCoords(fObj, activeSelection) {
+            logger.log("logAS", "savePrivateCoords", fObj, activeSelection);
 
             //save wrtGroup coords
             fObj.left__wrtGroup = fObj.left;
-            fObj.top__wrtGroup = fObj.top;
+            fObj.top__wrtGroup  = fObj.top;
 
-            const activeSelectionCL = activeSelection.left + activeSelection.width / 2;
-            const activeSelectionCT = activeSelection.top + activeSelection.height / 2;
+            const activeSelectionCL = activeSelection.left + activeSelection.width  / 2;
+            const activeSelectionCT = activeSelection.top  + activeSelection.height / 2;
+            logger.log("logAS", "activeSelectionCL", activeSelectionCL);
+            logger.log("logAS", "activeSelectionCT", activeSelectionCT);
+
 
             //save solo coords
             fObj.left__solo = fObj.left__wrtGroup + activeSelectionCL;
-            fObj.top__solo = fObj.top__wrtGroup + activeSelectionCT;
+            fObj.top__solo  = fObj.top__wrtGroup  + activeSelectionCT;
           }
 
 
@@ -33473,12 +33483,16 @@
           //   }
           //
           // });
-          this.fabricCanvas.on("object:moved", (options) => {
-            // console.log("object:moving", event);
+          // this.fabricCanvas.on("object:moved", (options) => {
+          //   logger.log("logAS", "object:moved", options);
+          this.fabricCanvas.on("object:modified", (options) => {
+            logger.log("logAS", "object:modified", options);
 
-            const target = options.target;
-            if (target.type == "activeSelection") {
-              activeSelection_moved(target);
+            if(options.action == "drag") {
+              const target = options.target;
+              if (target.icObj.type == "activeSelection") {
+                activeSelection_moved(target);
+              }
             }
 
           });
@@ -33522,7 +33536,7 @@
 
 
           function activeSelection_moved(activeSelection) {
-            logger.log("activeSelection moving");
+            logger.log("logAS", "activeSelection_moved", activeSelection);
 
             //update activeSelection position
             {
@@ -33566,8 +33580,8 @@
             activeSelection.forEachObject((fObj, index, arr_fObj) => {
               updateChildIcObj_position(fObj);
               fObj.left = fObj.left__wrtGroup;
-              fObj.top = fObj.top__wrtGroup;
-            }, fabricIntegration.fabricCanvas.context);
+              fObj.top  = fObj.top__wrtGroup;
+            }, fabricIntegration.fabricCanvas.contextTop);
 
 
           }
@@ -33604,7 +33618,7 @@
 
                 original_props[icObj.id] = propDict;
 
-              }, fabricIntegration.fabricCanvas.context);
+              }, fabricIntegration.fabricCanvas.contextTop);
 
               isScaling = true;
             }
@@ -34331,13 +34345,15 @@
           // const fabric_objects = this.fabric_objects;
           const fabric_objects = this.getFabricObjects();
 
-          var fObjs_to_move = [];
+          var arr_fObj_to_move = [];
 
           const activeObject = this.fabricCanvas.getActiveObject();
-          if (activeObject instanceof fabric.ActiveSelection) {
+          if (activeObject instanceof fabric.ActiveSelection) {   //when panning while there is an activeSelection
             const activeSelection = activeObject;
+            logger.log("logAS", "updateFabricObjectsPosition_default", "ActiveSelection:", activeSelection);
 
-            fObjs_to_move = [activeSelection];
+            arr_fObj_to_move = [];
+            arr_fObj_to_move.push(activeSelection);
 
             const arr_affected = activeSelection.getObjects();
 
@@ -34347,13 +34363,14 @@
             let difference = arr1.filter(x => !arr2.includes(x));
             const arr_unaffected = difference;
 
-            fObjs_to_move.push(...arr_unaffected);
+            arr_fObj_to_move.push(...arr_unaffected);
 
-          } else {
-            fObjs_to_move = [...fabric_objects];
+          } else  //when panning while there is no activeSelection
+          {
+            arr_fObj_to_move = [...fabric_objects];
           }
 
-          fObjs_to_move.forEach((fObj, i) => {
+          arr_fObj_to_move.forEach((fObj, i) => {
             this.updateFabricObject_position_default(fObj);
           });
 
@@ -34434,15 +34451,15 @@
           var position_update = null;
 
           const mouseIntegration = this.mouseIntegration;
-          if (mouseIntegration.leftMouseDown) {
-            // console.log("leftMouseDown zScroll");
+          // if (mouseIntegration.leftMouseDown) {
+          //   logger.log("logZScroll", "leftMouseDown zScroll");
 
-            const cursor_truePoint = infiniteCanvas.getTrueCursor();
-            //SHU: TODO: (later) prendre en compte le point grâce auquel on a attrapé l'objet (ce n'est pas le coin top left)
-            position_update = cursor_truePoint;
-
-          } else {
-            // console.log("leftMouseUp zScroll");
+          //   const cursor_truePoint = infiniteCanvas.getTrueCursor();
+          //   //SHU: TODO: (later) prendre en compte le point grâce auquel on a attrapé l'objet (ce n'est pas le coin top left)
+          //   position_update = cursor_truePoint;
+          // } else 
+          {
+            console.log("logZScroll", "leftMouseUp zScroll");
 
             const fObj_screenPos = {
               x: fObj.left,
@@ -34451,12 +34468,10 @@
             position_update = infiniteCanvas.toTruePoint(fObj_screenPos);
           }
 
-
           const icObj_new = Object.assign({}, icObj);
           Object.assign(icObj_new.position, position_update);
 
           icObj.update(icObj_new, false);
-
         }
 
         updateFabricObject_position_zScroll__contained(activeSelection, fObj) {
@@ -35238,6 +35253,9 @@
 
           outBrushConfig.zIndex__ic = this.inputProperties.getActiveBrushZIndex();
 
+          // outBrushConfig.isAdhesive = this.inputProperties.brushIsAdhesive;
+          outBrushConfig.isAdhesive = this.inputProperties.isAdhesive;
+
           return outBrushConfig;
         }
 
@@ -35259,7 +35277,9 @@
               stroke:  rgbColor,
               opacity: opacity,
 
-              isCosmetic: cfg.isCosmetic,
+              isCosmetic: cfg.isCosmetic,   //<--\
+                                            //    |--- //SHU: these too are quite incompatible...
+              isAdhesive: cfg.isAdhesive,   //<--/
             });
 
             logger.log("logFD", "fObj.zIndex", fObj.zIndex);
@@ -35298,18 +35318,19 @@
 
             this.infiniteCanvas.addIcObject(icObj);
 
-            //clear
-            // this.fabricCanvas.remove(fObj);   //SHU: recycle fObj plz
+            //manage .isAdhesive
+            if(fObj.isAdhesive) {
+              //simple
 
-            
+
+              //complex: joining adhesive
+
+            }
 
             this.arr_icFreeDrawing.push(icObj);
           }
 
-          //listener:on  (wait for icObject to have its fObj counterpart added)
-          // setTimeout(() => {                  //SHU: because this is awful
-            this.fabricCanvas.on('object:added', this.freeDrawing_objectAdded__atomic);
-          // }, 1);
+          this.fabricCanvas.on('object:added', this.freeDrawing_objectAdded__atomic);
 
         }
 
@@ -37431,7 +37452,17 @@
         //   return !(overlapArea == 0);
         // }
 
-
+        static isRectFullyContainedInRect(rect1, rect2) {
+          const r1 = this.createLRTBRect(rect1);
+          const r2 = this.createLRTBRect(rect2);
+          logger.log("logGeom", "isRectFullyContainedInRect", "r1", r1);
+          logger.log("logGeom", "isRectFullyContainedInRect", "r2", r2);
+          
+          return !( r1.left < r2.left ||
+                     r1.top < r2.top ||
+                   r1.right > r2.right ||
+                  r1.bottom > r2.bottom);
+        }
 
         static distance(p1, p2) {
           const v = {
@@ -40479,6 +40510,13 @@
           this.brushWidth__max = 40;
 
           this.brushZIndex     = 100;
+
+          this.brushIsAdhesive = false;
+
+
+
+
+          this.isAdhesive = false;
         }
 
         setScrollStep(value) {
@@ -40627,6 +40665,17 @@
           
           // return brushZIndex__bounded;
           return brushZIndex__computed;
+        }
+
+
+
+        updateBrush__toggleAdhesive() {
+          this.brushIsAdhesive = !this.brushIsAdhesive;
+        }
+
+
+        toggleAdhesive() {
+          this.isAdhesive = !this.isAdhesive;
         }
 
       }
@@ -41344,7 +41393,8 @@
 
 
                 case "KeyF":
-                  if (keyboardIntegration.keyDownToggles.w.isActive) {
+                  // if (keyboardIntegration.keyDownToggles.w.isActive) {
+                  if(fabricIntegration.fabricCanvas.isDrawingMode) {
                     // keyboardIntegration.infiniteCanvas.addNewSpotPoint();
                     fabricIntegration.floodFillAroundCursor();
                     // fabricIntegration.floodFillAroundCursor__area_ruler();
@@ -41409,19 +41459,35 @@
                   }
                   break;
 
+                case "IntlBackslash":
+                  {
+                    // if(fabricIntegration.fabricCanvas.isDrawingMode) {
+                    //  //toggle: adhesive drawings
+                    //  inputProperties.updateBrush__toggleAdhesive();
+                    // }
+                    
+                    {
+                      //toggle adhesive
+                      inputProperties.toggleAdhesive();
+                    }
+                     
+                  }
+                  break;
+
                 case "KeyX":
                   {
                     // if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
                     //   keyboardIntegration.infiniteCanvas.operateOnActiveObject__poopGeminiShade();
                     // }
                     // else
-                    if (keyboardIntegration.keyDownToggles.altLeft.isActive) {
-                      const mathNode = new math.SymbolNode("x");
-                      mathNode.autoSimplify = true;
-
-                      keyboardIntegration.infiniteCanvas.addNewMathNode(mathNode);
-                    }
-                    else {
+                    // if (keyboardIntegration.keyDownToggles.altLeft.isActive) {
+                    //   const mathNode = new math.SymbolNode("x");
+                    //   mathNode.autoSimplify = true;
+                    //
+                    //   keyboardIntegration.infiniteCanvas.addNewMathNode(mathNode);
+                    // }
+                    // else
+                    {
                       keyboardIntegration.infiniteCanvas.operateOnActiveObject__poopSameHomeScaleClone();
                     }
                   }
@@ -42241,10 +42307,11 @@
               // }
 
               var factor;
-              if (mouseIntegration.leftMouseDown) {
-                //reverse pan
-                factor = -1;
-              } else {
+              // if (mouseIntegration.leftMouseDown) {
+              //   //reverse pan
+              //   factor = -1;
+              // } else 
+              {
                 factor = +1;
               }
               infiniteCanvas.manageCursorMove_offset(factor);
@@ -49914,9 +49981,11 @@
 
           // this.debug_workbench_image();
 
-          // this.debug_zIndexFreeDrawing();
-          
           this.debug_zScroll_composite();
+          
+          // this.debug_zIndexFreeDrawing();
+
+          this.debug_fObjOverlapping();
 
           // this.debug_th();
 
@@ -54511,6 +54580,13 @@
 
 
           inputProperties.setBrushZIndex(8);
+
+        }
+
+
+        debug_fObjOverlapping() {
+
+
 
         }
 
