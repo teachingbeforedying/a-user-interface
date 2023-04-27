@@ -4207,10 +4207,6 @@
   </script>
 
 
-
-
-
-
   <!-- UX -->
   <script type="text/javascript" src="lib/rxjs.umd.min.js"></script> <!-- for easy inner/outer copy|paste -->
   <script>
@@ -4313,7 +4309,7 @@
   <script type="text/javascript" src="lib/serialize-javascript.browserified.bundle.js"></script>
   <script>
     // console.log("Bundle_SJ", Bundle_SJ);
-    const serialize = Bundle_SJ.serialize;
+    const serialize   = Bundle_SJ.serialize;
     const deserialize = Bundle_SJ.deserialize;
   </script>
   <!-- <script>
@@ -5006,6 +5002,8 @@
         this.isFreeDrawingPan      = false;
         this.hasBeenFreeDrawingPan = false;
 
+        this.isColorPickerAvailable = true;
+
 
         this.counter__event = 1;  //shu: this starts at 1
 
@@ -5369,6 +5367,18 @@
         });
         return arr_icPoint__near;
       }
+
+
+      getRootCompositeForPart(icObj__part) {
+        if(icObj__part.compositeId != -1) {
+          const icObj__composite = this.getRepresented(icObj__part.compositeId).getRepresentation("official");
+          return this.getRootCompositeForPart(icObj__composite);
+        } else {
+          return icObj__part;
+        }
+      }
+
+
 
 
       createIcRect_withLTWH(left, top, width, height) {
@@ -7507,7 +7517,7 @@
 
 
       createIcDividedSegment() {
-        
+
       }
 
 
@@ -10390,7 +10400,7 @@
         const icComposite = Object.assign(icObj, icComposite_spec);
 
         const engine = new CompositeEngine();
-        const eType = "composite";
+        const eType  = "composite";
 
         const icEngined = infiniteCanvas.installEngineOnIcObj(icComposite, eType, engine);
 
@@ -19491,21 +19501,26 @@
 
 
       manageUpdate__color(rgbaColorString) {
+        // logger.log("logFD", "manageUpdate__color", "rgbaColorString:", rgbaColorString);
+
+        const func_update = function() {
+          const brushConfig = fabricIntegration.brushConfig__freeDrawing();
+          // logger.log("logFD", "manageUpdate__color", "brushConfig:", brushConfig);
+          fabricIntegration.configureFreeDrawingBrush(brushConfig);
+        };
 
         if(fabricIntegration.fabricCanvas.isDrawingMode && mouseIntegration.leftMouseDown) {
-        //   //--- Simulate a natural mouse-click sequence.
-
-          const func_inBetween = function() {
-            const brushConfig = fabricIntegration.brushConfig__freeDrawing();
-            fabricIntegration.configureFreeDrawingBrush(brushConfig);
-          };
-        
+          //--- Simulate a natural mouse-click sequence.
           fabricIntegration.simulateMouseUpDown(() => {
             fabricIntegration.leaveFreeDrawing__atomic();
-            func_inBetween();
+            func_update();
             fabricIntegration.enterFreeDrawing__atomic({isCosmetic: false});
           });
           
+        } else if(fabricIntegration.fabricCanvas.isDrawingMode) {
+          
+          func_update();
+        
         } else {
           //get selected objects
           const arr_rep_free_selected = this.getArr_selected_rep_free();
@@ -21346,13 +21361,14 @@
         const icObj = this;
 
         icObj.editEnterListeners = [];
-        icObj.nowEditEnter = () => {
-          icObj.isEditing = true;
+        icObj.nowEditEnter__virgin = function() {
+          this.isEditing = true;
           globalsSingleton.isEditing = true;
-          icObj.editEnterListeners.forEach((listener, i) => {
-            listener(icObj);
+          this.editEnterListeners.forEach((listener, i) => {
+            listener(this);
           });
-        }
+        };
+        icObj.nowEditEnter = icObj.nowEditEnter__virgin.bind(icObj);
         icObj.onEditEnter = (listener) => {
           icObj.editEnterListeners.push(listener);
         };
@@ -21361,13 +21377,14 @@
         };
 
         icObj.editExitListeners = [];
-        icObj.nowEditExit = () => {
-          icObj.isEditing = false;
+        icObj.nowEditExit__virgin = function() {
+          this.isEditing = false;
           globalsSingleton.isEditing = false;
-          icObj.editExitListeners.forEach((listener, i) => {
-            listener(icObj);
+          this.editExitListeners.forEach((listener, i) => {
+            listener(this);
           });
-        }
+        };
+        icObj.nowEditExit = icObj.nowEditExit__virgin.bind(icObj);
         icObj.onEditExit = (listener) => {
           icObj.editExitListeners.push(listener);
         };
@@ -21554,6 +21571,9 @@
       }
 
       deepClone() { //SHU TODO: pour l'instant j'ai la flemme, mais il faudra des deep copy
+        logger.log("logCP", "deepClone", "this:", this);
+        const icObj = this;
+
         const id   = this.id;
         const type = this.type;
 
@@ -21562,7 +21582,7 @@
           y: this.position.y,
         };
         const size = {
-          width: this.size.width,
+          width:  this.size.width,
           height: this.size.height,
         };
 
@@ -21573,13 +21593,6 @@
 
         const icObj__deepClone = new IcObject(id, type, position, size, homeScale);
 
-        // Object.entries(this).forEach(([key, value], i) => {
-        //   // if(icObj_clone[key] == null) {
-        //     const valueDeepCopy = JSON.parse(JSON.stringify(value));
-        //     icObj_clone[key] = valueDeepCopy;
-        //   // }
-        // });
-
         const arr_alreadySet = [
           "id",
           "type",
@@ -21588,18 +21601,23 @@
           "homeScale",
         ];
 
+        const arr_ignored = [
+          "snappedTo",
+        ];
+
+        logger.log("logCP", "deepClone", "Object.keys(this):", Object.keys(this));
+
         Object.entries(this)
           .filter(([key, value]) => {
-            const valueAlreadyCopied = (arr_alreadySet.includes(key));
-            // console.log(key, valueAlreadyCopied);
-            return !valueAlreadyCopied;
+            const isPropertyAlreadyCopied = (arr_alreadySet.includes(key));
+            return !isPropertyAlreadyCopied;
+          })
+          .filter(([key, value]) => {
+            const isPropertyIgnored = (arr_ignored.includes(key));
+            return !isPropertyIgnored;
           })
           .forEach(([key, value], i) => {
-            // if(icObj_clone[key] == null) {
-            // const valueDeepCopy = JSON.parse(JSON.stringify(value));
-            // icObj_clone[key] = valueDeepCopy;
-            // }
-            logger.log("deepClone", key, value);
+            logger.log("logCP", "deepClone", "(k,v):", key, value);
 
             switch (key) {
               case "scale":
@@ -21626,15 +21644,43 @@
                   icObj__deepClone[key] = mathNode__deepClone;
                 }
                 break;
-              case "children":
+              case "exoObject":
                 {
-                  icObj__deepClone[key] = icObj[key].map(deepClone);
+                  const exoObject = value;
+
+                  if(exoObject.path != null ) {
+                    //clone only essential props of freeDrawing exoObject
+                    icObj__deepClone[key] = {
+                      path:             this.deepClone__propertyObject(exoObject, "path", exoObject.path),
+                      
+                      stroke:           exoObject.stroke,
+                      strokeDashArray:  exoObject.strokeDashArray,
+                      strokeLineCap:    exoObject.strokeLineCap,
+                      strokeLineJoin:   exoObject.strokeLineJoin,
+                      strokeMiterLimit: exoObject.strokeMiterLimit,
+                      strokeWidth:      exoObject.strokeWidth,
+
+                      fill:             exoObject.fill,
+                      //debug
+                      // fill:             "black",
+                    };
+                  }
+
                 }
                 break;
               default:
                 {
-                  const valueCopy       = value;
-                  icObj__deepClone[key] = valueCopy;
+                  logger.log("logCP", "deepClone", "default:", key);
+                  const prop__cloned    = this.deepClone__propertyObject(icObj, key, icObj[key]);
+                  icObj__deepClone[key] = prop__cloned;
+                  //check if we can bind
+                  if(icObj__deepClone[key] instanceof Function) {
+                    const propName__virgin = key + "__" + "virgin";
+                    if(propName__virgin in icObj) {
+                      icObj__deepClone[key] = icObj__deepClone[key].bind(icObj__deepClone);
+                    }
+                  }
+                  logger.log("logCP", "deepClone", "default:", "icObj__deepClone[key]:", icObj__deepClone[key]);
                 }
                 break;
             }
@@ -21644,9 +21690,47 @@
         return icObj__deepClone;
       }
 
+      deepClone__func(func) {
+        return deserialize(serialize(func)); 
+      }
+
+      deepClone__propertyObject(motherObject, propName, prop) {
+        logger.log("logCP", "deepClone__propertyObject", motherObject, propName, prop);
+
+        if(prop instanceof Function) {
+          const propName__virgin = propName + "__" + "virgin";
+          if(propName__virgin in motherObject) {
+            const func__virgin = motherObject[propName__virgin];
+            return this.deepClone__func(func__virgin);
+          } else {
+            return this.deepClone__func(prop);
+          }
+        } else if(prop instanceof Array) {
+          return prop.map((elt, index) => {
+            return this.deepClone__propertyObject(prop, index, elt);
+          });
+        } else if(prop instanceof Object) {
+          return [...Object.entries(prop)].reduce((acc, [k,v]) => {
+            acc[k] = this.deepClone__propertyObject(prop, k, v);
+            //check if we can bind
+            if(acc[k] instanceof Function) {
+              const propName__virgin = k + "__" + "virgin";
+              if(propName__virgin in prop) {
+                acc[k] = acc[k].bind(acc);
+              }
+            }
+            return acc;
+          }, {});
+        } else {
+          return prop;
+        }
+      }
+
       isCompositePart() {
         return this.compositeId != -1;
       }
+
+      
 
     }
 
@@ -33519,6 +33603,7 @@
 
           fObj.on('editing:entered', function (options) {
             const icObj = fObj.icObj;
+            logger.log("logCP", 'editing:entered', "icObj:", icObj);
             icObj.nowEditEnter();
           });
 
@@ -36910,7 +36995,17 @@
           }
 
           function copy_single(icObj) {
-            const cloned = icObj.deepClone();
+
+            var icObj_src;
+            if(icObj.compositeId == -1) {
+              icObj_src = icObj;
+            } else {
+              //get root composite
+              const icObj__rootComposite = infiniteCanvas.getRootCompositeForPart(icObj);
+              icObj_src = icObj__rootComposite;
+            }
+
+            const cloned = icObj_src.deepClone();
             cloned.position.x += 10;
             cloned.position.y += 10;
 
@@ -40450,13 +40545,13 @@
 
               console.log("rx_mixedPaste");
               console.log("outerPasteEvent", outerPasteEvent);
-              console.log("innerCopyEvent", innerCopyEvent);
+              console.log("innerCopyEvent",  innerCopyEvent);
 
               const timestamp_outerPaste = outerPasteEvent.timeStamp;
-              const timestamp_innerCopy = innerCopyEvent.timestamp - timestamp__start;
+              const timestamp_innerCopy  = innerCopyEvent.timestamp - timestamp__start;
 
               logger.log("timestamp_outerPaste", timestamp_outerPaste);
-              logger.log("timestamp_innerCopy", timestamp_innerCopy);
+              logger.log("timestamp_innerCopy",  timestamp_innerCopy);
 
               // const isInnerMostRecent = timestamp_inner > timestamp_outer;
 
@@ -40569,6 +40664,13 @@
                 };
                 out = outerWrapper_text;
                 break;
+              case "mathNode":
+                const outerWrapper_mathNode = {
+                  type: "number",
+                  content: icObj.mathNode.evaluate({}),
+                };
+                out = outerWrapper_mathNode;
+                break;
               default:
                 out = null;
                 break;
@@ -40597,6 +40699,11 @@
               // case "mixed":
               //   writeToClipboard_mixed(outerWrapper.content);
               //   break;
+              case "number":
+                const value = outerWrapper.content;
+                const str__number = "" + value;
+                out_p = navigator.clipboard.writeText(str__number);
+                break;
               default:
                 throw new Error("outerWrapper, unsupported type: " + outerWrapper.type);
             }
@@ -40678,10 +40785,6 @@
           }
 
           return out_p;
-        }
-
-        innerToOuter(icObj) {
-          return null;
         }
 
         lol() {
@@ -41498,7 +41601,7 @@
           }
 
           function handleKeyUp(e) {
-            logger.log("handleKeyUp", "e", e);
+            logger.log("logKB", "handleKeyUp", "e", e);
 
             logger.log("globalsSingleton.isEditing", globalsSingleton.isEditing);
             if (globalsSingleton.isEditing) {
@@ -42267,7 +42370,7 @@
 
                 case "KeyC":
                   {
-                    if (keyboardIntegration.keyDownToggles.backquote.isActive) {
+                    if(keyboardIntegration.keyDownToggles.backquote.isActive && keyboardIntegration.infiniteCanvas.isColorPickerAvailable) {
                       const fColor__cursor_p = fabricIntegration.getFColor__under_cursor_p();
 
                       fColor__cursor_p.then((fColor) => {
@@ -42408,7 +42511,19 @@
           }
 
           function handleKeyDown(e) {
-            //console.log("handleKeyDown", "e.code", e.code);
+            logger.log("logKB", "handleKeyDown", "e.code", e.code);
+
+            if(e.repeat) {
+              updateKeyDownTimeouts(e, true);
+            } else {
+              handleKeyDownOnce(e);
+              updateKeyDownTimeouts(e, true);
+            }
+
+          }
+
+          function handleKeyDownOnce(e) {
+            logger.log("logKB", "handleKeyDownOnce", "e.code", e.code);
 
             logger.log("globalsSingleton.isEditing", globalsSingleton.isEditing);
             if (globalsSingleton.isEditing) {
@@ -42430,7 +42545,7 @@
               e.preventDefault();
             }
             updateKeyDownToggles(e, true);
-            updateKeyDownTimeouts(e, true);
+            // updateKeyDownTimeouts(e, true);
 
 
             switch (e.code) {
@@ -42449,6 +42564,12 @@
               // case "AltRight":
               //   keyboardIntegration.altKeyDown = true;
               //   break;
+
+              case "KeyC":
+                {
+                  keyboardIntegration.infiniteCanvas.isColorPickerAvailable = true;
+                }
+                break;
 
               default:
                 break;
@@ -42674,6 +42795,7 @@
           function onMouseWheel(event) {
 
             if (keyboardIntegration.keyDownToggles.c.isActive) {
+              infiniteCanvas.isColorPickerAvailable = false;    //disable colorPicker when colorScroll has been used
               colorScroll(event);
             } 
             /**/else/**/ 
