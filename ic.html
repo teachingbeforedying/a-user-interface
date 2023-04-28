@@ -200,6 +200,16 @@
         }, {});
       }
 
+
+      static getMethods(obj) {
+        let properties = new Set();
+        let currentObj = obj;
+        do {
+          Object.getOwnPropertyNames(currentObj).map(item => properties.add(item));
+        } while ((currentObj = Object.getPrototypeOf(currentObj)));
+        return [...properties.keys()].filter(item => typeof obj[item] === 'function');
+      }
+
     }
 
 
@@ -5368,14 +5378,30 @@
         return arr_icPoint__near;
       }
 
-
-      getRootCompositeForPart(icObj__part) {
+      getRootCompositeForPart(icObj__part) {  //recursively seek parent composite
         if(icObj__part.compositeId != -1) {
-          const icObj__composite = this.getRepresented(icObj__part.compositeId).getRepresentation("official");
+          const icObj__composite = this.getParentCompositeForPart(icObj__part);
           return this.getRootCompositeForPart(icObj__composite);
         } else {
           return icObj__part;
         }
+      }
+
+      getParentCompositeForPart(icObj__part) {
+        const icObj__composite = this.getRepresented(icObj__part.compositeId).getRepresentation("official");
+        return icObj__composite;
+      }
+
+
+      traverseComposite(icObj__composite, func_callback/*, isBreadthFirst = true*/) {
+        func_callback(icObj__composite);
+        Object.entries(icObj__composite.parts).forEach(([partName, icObj__part], i) => {
+          if(icObj__part.type == "composite") {
+            this.traverseComposite(icObj__part, func_callback);
+          } else {
+            func_callback(icObj__part);
+          }
+        });
       }
 
 
@@ -15831,7 +15857,7 @@
 
       //add
       addIcObject(icObj) {
-        console.log("addIcObject", icObj);
+        // logger.log("logCP", "addIcObject", icObj);
 
         if (this.getRepresented(icObj.id) != null) {
           //ignore
@@ -21328,32 +21354,42 @@
         const icObj = this;
 
         icObj.holdListeners = [];
-        icObj.nowHeld = () => {
-          icObj.isHeld = true;
-          icObj.holdListeners.forEach((listener, i) => {
-            listener(icObj);
+        function nowHeld() {
+          this.isHeld = true;
+          this.holdListeners.forEach((listener, i) => {
+            listener(this);
           });
         }
-        icObj.onHold = (listener) => {
-          icObj.holdListeners.push(listener);
-        };
-        icObj.offHold = (listener) => {
-          icObj.holdListeners = Utils.arrayByRemovingElement(icObj.holdListeners, listener);
-        };
+        icObj.registerFunc("nowHeld", nowHeld);
+        function onHold(listener) {
+          this.holdListeners.push(listener);
+        }
+        icObj.registerFunc("onHold", onHold);
+
+        function offHold (listener) {
+          this.holdListeners = Utils.arrayByRemovingElement(this.holdListeners, listener);
+        }
+        icObj.registerFunc("offHold", offHold);
+
 
         icObj.releaseListeners = [];
-        icObj.nowReleased = () => {
-          icObj.isHeld = false;
-          icObj.releaseListeners.forEach((listener, i) => {
-            listener(icObj);
+        function nowReleased() {
+          this.isHeld = false;
+          this.releaseListeners.forEach((listener, i) => {
+            listener(this);
           });
         }
-        icObj.onRelease = (listener) => {
-          icObj.releaseListeners.push(listener);
-        };
-        icObj.offRelease = (listener) => {
-          icObj.releaseListeners = Utils.arrayByRemovingElement(icObj.releaseListeners, listener);
-        };
+        icObj.registerFunc("nowReleased", nowReleased);
+        
+        function onRelease(listener) {
+          this.releaseListeners.push(listener);
+        }
+        icObj.registerFunc("onRelease", onRelease);
+
+        function offRelease(listener) {
+          this.releaseListeners = Utils.arrayByRemovingElement(this.releaseListeners, listener);
+        }
+        icObj.registerFunc("offRelease", offRelease);
 
       }
 
@@ -21361,36 +21397,45 @@
         const icObj = this;
 
         icObj.editEnterListeners = [];
-        icObj.nowEditEnter__virgin = function() {
+        function nowEditEnter() {
           this.isEditing = true;
           globalsSingleton.isEditing = true;
           this.editEnterListeners.forEach((listener, i) => {
             listener(this);
           });
-        };
-        icObj.nowEditEnter = icObj.nowEditEnter__virgin.bind(icObj);
-        icObj.onEditEnter = (listener) => {
-          icObj.editEnterListeners.push(listener);
-        };
-        icObj.offEditEnter = (listener) => {
-          icObj.editEnterListeners = Utils.arrayByRemovingElement(icObj.editEnterListeners, listener);
-        };
+        }
+        icObj.registerFunc("nowEditEnter", nowEditEnter);
+
+        function onEditEnter(listener) {
+          this.editEnterListeners.push(listener);
+        }
+        icObj.registerFunc("onEditEnter", onEditEnter);
+
+        function offEditEnter(listener) {
+          this.editEnterListeners = Utils.arrayByRemovingElement(this.editEnterListeners, listener);
+        }
+        icObj.registerFunc("offEditEnter", offEditEnter);
+
 
         icObj.editExitListeners = [];
-        icObj.nowEditExit__virgin = function() {
+        function nowEditExit() {
           this.isEditing = false;
           globalsSingleton.isEditing = false;
           this.editExitListeners.forEach((listener, i) => {
             listener(this);
           });
-        };
-        icObj.nowEditExit = icObj.nowEditExit__virgin.bind(icObj);
-        icObj.onEditExit = (listener) => {
-          icObj.editExitListeners.push(listener);
-        };
-        icObj.offEditExit = (listener) => {
-          icObj.editExitListeners = Utils.arrayByRemovingElement(icObj.editExitListeners, listener);
-        };
+        }
+        icObj.registerFunc("nowEditExit", nowEditExit);
+
+        function onEditExit(listener) {
+          this.editExitListeners.push(listener);
+        }
+        icObj.registerFunc("onEditExit", onEditExit);
+
+        function offEditExit(listener) {
+          this.editExitListeners = Utils.arrayByRemovingElement(this.editExitListeners, listener);
+        }
+        icObj.registerFunc("offEditExit", offEditExit);
 
       }
 
@@ -21399,17 +21444,23 @@
         const icObj = this;
 
         icObj.clickListeners = [];
-        icObj.nowClicked = () => {
-          icObj.clickListeners.forEach((listener, i) => {
-            listener(icObj);
+        function nowClicked() {
+          this.clickListeners.forEach((listener, i) => {
+            listener(this);
           });
-        };
-        icObj.onClick = (listener) => {
-          icObj.clickListeners.push(listener);
-        };
-        icObj.offClick = (listener) => {
-          icObj.clickListeners = Utils.arrayByRemovingElement(icObj.clickListeners, listener);
-        };
+        }
+        icObj.registerFunc("nowClicked", nowClicked);
+
+        function onClick(listener) {
+          this.clickListeners.push(listener);
+        }
+        icObj.registerFunc("onClick", onClick);
+
+        function offClick(listener) {
+          this.clickListeners = Utils.arrayByRemovingElement(this.clickListeners, listener);
+        }
+        icObj.registerFunc("offClick", offClick);
+
       }
 
       removeInteraction_click() {
@@ -21571,7 +21622,7 @@
       }
 
       deepClone() { //SHU TODO: pour l'instant j'ai la flemme, mais il faudra des deep copy
-        logger.log("logCP", "deepClone", "this:", this);
+        // logger.log("logCP", "deepClone", "this:", this);
         const icObj = this;
 
         const id   = this.id;
@@ -21592,8 +21643,13 @@
         };
 
         const icObj__deepClone = new IcObject(id, type, position, size, homeScale);
+        // logger.log("logCP", "deepClone", "icObj__deepClone:", icObj__deepClone);
+        
+        const arr_method = Utils.getMethods(icObj__deepClone);
+        // logger.log("logCP", "deepClone", "arr_method:", arr_method);
 
         const arr_alreadySet = [
+          ...arr_method,
           "id",
           "type",
           "position",
@@ -21605,7 +21661,7 @@
           "snappedTo",
         ];
 
-        logger.log("logCP", "deepClone", "Object.keys(this):", Object.keys(this));
+        // logger.log("logCP", "deepClone", "Object.keys(this):", Object.keys(this));
 
         Object.entries(this)
           .filter(([key, value]) => {
@@ -21617,7 +21673,7 @@
             return !isPropertyIgnored;
           })
           .forEach(([key, value], i) => {
-            logger.log("logCP", "deepClone", "(k,v):", key, value);
+            // logger.log("logCP", "deepClone", "(k,v):", key, value);
 
             switch (key) {
               case "scale":
@@ -21668,9 +21724,30 @@
 
                 }
                 break;
+              case "dict_engine":
+                {
+                  icObj__deepClone[key] = [...Object.entries(icObj[key])].reduce((acc, [eType, engineMiniDict]) => {
+                    //logger.log("logCP", "deepClone", "dict_engine[" + eType + "]", engineMiniDict);
+
+                    acc[eType] = {
+                      index_start:  engineMiniDict.index_start,
+                      engine: this.deepClone__engine(engineMiniDict.engine),
+                    };
+                    return acc;
+                  }, {});
+                }
+                break;
+              case "parts":
+                {
+                  icObj__deepClone[key] = [...Object.entries(icObj[key])].reduce((acc, [partName, icObj__part]) => {
+                    acc[partName] = icObj__part.deepClone();
+                    return acc;
+                  }, {});
+                }
+                break;
               default:
                 {
-                  logger.log("logCP", "deepClone", "default:", key);
+                  // logger.log("logCP", "deepClone", "default:", key);
                   const prop__cloned    = this.deepClone__propertyObject(icObj, key, icObj[key]);
                   icObj__deepClone[key] = prop__cloned;
                   //check if we can bind
@@ -21680,7 +21757,7 @@
                       icObj__deepClone[key] = icObj__deepClone[key].bind(icObj__deepClone);
                     }
                   }
-                  logger.log("logCP", "deepClone", "default:", "icObj__deepClone[key]:", icObj__deepClone[key]);
+                  // logger.log("logCP", "deepClone", "default:", "icObj__deepClone[key]:", icObj__deepClone[key]);
                 }
                 break;
             }
@@ -21690,12 +21767,24 @@
         return icObj__deepClone;
       }
 
+      deepClone__engine(engine) {
+        const virgin_src = engine.virgin;
+        const virgin     = Object.assign({}, virgin_src);
+        // const virgin = this.deepClone__propertyObject(virgin_src); //not working
+
+        const engine_cloned      = {};
+        engine_cloned.initialize = virgin.initialize.bind(engine_cloned);
+        engine_cloned.virgin     = virgin;
+
+        return engine_cloned;
+      }
+
       deepClone__func(func) {
         return deserialize(serialize(func)); 
       }
 
       deepClone__propertyObject(motherObject, propName, prop) {
-        logger.log("logCP", "deepClone__propertyObject", motherObject, propName, prop);
+        // logger.log("logCP", "deepClone__propertyObject", motherObject, propName, prop);
 
         if(prop instanceof Function) {
           const propName__virgin = propName + "__" + "virgin";
@@ -21731,6 +21820,15 @@
       }
 
       
+      registerFunc(key, func) {
+        //store virgin
+        const key__virgin = key + "__" + "virgin";
+        this[key__virgin] = func;
+        
+        //set func and bind
+        this[key] = func.bind(this);
+      }
+
 
     }
 
@@ -22482,7 +22580,6 @@
 
         const receiver = {}; //<-- receive updates from backingObject(s)
         receiver.id_rep = id_rep;
-
 
         const inner = target.clone();
         // console.log("inner", inner);
@@ -24805,7 +24902,7 @@
             this.awoken = {
               'i_am': "awoken",
             };
-            console.log("this.virgin", this.virgin);
+            // logger.log("logCP", "CompositeEngine", "this.virgin", this.virgin);
             Object.entries(this.virgin)
               .filter(([propName, prop]) => isFunction(prop))
               .forEach(([propName, prop], i) => {
@@ -33603,7 +33700,7 @@
 
           fObj.on('editing:entered', function (options) {
             const icObj = fObj.icObj;
-            logger.log("logCP", 'editing:entered', "icObj:", icObj);
+            // logger.log("logCP", 'editing:entered', "icObj:", icObj);
             icObj.nowEditEnter();
           });
 
@@ -36962,52 +37059,101 @@
         }
 
         copySelection(event) {
-          console.log("copySelection", event);
-
           const clipboardIntegration = this.clipboardIntegration;
           // this.fabricCanvas.getActiveObject().clone(function(cloned) {
           //   clipboardIntegration.manageInnerCopy("fabric.general", cloned);
           // });
           const fActiveObject = this.fabricCanvas.getActiveObject(); 
-          logger.log("logCopy", "fActiveObject", fActiveObject);
+          // logger.log("logCP", "fActiveObject", fActiveObject);
           const icObj = fActiveObject.icObj;
+          // logger.log("logCP", "icObj.type:", icObj.type);
 
-          switch(icObj) {
+          switch(icObj.type) {
             case "activeSelection":
               {
-                copy_group(icObj);
+                if(icObj.children.length == 1) {
+                  const icObj_single = icObj.children.find(e => true);
+                  // logger.log("logCP", "copySelection", "icObj_single:", icObj_single);
+                  copy_single_or_composite(icObj_single);
+                } else {
+                  copy_group(icObj.children);
+                }
               }
               break;
             default:
-              {
-                
-                copy_single(icObj);
+              {  
+                copy_single_or_composite(icObj);
               }
               break;
           }
 
-          function copy_group(icObj) {
-            const cloned = icObj.deepClone();
+          function copy_group(arr_icObj) {
+            //SHU TODO
+            // const cloned = icObj.deepClone();
+            // cloned.position.x += 10;
+            // cloned.position.y += 10;
+
+            // clipboardIntegration.manageInnerCopy("fabric.general", cloned);
+          }
+
+          function copy_single_or_composite(icObj_src) {
+            // logger.log("logCP", "copy_single_or_composite", "icObj_src:", icObj_src);
+
+            const isCompositePart = (icObj_src.compositeId != -1);
+            const isComposite     = (icObj_src.type == "composite");
+            if(isCompositePart) {
+              //get root composite
+              const icObj__rootComposite = infiniteCanvas.getRootCompositeForPart(icObj_src);
+              copy_composite(icObj__rootComposite);
+            } else if(isComposite) {
+              copy_composite(icObj_src);
+            } 
+            else {
+              copy_single(icObj_src);
+            }
+          }
+
+          function copy_single(icObj_single) {
+            // logger.log("logCP", "copy_single", "icObj_single:", icObj_single);
+
+            const cloned = icObj_single.deepClone();
             cloned.position.x += 10;
             cloned.position.y += 10;
 
             clipboardIntegration.manageInnerCopy("fabric.general", cloned);
           }
 
-          function copy_single(icObj) {
+          function copy_composite(icObj__composite) {
+            // logger.log("logCP", "copy_composite", "icObj__composite:", icObj__composite);
 
-            var icObj_src;
-            if(icObj.compositeId == -1) {
-              icObj_src = icObj;
-            } else {
-              //get root composite
-              const icObj__rootComposite = infiniteCanvas.getRootCompositeForPart(icObj);
-              icObj_src = icObj__rootComposite;
-            }
-
-            const cloned = icObj_src.deepClone();
+            const cloned = icObj__composite.deepClone();
             cloned.position.x += 10;
             cloned.position.y += 10;
+
+            //translate ids
+            infiniteCanvas.traverseComposite(cloned, (icObj) => {
+              const id_prev = icObj.id;
+              const id_new  = id_prev + 100; 
+              
+              //update id in compositeConfig
+              //SHU BAD
+              // const icObj_parent = infiniteCanvas.getParentCompositeForPart(icObj); //can't use it since objects have not been added to iC yet
+              // icObj_parent.compositeConfig[id_new] = icObj_parent.compositeConfig[id_prev]; 
+
+              //SHU BAD: SHU666777
+              if(icObj.type == "composite") {
+                icObj.compositeConfig = Object.entries(icObj.compositeConfig).reduce((acc, [str__id_part, miniDict]) => {
+                  const id__part__prev = parseInt(str__id_part);
+                  const id__part__new  = id__part__prev + 100;
+                  const str__id_part__new = "" + id__part__new;
+                  acc[str__id_part__new] = miniDict;
+                  return acc;
+                });
+              }
+
+              //update id
+              icObj.id = id_new;
+            });
 
             clipboardIntegration.manageInnerCopy("fabric.general", cloned);
           }
