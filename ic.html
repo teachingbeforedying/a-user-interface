@@ -185,8 +185,13 @@
       }
 
 
-      static zip(a, b) {
-        return a.map((k, i) => [k, b[i]]);
+      // static zip(a, b) {
+      //   return a.map((k, i) => [k, b[i]]);
+      // }
+      static zip(...arr_arr) {
+        return arr_arr[0].map(function(_,i){
+          return arr_arr.map(function(array){return array[i]})
+        });
       }
 
       static cartesianProduct(a, b) {
@@ -5404,7 +5409,22 @@
         });
       }
 
-
+      traverseCompositeDoppel(arr_icObj__composite, func_callback/*, isBreadthFirst = true*/) {
+        func_callback(arr_icObj__composite);
+        const arr_arr_entry_parts = arr_icObj__composite.map((icObj__composite) => {
+          return Object.entries(icObj__composite.parts);
+        });
+        const arr_zip_entry_parts = Utils.zip(...arr_arr_entry_parts);
+        arr_zip_entry_parts.forEach((arr_entry, i) => {
+          const arr_icObj__part = arr_entry.map((entry) => {return entry[1];});
+          const icObj_sample = arr_icObj__part.find(e => true);
+          if(icObj_sample.type == "composite") {
+            this.traverseCompositeDoppel(arr_icObj__part, func_callback);
+          } else {
+            func_callback(arr_icObj__part);
+          }
+        });
+      }
 
 
       createIcRect_withLTWH(left, top, width, height) {
@@ -16844,7 +16864,7 @@
 
 
       compose(arr_icObj) {
-        console.log("compose", arr_icObj);
+        logger.log("logComposite", "compose", arr_icObj);
         const infiniteCanvas = this;
 
         function debugTrueRect(infiniteCanvas) {
@@ -21621,7 +21641,7 @@
         return icObj_clone;
       }
 
-      deepClone() { //SHU TODO: pour l'instant j'ai la flemme, mais il faudra des deep copy
+      deepClone() { 
         // logger.log("logCP", "deepClone", "this:", this);
         const icObj = this;
 
@@ -21658,7 +21678,8 @@
         ];
 
         const arr_ignored = [
-          "snappedTo",
+          // "snappedTo",
+          "icObj__activeSelection",
         ];
 
         // logger.log("logCP", "deepClone", "Object.keys(this):", Object.keys(this));
@@ -21768,6 +21789,8 @@
       }
 
       deepClone__engine(engine) {
+        // logger.log("logCP", "deepClone__engine", engine);
+
         const virgin_src = engine.virgin;
         const virgin     = Object.assign({}, virgin_src);
         // const virgin = this.deepClone__propertyObject(virgin_src); //not working
@@ -21780,6 +21803,7 @@
       }
 
       deepClone__func(func) {
+        // logger.log("logCP", "deepClone__func", func);
         return deserialize(serialize(func)); 
       }
 
@@ -37066,7 +37090,7 @@
           const fActiveObject = this.fabricCanvas.getActiveObject(); 
           // logger.log("logCP", "fActiveObject", fActiveObject);
           const icObj = fActiveObject.icObj;
-          // logger.log("logCP", "icObj.type:", icObj.type);
+          logger.log("logCP", "icObj.type:", icObj.type);
 
           switch(icObj.type) {
             case "activeSelection":
@@ -37126,36 +37150,39 @@
           function copy_composite(icObj__composite) {
             // logger.log("logCP", "copy_composite", "icObj__composite:", icObj__composite);
 
-            const cloned = icObj__composite.deepClone();
-            cloned.position.x += 10;
-            cloned.position.y += 10;
+            const icObj__cloned = icObj__composite.deepClone();
+            // icObj__cloned.position.x += 10;
+            // icObj__cloned.position.y += 10;
 
             //translate ids
-            infiniteCanvas.traverseComposite(cloned, (icObj) => {
-              const id_prev = icObj.id;
-              const id_new  = id_prev + 100; 
+            function translatedId(id) {
+              return id + 100; 
+            }
+            infiniteCanvas.traverseCompositeDoppel([icObj__composite, icObj__cloned], ([icObj_src, icObj_clo]) => {
               
-              //update id in compositeConfig
-              //SHU BAD
-              // const icObj_parent = infiniteCanvas.getParentCompositeForPart(icObj); //can't use it since objects have not been added to iC yet
-              // icObj_parent.compositeConfig[id_new] = icObj_parent.compositeConfig[id_prev]; 
-
-              //SHU BAD: SHU666777
-              if(icObj.type == "composite") {
-                icObj.compositeConfig = Object.entries(icObj.compositeConfig).reduce((acc, [str__id_part, miniDict]) => {
-                  const id__part__prev = parseInt(str__id_part);
-                  const id__part__new  = id__part__prev + 100;
-                  const str__id_part__new = "" + id__part__new;
-                  acc[str__id_part__new] = miniDict;
-                  return acc;
-                });
+              //update id
+              icObj_clo.id = translatedId(icObj_src.id);
+              
+              if(icObj_clo.type == "composite") {
+                //update id in compositeConfig
+                icObj_clo.compositeConfig = Object.entries(icObj_src.compositeConfig)
+                                                .reduce((acc, [str__id_part__src, miniDict__src]) => {
+                                                  const id__part__prev = parseInt(str__id_part__src);
+                                                  const id__part__new  = translatedId(id__part__prev);
+                                                  const str__id_part__new = "" + id__part__new;
+                                                  acc[str__id_part__new] = Object.assign({}, miniDict__src);
+                                                  return acc;
+                                                }, {});
               }
 
-              //update id
-              icObj.id = id_new;
+              //update compositeId
+              if(icObj_clo.compositeId != -1) {
+                icObj_clo.compositeId = translatedId(icObj_src.compositeId);
+              }
+
             });
 
-            clipboardIntegration.manageInnerCopy("fabric.general", cloned);
+            clipboardIntegration.manageInnerCopy("fabric.general", icObj__cloned);
           }
 
         }
@@ -55123,7 +55150,7 @@
           }, []);
 
           const parts = Utils.dictFromArr(arr_icRect);
-          const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+          const compositeConfig = Compositer.defaultCompositeConfig(parts, true);
           // compositeConfig__knob[icMathNode__knob.id].isMobile = true;
           const trueRect__composite = {
             x:      -100,
