@@ -296,6 +296,100 @@
 
     }
 
+
+
+    class CompositeUtils {
+
+      static traverseComposite(icObj__composite, func_callback/*, isBreadthFirst = true*/) {
+        func_callback(icObj__composite);
+        Object.entries(icObj__composite.parts).forEach(([partName, icObj__part], i) => {
+          if(icObj__part.type == "composite") {
+            this.traverseComposite(icObj__part, func_callback);
+          } else {
+            func_callback(icObj__part);
+          }
+        });
+      }
+
+      static traverseCompositeDoppel(arr_icObj__composite, func_callback/*, isBreadthFirst = true*/) {
+        func_callback(arr_icObj__composite);
+        const arr_arr_entry_parts = arr_icObj__composite.map((icObj__composite) => {
+          return Object.entries(icObj__composite.parts);
+        });
+        const arr_zip_entry_parts = Utils.zip(...arr_arr_entry_parts);
+        arr_zip_entry_parts.forEach((arr_entry, i) => {
+          const arr_icObj__part = arr_entry.map((entry) => {return entry[1];});
+          const icObj_sample = arr_icObj__part.find(e => true);
+          if(icObj_sample.type == "composite") {
+            this.traverseCompositeDoppel(arr_icObj__part, func_callback);
+          } else {
+            func_callback(arr_icObj__part);
+          }
+        });
+      }
+
+      static shiftToNextAvailableId(icObj__cloned, icObj__composite, infiniteCanvas) {
+
+        //prepare id shift
+        const id__min__in_composite = this.getId__min(icObj__composite);
+        const id__max__in_iC        = infiniteCanvas.getId__max();
+        const value_offset_id = id__max__in_iC - id__min__in_composite + 1;
+
+        function translatedId(id) {
+          return id + value_offset_id; 
+        }
+
+        //perform id shift
+        this.traverseCompositeDoppel([icObj__composite, icObj__cloned], ([icObj_src, icObj_clo]) => {
+          
+          //update id
+          icObj_clo.id = translatedId(icObj_src.id);
+          
+          if(icObj_clo.type == "composite") {
+            //update id in compositeConfig
+            icObj_clo.compositeConfig = Object.entries(icObj_src.compositeConfig)
+                                            .reduce((acc, [str__id_part__src, miniDict__src]) => {
+                                              const id__part__prev = parseInt(str__id_part__src);
+                                              const id__part__new  = translatedId(id__part__prev);
+                                              const str__id_part__new = "" + id__part__new;
+                                              acc[str__id_part__new] = Object.assign({}, miniDict__src);
+                                              return acc;
+                                            }, {});
+          }
+
+          //update compositeId
+          if(icObj_clo.compositeId != -1) {
+            icObj_clo.compositeId = translatedId(icObj_src.compositeId);
+          }
+
+        });
+      }
+
+      static getId__min(icObj__composite) {
+        var id__min = icObj__composite.id;
+        this.traverseComposite(icObj__composite, (icObj) => {
+          if(icObj.id < id__min) {
+            id__min = icObj.id;
+          }
+        });
+        return id__min;
+      }
+
+      //SHU TODO
+      // static reduce(icObj__composite, func_callback, value_initial) {
+      //   this.traverseComposite(icObj__composite, func_callback)
+      // }
+
+
+      static shiftToPositionAndScale(icObj__composite, position_new, homeScale_new) {
+
+      }
+
+    }
+
+
+
+
     class Vibration {
 
       constructor(seed_in = null) {
@@ -5019,6 +5113,7 @@
 
         this.isColorPickerAvailable = true;
 
+        this.isDryScrolling         = false;
 
         this.counter__event = 1;  //shu: this starts at 1
 
@@ -5397,34 +5492,12 @@
         return icObj__composite;
       }
 
-
-      traverseComposite(icObj__composite, func_callback/*, isBreadthFirst = true*/) {
-        func_callback(icObj__composite);
-        Object.entries(icObj__composite.parts).forEach(([partName, icObj__part], i) => {
-          if(icObj__part.type == "composite") {
-            this.traverseComposite(icObj__part, func_callback);
-          } else {
-            func_callback(icObj__part);
-          }
-        });
+      getId__max() {
+        return this.getArr_icObj().map((icObj) => icObj.id).reduce((acc, x) => {
+          return math.max(acc, x);
+        }, -1);
       }
 
-      traverseCompositeDoppel(arr_icObj__composite, func_callback/*, isBreadthFirst = true*/) {
-        func_callback(arr_icObj__composite);
-        const arr_arr_entry_parts = arr_icObj__composite.map((icObj__composite) => {
-          return Object.entries(icObj__composite.parts);
-        });
-        const arr_zip_entry_parts = Utils.zip(...arr_arr_entry_parts);
-        arr_zip_entry_parts.forEach((arr_entry, i) => {
-          const arr_icObj__part = arr_entry.map((entry) => {return entry[1];});
-          const icObj_sample = arr_icObj__part.find(e => true);
-          if(icObj_sample.type == "composite") {
-            this.traverseCompositeDoppel(arr_icObj__part, func_callback);
-          } else {
-            func_callback(arr_icObj__part);
-          }
-        });
-      }
 
 
       createIcRect_withLTWH(left, top, width, height) {
@@ -16393,15 +16466,22 @@
 
         const true_cursor = this.getTrueCursor();
 
-        icObj.position = {
+        const position_new = {
           x: true_cursor.x,
           y: true_cursor.y,
         };
 
-        icObj.homeScale = {
+        const homeScale_new = {
           X: infiniteCanvas.scale.X,
           Y: infiniteCanvas.scale.Y,
         };
+
+        if(icObj.type == "composite") {
+          CompositeUtils.shiftToPositionAndScale(icObj, position_new, homeScale_new);
+        } else {
+          icObj.position  = position_new;
+          icObj.homeScale = homeScale_new;
+        }
 
         infiniteCanvas.addIcObject(icObj);
       }
@@ -19946,15 +20026,21 @@
             function mathFieldTex_to_mathNode(tex) {
               var outMathNode;
 
-              // outMathNode = math.parse(tex);
-              const mathExpression = MathExpression.fromLatex(tex);
-              const text = mathExpression.toString();
-              console.log("text", text);
-              outMathNode = math.parse(text);
+              try {
 
-              //don't parse "=" into ":="
+                // outMathNode = math.parse(tex);
 
-              //upgrade to gmOperator when writing "x50"
+                const mathExpression = MathExpression.fromLatex(tex);
+                const text = mathExpression.toString();
+                console.log("text", text);
+                outMathNode = math.parse(text);
+
+                //don't parse "=" into ":="
+
+                //upgrade to gmOperator when writing "x50"
+              } catch {
+                outMathNode = null;
+              }
 
               return outMathNode;
             }
@@ -19977,21 +20063,24 @@
           mathField.revert();
         }
 
-        if(fabricIntegration.fabricCanvas.isDrawingMode) {
-          //create/add divided segment
-          const position__icMathNode = this.getTrueCursor();
-          const mathNode   = this.mathNode_numberTyping.cloneDeep();
-          const dividedSegment = this.createIcMathNode(position__icMathNode.x, position__icMathNode.y, mathNode);
-          this.addNewIcObject(icMathNode);
+        if(this.mathNode_numberTyping != null) {
 
-        } else {
-          //create/add icMathNode
-          const position__icMathNode = this.getTrueCursor();
-          const mathNode   = this.mathNode_numberTyping.cloneDeep();
-          const icMathNode = this.createIcMathNode(position__icMathNode.x, position__icMathNode.y, mathNode);
-          this.addNewIcObject(icMathNode);
+          if(fabricIntegration.fabricCanvas.isDrawingMode) {
+            //create/add divided segment
+            const position__icMathNode = this.getTrueCursor();
+            const mathNode   = this.mathNode_numberTyping.cloneDeep();
+            const dividedSegment = this.createIcMathNode(position__icMathNode.x, position__icMathNode.y, mathNode);
+            this.addNewIcObject(icMathNode);
+
+          } else {
+            //create/add icMathNode
+            const position__icMathNode = this.getTrueCursor();
+            const mathNode   = this.mathNode_numberTyping.cloneDeep();
+            const icMathNode = this.createIcMathNode(position__icMathNode.x, position__icMathNode.y, mathNode);
+            this.addNewIcObject(icMathNode);
+          }
+
         }
-
 
 
         this.mathNode_numberTyping  = null;
@@ -34615,10 +34704,15 @@
         // }
 
         updateFabricObjectsPosition(redrawOccasion) {
+          const infiniteCanvas = this.infiniteCanvas;
 
           switch (redrawOccasion) {
             case RedrawOccasion.scaleChanged:
-              this.updateFabricObjectsPosition_zScroll(redrawOccasion);
+              if(!infiniteCanvas.isDryScrolling) {
+                this.updateFabricObjectsPosition_zScroll(redrawOccasion);
+              } else {
+                this.updateFabricObjectsPosition_default(redrawOccasion);
+              }
               break;
 
             // case RedrawOccasion.orientationChanged:
@@ -35114,7 +35208,11 @@
 
           switch (redrawOccasion) {
             case RedrawOccasion.scaleChanged:
-              this.updateFabricObjectsSize_zScroll();
+              if(!infiniteCanvas.isDryScrolling) {
+                this.updateFabricObjectsSize_zScroll();
+              } else {
+                this.updateFabricObjectsSize_default();
+              }
               break;
 
             default:
@@ -37151,36 +37249,11 @@
             // logger.log("logCP", "copy_composite", "icObj__composite:", icObj__composite);
 
             const icObj__cloned = icObj__composite.deepClone();
-            // icObj__cloned.position.x += 10;
-            // icObj__cloned.position.y += 10;
+            icObj__cloned.position.x += 10;
+            icObj__cloned.position.y += 10;
 
-            //translate ids
-            function translatedId(id) {
-              return id + 100; 
-            }
-            infiniteCanvas.traverseCompositeDoppel([icObj__composite, icObj__cloned], ([icObj_src, icObj_clo]) => {
-              
-              //update id
-              icObj_clo.id = translatedId(icObj_src.id);
-              
-              if(icObj_clo.type == "composite") {
-                //update id in compositeConfig
-                icObj_clo.compositeConfig = Object.entries(icObj_src.compositeConfig)
-                                                .reduce((acc, [str__id_part__src, miniDict__src]) => {
-                                                  const id__part__prev = parseInt(str__id_part__src);
-                                                  const id__part__new  = translatedId(id__part__prev);
-                                                  const str__id_part__new = "" + id__part__new;
-                                                  acc[str__id_part__new] = Object.assign({}, miniDict__src);
-                                                  return acc;
-                                                }, {});
-              }
-
-              //update compositeId
-              if(icObj_clo.compositeId != -1) {
-                icObj_clo.compositeId = translatedId(icObj_src.compositeId);
-              }
-
-            });
+            //shift ids
+            CompositeUtils.shiftToNextAvailableId(icObj__cloned, icObj__composite, infiniteCanvas);
 
             clipboardIntegration.manageInnerCopy("fabric.general", icObj__cloned);
           }
@@ -40734,21 +40807,20 @@
               logger.log("isInnerMostRecent", isInnerMostRecent);
 
               if (isInnerMostRecent) {
-                const icObj = innerCopyEvent.clipboardObject.content;
-                icObj.id += 1000;
+                const icObj__cloned = innerCopyEvent.clipboardObject.content;
 
                 //clone newly created, shift it, and copy it {
-                const cloned = icObj.deepClone();
-                cloned.id += 1000;
+                const icObj__recloned = icObj__cloned.deepClone();
+                icObj__recloned.position.x += 10;
+                icObj__recloned.position.y += 10;
 
-                cloned.position.x += 10;
-                cloned.position.y += 10;
+                //shift ids
+                CompositeUtils.shiftToNextAvailableId(icObj__recloned, icObj__cloned, infiniteCanvas);
 
-                clipboardIntegration.manageInnerCopy("fabric.general", cloned);
+                clipboardIntegration.manageInnerCopy("fabric.general", icObj__recloned);
                 //}
 
-                // outVal = icObj;
-                out_p = Promise.resolve(icObj);
+                out_p = Promise.resolve(icObj__cloned);
 
               } else {
                 out_p = clipboardIntegration.outerToInner_p(outerPasteEvent);
@@ -41472,6 +41544,9 @@
                 //only side effect is used
               }),
               ctrlLeft: new KeyDownToggle("ctrlLeft", KeyDownToggle.defaultKeyDownFunc(["ControlLeft"]), (isActive) => {
+                //only side effect is used
+              }),
+              space: new KeyDownToggle("space", KeyDownToggle.defaultKeyDownFunc(["Space"]), (isActive) => {
                 //only side effect is used
               }),
 
@@ -42605,7 +42680,14 @@
 
 
                 case "Space":
-                  fabricIntegration.deselectAll();
+                  {
+                    const infiniteCanvas = keyboardIntegration.infiniteCanvas;
+                    if(!infiniteCanvas.isDryScrolling) {
+                      fabricIntegration.deselectAll();
+                    } else {
+                      infiniteCanvas.isDryScrolling = false;
+                    }
+                  }
                   break;
 
 
@@ -42687,6 +42769,18 @@
             logger.log("logKB", "handleKeyDown", "e.code", e.code);
 
             if(e.repeat) {
+
+              //ignore repeating KeyZ 
+              if (globalsSingleton.isEditing) {
+                if(infiniteCanvas.isNumberTyping) {
+                  //ignore KeyZ
+                  if(e.code == "KeyZ") {
+                    e.preventDefault();
+                  }
+                }
+                return;
+              }
+
               updateKeyDownTimeouts(e, true);
             } else {
               handleKeyDownOnce(e);
@@ -43020,6 +43114,11 @@
             }
 
             function zoomScroll(event) {
+
+              if(keyboardIntegration.keyDownToggles.space.isActive) {
+                mouseIntegration.infiniteCanvas.isDryScrolling = true;
+              }
+
               const deltaY = event.deltaY;
               // const scaleAmount = -deltaY / 500;
               const scroll_step = mouseIntegration.inputProperties.scrollProperties.step;
