@@ -36,7 +36,8 @@ _Cores_
 https://www.youtube.com/watch?v=ZGPzRM4oQSw
 
 ## Try it offline !
-1. Download project : [Code] (green button) > [Download ZIP]  
+1. Download project : [Code] (green button) > [Download ZIP]          
+        OR more simply: ![iC.zip](https://github.com/teachingbeforedying/infiniteCanvas/releases/download/v0.0.0-alpha/iC.zip)
 2. Open ic.html  
 (3. Mess around with objects and keyboard shortcuts)   
    
