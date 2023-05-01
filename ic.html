@@ -5111,6 +5111,10 @@
         this.isFreeDrawingPan      = false;
         this.hasBeenFreeDrawingPan = false;
 
+        this.isZScrollingPan      = false;
+        this.hasBeenZscrollingPan = false;
+
+
         this.isColorPickerAvailable = true;
 
         this.isDryScrolling         = false;
@@ -19409,6 +19413,8 @@
 
         if(fabricIntegration.fabricCanvas.isDrawingMode && mouseIntegration.leftMouseDown && !infiniteCanvas.isFreeDrawingPan) {
           infiniteCanvas.enterPan__freeDrawing(func_update);
+        } else if((infiniteCanvas.getArr_rep_free__isHeld().length !=0) && mouseIntegration.leftMouseDown && !infiniteCanvas.isObjectHoldingPan) {
+          infiniteCanvas.enterPan__objectHolding(func_update);
         } 
         else {
           func_update();
@@ -19418,7 +19424,7 @@
 
       enterPan__freeDrawing(func_update) {
         this.isFreeDrawingPan      = true;
-        fabricIntegration.simulateMouseUp(() => {
+        fabricIntegration.simulateMouseUp__with_freeDrawingBrush(() => {
           fabricIntegration.leaveFreeDrawing__atomic();
           func_update();
           fabricIntegration.fabricCanvas.isDrawingMode = false;
@@ -19428,10 +19434,25 @@
       leavePan__freeDrawing() {
         fabricIntegration.fabricCanvas.isDrawingMode = true;
         fabricIntegration.enterFreeDrawing__atomic({isCosmetic:false});
-        fabricIntegration.simulateMouseDown(() => {});
+        fabricIntegration.simulateMouseDown__with_freeDrawingBrush(() => {});
         this.isFreeDrawingPan      = false;
         this.hasBeenFreeDrawingPan = true;
       }
+
+
+
+      enterPan__objectHolding(func_update) {
+        this.isObjectHoldingPan      = true;
+        func_update();
+      }
+
+      leavePan__objectHolding() {
+        this.isObjectHoldingPan      = false;
+        this.hasBeenObjectHoldingPan = true;
+      }
+
+
+
 
       manageCursorMove_rotate(factor) {
         const infiniteCanvas = this;
@@ -19500,7 +19521,7 @@
 
         if(fabricIntegration.fabricCanvas.isDrawingMode && mouseIntegration.leftMouseDown) {
 
-          fabricIntegration.simulateMouseUpDown(() => {
+          fabricIntegration.simulateMouseUpDown__with_freeDrawingBrush(() => {
             fabricIntegration.leaveFreeDrawing__atomic();
             func_update();
             fabricIntegration.enterFreeDrawing__atomic({isCosmetic: false});
@@ -19606,7 +19627,7 @@
             infiniteCanvas.redrawCanvas(RedrawOccasion.scaleChanged);
           };
         
-          fabricIntegration.simulateMouseUpDown(() => {
+          fabricIntegration.simulateMouseUpDown__with_freeDrawingBrush(() => {
             fabricIntegration.leaveFreeDrawing__atomic();
             func_inBetween__updateScaleAndDOffset();
             fabricIntegration.enterFreeDrawing__atomic({isCosmetic: false});
@@ -19637,7 +19658,7 @@
 
         if(fabricIntegration.fabricCanvas.isDrawingMode && mouseIntegration.leftMouseDown) {
           //--- Simulate a natural mouse-click sequence.
-          fabricIntegration.simulateMouseUpDown(() => {
+          fabricIntegration.simulateMouseUpDown__with_freeDrawingBrush(() => {
             fabricIntegration.leaveFreeDrawing__atomic();
             func_update();
             fabricIntegration.enterFreeDrawing__atomic({isCosmetic: false});
@@ -19681,7 +19702,7 @@
             fabricIntegration.configureFreeDrawingBrush(brushConfig);
           };
         
-          fabricIntegration.simulateMouseUpDown(() => {
+          fabricIntegration.simulateMouseUpDown__with_freeDrawingBrush(() => {
             fabricIntegration.leaveFreeDrawing__atomic();
             func_inBetween();
             fabricIntegration.enterFreeDrawing__atomic({isCosmetic: false});
@@ -19730,7 +19751,7 @@
             fabricIntegration.configureFreeDrawingBrush(brushConfig);
           };
       
-          fabricIntegration.simulateMouseUpDown(() => {
+          fabricIntegration.simulateMouseUpDown__with_freeDrawingBrush(() => {
             fabricIntegration.leaveFreeDrawing__atomic();
             func_inBetween();
             fabricIntegration.enterFreeDrawing__atomic({isCosmetic: false});
@@ -19755,6 +19776,15 @@
             return rep_free.isSelected;
           });
         return arr_rep_free_selected;
+      }
+
+      getArr_rep_free__isHeld() {
+        const arr_rep_free = Object.values(this.represented).map(represented => represented.r_free());
+        const arr_rep_free_filtered = arr_rep_free
+          .filter(rep_free => {
+            return rep_free.isHeld;
+          });
+        return arr_rep_free_filtered;
       }
 
 
@@ -19802,7 +19832,7 @@
             fabricIntegration.configureFreeDrawingBrush(brushConfig);
           };
         
-          fabricIntegration.simulateMouseUpDown(() => {
+          fabricIntegration.simulateMouseUpDown__with_freeDrawingBrush(() => {
             fabricIntegration.leaveFreeDrawing__atomic();
             func_inBetween();
             fabricIntegration.enterFreeDrawing__atomic({isCosmetic: false});
@@ -19889,7 +19919,7 @@
             fabricIntegration.configureFreeDrawingBrush(brushConfig);
           };
         
-          fabricIntegration.simulateMouseUpDown(() => {
+          fabricIntegration.simulateMouseUpDown__with_freeDrawingBrush(() => {
             fabricIntegration.leaveFreeDrawing__atomic();
             func_inBetween();
             fabricIntegration.enterFreeDrawing__atomic({isCosmetic: false});
@@ -19933,7 +19963,7 @@
             fabricIntegration.configureFreeDrawingBrush(brushConfig);
           };
         
-          fabricIntegration.simulateMouseUpDown(() => {
+          fabricIntegration.simulateMouseUpDown__with_freeDrawingBrush(() => {
             fabricIntegration.leaveFreeDrawing__atomic();
             func_inBetween();
             fabricIntegration.enterFreeDrawing__atomic({isCosmetic: false});
@@ -21483,6 +21513,7 @@
 
         icObj.releaseListeners = [];
         function nowReleased() {
+          logger.log("nowReleased");
           this.isHeld = false;
           this.releaseListeners.forEach((listener, i) => {
             listener(this);
@@ -33741,38 +33772,35 @@
           const fabricIntegration = this;
 
           const infiniteCanvas = this.infiniteCanvas;
-          const fabricCanvas = this.fabricCanvas;
+          const fabricCanvas   = this.fabricCanvas;
 
           const icObj = fObj.icObj;
 
-          var isHeld = false;
+          // var isHeld = false;
           //hold
           fObj.on('mousedown', function (options) {
-            isHeld = true;
-            console.log("isHeld", isHeld);
-            console.log("icObj", icObj);
-            console.log("fObj.icObj", fObj.icObj);
-
+            logger.log("logFObj", "mousedown", fObj, options);
             icObj.nowHeld();
           });
 
           //release
           fObj.on('mouseup', function (options) {
-            console.log("fObj, mouseup", options);
-            isHeld = false;
-            console.log("isHeld", isHeld);
+            logger.log("logFObj", "mouseup", fObj, options);
 
-            if (fabricIntegration.singleUseBehaviors["stickyRelease"]) {
+            //SHU: can be copied  at onMouseUp workaround (iC.hasBeenObjectHolding) 
+            {
+              if (fabricIntegration.singleUseBehaviors["stickyRelease"]) {
 
-              // infiniteCanvas.manageStickyRelease(icObj);
-              //create composite
+                // infiniteCanvas.manageStickyRelease(icObj);
+                //create composite
 
-              //add parts
+                //add parts
 
 
-              fabricIntegration.singleUseBehaviors["stickyRelease"] = false;
-            } else {
-              icObj.nowReleased();
+                fabricIntegration.singleUseBehaviors["stickyRelease"] = false;
+              } else {
+                icObj.nowReleased();
+              }
             }
 
           });
@@ -33866,6 +33894,10 @@
           });
 
         }
+
+
+
+
 
 
         configureActiveSelectionListeners() {
@@ -35983,7 +36015,7 @@
           setTimeout(() => globalsSingleton.functionCallsQueue.next(), 1);
         }
 
-        simulateMouseUp(func_after) {
+        simulateMouseUp__with_freeDrawingBrush(func_after) {
           const fabricIntegration = this;
           const fabricCanvas      = fabricIntegration.fabricCanvas;
 
@@ -36061,7 +36093,7 @@
           setTimeout(() => globalsSingleton.functionCallsQueue.next(), 1);
         }
 
-        simulateMouseDown(func_after) {
+        simulateMouseDown__with_freeDrawingBrush(func_after) {
           const fabricIntegration = this;
           const fabricCanvas      = fabricIntegration.fabricCanvas;
 
@@ -36141,7 +36173,7 @@
           setTimeout(() => globalsSingleton.functionCallsQueue.next(), 1);
         }
 
-        simulateMouseUpDown(func_inBetween) {
+        simulateMouseUpDown__with_freeDrawingBrush(func_inBetween) {
             const fabricIntegration = this;
             const fabricCanvas      = fabricIntegration.fabricCanvas;
 
@@ -36280,6 +36312,313 @@
             // start the sequence
             setTimeout(() => globalsSingleton.functionCallsQueue.next(), 1);
         }
+
+
+        simulateMouseUp__whenHolding(fObj__held, func_after) {
+          const fabricIntegration = this;
+          const fabricCanvas      = fabricIntegration.fabricCanvas;
+
+          const target = fObj__held;
+
+          globalsSingleton.functionCallsQueue.add(() => {
+
+            //step 1
+
+            const fCursor__mouseUp = fabricIntegration.getFCursor();
+            const x__mouseUp = fCursor__mouseUp.x;
+            const y__mouseUp = fCursor__mouseUp.y;
+            const mouseEvent__mouseUp = new MouseEvent("mouseup", {
+              isTrusted: true,
+              altKey : false, 
+              bubbles : true,
+              button : 0,
+              buttons : 0,
+              cancelBubble : false,
+              cancelable : true,
+              clientX: x__mouseUp,
+              clientY: y__mouseUp,
+              composed: true,
+              ctrlKey: false,
+              currentTarget: null,
+              defaultPrevented: false,
+              detail: 1,
+              eventPhase: 0,
+              fromElement: null,
+              layerX: x__mouseUp,
+              layerY: y__mouseUp,
+              metaKey: false,
+              movementX: 0,
+              movementY: 0,
+              offsetX: x__mouseUp,
+              offsetY: y__mouseUp,
+              pageX: x__mouseUp,
+              pageY: y__mouseUp,
+              relatedTarget: null,
+              returnValue: true,
+              screenX: x__mouseUp,
+              screenY: y__mouseUp,
+              shiftKey: false,
+              sourceCapabilities: new InputDeviceCapabilities({firesTouchEvents: false}),
+              srcElement: fabricCanvas.upperCanvasEl,
+              target:     fabricCanvas.upperCanvasEl,
+              timeStamp: 5848.39999999851,
+              toElement:  fabricCanvas.upperCanvasEl,
+              view: window,
+              which: 1,
+              x: x__mouseUp,
+              y: y__mouseUp,
+            });
+            const options__mouseUp = {
+              absolutePointer: fabricCanvas._absolutePointer,
+              button: 1,
+              e:       mouseEvent__mouseUp,
+              isClick: false,
+              pointer: fCursor__mouseUp,
+              subTargets: [],
+              target: target,
+              transform: null,
+            };
+
+            // fabricCanvas._onMouseUp(options__mouseUp);
+            const fabricCanvas_mouseUp__partial = (function(e, target)
+            {
+              const isClick      = false;
+              const shouldRender = false;
+
+              //CODE from fabric.js
+              //------------
+              this._setCursorFromEvent(e, target);
+              this._handleEvent(e, 'up', LEFT_CLICK, isClick);
+              this._groupSelector = null;
+              this._currentTransform = null;
+              // reset the target information about which corner is selected
+              target && (target.__corner = 0);
+              if (shouldRender) {
+                this.requestRenderAll();
+              }
+              else if (!isClick) {
+                this.renderTop();
+              }
+              //------------
+
+            }).bind(fabricCanvas);
+
+            fabricCanvas_mouseUp__partial(options__mouseUp, target);
+
+          }).add(() => {
+            //step 2
+            func_after();  
+          });
+
+          // start the sequence
+          setTimeout(() => globalsSingleton.functionCallsQueue.next(), 1);
+        }
+
+
+
+
+
+        simulateMouseUp(func_inBetween) {
+            const fabricIntegration = this;
+            const fabricCanvas      = fabricIntegration.fabricCanvas;
+
+            globalsSingleton.functionCallsQueue.add(() => {
+
+              const fCursor__mouseUp = fabricIntegration.getFCursor();
+              const x__mouseUp = fCursor__mouseUp.x;
+              const y__mouseUp = fCursor__mouseUp.y;
+              const mouseEvent__mouseUp = new MouseEvent("mouseup", {
+                isTrusted: true,
+                altKey : false, 
+                bubbles : true,
+                button : 0,
+                buttons : 0,
+                cancelBubble : false,
+                cancelable : true,
+                clientX: x__mouseUp,
+                clientY: y__mouseUp,
+                composed: true,
+                ctrlKey: false,
+                currentTarget: null,
+                defaultPrevented: false,
+                detail: 1,
+                eventPhase: 0,
+                fromElement: null,
+                layerX: x__mouseUp,
+                layerY: y__mouseUp,
+                metaKey: false,
+                movementX: 0,
+                movementY: 0,
+                offsetX: x__mouseUp,
+                offsetY: y__mouseUp,
+                pageX: x__mouseUp,
+                pageY: y__mouseUp,
+                relatedTarget: null,
+                returnValue: true,
+                screenX: x__mouseUp,
+                screenY: y__mouseUp,
+                shiftKey: false,
+                sourceCapabilities: new InputDeviceCapabilities({firesTouchEvents: false}),
+                srcElement: fabricCanvas.upperCanvasEl,
+                target:     fabricCanvas.upperCanvasEl,
+                timeStamp: 5848.39999999851,
+                toElement:  fabricCanvas.upperCanvasEl,
+                view: window,
+                which: 1,
+                x: x__mouseUp,
+                y: y__mouseUp,
+              });
+              const options__mouseUp = {
+                absolutePointer: fabricCanvas._absolutePointer,
+                button: 1,
+                e:       mouseEvent__mouseUp,
+                isClick: false,
+                pointer: fCursor__mouseUp,
+                subTargets: [],
+                target: null,
+                transform: null,
+              };
+              fabricCanvas._onMouseUp(options__mouseUp);
+
+            });
+
+            // start the sequence
+            setTimeout(() => globalsSingleton.functionCallsQueue.next(), 1);
+        }
+
+
+        simulateMouseDownUp(func_inBetween) {
+            const fabricIntegration = this;
+            const fabricCanvas      = fabricIntegration.fabricCanvas;
+
+            globalsSingleton.functionCallsQueue.add(() => {
+
+              //step 1
+              const fCursor__mouseDown = fabricIntegration.getFCursor();
+              const x__mouseDown = fCursor__mouseDown.x;
+              const y__mouseDown = fCursor__mouseDown.y;
+              const mouseEvent__mouseDown = new MouseEvent("mousedown", {
+                isTrusted: true,
+                altKey : false, 
+                bubbles : true,
+                button : 0,
+                buttons : 1,
+                cancelBubble : false,
+                cancelable : true,
+                clientX: x__mouseDown,
+                clientY: y__mouseDown,
+                composed: true,
+                ctrlKey: false,
+                currentTarget: null,
+                defaultPrevented: false,
+                detail: 1,
+                eventPhase: 0,
+                fromElement: null,
+                layerX: x__mouseDown,
+                layerY: y__mouseDown,
+                metaKey: false,
+                movementX: 0,
+                movementY: 0,
+                offsetX: x__mouseDown,
+                offsetY: y__mouseDown,
+                pageX: x__mouseDown,
+                pageY: y__mouseDown,
+                relatedTarget: null,
+                returnValue: true,
+                screenX: x__mouseDown,
+                screenY: y__mouseDown,
+                shiftKey: false,
+                sourceCapabilities: new InputDeviceCapabilities({firesTouchEvents: false}),
+                srcElement: fabricCanvas.upperCanvasEl,
+                target:     fabricCanvas.upperCanvasEl,
+                timeStamp: 5848.39999999851,
+                toElement:  fabricCanvas.upperCanvasEl,
+                view: window,
+                which: 1,
+                x: x__mouseDown,
+                y: y__mouseDown,
+              });
+              const options__mouseDown = {
+                absolutePointer: fabricCanvas._absolutePointer,
+                button: 1,
+                e:       mouseEvent__mouseDown,
+                isClick: false,
+                pointer: fabricCanvas._pointer,
+                subTargets: [],
+                target: null,
+                transform: null,
+              };
+              fabricCanvas._onMouseDown(options__mouseDown);
+
+            }).add(() => {
+              //step 2
+              func_inBetween();
+              
+            }).add(() => {
+              //step 3
+              const fCursor__mouseUp = fabricIntegration.getFCursor();
+              const x__mouseUp = fCursor__mouseUp.x;
+              const y__mouseUp = fCursor__mouseUp.y;
+              const mouseEvent__mouseUp = new MouseEvent("mouseup", {
+                isTrusted: true,
+                altKey : false, 
+                bubbles : true,
+                button : 0,
+                buttons : 0,
+                cancelBubble : false,
+                cancelable : true,
+                clientX: x__mouseUp,
+                clientY: y__mouseUp,
+                composed: true,
+                ctrlKey: false,
+                currentTarget: null,
+                defaultPrevented: false,
+                detail: 1,
+                eventPhase: 0,
+                fromElement: null,
+                layerX: x__mouseUp,
+                layerY: y__mouseUp,
+                metaKey: false,
+                movementX: 0,
+                movementY: 0,
+                offsetX: x__mouseUp,
+                offsetY: y__mouseUp,
+                pageX: x__mouseUp,
+                pageY: y__mouseUp,
+                relatedTarget: null,
+                returnValue: true,
+                screenX: x__mouseUp,
+                screenY: y__mouseUp,
+                shiftKey: false,
+                sourceCapabilities: new InputDeviceCapabilities({firesTouchEvents: false}),
+                srcElement: fabricCanvas.upperCanvasEl,
+                target:     fabricCanvas.upperCanvasEl,
+                timeStamp: 5848.39999999851,
+                toElement:  fabricCanvas.upperCanvasEl,
+                view: window,
+                which: 1,
+                x: x__mouseUp,
+                y: y__mouseUp,
+              });
+              const options__mouseUp = {
+                absolutePointer: fabricCanvas._absolutePointer,
+                button: 1,
+                e:       mouseEvent__mouseUp,
+                isClick: false,
+                pointer: fCursor__mouseUp,
+                subTargets: [],
+                target: null,
+                transform: null,
+              };
+              fabricCanvas._onMouseUp(options__mouseUp);
+
+            });
+
+            // start the sequence
+            setTimeout(() => globalsSingleton.functionCallsQueue.next(), 1);
+        }
+
+
 
 
         //pathmade
@@ -43040,8 +43379,17 @@
               // SHU: horrible workaround
               if(infiniteCanvas.hasBeenFreeDrawingPan) {
                 logger.log("logMouse", "onMouseUp", "infiniteCanvas.hasBeenFreeDrawingPan");
-                fabricIntegration.simulateMouseUpInDrawingMode(()=>{});
-                infiniteCanvas.hasBeenFreeDrawingPan = false;
+                fabricIntegration.simulateMouseUpInDrawingMode(()=>{
+                  infiniteCanvas.hasBeenFreeDrawingPan = false;
+                });
+              }
+
+              // SHU: horrible workaround (even worse!)
+              if(infiniteCanvas.hasBeenObjectHoldingPan) {
+                logger.log("logMouse", "onMouseUp", "infiniteCanvas.hasBeenObjectHoldingPan");
+                infiniteCanvas.hasBeenObjectHoldingPan = false;
+                MouseIntegration.triggerMouseEvent(fabricIntegration.fabricCanvas.upperCanvasEl, "mousedown");
+                MouseIntegration.triggerMouseEvent(fabricIntegration.fabricCanvas.upperCanvasEl, "mouseup");
               }
 
             } else if (event.button == 2) {
@@ -43050,6 +43398,11 @@
               if(infiniteCanvas.isFreeDrawingPan) {
                 infiniteCanvas.leavePan__freeDrawing();
               }
+
+              if(infiniteCanvas.isObjectHoldingPan) {
+                infiniteCanvas.leavePan__objectHolding();
+              }
+
             }
 
             infiniteCanvas.logCursor();
