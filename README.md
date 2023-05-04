@@ -21,6 +21,7 @@ Z-scroll: resize your elements in a blink
 Z-index: bring this in front of that    
 Create and save/load presentations with text, images, videos, ...    
 _Easy yet awesome freeDraw UX_      
+Batch paste          
 Interactive objects     
 Operators      
 _Math objects_    
