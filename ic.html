@@ -332,11 +332,18 @@
 
         //prepare id shift
         const id__min__in_composite = this.getId__min(icObj__composite);
-        const id__max__in_iC        = infiniteCanvas.getId__max();
-        const value_offset_id = id__max__in_iC - id__min__in_composite + 1;
+        const id__next__in_iC       = infiniteCanvas.pollNextAvailableId();
+        const value_offset_id       = id__next__in_iC - id__min__in_composite;
 
         function translatedId(id) {
-          return id + value_offset_id; 
+          const id__translated = id + value_offset_id;
+
+          //update ic's counter if needed
+          if(id__translated > infiniteCanvas.counter) {
+            infiniteCanvas.counter = id__translated; 
+          }
+
+          return id__translated; 
         }
 
         //perform id shift
@@ -5108,6 +5115,8 @@
         this.mathField_numberTyping = null;
         this.mathNode_numberTyping  = null;
 
+        this.isBatchPasting         = false;
+
         this.isFreeDrawingPan      = false;
         this.hasBeenFreeDrawingPan = false;
 
@@ -5221,10 +5230,27 @@
       //objects
       //creation
 
-      generateIcObjectId() {
-        const id = this.counter;
-        this.counter += 1;
-        return id;
+      pollNextAvailableId() {   //no side effect
+        var id__new;
+        const id_added__max = this.getId__max();
+
+        if(this.counter < id_added__max) {
+          id__new = id_added__max + 1;
+        } else {
+          id__new = this.counter + 1; 
+        }
+
+        return id__new;
+      }
+
+      generateIcObjectId() {   //with side effect
+        var id__new;
+
+        id__new = this.pollNextAvailableId();
+
+        this.counter = id__new;
+         
+        return id__new;
       }
 
       generateIcEventIndex() {
@@ -16490,6 +16516,36 @@
         infiniteCanvas.addIcObject(icObj);
       }
 
+      addPastedIcObjects(arr_icObj) {
+        const infiniteCanvas = this;
+
+        //SHU TODO: keep relative offsets while changing position and scale
+        arr_icObj.forEach((icObj) => {
+          this.addPastedIcObject(icObj);
+        });
+
+        // const true_cursor = this.getTrueCursor();
+
+        // const position_new = {
+        //   x: true_cursor.x,
+        //   y: true_cursor.y,
+        // };
+
+        // const homeScale_new = {
+        //   X: infiniteCanvas.scale.X,
+        //   Y: infiniteCanvas.scale.Y,
+        // };
+
+        // if(icObj.type == "composite") {
+        //   CompositeUtils.shiftToPositionAndScale(icObj, position_new, homeScale_new);
+        // } else {
+        //   icObj.position  = position_new;
+        //   icObj.homeScale = homeScale_new;
+        // }
+
+        // infiniteCanvas.addIcObject(icObj);
+      }
+
 
       //convenience
 
@@ -16980,13 +17036,13 @@
         // };
 
         const compositeConfig = Compositer.defaultCompositeConfig(parts, true);
-
-        const icComposite = infiniteCanvas.createIcComposite(trueRect, parts, compositeConfig);
+        const icComposite     = infiniteCanvas.createIcComposite(trueRect, parts, compositeConfig);
+        logger.log("logComposite", "compose", "icComposite:", icComposite);
         // icComposite.cType = cType;
 
         icComposite.isTouchable = true;
 
-        icComposite.stroke = "cyan";
+        icComposite.stroke      = "cyan";
         icComposite.strokeWidth = 5;
 
 
@@ -17019,6 +17075,8 @@
 
 
         this.addNewIcObject(icComposite);
+        // this.addIcObject(icComposite);
+
       }
 
       decompose(icComposite) {
@@ -20119,6 +20177,190 @@
         this.isNumberTyping         = false;
         globalsSingleton.isEditing  = false;
       }
+
+
+
+      //batch pasting
+
+      enterBatchPasting() {
+        logger.log("logCP", "enterBatchPasting");
+        this.isBatchPasting        = true;
+
+        globalsSingleton.isEditing = true;
+        this.isNumberTyping        = true;
+
+        //mathQuill
+        {
+          //create mathField
+          const mathField = createMathField();
+
+          //add mathField root HTML element to canvasContainer
+          const elt = mathField.el();
+          console.log("elt", elt);
+
+          if (elt.style == null) { elt.style = {}; }
+          elt.style.position = "absolute";
+
+          const canvasContainer = infiniteCanvas.canvas.parentElement;
+          canvasContainer.appendChild(elt);    //SHU: move this to fabricIntegration
+
+          // mathField.latex("");
+          mathField.reflow();
+          
+          mathField.focus();
+
+          //clear
+          // setTimeout(() => {
+          //   mathField.latex("");
+          //   mathField.reflow();
+          // }, 0);
+          
+
+          logger.log("logMQ", "mathField", mathField);
+
+          this.mathField_numberTyping = mathField;
+        }
+
+      }
+
+      leaveBatchPasting() {
+        logger.log("logCP", "leaveBatchPasting");
+        const infiniteCanvas = this;
+
+        const mathField = this.mathField_numberTyping;
+
+        //mathQuill
+        {
+
+          //transfer tex
+          {
+            const tex = mathField.latex();
+            console.log("tex", tex);
+
+            //this is where fun starts
+            function mathFieldTex_to_mathNode(tex) {
+              var outMathNode;
+
+              try {
+
+                // outMathNode = math.parse(tex);
+
+                const mathExpression = MathExpression.fromLatex(tex);
+                const text = mathExpression.toString();
+                console.log("text", text);
+                outMathNode = math.parse(text);
+
+                //don't parse "=" into ":="
+
+                //upgrade to gmOperator when writing "x50"
+              } catch {
+                outMathNode = null;
+              }
+
+              return outMathNode;
+            }
+
+            const mathNode__new = mathFieldTex_to_mathNode(tex);
+            // mathNode__new.autoSimplify = true;
+
+            //store generated mathNode
+            this.mathNode_numberTyping = mathNode__new;
+          }
+
+          //remove all listeners
+          // mathField.el().removeEventListener("focusout", eventListener);
+          $(mathField.el()).off();
+
+          //remove mathField elt from canvasContainer
+          mathField.el().remove();
+
+          //destroy mathField
+          mathField.revert();
+        }
+
+        if(this.mathNode_numberTyping != null) {
+
+          if(fabricIntegration.fabricCanvas.isDrawingMode) {
+            // //create/add divided segment
+            // const position__icMathNode = this.getTrueCursor();
+            // const mathNode   = this.mathNode_numberTyping.cloneDeep();
+            // const dividedSegment = this.createIcMathNode(position__icMathNode.x, position__icMathNode.y, mathNode);
+            // this.addNewIcObject(icMathNode);
+
+          } else {
+            //create/add clones
+            const position__icMathNode = this.getTrueCursor();
+            
+            const mathNode             = this.mathNode_numberTyping.cloneDeep();
+            const value                = mathNode.evaluate({});
+
+            const rx_get_arr_bclone = clipboardIntegration.rx_innerCopy.pipe(
+              Rx_operators.take(1), 
+              Rx_operators.map((innerCopyEvent) => {
+                // logger.log("logCP", "rx_get_arr_bclone", "innerCopyEvent:", innerCopyEvent);
+
+                const icObj__cloned = innerCopyEvent.clipboardObject.content;
+
+                const nb_reclones = value - 1;
+                const arr_icObj__bclone = [...Array(nb_reclones).keys()].reduce((acc, index) => {
+                  // logger.log("logCP", "rx_get_arr_bclone", "reduce", acc, index);
+
+                  //get last created clone
+                  const icObj__bClone = acc[index];
+                  
+                  //reclone, shift it, and copy it {
+                  const icObj__recloned = icObj__bClone.deepClone();
+                  icObj__recloned.position.x += 10;
+                  icObj__recloned.position.y += 10;
+
+                  //shift id(s) 
+                  if(icObj__bClone.type == "composite") {
+                    CompositeUtils.shiftToNextAvailableId(icObj__recloned, icObj__bClone, infiniteCanvas);
+                  } else {
+                    icObj__recloned.id = infiniteCanvas.generateIcObjectId();
+                  }
+
+                  //if last to be created, copy to clipboard
+                  if(index == (nb_reclones - 1)) {
+                    clipboardIntegration.manageInnerCopy("fabric.general", icObj__recloned);
+                  }
+
+                  acc = [...acc, icObj__recloned];
+                  return acc;
+                }, [icObj__cloned]);
+
+                return arr_icObj__bclone;
+              })
+            );
+
+
+            function spawn_bclones() {
+              rx_get_arr_bclone.subscribe({
+                next: (arr_icObj__bclone) => {
+                  logger.log("logCP", "spawn_bclones", "arr_icObj__bclone:", arr_icObj__bclone);
+                  infiniteCanvas.addPastedIcObjects(arr_icObj__bclone);
+                },
+              });
+            }
+
+            spawn_bclones();
+
+          }
+
+        }
+
+
+        this.mathNode_numberTyping  = null;
+        this.mathField_numberTyping = null;
+
+        this.isNumberTyping         = false;
+        globalsSingleton.isEditing  = false;
+
+        this.isBatchPasting         = false;
+      }
+
+
+
 
 
       //events
@@ -37581,6 +37823,9 @@
             cloned.position.x += 10;
             cloned.position.y += 10;
 
+            //shift id
+            cloned.id = infiniteCanvas.generateIcObjectId();
+
             clipboardIntegration.manageInnerCopy("fabric.general", cloned);
           }
 
@@ -41109,8 +41354,8 @@
 
         constructor(arr_sources) {
           // this.arr_sources = arr_sources;
-          const rx_innerCopy = new Subject();
-          this.rx_innerCopy = rx_innerCopy;
+          const rx_innerCopy = new ReplaySubject(1);
+          this.rx_innerCopy  = rx_innerCopy;
 
           // this.arr_paste_p = arr_sources.map(source => source.paste_p);
           const rx_outerPaste = new Subject();
@@ -41148,13 +41393,18 @@
               if (isInnerMostRecent) {
                 const icObj__cloned = innerCopyEvent.clipboardObject.content;
 
-                //clone newly created, shift it, and copy it {
+                //clone newly created, shift its id(s), and copy it 
+                //{
                 const icObj__recloned = icObj__cloned.deepClone();
                 icObj__recloned.position.x += 10;
                 icObj__recloned.position.y += 10;
 
-                //shift ids
-                CompositeUtils.shiftToNextAvailableId(icObj__recloned, icObj__cloned, infiniteCanvas);
+                //shift id(s)
+                if(icObj__recloned.type == "composite") { 
+                  CompositeUtils.shiftToNextAvailableId(icObj__recloned, icObj__cloned, infiniteCanvas);
+                } else {
+                  icObj__recloned.id = infiniteCanvas.generateIcObjectId(); 
+                }
 
                 clipboardIntegration.manageInnerCopy("fabric.general", icObj__recloned);
                 //}
@@ -42192,10 +42442,21 @@
 
             logger.log("globalsSingleton.isEditing", globalsSingleton.isEditing);
             if (globalsSingleton.isEditing) {
-              if(infiniteCanvas.isNumberTyping && e.code == "KeyZ") {
-                //continue to process KeyZ keyup event
-              } else {
-                return;
+              if(infiniteCanvas.isNumberTyping) {
+                switch(e.code) {
+                  case "KeyZ":
+                  case "KeyB":
+                    {
+                      //continue to process keyup event
+                    }
+                    break;
+                  default:
+                    {
+                      //ignore keyup event
+                      return;
+                    }
+                    break;
+                }
               }
             }
 
@@ -42862,10 +43123,13 @@
                     if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
                       //decompose
                       fabricIntegration.decomposeSelectedObject();
+                    } else if (keyboardIntegration.infiniteCanvas.isBatchPasting) {
+                      //batch paste
+                      keyboardIntegration.infiniteCanvas.leaveBatchPasting();
                     } else if (keyboardIntegration.keyDownToggles.altLeft.isActive) {
                       //unlink
                       fabricIntegration.unlinkSelectedObjects();
-                    } else if (keyboardIntegration.keyDownToggles.zIndexEditing.isActive) {
+                    }  else if (keyboardIntegration.keyDownToggles.zIndexEditing.isActive) {
                       keyboardIntegration.infiniteCanvas.manageZIndexEditing_sendToBack();
                     } else {
 
@@ -43109,15 +43373,43 @@
 
             if(e.repeat) {
 
-              //ignore repeating KeyZ 
-              if (globalsSingleton.isEditing) {
-                if(infiniteCanvas.isNumberTyping) {
-                  //ignore KeyZ
-                  if(e.code == "KeyZ") {
-                    e.preventDefault();
+              // //ignore repeating KeyZ 
+              // if (globalsSingleton.isEditing) {
+              //   if(infiniteCanvas.isNumberTyping) {
+              //     //ignore KeyZ
+              //     if(e.code == "KeyZ") {
+              //       e.preventDefault();
+              //     }
+              //   }
+              //   return;
+              // }
+
+              switch(e.code) {
+                case "KeyZ":
+                  {
+                    //ignore repeating KeyZ while numberTyping
+                    if (globalsSingleton.isEditing) {
+                      if(infiniteCanvas.isNumberTyping) {
+                        e.preventDefault();
+                      }
+                    }
+                    return;
                   }
-                }
-                return;
+                  break;
+                case "KeyB":
+                  {
+                    //ignore repeating KeyB while batchPasting
+                    if (globalsSingleton.isEditing) {
+                      // if(infiniteCanvas.isBatchPasting) {
+                      if(infiniteCanvas.isNumberTyping) {
+                        e.preventDefault();
+                      }
+                    }
+                    return;
+                  }
+                  break;
+                default:
+                  break;
               }
 
               updateKeyDownTimeouts(e, true);
@@ -43132,14 +43424,21 @@
             logger.log("logKB", "handleKeyDownOnce", "e.code", e.code);
 
             logger.log("globalsSingleton.isEditing", globalsSingleton.isEditing);
-            if (globalsSingleton.isEditing) {
-              if(infiniteCanvas.isNumberTyping) {
-                //ignore KeyZ
-                if(e.code == "KeyZ") {
-                  e.preventDefault();
+            //prevent initial keyDown from propagating
+            switch(e.code) {
+              case "KeyZ":
+              case "KeyB":
+                {
+                  if (globalsSingleton.isEditing) {
+                    if(infiniteCanvas.isNumberTyping) {
+                      e.preventDefault();
+                    }
+                    return;
+                  }
                 }
-              }
-              return;
+                break;
+              default:
+                break;
             }
 
             if (fabricIntegration.shouldIgnoreShortcutInput()) {
@@ -43174,6 +43473,15 @@
               case "KeyC":
                 {
                   keyboardIntegration.infiniteCanvas.isColorPickerAvailable = true;
+                }
+                break;
+              
+              case "KeyB":
+                {
+                  if (keyboardIntegration.keyDownToggles.ctrlLeft.isActive) {
+                      //batch paste
+                      keyboardIntegration.infiniteCanvas.enterBatchPasting();
+                  }
                 }
                 break;
 
