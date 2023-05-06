@@ -388,7 +388,51 @@
       // }
 
 
-      static shiftToPositionAndScale(icObj__composite, position_new, homeScale_new) {
+      static shiftToPositionAndScale(icObj__composite, position_dst, homeScale_dst) {
+
+        const position__root__old  = Object.assign({}, icObj__composite.position);
+        const homeScale__root__old = Object.assign({}, icObj__composite.homeScale);
+
+        const dHomeScale = {
+          X: homeScale__root__old.X / homeScale_dst.X,
+          Y: homeScale__root__old.Y / homeScale_dst.Y,
+        };
+
+        this.traverseComposite(icObj__composite, (icObj) => {
+
+          if(icObj.compositeId != -1) {
+
+            const offset__wrt_root = {
+              dx: icObj.position.x - position__root__old.x, 
+              dy: icObj.position.y - position__root__old.y,
+            };
+
+            const true_offset__wrt_root = {
+              dx: offset__wrt_root.dx * dHomeScale.X,
+              dy: offset__wrt_root.dy * dHomeScale.Y,
+            }; 
+
+            const position__new = {
+              x: position_dst.x + true_offset__wrt_root.dx,
+              y: position_dst.y + true_offset__wrt_root.dy,               
+            };
+
+            const homeScale__new = {
+              X: icObj.homeScale.X / dHomeScale.X,
+              Y: icObj.homeScale.Y / dHomeScale.Y,
+            };
+
+
+            icObj.position  = position__new;
+            icObj.homeScale = homeScale__new;
+
+          } else {
+            //root composite
+            icObj.position  = Object.assign({}, position_dst);
+            icObj.homeScale = homeScale_dst;
+          }
+
+        });
 
       }
 
@@ -5116,6 +5160,8 @@
         this.mathNode_numberTyping  = null;
 
         this.isBatchPasting         = false;
+
+        this.isAltering             = false;
 
         this.isFreeDrawingPan      = false;
         this.hasBeenFreeDrawingPan = false;
@@ -16491,23 +16537,11 @@
         return rehydrated;
       }
 
-      addPastedIcObject(icObj) {
-        const infiniteCanvas = this;
 
-        const true_cursor = this.getTrueCursor();
-
-        const position_new = {
-          x: true_cursor.x,
-          y: true_cursor.y,
-        };
-
-        const homeScale_new = {
-          X: infiniteCanvas.scale.X,
-          Y: infiniteCanvas.scale.Y,
-        };
-
+      addIcObjectAtPositionAndScale(icObj, position_new, homeScale_new) {
+        
         if(icObj.type == "composite") {
-          CompositeUtils.shiftToPositionAndScale(icObj, position_new, homeScale_new);
+          CompositeUtils.shiftToPositionAndScale(icObj, position_new, homeScale_new); //SHU: this could be improved by using "appearance scale" i.e object.size.width wrt screenPov.size.width 
         } else {
           icObj.position  = position_new;
           icObj.homeScale = homeScale_new;
@@ -16516,34 +16550,64 @@
         infiniteCanvas.addIcObject(icObj);
       }
 
+      addPastedIcObject(icObj) {
+        const infiniteCanvas = this;
+
+        const true_cursor = this.getTrueCursor();
+
+        const position__cursor = {
+          x: true_cursor.x,
+          y: true_cursor.y,
+        };
+
+        const scale__iC = {
+          X: infiniteCanvas.scale.X,
+          Y: infiniteCanvas.scale.Y,
+        };
+
+        this.addIcObjectAtPositionAndScale(icObj, position__cursor, scale__iC);
+      }
+
       addPastedIcObjects(arr_icObj) {
         const infiniteCanvas = this;
 
+        const true_cursor = this.getTrueCursor();
+
+        const position__cursor = {
+          x: true_cursor.x,
+          y: true_cursor.y,
+        };
+
+        const scale__iC = {
+          X: infiniteCanvas.scale.X,
+          Y: infiniteCanvas.scale.Y,
+        };
+
         //SHU TODO: keep relative offsets while changing position and scale
+
+        //paste layout: row
+        const ratio_padding__h = 0.1;
+        const ratio_padding__v = 0;
+        var position__prev = position__cursor;
         arr_icObj.forEach((icObj) => {
-          this.addPastedIcObject(icObj);
+          const position_new  = position__prev;
+          const homeScale_new = scale__iC;
+          this.addIcObjectAtPositionAndScale(icObj, position_new, homeScale_new);
+
+          const trueWidth__total = icObj.getTrueWidth__total(); //SHU TODO: take orientation into account...
+          // logger.log("logCP", "addPastedIcObjects", "width__total:", width__total);
+
+          const true_offset = {
+            dx: trueWidth__total * (1 + ratio_padding__h),
+            dy:                0 * (1 + ratio_padding__v),
+          }; 
+          position__prev = {
+            x: position_new.x + true_offset.dx,
+            y: position_new.y + true_offset.dy,               
+          };
+
         });
 
-        // const true_cursor = this.getTrueCursor();
-
-        // const position_new = {
-        //   x: true_cursor.x,
-        //   y: true_cursor.y,
-        // };
-
-        // const homeScale_new = {
-        //   X: infiniteCanvas.scale.X,
-        //   Y: infiniteCanvas.scale.Y,
-        // };
-
-        // if(icObj.type == "composite") {
-        //   CompositeUtils.shiftToPositionAndScale(icObj, position_new, homeScale_new);
-        // } else {
-        //   icObj.position  = position_new;
-        //   icObj.homeScale = homeScale_new;
-        // }
-
-        // infiniteCanvas.addIcObject(icObj);
       }
 
 
@@ -17035,7 +17099,7 @@
         //   "2": arr_icObj[1],
         // };
 
-        const compositeConfig = Compositer.defaultCompositeConfig(parts, true);
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
         const icComposite     = infiniteCanvas.createIcComposite(trueRect, parts, compositeConfig);
         logger.log("logComposite", "compose", "icComposite:", icComposite);
         // icComposite.cType = cType;
@@ -21496,6 +21560,29 @@
         };
       }
 
+      getTrueWidth__total() {
+        var outWidth;
+
+        if(this.type == "composite") {
+          // const icObj__part__sample = Object.values(this.parts).find(e => true).position.x;
+
+          const miniDict = Object.entries(this.parts).reduce((acc, [partName, icObj__part]) => {
+            const trueRect__part = icObj__part.getTrueRect();
+            acc.x__max = math.max(acc.x__max, trueRect__part.x + icObj__part.getTrueWidth__total() );
+            acc.x__min = math.min(acc.x__min, trueRect__part.x);
+            return acc;
+          }, {
+            x__max: -math.Infinity,
+            x__min: +math.Infinity,
+          });
+          outWidth = miniDict.x__max - miniDict.x__min;
+        } else {
+          outWidth = this.size.width / this.homeScale.X / this.scale.X;
+        }
+
+        return outWidth;
+      }
+
       setCenter(pointCenter) {
         if (this.isUsingCenterPosition) {
           this.position = Object.assign({}, pointCenter);
@@ -25456,101 +25543,86 @@
               //ignore
             } else {
 
-              //get free_rep
-              const handle__represented = infiniteCanvas.getRepresented(handle.id);
-              const handle__rep_free = handle__represented.r_free();
+              if(infiniteCanvas.isAltering) {
+                //only move selected part: do nothing with other parts
+              } else {
+                //move everything accordingly
 
-              // const part__represented   = infiniteCanvas.getRepresented(icObj_compositePart.id);
+                //get free_rep
+                const handle__represented = infiniteCanvas.getRepresented(handle.id);
+                const handle__rep_free = handle__represented.r_free();
 
-              // rep_free__composite.composite.managePartUpdate(rep_free__compositePart, outerUpdatesDict);
-              if ((outerUpdatesDict.position != null) || (outerUpdatesDict.point_start != null)) {
+                // const part__represented   = infiniteCanvas.getRepresented(icObj_compositePart.id);
 
-                var offset;
-                if (outerUpdatesDict.position != null) {
-                  offset = {
-                    dx: outerUpdatesDict.position.new.x - outerUpdatesDict.position.old.x,
-                    dy: outerUpdatesDict.position.new.y - outerUpdatesDict.position.old.y,
-                  };
-                } else {
-                  //moved part was segment
-                  offset = {
-                    dx: outerUpdatesDict.point_start.new.x - outerUpdatesDict.point_start.old.x,
-                    dy: outerUpdatesDict.point_start.new.y - outerUpdatesDict.point_start.old.y,
-                  };
-                }
+                // rep_free__composite.composite.managePartUpdate(rep_free__compositePart, outerUpdatesDict);
+                if ((outerUpdatesDict.position != null) || (outerUpdatesDict.point_start != null)) {
 
-                const parts = handle__rep_free.parts;
-
-                const arr_parts_all = Object.values(parts);
-                const arr_parts_other = arr_parts_all.filter(part => part.id != icObj_compositePart.id);
-
-                const arr_handle_and_other = [handle__rep_free, ...arr_parts_other];
-
-                // arr_parts_other.forEach((rep_free, i) => {
-                arr_handle_and_other.forEach((rep_free, i) => {
-
-                  const listener = this.listeners[rep_free.id];
-                  // console.log("°°°listener", listener);
-
-                  //listen:off
-                  rep_free.offInnerUpdate(listener);
-
-                  //mutate
-                  // logger.log("mutating part:", rep_free.id);
-                  {
-                    if (rep_free.position != null) {
-                      const position_new = {
-                        x: rep_free.position.x + offset.dx,
-                        y: rep_free.position.y + offset.dy,
-                      };
-
-                      rep_free.position = position_new;
-                    } else if (rep_free.point_start != null) {
-                      //move other segment parts
-                      const point_start_new = {
-                        x: rep_free.point_start.x + offset.dx,
-                        y: rep_free.point_start.y + offset.dy,
-                      };
-                      rep_free.point_start = point_start_new;
-                      const point_end_new = {
-                        x: rep_free.point_end.x + offset.dx,
-                        y: rep_free.point_end.y + offset.dy,
-                      };
-                      rep_free.point_end = point_end_new;
-                    }
+                  var offset;
+                  if (outerUpdatesDict.position != null) {
+                    offset = {
+                      dx: outerUpdatesDict.position.new.x - outerUpdatesDict.position.old.x,
+                      dy: outerUpdatesDict.position.new.y - outerUpdatesDict.position.old.y,
+                    };
+                  } else {
+                    //moved part was segment
+                    offset = {
+                      dx: outerUpdatesDict.point_start.new.x - outerUpdatesDict.point_start.old.x,
+                      dy: outerUpdatesDict.point_start.new.y - outerUpdatesDict.point_start.old.y,
+                    };
                   }
 
-                  //listen:on
-                  rep_free.onInnerUpdate(listener);
+                  const parts = handle__rep_free.parts;
 
-                });
+                  const arr_parts_all = Object.values(parts);
+                  const arr_parts_other = arr_parts_all.filter(part => part.id != icObj_compositePart.id);
 
+                  const arr_handle_and_other = [handle__rep_free, ...arr_parts_other];
 
-                //   {
-                //     const rep_free = handle__rep_free;
-                //
-                //     //listen:off
-                //     rep_free.offInnerUpdate(listener);
-                //
-                //     //mutate
-                //     {
-                //       const position_new = {
-                //         x: rep_free.position.x + offset.dx,
-                //         y: rep_free.position.y + offset.dy,
-                //       };
-                //
-                //       rep_free.position = position_new;
-                //     }
-                //
-                //     //listen:on
-                //     rep_free.onInnerUpdate(listener);
-                //   }
+                  // arr_parts_other.forEach((rep_free, i) => {
+                  arr_handle_and_other.forEach((rep_free, i) => {
 
+                    const listener = this.listeners[rep_free.id];
+                    // console.log("°°°listener", listener);
 
-              }
+                    //listen:off
+                    rep_free.offInnerUpdate(listener);
 
-            }
+                    //mutate
+                    // logger.log("mutating part:", rep_free.id);
+                    {
+                      if (rep_free.position != null) {
+                        const position_new = {
+                          x: rep_free.position.x + offset.dx,
+                          y: rep_free.position.y + offset.dy,
+                        };
 
+                        rep_free.position = position_new;
+                      } else if (rep_free.point_start != null) {
+                        //move other segment parts
+                        const point_start_new = {
+                          x: rep_free.point_start.x + offset.dx,
+                          y: rep_free.point_start.y + offset.dy,
+                        };
+                        rep_free.point_start = point_start_new;
+                        const point_end_new = {
+                          x: rep_free.point_end.x + offset.dx,
+                          y: rep_free.point_end.y + offset.dy,
+                        };
+                        rep_free.point_end = point_end_new;
+                      }
+                    }
+
+                    //listen:on
+                    rep_free.onInnerUpdate(listener);
+
+                  });
+
+                }
+
+             }
+
+           }
+          
           };
 
 
@@ -25585,84 +25657,90 @@
             const handle__represented = infiniteCanvas.getRepresented(icObj_composite.id);
             const handle__rep_free = handle__represented.r_free();
 
-            if (outerUpdatesDict.position != null) {
+            if(infiniteCanvas.isAltering) {
+                //only move selected handle: do nothing with parts
+            } else {
 
-              const offset = {
-                dx: outerUpdatesDict.position.new.x - outerUpdatesDict.position.old.x,
-                dy: outerUpdatesDict.position.new.y - outerUpdatesDict.position.old.y,
-              };
+              if (outerUpdatesDict.position != null) {
 
-              const parts = handle__rep_free.parts;
-              const arr_parts_all = Object.values(parts);
-              arr_parts_all.forEach((part__rep_free, i) => {
+                const offset = {
+                  dx: outerUpdatesDict.position.new.x - outerUpdatesDict.position.old.x,
+                  dy: outerUpdatesDict.position.new.y - outerUpdatesDict.position.old.y,
+                };
 
-                const listener = this.listeners[part__rep_free.id];
+                const parts = handle__rep_free.parts;
+                const arr_parts_all = Object.values(parts);
+                arr_parts_all.forEach((part__rep_free, i) => {
 
-                //listen:off
-                // if(typeof part__rep_free.offInnerUpdate === "function") { //SHU HORROR
-                part__rep_free.offInnerUpdate(listener);
-                // }
+                  const listener = this.listeners[part__rep_free.id];
+
+                  //listen:off
+                  // if(typeof part__rep_free.offInnerUpdate === "function") { //SHU HORROR
+                  part__rep_free.offInnerUpdate(listener);
+                  // }
 
 
 
-                //mutate
-                // logger.log("mutating part:", part__rep_free.id);
-                {
-                  if (part__rep_free.position != null) {
-                    const position_new = {
-                      x: part__rep_free.position.x + offset.dx,
-                      y: part__rep_free.position.y + offset.dy,
-                    };
+                  //mutate
+                  // logger.log("mutating part:", part__rep_free.id);
+                  {
+                    if (part__rep_free.position != null) {
+                      const position_new = {
+                        x: part__rep_free.position.x + offset.dx,
+                        y: part__rep_free.position.y + offset.dy,
+                      };
 
-                    part__rep_free.position = position_new;
-                  } else if (part__rep_free.point_start != null) {
-                    //move segment parts
-                    const point_start_new = {
-                      x: part__rep_free.point_start.x + offset.dx,
-                      y: part__rep_free.point_start.y + offset.dy,
-                    };
-                    part__rep_free.point_start = point_start_new;
-                    const point_end_new = {
-                      x: part__rep_free.point_end.x + offset.dx,
-                      y: part__rep_free.point_end.y + offset.dy,
-                    };
-                    part__rep_free.point_end = point_end_new;
+                      part__rep_free.position = position_new;
+                    } else if (part__rep_free.point_start != null) {
+                      //move segment parts
+                      const point_start_new = {
+                        x: part__rep_free.point_start.x + offset.dx,
+                        y: part__rep_free.point_start.y + offset.dy,
+                      };
+                      part__rep_free.point_start = point_start_new;
+                      const point_end_new = {
+                        x: part__rep_free.point_end.x + offset.dx,
+                        y: part__rep_free.point_end.y + offset.dy,
+                      };
+                      part__rep_free.point_end = point_end_new;
+                    }
                   }
-                }
 
-                //listen:on
-                // if(typeof part__rep_free.onInnerUpdate === "function") { //SHU HORROR
-                part__rep_free.onInnerUpdate(listener);
-                // }
+                  //listen:on
+                  // if(typeof part__rep_free.onInnerUpdate === "function") { //SHU HORROR
+                  part__rep_free.onInnerUpdate(listener);
+                  // }
 
-              });
+                });
+
+              }
+              // else if(outerUpdatesDict.parts != null) {
+              //   logger.log("outerUpdatesDict.parts", outerUpdatesDict.parts);
+              //
+              //   // const arr_parts__old = [];
+              //   // const arr_parts__new = [];
+              //
+              //   Object.values(outerUpdatesDict.parts.new).forEach((part__rep_free, i) => {
+              //     const part__listener = this.createPartListener();
+              //     this.listeners[part__rep_free.id] = part__listener;
+              //
+              //     if(handle__rep_free.compositeConfig[part__rep_free.id] == null) {
+              //       const config__part = {
+              //         // isMobile: true,
+              //         isMobile: false,
+              //       };
+              //       handle__rep_free.compositeConfig[part__rep_free.id] = config__part;
+              //     }
+              //
+              //     //'activate' listener
+              //     // const part__listener = this.listeners[part__rep_free.id];
+              //     part__rep_free.onInnerUpdate(part__listener);
+              //
+              //   });
+              //
+              // }
 
             }
-            // else if(outerUpdatesDict.parts != null) {
-            //   logger.log("outerUpdatesDict.parts", outerUpdatesDict.parts);
-            //
-            //   // const arr_parts__old = [];
-            //   // const arr_parts__new = [];
-            //
-            //   Object.values(outerUpdatesDict.parts.new).forEach((part__rep_free, i) => {
-            //     const part__listener = this.createPartListener();
-            //     this.listeners[part__rep_free.id] = part__listener;
-            //
-            //     if(handle__rep_free.compositeConfig[part__rep_free.id] == null) {
-            //       const config__part = {
-            //         // isMobile: true,
-            //         isMobile: false,
-            //       };
-            //       handle__rep_free.compositeConfig[part__rep_free.id] = config__part;
-            //     }
-            //
-            //     //'activate' listener
-            //     // const part__listener = this.listeners[part__rep_free.id];
-            //     part__rep_free.onInnerUpdate(part__listener);
-            //
-            //   });
-            //
-            // }
 
           };
 
@@ -25674,128 +25752,134 @@
             const handle__represented = infiniteCanvas.getRepresented(icObj_composite.id);
             const handle__rep_free    = handle__represented.r_free();
 
-            if (outerUpdatesDict.homeScale != null) {
+            if(infiniteCanvas.isAltering) {
+                //only move selected handle: do nothing with parts
+            } else {
 
-              const scaleFactor = {
-                X: outerUpdatesDict.homeScale.new.X / outerUpdatesDict.homeScale.old.X,
-                Y: outerUpdatesDict.homeScale.new.Y / outerUpdatesDict.homeScale.old.Y,
-              };
-              logger.log("logCompZscroll", "scaleFactor", scaleFactor);
+              if (outerUpdatesDict.homeScale != null) {
 
-              if(scaleFactor.X == 1 && scaleFactor.Y == 1) {  //SHU: bwerk
-                //ignore
-                return;
-              }
+                const scaleFactor = {
+                  X: outerUpdatesDict.homeScale.new.X / outerUpdatesDict.homeScale.old.X,
+                  Y: outerUpdatesDict.homeScale.new.Y / outerUpdatesDict.homeScale.old.Y,
+                };
+                logger.log("logCompZscroll", "scaleFactor", scaleFactor);
 
-              const parts = handle__rep_free.parts;
-              const arr_parts_all = Object.values(parts);
-              arr_parts_all.forEach((part__rep_free, i) => {
-
-                const listener = this.listeners[part__rep_free.id];
-
-                //listen:off
-                // if(typeof part__rep_free.offInnerUpdate === "function") { //SHU HORROR
-                part__rep_free.offInnerUpdate(listener);
-                // }
-
-
-
-                //mutate
-                // logger.log("mutating part:", part__rep_free.id);
-                {
-
-                  //homeScale
-                  const homeScale__new__part = {
-                    X: part__rep_free.homeScale.X * scaleFactor.X,
-                    Y: part__rep_free.homeScale.Y * scaleFactor.Y,
-                  };
-                  logger.log("logCompZscroll", "homeScale__old__part", part__rep_free.homeScale);
-                  logger.log("logCompZscroll", "homeScale__new__part", homeScale__new__part);
-                  part__rep_free.homeScale = homeScale__new__part;
-
-
-                  //other (induced)
-                    //position
-                  const offset_wrt_handle__old = {
-                    dx: part__rep_free.position.x - handle__rep_free.position.x,
-                    dy: part__rep_free.position.y - handle__rep_free.position.y,
-                  };
-                  logger.log("logCompZscroll", "offset_wrt_handle__old", offset_wrt_handle__old);
-
-                  const offset_wrt_handle__new = {
-                    dx: offset_wrt_handle__old.dx / scaleFactor.X,
-                    dy: offset_wrt_handle__old.dy / scaleFactor.Y,
-                  };
-                  logger.log("logCompZscroll", "offset_wrt_handle__new", offset_wrt_handle__new);
-
-
-                  if (part__rep_free.position != null) {
-                    const position_new = {
-                      x: part__rep_free.position.x - offset_wrt_handle__old.dx + offset_wrt_handle__new.dx,
-                      y: part__rep_free.position.y - offset_wrt_handle__old.dy + offset_wrt_handle__new.dy,
-                    };
-                    logger.log("logCompZscroll", "position_new", position_new);
-
-                    part__rep_free.position = position_new;
-
-                  } else if (part__rep_free.point_start != null) {
-                    //move segment parts
-                    const point_start_new = {
-                      x: part__rep_free.point_start.x + offset_wrt_handle__new.dx,
-                      y: part__rep_free.point_start.y + offset_wrt_handle__new.dy,
-                    };
-                    part__rep_free.point_start = point_start_new;
-
-                    const v__old = {
-                      dx: part__rep_free.point_end.x - part__rep_free.point_start.x,
-                      dy: part__rep_free.point_end.y - part__rep_free.point_start.y,
-                    };
-                    const v__new = {
-                      dx: v__old.dx / scaleFactor.X,
-                      dy: v__old.dy / scaleFactor.Y,
-                    };
-
-                    const point_end_new = {
-                      x: part__rep_free.point_end.x + v__new.dx,
-                      y: part__rep_free.point_end.y + v__new.dy,
-                    };
-                    part__rep_free.point_end = point_end_new;
-                  }
+                if(scaleFactor.X == 1 && scaleFactor.Y == 1) {  //SHU: bwerk
+                  //ignore
+                  return;
                 }
 
-                //listen:on
-                // if(typeof part__rep_free.onInnerUpdate === "function") { //SHU HORROR
-                part__rep_free.onInnerUpdate(listener);
-                // }
+                const parts = handle__rep_free.parts;
+                const arr_parts_all = Object.values(parts);
+                arr_parts_all.forEach((part__rep_free, i) => {
 
-              });
+                  const listener = this.listeners[part__rep_free.id];
+
+                  //listen:off
+                  // if(typeof part__rep_free.offInnerUpdate === "function") { //SHU HORROR
+                  part__rep_free.offInnerUpdate(listener);
+                  // }
+
+
+
+                  //mutate
+                  // logger.log("mutating part:", part__rep_free.id);
+                  {
+
+                    //homeScale
+                    const homeScale__new__part = {
+                      X: part__rep_free.homeScale.X * scaleFactor.X,
+                      Y: part__rep_free.homeScale.Y * scaleFactor.Y,
+                    };
+                    logger.log("logCompZscroll", "homeScale__old__part", part__rep_free.homeScale);
+                    logger.log("logCompZscroll", "homeScale__new__part", homeScale__new__part);
+                    part__rep_free.homeScale = homeScale__new__part;
+
+
+                    //other (induced)
+                      //position
+                    const offset_wrt_handle__old = {
+                      dx: part__rep_free.position.x - handle__rep_free.position.x,
+                      dy: part__rep_free.position.y - handle__rep_free.position.y,
+                    };
+                    logger.log("logCompZscroll", "offset_wrt_handle__old", offset_wrt_handle__old);
+
+                    const offset_wrt_handle__new = {
+                      dx: offset_wrt_handle__old.dx / scaleFactor.X,
+                      dy: offset_wrt_handle__old.dy / scaleFactor.Y,
+                    };
+                    logger.log("logCompZscroll", "offset_wrt_handle__new", offset_wrt_handle__new);
+
+
+                    if (part__rep_free.position != null) {
+                      const position_new = {
+                        x: part__rep_free.position.x - offset_wrt_handle__old.dx + offset_wrt_handle__new.dx,
+                        y: part__rep_free.position.y - offset_wrt_handle__old.dy + offset_wrt_handle__new.dy,
+                      };
+                      logger.log("logCompZscroll", "position_new", position_new);
+
+                      part__rep_free.position = position_new;
+
+                    } else if (part__rep_free.point_start != null) {
+                      //move segment parts
+                      const point_start_new = {
+                        x: part__rep_free.point_start.x + offset_wrt_handle__new.dx,
+                        y: part__rep_free.point_start.y + offset_wrt_handle__new.dy,
+                      };
+                      part__rep_free.point_start = point_start_new;
+
+                      const v__old = {
+                        dx: part__rep_free.point_end.x - part__rep_free.point_start.x,
+                        dy: part__rep_free.point_end.y - part__rep_free.point_start.y,
+                      };
+                      const v__new = {
+                        dx: v__old.dx / scaleFactor.X,
+                        dy: v__old.dy / scaleFactor.Y,
+                      };
+
+                      const point_end_new = {
+                        x: part__rep_free.point_end.x + v__new.dx,
+                        y: part__rep_free.point_end.y + v__new.dy,
+                      };
+                      part__rep_free.point_end = point_end_new;
+                    }
+                  }
+
+                  //listen:on
+                  // if(typeof part__rep_free.onInnerUpdate === "function") { //SHU HORROR
+                  part__rep_free.onInnerUpdate(listener);
+                  // }
+
+                });
+
+              }
+              // else if(outerUpdatesDict.parts != null) {
+              //   logger.log("outerUpdatesDict.parts", outerUpdatesDict.parts);
+              //
+              //   // const arr_parts__old = [];
+              //   // const arr_parts__new = [];
+              //
+              //   Object.values(outerUpdatesDict.parts.new).forEach((part__rep_free, i) => {
+              //     const part__listener = this.createPartListener();
+              //     this.listeners[part__rep_free.id] = part__listener;
+              //
+              //     if(handle__rep_free.compositeConfig[part__rep_free.id] == null) {
+              //       const config__part = {
+              //         // isMobile: true,
+              //         isMobile: false,
+              //       };
+              //       handle__rep_free.compositeConfig[part__rep_free.id] = config__part;
+              //     }
+              //
+              //     //'activate' listener
+              //     // const part__listener = this.listeners[part__rep_free.id];
+              //     part__rep_free.onInnerUpdate(part__listener);
+              //
+              //   });
+              //
+              // }
 
             }
-            // else if(outerUpdatesDict.parts != null) {
-            //   logger.log("outerUpdatesDict.parts", outerUpdatesDict.parts);
-            //
-            //   // const arr_parts__old = [];
-            //   // const arr_parts__new = [];
-            //
-            //   Object.values(outerUpdatesDict.parts.new).forEach((part__rep_free, i) => {
-            //     const part__listener = this.createPartListener();
-            //     this.listeners[part__rep_free.id] = part__listener;
-            //
-            //     if(handle__rep_free.compositeConfig[part__rep_free.id] == null) {
-            //       const config__part = {
-            //         // isMobile: true,
-            //         isMobile: false,
-            //       };
-            //       handle__rep_free.compositeConfig[part__rep_free.id] = config__part;
-            //     }
-            //
-            //     //'activate' listener
-            //     // const part__listener = this.listeners[part__rep_free.id];
-            //     part__rep_free.onInnerUpdate(part__listener);
-            //
-            //   });
-            //
-            // }
 
           };
 
@@ -26016,7 +26100,7 @@
         //   return outPart;
         // }
 
-        static defaultCompositeConfig(parts, isMobile = true) {
+        static defaultCompositeConfig(parts, isMobile = false) {
           var outConfig;
 
           outConfig = Object.entries(parts).reduce((acc, [partName, part], index) => {
@@ -35534,7 +35618,7 @@
           } else {
             fabric_objects.forEach((fObj, i) => {
 
-              if(activeObject != null && fObj == activeObject && (fObj.icObj.isCompositePart() || fObj.icObj.type == "composite")) {
+              if(!infiniteCanvas.isAltering && (activeObject != null) && (fObj == activeObject) && (fObj.icObj.isCompositePart() || fObj.icObj.type == "composite")) {
                 //activeObject object is part of composite: affect all objects in composite  
                 
                 if(fObj.icObj.isCompositePart()) {
@@ -42130,7 +42214,7 @@
                 //only side effect is used
               }),
               altLeft: new KeyDownToggle("altLeft", KeyDownToggle.defaultKeyDownFunc(["AltLeft"]), (isActive) => {
-                //only side effect is used
+                infiniteCanvas.isAltering = isActive;
               }),
               ctrlLeft: new KeyDownToggle("ctrlLeft", KeyDownToggle.defaultKeyDownFunc(["ControlLeft"]), (isActive) => {
                 //only side effect is used
@@ -55910,7 +55994,7 @@
           }, []);
 
           const parts = Utils.dictFromArr(arr_icRect);
-          const compositeConfig = Compositer.defaultCompositeConfig(parts, true);
+          const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
           // compositeConfig__knob[icMathNode__knob.id].isMobile = true;
           const trueRect__composite = {
             x:      -100,
