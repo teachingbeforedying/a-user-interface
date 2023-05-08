@@ -5324,11 +5324,45 @@
         if (icObj.type == "composite"
           || icObj.type == "compositeSegment") {
 
-          //create represented for parts (if needed)
-          const parts__represented = {};
-          const parts__rep_official = {};
-          const parts__rep_free = {};
 
+          //create represented for content (if needed)
+          var content__represented;
+          var content__rep_official;
+          var content__rep_free;
+
+          const content    = icObj.content;
+
+          if(content != null) {
+            const id_content = content.id;
+            const represented_check__content = this.getRepresented(id_content);
+
+            if (represented_check__content != null) {
+              logger.log("represented already added for content", content);
+
+              content__represented  = represented_check__content;
+              content__rep_official = content__represented.r_official();
+              content__rep_free     = content__represented.r_free();
+
+            } else {
+
+              logger.log("create represented for content", content);
+
+              content__represented  = this.createRepresentedIcObject(content);
+              content__rep_official = content__represented.r_official();
+              content__rep_free     = content__represented.createNewRepresentation("free");
+              if (content__rep_free.nowHeld == null) {
+                content__rep_free.addInteraction_hold();
+              }
+
+            }
+
+          }
+
+
+          //create represented for parts (if needed)
+          const parts__represented  = {};
+          const parts__rep_official = {};
+          const parts__rep_free     = {};
 
           const parts = icObj.parts;
 
@@ -5341,17 +5375,17 @@
                 logger.log("represented already added for part", part_icObj);
 
                 // if(part_icObj.isMobile) {
-                const part__represented = represented_check;
+                const part__represented  = represented_check;
                 const part__rep_official = part__represented.r_official();
-                const part__rep_free = part__represented.r_free();
+                const part__rep_free     = part__represented.r_free();
                 // if(part__rep_free.holdListeners == null) {
                 //   part__rep_free.addInteraction_hold();
                 // }
                 // }
 
-                parts__represented[partName] = part__represented;
+                parts__represented[partName]  = part__represented;
                 parts__rep_official[partName] = part__rep_official;
-                parts__rep_free[partName] = part__rep_free;
+                parts__rep_free[partName]     = part__rep_free;
                 // icObj__represented.compositeConfig.parts[partName]  = part__represented;
                 // icObj__rep_official.compositeConfig.parts[partName] = part__rep_official;
                 // icObj__rep_free.compositeConfig.parts[partName]     = part__rep_free;
@@ -5359,38 +5393,45 @@
               } else {
                 logger.log("create represented for part", part_icObj);
 
-                const part__represented = this.createRepresentedIcObject(part_icObj);
+                const part__represented  = this.createRepresentedIcObject(part_icObj);
                 const part__rep_official = part__represented.r_official();
-                const part__rep_free = part__represented.createNewRepresentation("free");
+                const part__rep_free     = part__represented.createNewRepresentation("free");
                 if (part__rep_free.nowHeld == null) {
                   part__rep_free.addInteraction_hold();
                 }
 
-                parts__represented[partName] = part__represented;
+                parts__represented[partName]  = part__represented;
                 parts__rep_official[partName] = part__rep_official;
-                parts__rep_free[partName] = part__rep_free;
+                parts__rep_free[partName]     = part__rep_free;
 
               }
 
             });
 
+
           //create representations
           icObj__represented = RepresentedFactory.initial(icObj);
-          icObj__represented.parts = parts__represented;
+          icObj__represented.parts   = parts__represented;
 
           const icObj__rep_official = icObj__represented.r_official();
-          icObj__rep_official.parts = parts__rep_official;
+          icObj__rep_official.parts   = parts__rep_official;
 
           const icObj__rep_free = icObj__represented.createNewRepresentation("free");
-          icObj__rep_free.parts = parts__rep_free;
+          icObj__rep_free.parts   = parts__rep_free;
           icObj__rep_free.addInteraction_hold();
+
+          if(content != null) {
+            icObj__represented.content  = content__represented;
+            icObj__rep_official.content = content__rep_official;
+            icObj__rep_free.content     = content__rep_free;
+          }
 
         } else {
 
           //create representations
           icObj__represented = RepresentedFactory.initial(icObj);
           const icObj__rep_official = icObj__represented.r_official();
-          const icObj__rep_free = icObj__represented.createNewRepresentation("free");
+          const icObj__rep_free     = icObj__represented.createNewRepresentation("free");
           icObj__rep_free.addInteraction_hold();
         }
 
@@ -10569,17 +10610,17 @@
       }
 
 
-      createIcComposite(trueRect, parts, compositeConfig) {
+      createIcComposite(trueRect, parts, compositeConfig, content = null) {
         console.log("createIcComposite", trueRect);
 
         const infiniteCanvas = this;
 
         const type = "composite";
 
-        const position = Geometry.createPoint(trueRect.x, trueRect.y);
-        const size = Geometry.createSize(trueRect.width, trueRect.height);
+        const position  = Geometry.createPoint(trueRect.x, trueRect.y);
+        const size      = Geometry.createSize(trueRect.width, trueRect.height);
         const homeScale = Object.assign({}, this.scale);
-        const icObj = this.createIcObject(type, position, size, homeScale);
+        const icObj     = this.createIcObject(type, position, size, homeScale);
 
 
         const icComposite_spec = {
@@ -10593,6 +10634,9 @@
           parts: parts,
           compositeConfig: compositeConfig,
         };
+        if(content != null) {
+          icComposite_spec.content = content;
+        }
 
         const icComposite = Object.assign(icObj, icComposite_spec);
 
@@ -16036,6 +16080,9 @@
 
           if (icObj.type == "composite"
             || icObj.type == "compositeSegment") {
+            if(icObj.content != null) {
+              this.addIcObject(icObj.content);
+            }            
             Object.values(icObj.parts).forEach((part, i) => {
               this.addIcObject(part);
             });
@@ -16609,6 +16656,80 @@
           };
 
         });
+
+      }
+
+      manageAdhesion(icObj, icObj__support) {
+        logger.log("logFD", "manageAdhesion", icObj, icObj__support);
+        const infiniteCanvas = this;
+
+        //we suppose that icObj has already been added to iC
+
+        if(icObj__support.type == "composite") {
+          //add as part
+          const icObj__rep_free = infiniteCanvas.getRepresented(icObj.id).r_free();
+          icObj__support.dict_engine["composite"].engine.awoken.addPart(icObj__rep_free, false);
+        } else if(infiniteCanvas.isCompositeContent(icObj__support)) {
+          //add as part in parent
+          const id__parent = icObj__support.compositeId; 
+          const parent__rep_free = infiniteCanvas.getRepresented(id__parent).r_free();
+
+          const icObj__rep_free = infiniteCanvas.getRepresented(icObj.id).r_free();
+          parent__rep_free.dict_engine["composite"].engine.awoken.addPart(icObj__rep_free, false);
+        } else if(infiniteCanvas.isCompositePart(icObj__support)) {
+
+          //promote icObj__support to composite
+
+            //remove original version from parent
+          const id__parent = icObj__support.compositeId; 
+          const parent__rep_free = infiniteCanvas.getRepresented(id__parent).r_free();
+          parent__rep_free.dict_engine["composite"].engine.awoken.removePart(icObj__support);
+
+            //create composite form
+          const trueRect__support__as_composite = {
+            x:      icObj__support.position.x -  0 / (icObj__support.homeScale.X * icObj__support.scale.X),
+            y:      icObj__support.position.y - 50 / (icObj__support.homeScale.Y * icObj__support.scale.Y),
+            width:  30 / (icObj__support.homeScale.X * icObj__support.scale.X),
+            height: 30 / (icObj__support.homeScale.Y * icObj__support.scale.Y),
+          };
+          const content         = icObj__support;
+          const parts           = Utils.dictFromArr([icObj]);
+          const contentAndParts = Object.assign({"content": content}, parts); 
+          const compositeConfig = Compositer.defaultCompositeConfig(contentAndParts, false);
+          const icObj__support__as_composite = infiniteCanvas.createIcComposite(trueRect__support__as_composite, parts, compositeConfig, content);
+          icObj__support__as_composite.cType = "support";
+          
+            //add composite form
+          infiniteCanvas.onceOnAddRepresentedForIcObject(icObj__support__as_composite, (icObj__support__as_composite) => {
+
+            const icObj__support__as_composite__rep_free = infiniteCanvas.getRepresented(icObj__support__as_composite.id).r_free();
+
+            //add composite version to parent
+            parent__rep_free.dict_engine["composite"].engine.awoken.addPart(icObj__support__as_composite__rep_free, false);
+          });
+          infiniteCanvas.addIcObject(icObj__support__as_composite);
+
+        } else {
+
+          //promote icObj__support to composite
+
+            //create composite form
+            const trueRect__support__as_composite = {
+            x:      icObj__support.position.x -  0 / (icObj__support.homeScale.X * icObj__support.scale.X),
+            y:      icObj__support.position.y - 50 / (icObj__support.homeScale.Y * icObj__support.scale.Y),
+            width:  30 / (icObj__support.homeScale.X * icObj__support.scale.X),
+            height: 30 / (icObj__support.homeScale.Y * icObj__support.scale.Y),
+          };
+          const content         = icObj__support;
+          const parts           = Utils.dictFromArr([icObj]);
+          const contentAndParts = Object.assign({"content": content}, parts); 
+          const compositeConfig = Compositer.defaultCompositeConfig(contentAndParts, false);
+          const icObj__support__as_composite = infiniteCanvas.createIcComposite(trueRect__support__as_composite, parts, compositeConfig, content);
+          icObj__support__as_composite.cType = "support";
+
+          infiniteCanvas.addIcObject(icObj__support__as_composite);
+        }
+          
 
       }
 
@@ -17197,6 +17318,41 @@
 
 
       }
+
+      isCompositeContent(icObj) {
+        var outBool;
+
+        if(icObj.isCompositeContentOrPart()) {
+          const id_parent = icObj.compositeId;
+          const parent__rep_official = this.getRepresented(id_parent).r_official();
+          if(parent__rep_official.content != null) {
+            outBool = (parent__rep_official.content.id == icObj.id);
+          } else {
+            outBool = false;
+          }
+        } else {
+          outBool = false;
+        }
+
+        return outBool;
+      }
+
+      isCompositePart(icObj) {
+        var outBool;
+
+        if(icObj.isCompositeContentOrPart()) {
+          const id_parent = icObj.compositeId;
+          const parent__rep_official = this.getRepresented(id_parent).r_official();
+          outBool = (Object.values(parent__rep_official.parts).find(icObj__part => icObj__part.id == icObj.id) != null);
+        } else {
+          outBool = false;
+        }
+
+        return outBool;
+      }
+
+
+
 
       link(icObj__1, icObj__2) {
         logger.log("infiniteCanvas::unlink", icObj__1, icObj__2);
@@ -22103,7 +22259,7 @@
       }
 
       clone() {
-        const id = this.id;
+        const id   = this.id;
         const type = this.type;
 
         const position = this.position;
@@ -22317,7 +22473,7 @@
         }
       }
 
-      isCompositePart() {
+      isCompositeContentOrPart() {
         return this.compositeId != -1;
       }
 
@@ -25434,8 +25590,19 @@
             return handle__listener;
           };
 
+          this.createContentListener = function () {
+            const content__listener = (representation, propName, oldValue, newValue) => {
+              const updatesDict = {
+                [propName]: {
+                  old: oldValue,
+                  new: newValue,
+                },
+              };
+              this.manageContentUpdate(representation, updatesDict);
+            };
 
-
+            return content__listener;
+          };
 
           // this.counter__partListeners = 0;
           this.createPartListener = function () {
@@ -25469,14 +25636,20 @@
 
             //get free_rep
             const handle__represented = infiniteCanvas.getRepresented(handle.id);
-            const handle__rep_free = handle__represented.r_free();
+            const handle__rep_free    = handle__represented.r_free();
 
 
 
             const handle__listener = this.createHandleListener();
-
             // outListenersDict["handle"] = handle__listener;
             outListenersDict[handle.id] = handle__listener;
+
+            const content__rep_free = handle__rep_free.content;
+            if(content__rep_free != null) {
+              const content__listener = this.createContentListener();
+              // outListenersDict["content"] = content__listener;
+              outListenersDict[content__rep_free.id] = content__listener;
+            }
 
             const parts = handle__rep_free.parts;
             const part_listeners = Object.entries(parts).reduce((acc, [partName, part__rep_free]) => {
@@ -25507,9 +25680,10 @@
             const handle__represented = infiniteCanvas.getRepresented(handle.id);
             const handle__rep_free = handle__represented.r_free();
 
-            const parts = handle__rep_free.parts;
+            const content = handle__rep_free.content;
+            const parts   = handle__rep_free.parts;
 
-            return [handle__rep_free] + Object.values(parts);
+            return [handle__rep_free, content] + Object.values(parts);
           };
 
           this.getArr_everyoneBut = function (rep) {
@@ -25553,6 +25727,7 @@
           };
 
           this.managePartUpdate__position = function (icObj_compositePart, outerUpdatesDict) {
+            logger.log("logComposite", "managePartUpdate__position", icObj_compositePart);
 
             //SHU FLUID
 
@@ -25600,10 +25775,13 @@
                     };
                   }
 
-                  const parts = handle__rep_free.parts;
+                  const content = handle__rep_free.content;
+                  const parts   = handle__rep_free.parts;
 
-                  const arr_parts_all = Object.values(parts);
-                  const arr_parts_other = arr_parts_all.filter(part => part.id != icObj_compositePart.id);
+                  const arr_parts_all             = Object.values(parts);
+                  const arr_content_and_parts_all = [content, ...arr_parts_all].filter(icObj => (icObj != null));
+
+                  const arr_parts_other = arr_content_and_parts_all.filter(part => part.id != icObj_compositePart.id);
 
                   const arr_handle_and_other = [handle__rep_free, ...arr_parts_other];
 
@@ -25660,6 +25838,132 @@
           };
 
 
+          //content update
+          this.manageContentUpdate = function (icObj_compositeContent, outerUpdatesDict) {
+
+            [...Object.keys(outerUpdatesDict)].forEach((key__update) => {
+              switch(key__update) {
+                case "position":
+                  this.managePartUpdate__position(icObj_compositeContent, outerUpdatesDict);
+                  break;
+                case "homeScale":
+                  this.managePartUpdate__homeScale(icObj_compositeContent, outerUpdatesDict);
+                  break;
+                default:
+                  break;
+              }
+            });
+
+          };
+
+          // this.manageContentUpdate__position = function (icObj_compositePart, outerUpdatesDict) {
+
+          //   //SHU FLUID
+
+          //   logger.log("managePartUpdate__position", icObj_compositePart);
+
+          //   const infiniteCanvas = this.scopeObj.infiniteCanvas;
+          //   const handle = this.scopeObj.engineCarrier;
+
+          //   const compositeConfig = handle.compositeConfig;
+          //   console.log("compositeConfig", compositeConfig);
+          //   const id__compositePart = icObj_compositePart.id;
+          //   console.log("id__compositePart", id__compositePart);
+
+          //   const isMobile = compositeConfig[id__compositePart].isMobile;
+
+          //   if (isMobile) {
+          //     //ignore
+          //   } else {
+
+          //     if(infiniteCanvas.isAltering) {
+          //       //only move selected part: do nothing with other parts
+          //     } else {
+          //       //move everything accordingly
+
+          //       //get free_rep
+          //       const handle__represented = infiniteCanvas.getRepresented(handle.id);
+          //       const handle__rep_free = handle__represented.r_free();
+
+          //       // const part__represented   = infiniteCanvas.getRepresented(icObj_compositePart.id);
+
+          //       // rep_free__composite.composite.managePartUpdate(rep_free__compositePart, outerUpdatesDict);
+          //       if ((outerUpdatesDict.position != null) || (outerUpdatesDict.point_start != null)) {
+
+          //         var offset;
+          //         if (outerUpdatesDict.position != null) {
+          //           offset = {
+          //             dx: outerUpdatesDict.position.new.x - outerUpdatesDict.position.old.x,
+          //             dy: outerUpdatesDict.position.new.y - outerUpdatesDict.position.old.y,
+          //           };
+          //         } else {
+          //           //moved part was segment
+          //           offset = {
+          //             dx: outerUpdatesDict.point_start.new.x - outerUpdatesDict.point_start.old.x,
+          //             dy: outerUpdatesDict.point_start.new.y - outerUpdatesDict.point_start.old.y,
+          //           };
+          //         }
+
+          //         const parts = handle__rep_free.parts;
+
+          //         const arr_parts_all = Object.values(parts);
+          //         const arr_parts_other = arr_parts_all.filter(part => part.id != icObj_compositePart.id);
+
+          //         const arr_handle_and_other = [handle__rep_free, ...arr_parts_other];
+
+          //         // arr_parts_other.forEach((rep_free, i) => {
+          //         arr_handle_and_other.forEach((rep_free, i) => {
+
+          //           const listener = this.listeners[rep_free.id];
+          //           // console.log("°°°listener", listener);
+
+          //           //listen:off
+          //           rep_free.offInnerUpdate(listener);
+
+          //           //mutate
+          //           // logger.log("mutating part:", rep_free.id);
+          //           {
+          //             if (rep_free.position != null) {
+          //               const position_new = {
+          //                 x: rep_free.position.x + offset.dx,
+          //                 y: rep_free.position.y + offset.dy,
+          //               };
+
+          //               rep_free.position = position_new;
+          //             } else if (rep_free.point_start != null) {
+          //               //move other segment parts
+          //               const point_start_new = {
+          //                 x: rep_free.point_start.x + offset.dx,
+          //                 y: rep_free.point_start.y + offset.dy,
+          //               };
+          //               rep_free.point_start = point_start_new;
+          //               const point_end_new = {
+          //                 x: rep_free.point_end.x + offset.dx,
+          //                 y: rep_free.point_end.y + offset.dy,
+          //               };
+          //               rep_free.point_end = point_end_new;
+          //             }
+          //           }
+
+          //           //listen:on
+          //           rep_free.onInnerUpdate(listener);
+
+          //         });
+
+          //       }
+
+          //     }
+
+          //   }
+
+          // };
+
+
+          // this.manageContentUpdate__homeScale = function (icObj_compositePart, outerUpdatesDict) {
+
+          // };
+
+
 
           //handle update
           this.manageHandleUpdate = function (icObj_composite, outerUpdatesDict) {
@@ -25680,7 +25984,7 @@
           };
 
           this.manageHandleUpdate__position = function (icObj_composite, outerUpdatesDict) {
-            console.log("manageHandleUpdate__position", icObj_composite);
+            logger.log("logComposite", "manageHandleUpdate__position", icObj_composite);
 
             //get free_rep
             const handle__represented = infiniteCanvas.getRepresented(icObj_composite.id);
@@ -25697,9 +26001,13 @@
                   dy: outerUpdatesDict.position.new.y - outerUpdatesDict.position.old.y,
                 };
 
-                const parts = handle__rep_free.parts;
-                const arr_parts_all = Object.values(parts);
-                arr_parts_all.forEach((part__rep_free, i) => {
+                const content = handle__rep_free.content;
+                const parts   = handle__rep_free.parts;
+
+                const arr_parts_all             = Object.values(parts);
+                const arr_content_and_parts_all = [content, ...arr_parts_all].filter(icObj => (icObj != null));
+
+                arr_content_and_parts_all.forEach((part__rep_free, i) => {
 
                   const listener = this.listeners[part__rep_free.id];
 
@@ -25798,9 +26106,13 @@
                   return;
                 }
 
-                const parts = handle__rep_free.parts;
-                const arr_parts_all = Object.values(parts);
-                arr_parts_all.forEach((part__rep_free, i) => {
+                const content = handle__rep_free.content;
+                const parts   = handle__rep_free.parts;
+
+                const arr_parts_all             = Object.values(parts);
+                const arr_content_and_parts_all = [content, ...arr_parts_all].filter(icObj => (icObj != null));
+
+                arr_content_and_parts_all.forEach((part__rep_free, i) => {
 
                   const listener = this.listeners[part__rep_free.id];
 
@@ -25915,7 +26227,7 @@
 
           this.addPart = function (part__rep_free, isMobile = true) {
             // this.addPart = function(part, config__part) {
-            // logger.log("addPart", this, part__rep_free);
+            logger.log("logComposite", "addPart", this, part__rep_free, isMobile);
 
             //get free_rep
             const infiniteCanvas = this.scopeObj.infiniteCanvas;
@@ -25954,14 +26266,14 @@
           };
 
           this.removePart = function (part__rep_free) {
-            // logger.log("removePart", this, part__rep_free);
+            logger.log("logComposite", "removePart", this, part__rep_free);
 
             //get free_rep
             const infiniteCanvas = this.scopeObj.infiniteCanvas;
             const handle = this.scopeObj.engineCarrier;
 
             const handle__represented = infiniteCanvas.getRepresented(handle.id);
-            const handle__rep_free = handle__represented.r_free();
+            const handle__rep_free    = handle__represented.r_free();
 
             //deactivate listener
             //retrieve
@@ -25992,10 +26304,10 @@
 
           this.addParts = function (arr_icObj) {
             const infiniteCanvas = this.scopeObj.infiniteCanvas;
-            const handle = this.scopeObj.engineCarrier;
+            const handle         = this.scopeObj.engineCarrier;
 
             const handle__represented = infiniteCanvas.getRepresented(handle.id);
-            const handle__rep_free = handle__represented.r_free();
+            const handle__rep_free    = handle__represented.r_free();
 
             arr_icObj.forEach(icObj__part => {
               this.addPart(icObj__part, false);
@@ -26004,7 +26316,7 @@
 
           this.removeAllParts = function () {
             const infiniteCanvas = this.scopeObj.infiniteCanvas;
-            const handle = this.scopeObj.engineCarrier;
+            const handle         = this.scopeObj.engineCarrier;
 
             const handle__represented = infiniteCanvas.getRepresented(handle.id);
             const handle__rep_free = handle__represented.r_free();
@@ -26025,17 +26337,27 @@
             this.listeners = this.createListeners();
 
             const infiniteCanvas = this.scopeObj.infiniteCanvas;
-            const handle = this.scopeObj.engineCarrier;
+            const handle         = this.scopeObj.engineCarrier;
 
             console.log("CompositeEngine.start", handle.id);
 
             //get free_rep
             const handle__represented = infiniteCanvas.getRepresented(handle.id);
-            const handle__rep_free = handle__represented.r_free();
+            const handle__rep_free    = handle__represented.r_free();
 
             //listen to handle
             const handle__listener = this.listeners[handle.id];
             handle__rep_free.onInnerUpdate(handle__listener);
+
+            //listen to content
+            const content__rep_free = handle__rep_free.content;
+            if(content__rep_free != null) {
+              const content__listener = this.listeners[content__rep_free.id];
+              content__rep_free.onInnerUpdate(content__listener);
+
+              //set compositeId if not done yet         //SHU: horror
+              content__rep_free.compositeId = handle__rep_free.id;
+            }
 
             //listen to parts
             const parts = handle__rep_free.parts;
@@ -26096,6 +26418,14 @@
 
             const handle__listener = this.listeners[handle.id];
             handle__rep_free.offInnerUpdate(handle__listener);
+
+            const content__rep_free = handle__rep_free.content;
+            if(content__rep_free != null) {
+              const content__listener = this.listeners[content__rep_free.id];
+              content__rep_free.offInnerUpdate(content__listener);
+
+              this.removeContent(content__rep_free);
+            }
 
             const parts = handle__rep_free.parts;
             const arr_parts_all = Object.values(parts);
@@ -28910,7 +29240,12 @@
 
             preserveObjectStacking: true,
           });
-          installFabricZIndexUpgrade(fabricCanvas);
+          installFabricZIndexUpgrade(fabricCanvas);     //fabric+zIndex.js
+
+          //improve performance: (?)
+          // fabricCanvas.contextTop       = fabricCanvas.upperCanvasEl.getContext('2d', { willReadFrequently: true }); 
+          // fabricCanvas.contextContainer = fabricCanvas.lowerCanvasEl.getContext('2d', { willReadFrequently: true }); 
+          // fabricCanvas.contextCache     = fabricCanvas.cacheCanvasEl.getContext('2d', { willReadFrequently: true }); 
 
           //debug
           function install_boundingboxing() {
@@ -35125,11 +35460,11 @@
           if (activeObject instanceof fabric.ActiveSelection) {
             logger.log("logZScroll", "updateFabricObjectsPosition_zScroll", "activeObject instanceof fabric.ActiveSelection");
 
-            // if(activeObject.icObj.isCompositePart() || activeObject.icObj.type == "composite") {
+            // if(activeObject.icObj.isCompositeContentOrPart() || activeObject.icObj.type == "composite") {
 
             //   //get composite
             //   var icObj__composite;
-            //   if(activeObject.icObj.isCompositePart()) {
+            //   if(activeObject.icObj.isCompositeContentOrPart()) {
             //     const id__composite = activeObject.icObj.compositeId;
             //     icObj__composite = infiniteCanvas.getRepresented(id__composite).rep_free();
             //   } else {
@@ -35175,11 +35510,11 @@
           } else {
             logger.log("logZScroll", "updateFabricObjectsPosition_zScroll", "fabric_objects", fabric_objects);
 
-            // if(activeObject.icObj.isCompositePart() || activeObject.icObj.type == "composite") {
+            // if(activeObject.icObj.isCompositeContentOrPart() || activeObject.icObj.type == "composite") {
 
             //   //get composite
             //   var icObj__composite;
-            //   if(activeObject.icObj.isCompositePart()) {
+            //   if(activeObject.icObj.isCompositeContentOrPart()) {
             //     const id__composite = activeObject.icObj.compositeId;
             //     icObj__composite = infiniteCanvas.getRepresented(id__composite).rep_free();
             //   } else {
@@ -35647,18 +35982,18 @@
           } else {
             fabric_objects.forEach((fObj, i) => {
 
-              if(!infiniteCanvas.isAltering && (activeObject != null) && (fObj == activeObject) && (fObj.icObj.isCompositePart() || fObj.icObj.type == "composite")) {
+              if(!infiniteCanvas.isAltering && (activeObject != null) && (fObj == activeObject) && (fObj.icObj.isCompositeContentOrPart() || fObj.icObj.type == "composite")) {
                 //activeObject object is part of composite: affect all objects in composite  
                 
-                if(fObj.icObj.isCompositePart()) {
-                  logger.log("logZScroll", "updateFabricObjectsSize_zScroll", "fObj.icObj.isCompositePart()");
+                if(fObj.icObj.isCompositeContentOrPart()) {
+                  logger.log("logZScroll", "updateFabricObjectsSize_zScroll", "fObj.icObj.isCompositeContentOrPart()");
                 } else if(fObj.icObj.type == "composite") {
                   logger.log("logZScroll", "updateFabricObjectsSize_zScroll", 'activeObject.icObj.type == "composite"');
                 }
 
                 //get composite
                 var icObj__composite;
-                if(fObj.icObj.isCompositePart()) {
+                if(fObj.icObj.isCompositeContentOrPart()) {
                   const id__composite = fObj.icObj.compositeId;
                   icObj__composite    = infiniteCanvas.getRepresented(id__composite).getRepresentation("free");
                 } else {
@@ -36117,6 +36452,33 @@
           //install ZPencilBrush
           this.fabricCanvas.freeDrawingBrush = new fabric.ZPencilBrush(this.fabricCanvas);
           this.fabricCanvas.freeDrawingBrush._setBrushStyles(this.fabricCanvas.contextContainer);
+
+          //install adhesive freeDrawing
+          // this.fabricCanvas.on('mouse:down:before', (this.freeDrawing__adhesive__checkForSupport).bind(this));
+        }
+
+        freeDrawing__adhesive__checkForSupport() {
+          logger.log("logFD", "freeDrawing__adhesive__checkForSupport");
+
+          const fabricIntegration = this;
+
+          const fCursor       = fabricIntegration.getFCursor();
+          const fObj__support = fabricIntegration.getFObjAtFPosition(fCursor);
+          logger.log("logFD", "freeDrawing__adhesive__checkForSupport", "fObj__support:", fObj__support);
+
+          //OR
+          // const trueCursor = infiniteCanvas.getTrueCursor();
+          // const iCObj      = infiniteCanvas.getIcObjContainingPoint(trueCursor)
+
+          if(fObj__support != null) {
+            const icObj__support = fObj__support.icObj;
+            if(icObj__support != null) {
+              this.adhesive__support__icObj = icObj__support;
+              logger.log("logFD", "freeDrawing__adhesive__checkForSupport", "icObj__support:", icObj__support);
+
+            } 
+          }
+          
         }
 
         configureFreeDrawingBrush(brushConfig) {
@@ -36219,7 +36581,7 @@
             //recycle fObj
             fObj.id_recycle = icObj.id;
 
-            this.infiniteCanvas.addIcObject(icObj);
+            this.infiniteCanvas.addIcObject(icObj); 
 
             //manage .isAdhesive
             if(fObj.isAdhesive) {
@@ -36250,6 +36612,9 @@
 
           //create arr for icFreeDrawings
           this.arr_icFreeDrawing = [];
+
+          //check for adhesive support
+          this.freeDrawing__adhesive__checkForSupport();
           
           //call atomic
           this.enterFreeDrawing__atomic(cfg);
@@ -36268,6 +36633,7 @@
         manageCreatedFreeDrawingObjects(arr_icFreeDrawing) {
           logger.log("logFD", "manageCreatedFreeDrawingObjects", arr_icFreeDrawing);
 
+          var icObj__freeDrawing__result;
           if(arr_icFreeDrawing.length > 1) {
 
             //create composite
@@ -36285,17 +36651,31 @@
             }, {});
             const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
             const icComposite     = infiniteCanvas.createIcComposite(trueRect__composite, parts, compositeConfig); 
+            icComposite.cType = "freeDrawingObj";
             // icComposite.fillColor = "green";
 
             //add composite 
             this.infiniteCanvas.addNewIcObject(icComposite);
 
+            icObj__freeDrawing__result = icComposite;
+
           } else {
             //only one icObj (arr_icFreeDrawing.length == 1) : don't create composite 
+            const icFreeDrawing0       = arr_icFreeDrawing.find(e => true);
+            icObj__freeDrawing__result = icFreeDrawing0; 
+          }
+
+          if(this.adhesive__support__icObj != null) {
+            const icObj__support           = this.adhesive__support__icObj;
+            const icObj__support__rep_free = infiniteCanvas.getRepresented(icObj__support.id).r_free(); //SHU: probably overkill
+
+            //manage adhesion
+            this.infiniteCanvas.manageAdhesion(icObj__freeDrawing__result, icObj__support__rep_free);  
           }
 
           //clear
           this.arr_icFreeDrawing = [];
+          this.adhesive__support__icObj = null;
         }
 
         simulateMouseUpInDrawingMode(func_after) {
@@ -37921,7 +38301,7 @@
           function copy_single_or_composite(icObj_src) {
             // logger.log("logCP", "copy_single_or_composite", "icObj_src:", icObj_src);
 
-            const isCompositePart = (icObj_src.compositeId != -1);
+            const isCompositeContentOrPart = (icObj_src.compositeId != -1);
             const isComposite     = (icObj_src.type == "composite");
             if(infiniteCanvas.isAltering) {
 
@@ -37929,7 +38309,7 @@
 
             } else {
 
-              if(isCompositePart) {
+              if(isCompositeContentOrPart) {
                 //get root composite
                 const icObj__rootComposite = infiniteCanvas.getRootCompositeForPart(icObj_src);
                 copy_composite(icObj__rootComposite);
@@ -38148,7 +38528,7 @@
 
 
           const arr_topLevelFObj = arr_fObj.filter(fObj => {
-            const isTopLevelObj = !fObj.icObj.isCompositePart();
+            const isTopLevelObj = !fObj.icObj.isCompositeContentOrPart();
             return isTopLevelObj;
           });
 
@@ -38235,7 +38615,7 @@
 
 
           const arr_topLevelFObj = arr_fObj.filter(fObj => {
-            const isTopLevelObj = !fObj.icObj.isCompositePart();
+            const isTopLevelObj = !fObj.icObj.isCompositeContentOrPart();
             return isTopLevelObj;
           });
 
@@ -38276,6 +38656,24 @@
           }); 
         }
 
+        getFObjAtFPosition(fPosition) {
+          logger.log("logFD", "getFObjAtFPosition", fPosition);
+          const arr_fObj    = this.fabricCanvas.getObjects();
+          
+          const fObj__under = Utils.early_break_reduce(arr_fObj, (acc,fObj,i,arr) => {
+            const isFobjContainingPoint   = fObj.containsPoint(fPosition);
+            const isNonVoidContentAtPoint = !(this.fabricCanvas.isTargetTransparent(fObj, fPosition.x, fPosition.y));
+            if(isFobjContainingPoint && isNonVoidContentAtPoint) {
+              acc = fObj;
+            }
+            return acc;
+          }, null, (acc, x, i, arr) => {
+            return acc != null;
+          });
+
+          return fObj__under;
+        }
+
 
         //Composites
 
@@ -38305,7 +38703,7 @@
 
 
           const arr_topLevelFObj = arr_fObj.filter(fObj => {
-            const isTopLevelObj = !fObj.icObj.isCompositePart();
+            const isTopLevelObj = !fObj.icObj.isCompositeContentOrPart();
             return isTopLevelObj;
           });
 
@@ -51533,11 +51931,13 @@
 
           // this.debug_workbench_image();
 
-          this.debug_zScroll_composite();
+          // this.debug_zScroll_composite();
           
           // this.debug_zIndexFreeDrawing();
 
-          this.debug_fObjOverlapping();
+          // this.debug_fObjOverlapping();
+
+          this.debug_composite_contentAndParts();
 
           // this.debug_th();
 
@@ -56138,7 +56538,79 @@
 
         debug_fObjOverlapping() {
 
+        }
 
+        debug_composite_contentAndParts() {
+
+          function createComposite_withContentAndParts__debug(trueRect__composite) {
+
+            //create composite
+            const grid_square_width  = 200;
+            const grid_square_height = 200;
+
+            function createRectWith_gridRowCol_and_zIndex(row, col, zIndex) {
+                const trueRect = {
+                  x:      col * grid_square_width,
+                  y:      row * grid_square_height,
+                  width:  100,
+                  height: 100,
+                };
+                const icRect = infiniteCanvas.createIcRect(trueRect);
+
+                icRect.zIndex = zIndex;
+                icRect.fill   = ColorUtils.randomColor();
+
+                return icRect;
+            }
+
+
+            const content = createRectWith_gridRowCol_and_zIndex(2, 1, 50);
+
+            const arr_row = [...new Array(1).keys()];
+            const arr_col = [...new Array(2).keys()];
+            const arr_gridPos = Utils.cartesianProduct(arr_row, arr_col); 
+
+            const arr_icRect = arr_gridPos.reduce((acc, [row, col]) => {
+                const zIndex = 1 + 4 * row + col; 
+                const icRect = createRectWith_gridRowCol_and_zIndex(row, col, zIndex);
+                acc.push(icRect);
+                return acc;
+            }, []);
+            const parts           = Utils.dictFromArr(arr_icRect);
+            const contentAndParts = Object.assign({"content": content}, parts);
+            
+            const compositeConfig = Compositer.defaultCompositeConfig(contentAndParts, false);
+            // compositeConfig__knob[icMathNode__knob.id].isMobile = true;
+            
+            const icComposite = infiniteCanvas.createIcComposite(trueRect__composite, parts, compositeConfig, content);
+            icComposite.cType = "debug";
+
+            infiniteCanvas.addIcObject(icComposite);
+
+            return icComposite;
+          }
+          
+
+          const trueRect__composite1 = {
+            x:      +500,
+            y:      +500,
+            width:    70,
+            height:   70,
+          };
+          const composite1 = createComposite_withContentAndParts__debug(trueRect__composite1);
+
+          const trueRect__composite2 = {
+            x:      -100,
+            y:      -100,
+            width:    30,
+            height:   30,
+          };
+          const composite2 = createComposite_withContentAndParts__debug(trueRect__composite2);
+
+          //add composite1 to composite2
+          const composite2__rep_free = infiniteCanvas.getRepresented(composite2.id).r_free();
+          const composite1__rep_free = infiniteCanvas.getRepresented(composite1.id).r_free();
+          composite2__rep_free.dict_engine["composite"].engine.awoken.addPart(composite1__rep_free);
 
         }
 
