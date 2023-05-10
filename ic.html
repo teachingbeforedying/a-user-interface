@@ -5597,16 +5597,16 @@
         return arr_icPoint__near;
       }
 
-      getRootCompositeForPart(icObj__part) {  //recursively seek parent composite
+      getRootCompositeForContentOrPart(icObj__part) {  //recursively seek parent composite
         if(icObj__part.compositeId != -1) {
-          const icObj__composite = this.getParentCompositeForPart(icObj__part);
-          return this.getRootCompositeForPart(icObj__composite);
+          const icObj__composite = this.getParentCompositeForContentOrPart(icObj__part);
+          return this.getRootCompositeForContentOrPart(icObj__composite);
         } else {
           return icObj__part;
         }
       }
 
-      getParentCompositeForPart(icObj__part) {
+      getParentCompositeForContentOrPart(icObj__part) {
         const icObj__composite = this.getRepresented(icObj__part.compositeId).getRepresentation("official");
         return icObj__composite;
       }
@@ -21641,7 +21641,8 @@
 
           case "composite":
             {
-              const parts = json_icObject.parts;
+              const json_content   = json_icObject.content;
+              const dict_json_part = json_icObject.parts;
 
               // const arr_p = parts.map(json_part => {
               //   const icObj = IcObject.fromJson_p(json_part);
@@ -21658,7 +21659,7 @@
               //   return icObj;
               // });
 
-              const arr_part_serial_miniDict_p = Object.entries(parts).reduce((acc, [partName, json_part]) => {
+              const arr_part_serial_miniDict_p = Object.entries(dict_json_part).reduce((acc, [partName, json_part]) => {
                 const part_miniDict_p = IcObject.fromJson_p(json_part)
                   .then(icObj => {
 
@@ -21681,9 +21682,20 @@
                   return icObj;
                 });
 
+              if(json_content != null) {
+
+                const content_p = IcObject.fromJson_p(json_content);
+                icObj_p = Promise.all([icObj_p, content_p])
+                  .then(([icObj, content]) => {
+                    icObj.content = content;
+                    return icObj;
+                  });
+
+              }
+
 
               const compositeConfig_serial = json_icObject.compositeConfig_serial;
-              const compositeConfig = deserialize(compositeConfig_serial);
+              const compositeConfig        = deserialize(compositeConfig_serial);
 
               icObj_p = icObj_p
                 .then(icObj => {
@@ -21937,6 +21949,17 @@
                 acc.push(part_serial_miniDict_p);
                 return acc;
               }, []);
+
+              if(icObj.content != null) {
+                const content = icObj.content;
+                const content_serial_p = content.toSerial_p();
+
+                icObj_serial_p = Promise.all([icObj_serial_p, content_serial_p])
+                  .then(([icObj_serial, content_serial]) => {
+                    icObj_serial.content = content_serial;
+                    return icObj_serial;
+                  });
+              }
 
               icObj_serial_p = Promise.all([icObj_serial_p, ...arr_part_serial_miniDict_p])
                 .then(([icObj_serial, ...arr_part_serial_miniDict]) => {    //SHU: wow, pas mal le spread operator
@@ -22390,6 +22413,12 @@
                     };
                     return acc;
                   }, {});
+                }
+                break;
+              case "content":
+                {
+                  const content = icObj[key];
+                  icObj__deepClone[key] = content.deepClone();
                 }
                 break;
               case "parts":
@@ -26221,6 +26250,69 @@
               // }
 
             }
+
+          };
+
+
+
+
+          this.addContent = function(content__rep_free, isMobile = false) {
+            // this.addContent = function(content, config__content) {
+              logger.log("logComposite", "addContent", this, part__rep_free, isMobile);
+
+            //get free_rep
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const handle         = this.scopeObj.engineCarrier;
+
+            const handle__represented = infiniteCanvas.getRepresented(handle.id);
+            const handle__rep_free    = handle__represented.r_free();
+
+            //set content
+            handle__rep_free.content = content__rep_free;
+
+            //add config
+            const config__content = {
+              isMobile: isMobile,
+            };
+            handle__rep_free.compositeConfig[content__rep_free.id] = config__content;
+
+            //parent
+            content__rep_free.compositeId = handle.id;
+
+            //setup listener
+            //create
+            const listener__content = this.createContentListener();
+            //store
+            this.listeners[content__rep_free.id] = listener__content;
+            //activate
+            content__rep_free.onInnerUpdate(listener__content);
+          };
+
+          this.removeContent = function (content__rep_free) {
+            logger.log("logComposite", "removeContent", this, content__rep_free);
+
+            //get free_rep
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const handle         = this.scopeObj.engineCarrier;
+
+            const handle__represented = infiniteCanvas.getRepresented(handle.id);
+            const handle__rep_free    = handle__represented.r_free();
+
+            //deactivate listener
+            //retrieve
+            const listener__content = this.listeners[content__rep_free.id];
+            //deactivate
+            content__rep_free.offInnerUpdate(listener__content);
+            delete this.listeners[content__rep_free.id];
+
+            //unparent
+            content__rep_free.compositeId = -1;
+
+            //unset
+            handle__rep_free.content = null;
+
+            //remove partConfig
+            delete handle__rep_free.compositeConfig[content__rep_free.id];
 
           };
 
@@ -35991,18 +36083,32 @@
                   logger.log("logZScroll", "updateFabricObjectsSize_zScroll", 'activeObject.icObj.type == "composite"');
                 }
 
-                //get composite
-                var icObj__composite;
-                if(fObj.icObj.isCompositeContentOrPart()) {
-                  const id__composite = fObj.icObj.compositeId;
-                  icObj__composite    = infiniteCanvas.getRepresented(id__composite).getRepresentation("free");
-                } else {
-                  icObj__composite = fObj.icObj;
-                }
+                // //get composite
+                // var icObj__composite;
+                // if(fObj.icObj.isCompositeContentOrPart()) {
+                //   const id__composite = fObj.icObj.compositeId;
+                //   icObj__composite    = infiniteCanvas.getRepresented(id__composite).getRepresentation("free");
+                // } else {
+                //   icObj__composite = fObj.icObj;
+                // }
 
-                //update composite scale
-                const fObj__composite = this.getFObjForIcObj(icObj__composite);
-                this.updateFabricObject_size_zScroll(fObj__composite);
+                // //update composite scale
+                // const fObj__composite = this.getFObjForIcObj(icObj__composite);
+                // this.updateFabricObject_size_zScroll(fObj__composite);
+
+                //get root composite
+                var icObj__root_composite;
+                if(fObj.icObj.isCompositeContentOrPart()) {
+                  const root_composite__rep_official = infiniteCanvas.getRootCompositeForContentOrPart(fObj.icObj);
+                  const root_composite__rep_free     = infiniteCanvas.getRepresented(root_composite__rep_official.id).getRepresentation("free");
+                  icObj__root_composite    = root_composite__rep_free;
+                } else {
+                  icObj__root_composite = fObj.icObj;
+                }
+                //update root composite scale
+                const fObj__root_composite = this.getFObjForIcObj(icObj__root_composite);
+                this.updateFabricObject_size_zScroll(fObj__root_composite);
+
 
                 // //get all .isMobile==false in this composite
                 // const arr_children = Object.values(icObj__composite.parts);
@@ -38311,7 +38417,7 @@
 
               if(isCompositeContentOrPart) {
                 //get root composite
-                const icObj__rootComposite = infiniteCanvas.getRootCompositeForPart(icObj_src);
+                const icObj__rootComposite = infiniteCanvas.getRootCompositeForContentOrPart(icObj_src);
                 copy_composite(icObj__rootComposite);
               } else if(isComposite) {
                 copy_composite(icObj_src);
@@ -38658,7 +38764,7 @@
 
         getFObjAtFPosition(fPosition) {
           logger.log("logFD", "getFObjAtFPosition", fPosition);
-          const arr_fObj    = this.fabricCanvas.getObjects();
+          const arr_fObj    = this.fabricCanvas.getObjects().reverse();
           
           const fObj__under = Utils.early_break_reduce(arr_fObj, (acc,fObj,i,arr) => {
             const isFobjContainingPoint   = fObj.containsPoint(fPosition);
