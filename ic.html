@@ -220,12 +220,26 @@
 
     class ColorUtils {
 
-      static randomColor() {
+      static randomColor__dict() {
         var r = 255 * Math.random() | 0,
-          g = 255 * Math.random() | 0,
-          b = 255 * Math.random() | 0;
+            g = 255 * Math.random() | 0,
+            b = 255 * Math.random() | 0;
+        return {
+          r: r,
+          g: g,
+          b: b,
+         };
+      }
+
+      static randomColor() {
+        const dict__rgb = this.randomColor__dict();
+        var r = dict__rgb.r,
+            g = dict__rgb.g,
+            b = dict__rgb.b;
         return 'rgb(' + r + ',' + g + ',' + b + ')';
       }
+
+
 
 
 
@@ -597,6 +611,23 @@
 
   <script src='lib/fabric+zIndex.js'       type='text/javascript'></script>
   <script src='lib/fabricjs+floodFill.js'  type='text/javascript'></script>
+
+  <script>
+    class FabricUtils {
+
+      static isIntersecting__pixelWise(fObj1, fObj2) {
+        
+        //get bounding rect containing fObj1 and fObj2
+
+
+        //quadrichotomic search (square-chotomic search)
+        
+      }
+
+    }
+  </script>
+
+
 
   <script src='lib/FunctionCallsQueue.js'  type='text/javascript'></script>
   <script>
@@ -5645,6 +5676,35 @@
           return math.max(acc, x);
         }, -1);
       }
+
+
+      getCandidateSupportForIcObj(icObj) {
+        var outIcObj;
+
+        const fObj = fabricIntegration.getFObjForIcObj(icObj);
+        const arr_icObj__other = this.getArr_icObj().filter(icObj_el => (icObj_el != icObj));
+        outIcObj = arr_icObj__other.reduce((acc, x) => {
+          const fObj__x = fabricIntegration.getFObjForIcObj(x);
+          // const isIntersecting = infiniteCanvas.checkIntersecting([x, icObj]);
+          const isIntersecting = fObj.intersectsWithObject(fObj__x);
+          // logger.log("logAdh", "getCandidateSupportForIcObj", "isIntersecting:", isIntersecting);
+          if(isIntersecting) {
+            if(acc == null) {
+                acc = x;
+            } else if( (x.zIndex < icObj.zIndex) && (x.zIndex > acc.zIndex) )  {
+              acc = x;
+            } else {
+              //ignore
+            }
+          }
+          return acc;
+        }, null);
+
+        return outIcObj;            
+      }
+
+
+
 
 
 
@@ -17496,12 +17556,16 @@
 
         outBool = Utils.early_break_reduce(arr_pair, (acc, [icObj_1, icObj_2], index, arr) => {
 
-          // const rect__icObj = icObj.getRect();
-          const rect__1 = infiniteCanvas.getTrueRect_hack(icObj_1);
-          const rect__2 = infiniteCanvas.getTrueRect_hack(icObj_2);
+          // const rect__1 = infiniteCanvas.getTrueRect_hack(icObj_1);
+          // const rect__2 = infiniteCanvas.getTrueRect_hack(icObj_2);
+          // const isIntersecting__pair = Geometry.intersectRect(rect__1, rect__2);
+          // logger.log("isIntersecting__pair", icObj_1.id, icObj_2.id, isIntersecting__pair);
 
-          const isIntersecting__pair = Geometry.intersectRect(rect__1, rect__2);
-          logger.log("isIntersecting__pair", icObj_1.id, icObj_2.id, isIntersecting__pair);
+          //SHU66667777
+
+          const fObj__1 = fabricIntegration.getFObjForIcObj(icObj_1);   //SHU: global variable warning
+          const fObj__2 = fabricIntegration.getFObjForIcObj(icObj_2);
+          const isIntersecting__pair = fObj__1.intersectsWithObject(fObj__2);
 
           return acc || isIntersecting__pair;
         }, false, (acc, x, i, arr) => {
@@ -17510,6 +17574,11 @@
 
         return outBool;
       }
+
+      getIntersection__compositeWise(arr_icObj) {
+
+      }
+
 
       getBarycenter(arr_icObj) {
         var outPoint;
@@ -17786,9 +17855,6 @@
 
 
 
-      getActiveObject() {
-
-      }
 
       operateOnActiveObject(opName) {
         return;
@@ -18758,6 +18824,40 @@
         infiniteCanvas.addIcObject(icObj__geminiShade);
       }
 
+
+
+
+      operateOnSelected__adhere() {
+        const infiniteCanvas = this;
+
+        //get selected icObj
+        const fabricCanvas    = fabricIntegration.fabricCanvas;   //SHU: global variable warning
+        const fObj__selected  = fabricCanvas.getActiveObject();
+        const icObj__selected = fObj__selected.icObj;
+
+        //get underlying support (with zIndex just below)
+        const icObj__support = infiniteCanvas.getCandidateSupportForIcObj(icObj__selected);
+        
+        if(icObj__support != null) {
+          infiniteCanvas.manageAdhesion(icObj__selected, icObj__support);
+        }
+      }
+
+
+      operateOnSelected__unadhere() {   //SHU: TODO
+        // const infiniteCanvas = this;
+
+        // //get selected icObj
+        // const fabricCanvas    = fabricIntegration.fabricCanvas;
+        // const fObj__selected  = this.fabricCanvas.getActiveObject();
+        // const icObj__selected = fObj__selected.icObj;
+
+        // //get underlying support (with zIndex just below)
+
+        
+        
+        // infiniteCanvas.addIcObject(icObj__geminiShade);
+      }
 
 
 
@@ -29329,7 +29429,7 @@
 
 
 
-          this.infiniteCanvas = infiniteCanvas;
+          this.infiniteCanvas  = infiniteCanvas;
           this.inputProperties = inputProperties;
 
           this.mouseIntegration = null;   //set after birth
@@ -29483,6 +29583,8 @@
           this.initializeFabricObjectCopyCut();
 
           this.configureActiveSelectionListeners();
+
+          this.initializeVaryingBgColor();
         }
 
         setFabricObjects(fabric_objects__new) {
@@ -36501,6 +36603,78 @@
 
 
 
+        //varying bg color
+
+        initializeVaryingBgColor() {
+          const fabricCanvas = this.fabricCanvas;
+
+          function createBgColorAnimation() {
+
+            const duration__step = 2000;
+
+            //get color_from
+            const fColor__bg = new fabric.Color(fabricCanvas.backgroundColor);
+            // logger.log("logBG", "fColor__bg:", fColor__bg);
+            const arr__rgba = fColor__bg.getSource();
+            const animated__from = {
+              r: arr__rgba[0],
+              g: arr__rgba[1],
+              b: arr__rgba[2],
+            };
+            const animatedObj = {
+              r: animated__from.r,
+              g: animated__from.g,
+              b: animated__from.b,
+            };
+
+            const dict__rgb__to = ColorUtils.randomColor__dict();
+            var animated__to    = Object.assign({}, dict__rgb__to);
+              
+            const cfg_anim__easy = {
+              duration:  duration__step,
+            };
+            const cfg_anim = Object.assign({
+              targets: animatedObj,
+
+              /*animated props*/
+              r: animated__to.r,
+              g: animated__to.g,
+              b: animated__to.b,
+              /*--------------*/
+
+              direction: 'normal',
+              easing:    'linear',
+
+              autoplay: false,
+              loop:     false,
+
+              update: (anim) => {
+                // logger.log("logBG", "initializeVaryingBgColor", "update", "anim:", anim);
+                const str__color_rgb = 'rgb(' + animatedObj.r + ',' + animatedObj.g + ',' + animatedObj.b + ')'; 
+                fabricCanvas.backgroundColor = str__color_rgb;
+                fabricCanvas.requestRenderAll();
+              },
+
+            }, cfg_anim__easy);
+
+            var animation = anime(cfg_anim);
+
+            animation.finished.then(() => {
+
+              animation = null;
+
+              const animation__bgColor = createBgColorAnimation();
+              animation__bgColor.play();
+
+            });
+
+            return animation;
+          }
+
+          const animation__bgColor = createBgColorAnimation();
+          animation__bgColor.play();
+            
+        }
 
 
 
