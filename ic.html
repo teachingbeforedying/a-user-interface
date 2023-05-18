@@ -6728,7 +6728,7 @@
 
         const trueRect = this.toTrueRect(fObj);
         const position = Geometry.getPointTL(trueRect);
-        const size = Geometry.createSize(trueRect.width, trueRect.height);
+        const size     = Geometry.createSize(trueRect.width, trueRect.height);
 
         const homeScale = Object.assign({}, this.scale);
 
@@ -12539,10 +12539,35 @@
                   }
 
                   const color = randomColor();
-                  icObj.fill   = color;
-                  icObj.stroke = color;
+
+                  if("stroke" in cfg) {
+                    if("exoObject" in icObj) {
+                      const exoObject__new = Object.assign({}, icObj.exoObject); 
+                      exoObject__new.stroke = color;
+                      icObj.exoObject = exoObject__new;
+                    } else {
+                      icObj.stroke = color;
+                    }
+                  }
+                  if("fill" in cfg) {
+                    icObj.fill = color;
+                  }
 
                   transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+
+
+                  // const icObj__new = icObj.deepClone();
+                  // if("stroke" in cfg) {
+                  //   if("exoObject" in icObj) {
+                  //     icObj__new.exoObject.stroke = color;
+                  //   } else {
+                  //     icObj__new.stroke = color;
+                  //   }
+                  // }
+                  // if("fill" in cfg) {
+                  //   icObj__new.fill = color;
+                  // }
+                  // transformationOutput = new TransformationOutput("new", icObj__new, icObj);
 
                   return transformationOutput;
                 };
@@ -18814,19 +18839,9 @@
 
         const infiniteCanvas = this;
 
-        const icObj = infiniteCanvas.getActiveObject();
+        const icObj__cargo = infiniteCanvas.getActiveObject();
 
-        const value = icObj[propName];
-        if (value != null) {
-          if (typeof value == "boolean") {
-            icObj[propName] = !value;
-          } else {
-            throw new Error("icObj[propName] is not boolean");
-          }
-        } else {
-          throw new Error("icObj[propName] == null");
-        }
-
+        infiniteCanvas.toggleIcObjProperty(icObj__cargo, propName);
       }
 
       // operateOnActiveObject__setBehavior(behaviorName, isOn) {
@@ -18898,13 +18913,19 @@
 
 
 
+      getSelectedIcObj() {
+        const fabricCanvas    = fabricIntegration.fabricCanvas;   //SHU: global variable warning
+        const fObj__selected  = fabricCanvas.getActiveObject();
+        const icObj__selected = fObj__selected.icObj;
+        return icObj__selected;
+      }
+
+
       operateOnSelected__adhere() {
         const infiniteCanvas = this;
 
         //get selected icObj
-        const fabricCanvas    = fabricIntegration.fabricCanvas;   //SHU: global variable warning
-        const fObj__selected  = fabricCanvas.getActiveObject();
-        const icObj__selected = fObj__selected.icObj;
+        const icObj__selected = infiniteCanvas.getSelectedIcObj();
 
         //get underlying support (with zIndex just below)
         const icObj__support = infiniteCanvas.getCandidateSupportForIcObj(icObj__selected);
@@ -18929,6 +18950,32 @@
         
         // infiniteCanvas.addIcObject(icObj__geminiShade);
       }
+
+
+      operateOnSelected__toggleProperty(propName) {
+
+        const infiniteCanvas = this;
+
+        const icObj__selected = infiniteCanvas.getSelectedIcObj();
+
+        infiniteCanvas.toggleIcObjProperty(icObj__selected, propName);
+      }
+
+      toggleIcObjProperty(icObj, propName) {
+
+        const value = icObj[propName];
+        if (value != null) {
+          if (typeof value == "boolean") {
+            icObj[propName] = !value;
+          } else {
+            throw new Error("icObj[propName] is not boolean");
+          }
+        } else {
+          throw new Error("icObj[propName] == null");
+        }
+
+      }
+
 
 
 
@@ -30478,6 +30525,15 @@
                   strokeWidth: newValue,
                 });
                 standardRedraw(fObj);
+              } else if (propName == "exoObject") {
+                // logger.log("innerUpdateListener", "exoObject");
+                const exoObject__new = newValue;
+                fObj.set({
+                  stroke:      exoObject__new.stroke,
+                  strokeWidth: exoObject__new.strokeWidth,
+                  //etc.
+                });
+                standardRedraw(fObj);
               }
               else {
                 // logger.log("icObj_fRep","onInnerUpdate", icObj_fRep);
@@ -36937,6 +36993,8 @@
             //get fObj
             const fObj = e.target;
             fObj.set({
+              strokeWidth:  brushConfig.width,
+
               stroke:  rgbColor,
               opacity: opacity,
 
@@ -43859,7 +43917,12 @@
 
                     // keyboardIntegration.infiniteCanvas.addNewGMTargetTouchSlot();
 
-                    keyboardIntegration.infiniteCanvas.operateOnActiveObject__toggleProperty("isTouchable");
+                    if(infiniteCanvas.isEnabled_supervessel) {
+                      keyboardIntegration.infiniteCanvas.operateOnActiveObject__toggleProperty("isTouchable");
+                    } else {
+                      keyboardIntegration.infiniteCanvas.operateOnSelected__toggleProperty("isTouchable");
+                    }
+                    
                   }
                   break;
 
@@ -57053,7 +57116,7 @@
             width:  100,
             height: 100,
           };
-          const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect_operator, "debug:random_color");
+          const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect_operator, "debug:random_color", {"stroke": "oh yes"});
           infiniteCanvas.addIcObject(icGMOperator);
 
         }
