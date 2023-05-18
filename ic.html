@@ -4977,6 +4977,48 @@
     </script> -->
 
 
+  <!-- query variables -->
+  <script>
+
+    function getQueryVariable(variable)
+    {
+      var query = window.location.search.substring(1);
+      var vars = query.split("&");
+      for (var i=0;i<vars.length;i++) {
+              var pair = vars[i].split("=");
+              if(pair[0] == variable){return pair[1];}
+      }
+      return(false);
+    }
+
+    function getQueryVariablesDict()
+    {
+      const query = window.location.search.substring(1);  //remove starting string '?' 
+      logger.log("logQuery", "query:", query);
+      const arr__var_kv = query.split("&");
+      const dict_kv = arr__var_kv.reduce((acc, str_kv) => {
+        var [k,v] = str_kv.split("=");
+        if(v != null) {
+          const mathNode = math.parse(v);
+          if(mathNode != null) {
+            v = mathNode;
+          }
+        }
+        acc[k] = v;
+        return acc;
+      }, {});
+      logger.log("logQuery", "dict_kv:", dict_kv);
+      return dict_kv;
+    }
+
+  </script>
+  <script>
+    globalsSingleton.dict_query_var = getQueryVariablesDict();
+  </script>
+
+
+
+
   <!-- <canvas id="myCanvas">Your browser does not support HTML5 canvas</canvas> -->
   <style>
     #container__for_canvases {
@@ -6706,9 +6748,11 @@
           isCosmetic: isCosmetic,
 
           opacity: fObj.opacity,
+
         };
 
         const icFreeDrawing = Object.assign(icObj, icFreeDrawing_spec);
+        icFreeDrawing.isTouchable = true;
 
         return icFreeDrawing;
       }
@@ -12480,6 +12524,33 @@
 
           switch (gmOperatorType) {
 
+            case "debug:random_color":
+              {
+                operatorConfig.name = "debug:random_color";
+
+                const icObjTransformationFunc = (icObj) => {
+                  var transformationOutput;
+
+                  function randomColor() {
+                    var r = 255 * Math.random() | 0,
+                      g = 255 * Math.random() | 0,
+                      b = 255 * Math.random() | 0;
+                    return 'rgb(' + r + ',' + g + ',' + b + ')';
+                  }
+
+                  const color = randomColor();
+                  icObj.fill   = color;
+                  icObj.stroke = color;
+
+                  transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+
+                  return transformationOutput;
+                };
+
+                operatorConfig.transformationFunc = icObjTransformationFunc;
+              }
+              break;
+
             case "simplify":
               {
                 operatorConfig.name = "s";
@@ -17158,9 +17229,9 @@
         const true_cursor = this.getTrueCursor();
 
         const left = true_cursor.x;
-        const top = true_cursor.y;
+        const top  = true_cursor.y;
 
-        const width = 100;   //"information" size
+        const width  = 100;   //"information" size
         const height = 100;
 
         const trueRect = {
@@ -23950,7 +24021,8 @@
             }
 
             const color = randomColor();
-            outMutationObject.fill = color;
+            outMutationObject.fill   = color;
+            outMutationObject.stroke = color;
 
             return outMutationObject;
           };
@@ -24045,6 +24117,12 @@
 
               const touch2Singleton = Touch2Singleton.sharedInstance();
               canTouchFunc = touch2Singleton.canTouch.bind(touch2Singleton);
+
+              //debug:
+              // const infiniteCanvas = this.scopeObj.infiniteCanvas;
+              // canTouchFunc = function(icObj__1, icObj__2, context) {
+              //   return infiniteCanvas.checkIntersecting([icObj__1, icObj__2]);
+              // };
             }
 
             const context = this.scopeObj.engineCarrier.touchSlotConfig.context;
@@ -24375,7 +24453,8 @@
             logger.log("checkCanUntouch", icObj_piece);
             var outBool;
 
-            outBool = Touch.canUntouch(icObj_piece, icObj_slot);
+            // outBool = Touch.canUntouch(icObj_piece, icObj_slot);
+            outBool = Touch2Singleton.sharedInstance().canUntouch(icObj_piece, icObj_slot);
 
             return outBool;
           };
@@ -24505,7 +24584,7 @@
             // logger.log("r_official_update_handler", icObj_piece);
 
             const touchState = icObj_piece.touchStateDict[icObj_slot.id];
-            logger.log("touchState", touchState);
+            logger.log("logTouch", "touchState", touchState);
 
             if (touchState == TouchState.Untouched) {
               this.attemptTouching(icObj_slot, icObj_piece);
@@ -36671,8 +36750,8 @@
             return animation;
           }
 
-          const animation__bgColor = createBgColorAnimation();
-          animation__bgColor.play();
+          //const animation__bgColor = createBgColorAnimation();
+          //animation__bgColor.play();
             
         }
 
@@ -52275,6 +52354,8 @@
 
           this.debug_composite_contentAndParts();
 
+          this.debug_touch();
+
           // this.debug_th();
 
           // this.debug_startingScreen();
@@ -56962,6 +57043,25 @@
           composite1__rep_free.dict_engine["composite"].engine.awoken.addPart(composite2__rep_free);
 
         }
+
+
+        debug_touch() {
+
+          const trueRect_operator = {
+            x: 800,
+            y: 600,
+            width:  100,
+            height: 100,
+          };
+          const icGMOperator = infiniteCanvas.createIcGMOperator_withType(trueRect_operator, "debug:random_color");
+          infiniteCanvas.addIcObject(icGMOperator);
+
+        }
+
+
+
+
+
 
 
         debug_th() {
