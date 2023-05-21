@@ -1283,6 +1283,49 @@
 
     }
 
+
+    class SignedConstantNode extends math.ConstantNode {
+
+      constructor(value, isColored = false) {
+        super(value);
+        this.isColored = isColored;
+      }
+
+      toTex() {
+        var outTex;
+
+        const tex__legacy = super.toTex();
+
+        //sign
+        if(this.value > 0) {
+          outTex = "+" + " " + tex__legacy;
+        } else {
+          outTex = tex__legacy;
+        }
+
+
+        //color
+        const color__pos  = "#FF0000";
+        const color__zero = "#000000";
+        const color__neg  = "#FFFFFF";
+
+        var color;
+        if(this.value > 0) {
+          color = color__pos;
+        } else if(this.value == 0) {
+          color = color__zero;
+        } else {
+          color = color__neg;
+        }
+
+        outTex = TexEnricher.color(outTex, color);
+
+
+        return outTex;
+      }
+
+    }
+
   </script>
 
 
@@ -12503,11 +12546,14 @@
       }
 
 
-      createIcGMOperator(trueRect, operatorNodeFactoryFuncWrapper) {
-        logger.log("logGolf", "createIcGMOperator", trueRect, operatorNodeFactoryFuncWrapper);
+      createIcGMOperator(trueRect, cfg) {
+        logger.log("logGolf", "createIcGMOperator", trueRect, cfg);
+        const operatorNodeFactoryFuncWrapper = cfg.operatorNodeFactoryFuncWrapper;
+        const isEnabled = cfg.isEnabled;
         
         const touchSlotConfig = {
           transformationFunc: operatorNodeFactoryFuncWrapper.func,
+          isEnabled: isEnabled,
         };
 
         const touchSlot = infiniteCanvas.createIcTouchSlot(trueRect, touchSlotConfig);
@@ -12517,6 +12563,9 @@
         const mathNode__facade = operatorNodeFactoryFuncWrapper.semantics.node__operatorNode.cloneDeep();
         const facade = infiniteCanvas.createIcMathNode(trueRect.x, trueRect.y, mathNode__facade);
         facade.backgroundColor = "blanchedalmond";
+        if(!isEnabled) {
+          facade.opacity = 0.4;
+        }
         // facade.isMobile    = false;
         facade.isTouchable = false;
         //SHULOLILOL
@@ -14379,12 +14428,15 @@
       }
 
 
-      createIcGMTargetTouchSlot(trueRect, targetValue_in) {
+      createIcGMTargetTouchSlot(trueRect, cfg_in) {
         console.log("createIcGMTargetTouchSlot", trueRect);
 
-        var targetValue = targetValue_in;
-        if (targetValue == null) {
-          targetValue = -48;
+        var cfg = cfg_in;
+        if (cfg == null) {
+          cfg = {
+            targetValue: - 48,
+            isEnabled:   true,
+          };
         }
 
 
@@ -14560,7 +14612,7 @@
 
         const canTouchFuncs = {
           "geometry": canTouchFunc_geometryWise,
-          "value": canTouchFunc_valueWise,
+          "value":    canTouchFunc_valueWise,
         };
 
         const canTouchFunc_allWise = (above, below, context) => {
@@ -14600,6 +14652,7 @@
           canTouchFunc: canTouchFunc,
           transformationFunc: transformationFunc,
           context: {},
+          isEnabled: (cfg.isEnabled != null) ? cfg.isEnabled : true,
         };
 
         const touchSlot = infiniteCanvas.createIcTouchSlot(trueRect, touchSlotConfig);
@@ -14610,6 +14663,9 @@
         // const facade           = infiniteCanvas.createIcText(trueRect.x, trueRect.y, text);
         // facade.backgroundColor = "orange";
         // facade.isTouchable     = false;
+
+
+        const targetValue = cfg.targetValue;
 
         var mathNode;
         if (targetValue instanceof math.Node) {
@@ -14623,7 +14679,7 @@
 
         const parts = {
           "touchSlot": touchSlot,
-          "facade": facade,
+          "facade":    facade,
         };
 
 
@@ -24693,6 +24749,9 @@
             // console.log("infiniteCanvas", infiniteCanvas);
             const icTouchSlot = this.scopeObj.engineCarrier;
 
+            const touchSlotConfig = this.scopeObj.engineCarrier.touchSlotConfig;
+            logger.log("touchSlotConfig", touchSlotConfig);
+
             const represented = infiniteCanvas.getRepresented(icTouchSlot.id);
             // console.log("represented", represented);
             const rep_official = represented.r_official();
@@ -24704,6 +24763,8 @@
 
               if (!incomingObj.isTouchable) {
                 //ignore: incomingObj is intangible
+              } else if (!touchSlotConfig.isEnabled) {
+                //ignore: touchSlot is intangible
               } else {
                 this.r_official_update_handler(touchSlot, incomingObj, outerUpdatesDict);
               }
@@ -47869,6 +47930,331 @@
         }
 
 
+
+        static template_challenge_with_grayed(nb_op, color__bg = "lightyellow") {
+          var outConfig;
+
+          switch (nb_op) {
+            case 2:
+              outConfig = GolfCourseConfig.template_challenge_with_grayed__2(color__bg);
+              break;
+            default:
+              outConfig = GolfCourseConfig.template_challenge_with_grayed__4(color__bg);
+              break;
+          }
+
+          return outConfig;
+        }
+
+
+
+        static template_challenge_with_grayed__2(color__bg) {
+          var outConfig;
+
+          const components = {
+            "bg": {
+              type: "rect",
+              zIndex: -10,
+              config: {
+                fill: color__bg,
+              },
+              rect_rel: {
+                l: 0.0,
+                r: 1.0,
+                t: 0.0,
+                b: 1.0,
+              },
+            },
+
+            "tee": {
+              type: "rect",
+              zIndex: 100,
+              config: {
+                fill: "lightgreen",
+              },
+              rect_rel: {
+                l: 0.05,
+                r: 0.15,
+                t: 0.40,
+                b: 0.50,
+              },
+            },
+
+            // "bumpers": {
+            "bumper1": {
+              type: "gm_operator",
+              zIndex: 51,
+              config: {
+                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                isEnabled: false,
+              },
+              rect_rel: {
+                l: 0.25,
+                r: 0.35,
+                t: 0.80,
+                b: 0.90,
+              },
+            },
+            "bumper2": {
+              type: "gm_operator",
+              zIndex: 52,
+              config: {
+                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                isEnabled: false,
+              },
+              rect_rel: {
+                l: 0.55,
+                r: 0.65,
+                t: 0.80,
+                b: 0.90,
+              },
+            },
+
+
+            "operatorWallPlaceholder1": {
+              type: "placeholder",
+              zIndex: 55,
+              config: {
+                fill: "gray",
+                isEnabled: true,
+              },
+              rect_rel: {
+                l: 0.25,
+                r: 0.35,
+                t: 0.10,
+                b: 0.20,
+              },
+            },
+            "operatorWallPlaceholder2": {
+              type: "placeholder",
+              zIndex: 56,
+              config: {
+                fill: "gray",
+                isEnabled: true,
+              },
+              rect_rel: {
+                l: 0.55,
+                r: 0.65,
+                t: 0.10,
+                b: 0.20,
+              },
+            },
+
+
+            "hole": {
+              type: "gm_targetTouchSlot",
+              zIndex: 10,
+              config: {
+                value: -48,
+              },
+              rect_rel: {
+                l: 0.85,
+                r: 0.95,
+                t: 0.40,
+                b: 0.50,
+              },
+            },
+          };
+
+          const config = {
+            rect: {
+              x: 0,
+              y: 0,
+              width: 1600,
+              height: 1000,
+            },
+            components: components,
+          };
+
+          outConfig = config;
+
+          return outConfig;
+        }
+
+
+        static template_challenge_with_grayed__4(color__bg) {
+          var outConfig;
+
+          const components = {
+            "bg": {
+              type: "rect",
+              zIndex: -10,
+              config: {
+                fill: color__bg,
+              },
+              rect_rel: {
+                l: 0.0,
+                r: 1.0,
+                t: 0.0,
+                b: 1.0,
+              },
+            },
+
+            "tee": {
+              type: "rect",
+              zIndex: 100,
+              config: {
+                fill: "lightgreen",
+              },
+              rect_rel: {
+                l: 0.05,
+                r: 0.15,
+                t: 0.40,
+                b: 0.50,
+              },
+            },
+
+            // "bumpers": {
+            "bumper1": {
+              type: "gm_operator",
+              zIndex: 51,
+              config: {
+                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                isEnabled: false,
+              },
+              rect_rel: {
+                l: 0.15,
+                r: 0.25,
+                t: 0.80,
+                b: 0.90,
+              },
+            },
+            "bumper2": {
+              type: "gm_operator",
+              zIndex: 52,
+              config: {
+                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                isEnabled: false,
+              },
+              rect_rel: {
+                l: 0.35,
+                r: 0.45,
+                t: 0.80,
+                b: 0.90,
+              },
+            },
+            "bumper3": {
+              type: "gm_operator",
+              zIndex: 53,
+              config: {
+                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                isEnabled: false,
+              },
+              rect_rel: {
+                l: 0.55,
+                r: 0.65,
+                t: 0.80,
+                b: 0.90,
+              },
+            },
+            "bumper4": {
+              type: "gm_operator",
+              zIndex: 54,
+              config: {
+                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                isEnabled: false,
+              },
+              rect_rel: {
+                l: 0.75,
+                r: 0.85,
+                t: 0.80,
+                b: 0.90,
+              },
+            },
+            // },
+
+            "operatorWallPlaceholder1": {
+              type: "placeholder",
+              zIndex: 55,
+              config: {
+                fill: "gray",
+                isEnabled: true,
+              },
+              rect_rel: {
+                l: 0.15,
+                r: 0.25,
+                t: 0.10,
+                b: 0.20,
+              },
+            },
+            "operatorWallPlaceholder2": {
+              type: "placeholder",
+              zIndex: 56,
+              config: {
+                fill: "gray",
+                isEnabled: true,
+              },
+              rect_rel: {
+                l: 0.35,
+                r: 0.45,
+                t: 0.10,
+                b: 0.20,
+              },
+            },
+            "operatorWallPlaceholder3": {
+              type: "placeholder",
+              zIndex: 57,
+              config: {
+                fill: "gray",
+                isEnabled: true,
+              },
+              rect_rel: {
+                l: 0.55,
+                r: 0.65,
+                t: 0.10,
+                b: 0.20,
+              },
+            },
+            "operatorWallPlaceholder4": {
+              type: "placeholder",
+              zIndex: 58,
+              config: {
+                fill: "gray",
+                isEnabled: true,
+              },
+              rect_rel: {
+                l: 0.75,
+                r: 0.85,
+                t: 0.10,
+                b: 0.20,
+              },
+            },
+
+
+            "hole": {
+              type: "gm_targetTouchSlot",
+              zIndex: 10,
+              config: {
+                value: -48,
+              },
+              rect_rel: {
+                l: 0.85,
+                r: 0.95,
+                t: 0.40,
+                b: 0.50,
+              },
+            },
+          };
+
+          const config = {
+            rect: {
+              x: 0,
+              y: 0,
+              width: 1600,
+              height: 1000,
+            },
+            components: components,
+          };
+
+          outConfig = config;
+
+          return outConfig;
+        }
+
+
+
+
+
         static template_challenge__fraction_add() {
           var outConfig;
 
@@ -48234,8 +48620,11 @@
             case "gm_operator":
               {
                 const config = componentConfig.config;
-                const operatorNodeFactoryFuncWrapper = config.operatorNodeFactoryFuncWrapper;
-                outIcObj = infiniteCanvas.createIcGMOperator(trueRect__component, operatorNodeFactoryFuncWrapper);
+                const cfg = {
+                  operatorNodeFactoryFuncWrapper: config.operatorNodeFactoryFuncWrapper,
+                  isEnabled:      (config.isEnabled != null) ? config.isEnabled : true,
+                };
+                outIcObj = infiniteCanvas.createIcGMOperator(trueRect__component, cfg);
               }
               break;
 
@@ -48260,8 +48649,11 @@
                 const value__core   = config.value;
                 const value__facade = config.value__facade;
 
-                const value = config.value;
-                outIcObj = infiniteCanvas.createIcGMTargetTouchSlot(trueRect__component, value);
+                const cfg = {
+                  targetValue: config.operatorString,
+                  isEnabled:   (config.isEnabled != null) ? config.isEnabled : true,
+                };
+                outIcObj = infiniteCanvas.createIcGMTargetTouchSlot(trueRect__component, cfg);
 
                 /*
                 const mathNode__core   = math.parse("42");
@@ -48322,13 +48714,16 @@
 
             case "placeholder":
               {
-                // const config = componentConfig.config;
-                // const fill   = config.fill;
-                // outIcObj = infiniteCanvas.createIcRect(trueRect__component);
-                // outIcObj.fill = fill;
-
+                const config = componentConfig.config;
+                
                 const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1));
-                outIcObj = infiniteCanvas.createIcGMOperator(trueRect__component, operatorNodeFactoryFuncWrapper);
+                
+                const cfg = {
+                  operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper,
+                  isEnabled: (config.isEnabled != null) ? config.isEnabled : true,
+                };
+
+                outIcObj = infiniteCanvas.createIcGMOperator(trueRect__component, cfg);
 
                 outIcObj.isPlaceholder = true;
               }
@@ -49013,7 +49408,7 @@
               }
 
               outMathNode.autoSimplify = mathNode.autoSimplify;
-              outMathNode.isEquation = mathNode.isEquation;
+              outMathNode.isEquation   = mathNode.isEquation;
 
               return outMathNode;
             }
@@ -49400,37 +49795,93 @@
               //negat
             case "negat/n0_matrix__nice":
               {
-                outChallenge = null;
+                const golfCourseConfig  = GolfCourseConfig.template_challenge_only2();
+                golfCourseConfig.components.bg.config.fill = "rgb(150,150,150)";
+
+                const stepGeneratorFunc = (golfCourse) => GolfGameStep__Endless_Practice.randomInstance__negat__n0_matrix__nice(infiniteCanvas, golfCourse, stepGeneratorFunc);
+
+                outChallenge = {
+                  golfCourseConfig:  golfCourseConfig,
+                  stepGeneratorFunc: stepGeneratorFunc,
+                };
               }
               break;
             case "negat/n5_grayed_B":
               {
-                outChallenge = null;
+                const color__negat     = "rgb(150,150,150)";
+                const golfCourseConfig = GolfCourseConfig.template_challenge_with_grayed(2, color__negat);
+
+                const stepGeneratorFunc = (golfCourse) => GolfGameStep__Endless_Practice.randomInstance__negat__n5_grayed_B(infiniteCanvas, golfCourse, stepGeneratorFunc);
+
+                outChallenge = {
+                  golfCourseConfig:  golfCourseConfig,
+                  stepGeneratorFunc: stepGeneratorFunc,
+                };
               }
               break;
             case "negat/n5_grayed_R":
               {
-                outChallenge = null;
+                const color__negat     = "rgb(150,150,150)";
+                const golfCourseConfig = GolfCourseConfig.template_challenge_with_grayed(2, color__negat);
+                
+                const stepGeneratorFunc = (golfCourse) => GolfGameStep__Endless_Practice.randomInstance__negat__n5_grayed_R(infiniteCanvas, golfCourse, stepGeneratorFunc);
+
+                outChallenge = {
+                  golfCourseConfig:  golfCourseConfig,
+                  stepGeneratorFunc: stepGeneratorFunc,
+                };
               }
               break;
             case "negat/n5_grayed_L":
               {
-                outChallenge = null;
+                const color__negat     = "rgb(150,150,150)";
+                const golfCourseConfig = GolfCourseConfig.template_challenge_with_grayed(2, color__negat);
+
+                const stepGeneratorFunc = (golfCourse) => GolfGameStep__Endless_Practice.randomInstance__negat__n5_grayed_L(infiniteCanvas, golfCourse, stepGeneratorFunc);
+
+                outChallenge = {
+                  golfCourseConfig:  golfCourseConfig,
+                  stepGeneratorFunc: stepGeneratorFunc,
+                };
               }
               break;
             case "negat/n6_addB_subT_neg":
               {
-                outChallenge = null;
+                const color__negat     = "rgb(150,150,150)";
+                const golfCourseConfig = GolfCourseConfig.template_challenge_with_grayed(2, color__negat);
+
+                const stepGeneratorFunc = (golfCourse) => GolfGameStep__Endless_Practice.randomInstance__negat__n6_addB_subT_neg(infiniteCanvas, golfCourse, stepGeneratorFunc);
+
+                outChallenge = {
+                  golfCourseConfig:  golfCourseConfig,
+                  stepGeneratorFunc: stepGeneratorFunc,
+                };
               }
               break;
             case "negat/n7_addB_subT_all":
               {
-                outChallenge = null;
+                const golfCourseConfig  = GolfCourseConfig.template_challenge_with_placeholders();
+                golfCourseConfig.components.bg.config.fill = "lightgrey";
+
+                const stepGeneratorFunc = (golfCourse) => GolfGameStep__Endless_Practice.randomInstance__negat__n7_addB_subT_all(infiniteCanvas, golfCourse, stepGeneratorFunc);
+
+                outChallenge = {
+                  golfCourseConfig:  golfCourseConfig,
+                  stepGeneratorFunc: stepGeneratorFunc,
+                };
               }
               break;
             case "negat/n10__product":
               {
-                outChallenge = null;
+                const golfCourseConfig  = GolfCourseConfig.template_challenge();
+                golfCourseConfig.components.bg.config.fill = "lightgrey";
+
+                const stepGeneratorFunc = (golfCourse) => GolfGameStep__Endless_Practice.randomInstance__negat__n10__product(infiniteCanvas, golfCourse, stepGeneratorFunc);
+
+                outChallenge = {
+                  golfCourseConfig:  golfCourseConfig,
+                  stepGeneratorFunc: stepGeneratorFunc,
+                };
               }
               break;
 
@@ -55266,11 +55717,612 @@
           return gmItemConfig;
         }
 
+        static randomInstance__negat__n0_matrix__nice(infiniteCanvas, golfCourse, stepGeneratorFunc) {
+
+          const challengeGMItemConfig = GolfGameStep__Endless_Practice.random_challengeGMItemConfig__negat__n0_matrix__nice();
+          const stepConfig = {
+            challengeGMItemConfig: challengeGMItemConfig,
+          };
+
+          const step = new GolfGameStep__Endless_Practice(infiniteCanvas, stepConfig, golfCourse, stepGeneratorFunc);
+
+          return step;
+        }
+
+        static random_challengeGMItemConfig__negat__n0_matrix__nice() {
+          logger.log("random_challengeGMItemConfig__negat__n0_matrix__nice");
+
+          const nb_operators = 2;
+
+          const nb_operators__constant = 2;
+
+          const arr_operatorNodeFuncWrapper = [+1, -1].map(number => {
+            const op_sub = Operator.fromString_binary("+");
+            const node_b = new math.ParenthesisNode(new SignedConstantNode(number, true));
+            const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_sub, node_b);
+            return operatorNodeFuncWrapper;
+          });
+
+          const arr_gmItem_operator__constant = arr_operatorNodeFuncWrapper.map(operatorNodeFuncWrapper => {
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+
+            const func = operatorNodeFuncWrapper.func;
+            const func_decorated = function (mathNode_in) {
+              logger.log("func_decorated, mathNode_in", mathNode_in);
+              var outMathNode;
+
+              //legacy
+              outMathNode = func(mathNode_in);
+
+              //decoration
+              outMathNode = Simplifier.simplify_litexp_2(outMathNode);
+              // logger.log("func_decorated, outMathNode", outMathNode);
+
+              outMathNode = new SignedConstantNode(outMathNode.evaluate({}), true);
+
+              return outMathNode;
+            };
+            // const func_decorated = func;
+
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+            };
+
+            const transformationFunc = function (icObj) {
+              var transformationOutput;
+
+              logger.log("transformationFunc", icObj);
+
+              const facade = icObj;
+
+              const mathNode__in = facade.mathNode;
+              mathNode__in.isEquation = false;
+              const mathNode__new = func_decorated(mathNode__in);
+              mathNode__new.isEquation = false;
+
+              const facade__new = icObj.clone();
+              // facade__new.mathNode = mathNode__new;
+              facade__new.mathNode = new SignedConstantNode(mathNode__new, true);
+
+              transformationOutput = new TransformationOutput("mutated", facade__new, facade);
+
+              return transformationOutput;
+            };
+
+            const gmItem__operator = GMItem.operator(transformationFunc, name, "", specs);
+            return gmItem__operator;
+          });
+
+          const arr_gmItem_operator__symbol = [];
+
+
+          const arr_gmItem_operator = [...arr_gmItem_operator__symbol, ...arr_gmItem_operator__constant];
 
 
 
 
 
+          const arr_gmItem_operator__inverse = arr_gmItem_operator.map((gmItem__operator) => {
+
+            const operatorNodeFuncWrapper = gmItem__operator.specs.funcWrapper.inverse;
+            // logger.log("operatorNodeFuncWrapper", operatorNodeFuncWrapper);
+
+            const operator__inverse = operatorNodeFuncWrapper.semantics.operator;
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+            const func = operatorNodeFuncWrapper.func;
+            const func_decorated = function (mathNode_in) {
+              logger.log("func_decorated, mathNode_in", mathNode_in);
+              var outMathNode;
+
+              //legacy
+              outMathNode = func(mathNode_in);
+
+              //decoration
+              // outMathNode = Simplifier.simplify_litexp_2(outMathNode);
+              // logger.log("func_decorated, outMathNode", outMathNode);
+
+              outMathNode = new SignedConstantNode(outMathNode.value, true);
+
+              return outMathNode;
+            };
+
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+            };
+
+            const transformationFunc = function (icObj) {
+              var transformationOutput;
+
+              logger.log("transformationFunc", icObj);
+
+              const facade = icObj;
+
+              const mathNode__in = facade.mathNode;
+              mathNode__in.isEquation = false;
+              const mathNode__new = func_decorated(mathNode__in);
+              mathNode__new.isEquation = false;
+
+              const facade__new = icObj.clone();
+              // facade__new.mathNode = mathNode__new;
+              facade__new.mathNode = new SignedConstantNode(mathNode__new, true);
+              transformationOutput = new TransformationOutput("mutated", facade__new, facade);
+
+              return transformationOutput;
+            };
+
+            const gmItem__operator__inverse = GMItem.operator(transformationFunc, name, "", specs);
+
+            return gmItem__operator__inverse;
+          });
+
+
+
+          const depth__target = 7;
+
+
+          const mathNode__zero = new math.ConstantNode(0);
+          const gmItem__zero = GMItem.value(mathNode__zero, "zero", "");
+
+
+          const gmItem__target = GMMaker.createGMItemTarget__x_to_expr(gmItem__zero, arr_gmItem_operator__inverse, depth__target);
+          // logger.log("gmItem__target", gmItem__target);
+          const mathNode__target = gmItem__target.content;
+          //simplify target
+          // gmItem__target.content = Simplifier.simplify_litexp_2(mathNode__target);
+          gmItem__target.content = new SignedConstantNode(gmItem__target.content, true);
+
+
+          const gmItem__initial = GMMaker.createGMItemTarget__x_to_expr(gmItem__zero, arr_gmItem_operator__inverse, depth__target);
+          // logger.log("gmItem__target", gmItem__target);
+          const mathNode__initial = gmItem__initial.content;
+          //simplify target
+          // gmItem__initial.content = Simplifier.simplify_litexp_2(mathNode__initial);
+          gmItem__initial.content = new SignedConstantNode(gmItem__initial.content, true);
+
+
+          const gmItemConfig = {
+            initial: gmItem__initial,
+            target: gmItem__target,
+
+            operators: arr_gmItem_operator,
+            operators__inverse: [],
+          };
+
+          return gmItemConfig;
+        }
+
+        static randomInstance__negat__n5_grayed_B(infiniteCanvas, golfCourse, stepGeneratorFunc) {
+
+          const challengeGMItemConfig = GolfGameStep__Endless_Practice.random_challengeGMItemConfig__negat__n5_grayed_B();
+          const stepConfig = {
+            challengeGMItemConfig: challengeGMItemConfig,
+          };
+
+          const step = new GolfGameStep__Endless_Practice(infiniteCanvas, stepConfig, golfCourse, stepGeneratorFunc);
+
+          return step;
+        }
+
+        static random_challengeGMItemConfig__negat__n5_grayed_B() {
+          logger.log("random_challengeGMItemConfig__negat__n5_grayed_B");
+
+          const nb_operators = 2;
+
+          const nb_operators__constant = 2;
+
+          const arr_operatorNodeFuncWrapper = [+1, -1].map(number => {
+            const op_sub = Operator.fromString_binary("+");
+            const node_b = new math.ParenthesisNode(new SignedConstantNode(number, true));
+            const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_sub, node_b);
+            return operatorNodeFuncWrapper;
+          });
+
+          const arr_gmItem_operator__constant = arr_operatorNodeFuncWrapper.map(operatorNodeFuncWrapper => {
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+
+            const func = operatorNodeFuncWrapper.func;
+            const func_decorated = function (mathNode_in) {
+              logger.log("func_decorated, mathNode_in", mathNode_in);
+              var outMathNode;
+
+              //legacy
+              outMathNode = func(mathNode_in);
+
+              //decoration
+              outMathNode = Simplifier.simplify_litexp_3(outMathNode);
+              // logger.log("func_decorated, outMathNode", outMathNode);
+
+              outMathNode = new SignedConstantNode(outMathNode.evaluate({}), true);
+
+              return outMathNode;
+            };
+            // const func_decorated = func;
+
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+            };
+
+            const transformationFunc = function (icObj) {
+              var transformationOutput;
+
+              logger.log("transformationFunc", icObj);
+
+              const facade = icObj;
+
+              const mathNode__in = facade.mathNode;
+              mathNode__in.isEquation = false;
+              const mathNode__new = func_decorated(mathNode__in);
+              mathNode__new.isEquation = false;
+
+              const facade__new = icObj.clone();
+              // facade__new.mathNode = mathNode__new;
+              facade__new.mathNode = new SignedConstantNode(mathNode__new, true);
+
+              transformationOutput = new TransformationOutput("mutated", facade__new, facade);
+
+              return transformationOutput;
+            };
+
+            const gmItem__operator = GMItem.operator(transformationFunc, name, "", specs);
+            return gmItem__operator;
+          });
+
+          const arr_gmItem_operator__symbol = [];
+
+
+          const arr_gmItem_operator = [...arr_gmItem_operator__symbol, ...arr_gmItem_operator__constant];
+
+
+
+
+
+          const arr_gmItem_operator__inverse = arr_gmItem_operator.map((gmItem__operator) => {
+
+            const operatorNodeFuncWrapper = gmItem__operator.specs.funcWrapper.inverse;
+            // logger.log("operatorNodeFuncWrapper", operatorNodeFuncWrapper);
+
+            const operator__inverse = operatorNodeFuncWrapper.semantics.operator;
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+            const func = operatorNodeFuncWrapper.func;
+            const func_decorated = function (mathNode_in) {
+              logger.log("func_decorated, mathNode_in", mathNode_in);
+              var outMathNode;
+
+              //legacy
+              outMathNode = func(mathNode_in);
+
+              //decoration
+              outMathNode = Simplifier.simplify_litexp_3(outMathNode);
+              // logger.log("func_decorated, outMathNode", outMathNode);
+
+              outMathNode = new SignedConstantNode(outMathNode.evaluate({}), true);
+
+              return outMathNode;
+            };
+
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+            };
+
+            const transformationFunc = function (icObj) {
+              var transformationOutput;
+
+              logger.log("transformationFunc", icObj);
+
+              const facade = icObj;
+
+              const mathNode__in = facade.mathNode;
+              mathNode__in.isEquation = false;
+              const mathNode__new = func_decorated(mathNode__in);
+              mathNode__new.isEquation = false;
+
+              const facade__new = icObj.clone();
+              // facade__new.mathNode = mathNode__new;
+              facade__new.mathNode = new SignedConstantNode(mathNode__new, true);
+              transformationOutput = new TransformationOutput("mutated", facade__new, facade);
+
+              return transformationOutput;
+            };
+
+            const gmItem__operator__inverse = GMItem.operator(transformationFunc, name, "", specs);
+
+            return gmItem__operator__inverse;
+          });
+
+
+
+          const depth__target = 7;
+
+
+          const mathNode__zero = new math.ConstantNode(0);
+          const gmItem__zero = GMItem.value(mathNode__zero, "zero", "");
+
+
+          const gmItem__target = GMMaker.createGMItemTarget__x_to_expr(gmItem__zero, arr_gmItem_operator__inverse, depth__target);
+          // logger.log("gmItem__target", gmItem__target);
+          const mathNode__target = gmItem__target.content;
+          //simplify target
+          // gmItem__target.content = Simplifier.simplify_litexp_2(mathNode__target);
+          gmItem__target.content = new SignedConstantNode(gmItem__target.content, true);
+
+
+          const gmItem__initial = GMMaker.createGMItemTarget__x_to_expr(gmItem__zero, arr_gmItem_operator__inverse, depth__target);
+          // logger.log("gmItem__target", gmItem__target);
+          const mathNode__initial = gmItem__initial.content;
+          //simplify target
+          // gmItem__initial.content = Simplifier.simplify_litexp_2(mathNode__initial);
+          gmItem__initial.content = new SignedConstantNode(gmItem__initial.content, true);
+
+
+          const gmItemConfig = {
+            initial: gmItem__initial,
+            target: gmItem__target,
+
+            operators:          arr_gmItem_operator,
+            operators__inverse: arr_gmItem_operator__inverse,
+          };
+
+          return gmItemConfig;
+        }
+
+        static randomInstance__negat__n5_grayed_R(infiniteCanvas, golfCourse, stepGeneratorFunc) {
+
+          const challengeGMItemConfig = GolfGameStep__Endless_Practice.random_challengeGMItemConfig__negat__n5_grayed_R();
+          const stepConfig = {
+            challengeGMItemConfig: challengeGMItemConfig,
+          };
+
+          const step = new GolfGameStep__Endless_Practice(infiniteCanvas, stepConfig, golfCourse, stepGeneratorFunc);
+
+          return step;
+        }
+
+        static random_challengeGMItemConfig__negat__n5_grayed_R() {
+          logger.log("random_challengeGMItemConfig__negat__n5_grayed_R");
+
+          const nb_operators = 2;
+
+          const nb_operators__constant = 2;
+
+          const arr_operatorNodeFuncWrapper = [+1, -1].map(number => {
+            const op_sub = Operator.fromString_binary("+");
+            const node_b = new math.ParenthesisNode(new SignedConstantNode(number, true));
+            const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_sub, node_b);
+            return operatorNodeFuncWrapper;
+          });
+
+          const arr_gmItem_operator__constant = arr_operatorNodeFuncWrapper.map(operatorNodeFuncWrapper => {
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+
+            const func = operatorNodeFuncWrapper.func;
+            const func_decorated = function (mathNode_in) {
+              logger.log("func_decorated, mathNode_in", mathNode_in);
+              var outMathNode;
+
+              //legacy
+              outMathNode = func(mathNode_in);
+
+              //decoration
+              outMathNode = Simplifier.simplify_litexp_2(outMathNode);
+              // logger.log("func_decorated, outMathNode", outMathNode);
+
+              outMathNode = new SignedConstantNode(outMathNode.evaluate({}), true);
+
+              return outMathNode;
+            };
+            // const func_decorated = func;
+
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+            };
+
+            const transformationFunc = function (icObj) {
+              var transformationOutput;
+
+              logger.log("transformationFunc", icObj);
+
+              const facade = icObj;
+
+              const mathNode__in = facade.mathNode;
+              mathNode__in.isEquation = false;
+              const mathNode__new = func_decorated(mathNode__in);
+              mathNode__new.isEquation = false;
+
+              const facade__new = icObj.clone();
+              // facade__new.mathNode = mathNode__new;
+              facade__new.mathNode = new SignedConstantNode(mathNode__new, true);
+
+              transformationOutput = new TransformationOutput("mutated", facade__new, facade);
+
+              return transformationOutput;
+            };
+
+            const gmItem__operator = GMItem.operator(transformationFunc, name, "", specs);
+            return gmItem__operator;
+          });
+
+          const arr_gmItem_operator__symbol = [];
+
+
+          const arr_gmItem_operator = [...arr_gmItem_operator__symbol, ...arr_gmItem_operator__constant];
+
+
+
+
+
+          const arr_gmItem_operator__inverse = arr_gmItem_operator.map((gmItem__operator) => {
+
+            const operatorNodeFuncWrapper = gmItem__operator.specs.funcWrapper.inverse;
+            // logger.log("operatorNodeFuncWrapper", operatorNodeFuncWrapper);
+
+            const operator__inverse = operatorNodeFuncWrapper.semantics.operator;
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+            const func = operatorNodeFuncWrapper.func;
+            const func_decorated = function (mathNode_in) {
+              logger.log("func_decorated, mathNode_in", mathNode_in);
+              var outMathNode;
+
+              //legacy
+              outMathNode = func(mathNode_in);
+
+              //decoration
+              outMathNode = Simplifier.simplify_litexp_2(outMathNode);
+              // logger.log("func_decorated, outMathNode", outMathNode);
+
+              outMathNode = new SignedConstantNode(outMathNode.evaluate({}), true);
+
+              return outMathNode;
+            };
+
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+            };
+
+            const transformationFunc = function (icObj) {
+              var transformationOutput;
+
+              logger.log("transformationFunc", icObj);
+
+              const facade = icObj;
+
+              const mathNode__in = facade.mathNode;
+              mathNode__in.isEquation = false;
+              const mathNode__new = func_decorated(mathNode__in);
+              mathNode__new.isEquation = false;
+
+              const facade__new = icObj.clone();
+              // facade__new.mathNode = mathNode__new;
+              facade__new.mathNode = new SignedConstantNode(mathNode__new, true);
+              transformationOutput = new TransformationOutput("mutated", facade__new, facade);
+
+              return transformationOutput;
+            };
+
+            const gmItem__operator__inverse = GMItem.operator(transformationFunc, name, "", specs);
+
+            return gmItem__operator__inverse;
+          });
+
+
+
+          const depth__target = 7;
+
+
+          const mathNode__zero = new math.ConstantNode(0);
+          const gmItem__zero = GMItem.value(mathNode__zero, "zero", "");
+
+
+          const gmItem__target = GMMaker.createGMItemTarget__x_to_expr(gmItem__zero, arr_gmItem_operator__inverse, depth__target);
+          // logger.log("gmItem__target", gmItem__target);
+          const mathNode__target = gmItem__target.content;
+          //simplify target
+          // gmItem__target.content = Simplifier.simplify_litexp_2(mathNode__target);
+          gmItem__target.content = new SignedConstantNode(gmItem__target.content, true);
+
+
+          const gmItem__initial = GMMaker.createGMItemTarget__x_to_expr(gmItem__zero, arr_gmItem_operator__inverse, depth__target);
+          // logger.log("gmItem__target", gmItem__target);
+          const mathNode__initial = gmItem__initial.content;
+          //simplify target
+          // gmItem__initial.content = Simplifier.simplify_litexp_2(mathNode__initial);
+          gmItem__initial.content = new SignedConstantNode(gmItem__initial.content, true);
+
+
+          //setup grayed
+          // arr_gmItem_operator
+          arr_gmItem_operator[0].specs.isEnabled = true; 
+          arr_gmItem_operator[1].specs.isEnabled = false;
+          // arr_gmItem_operator__inverse
+          arr_gmItem_operator__inverse[0].specs.isEnabled = true; 
+          arr_gmItem_operator__inverse[1].specs.isEnabled = false;
+
+
+
+
+          const gmItemConfig = {
+            initial: gmItem__initial,
+            target: gmItem__target,
+
+            operators:          arr_gmItem_operator,
+            operators__inverse: arr_gmItem_operator__inverse,
+          };
+
+          return gmItemConfig;
+        }
+
+
+        // n5_grayed_R
+        // n5_grayed_L
+        // n6_addB_subT_neg
+        // n7_addB_subT_all
+        // n10__product
+
+        // f1__index_one_to_frac__impossible_button_todo
+        // f2__index_one_to_frac_operator_wall
+        // f3__index_1frac_to_one
+        // f4__index_frac_to_frac_decomp_simple
+        // f5__index_frac_to_frac_decomp
+        // f6__index_frac_to_frac
+
+
+        // p1__product_vpadiq
+        // p2__product_expadd
+        // p3__product_to_1
+        // p4__product_to_product__pos
+        // p5__negat
+        // p6__negat_expadd
+        // p7__negat_to_1
+        // p8__product_to_product__full
+        // p9__product__compositeops
+        // p100__powop
+        // dectosci1__HTU
+        // dectosci2__TUdc
+        // dectosci3__HTUd_duos
+        // sci1__fixed_equal_sci
+        // sci1b__fixed_equal_sci
+        // sci1c__fixed_equal_sci
+        // sci1d__fixed_equal_sci
+        // sci2__sci_equal_fixed
+
+
+        // ne1_numexp_writing_add_mult
+        // ne2_numexp_writing_op4
+        // ne3_numexp_writing_fat_to_fatter
+
+
+        // l2_litexp_writing_2
+        // l3_litexp_writing_3__v1
+        // l4_litexp_writing_sq_capped
+        // l10_litexp_eval_x
+        // l10b_litexp_eval_xneg
+        // l10c_litexp_eval_xdec
+        // l11_litexp_eval_xy
+
+
+        // eq1_add_near
+        // eq2_add_far
+        // eq3_add__side_explicit_with_number_symbol
+        // eq4_add__side_magic
+        // eq5_mult
+        // eq7_mult__side_magic
+        // eq8_left__side_magic
+        // eq9_op4
+
+        // f1_function_operators
+
+        // in1_mult_tables__que
+        // in2_mult_tables__ans
+
+
+        // x1_tables_X_decimal__que1
+        // x2_tables_X_decimal__que2
+        // x3_tables_X_decimal__que3
         
 
         //////////
@@ -55629,6 +56681,10 @@
               };
               rep_free__touchSlot.touchSlotConfig.transformationFunc = transformationFunc__decorated;
 
+              if("isEnabled" in gmItem_operator.specs) {
+                rep_free__touchSlot.touchSlotConfig.isEnabled        = gmItem_operator.specs.isEnabled;
+              }
+
 
               //facade
               const rep_free__facade = rep_free__operator.parts["facade"];
@@ -55636,6 +56692,10 @@
               
               rep_free__facade.mathNode = gmItem_operator.specs.funcWrapper.semantics.node__operatorNode;
               rep_free__facade.originX  = "center";
+
+              if("isEnabled" in gmItem_operator.specs) {
+                rep_free__facade.opacity = gmItem_operator.specs.isEnabled ? 1 : 0.4;
+              }
 
             });
           }
@@ -55685,12 +56745,19 @@
               };
               rep_free__touchSlot.touchSlotConfig.transformationFunc = transformationFunc__decorated;
 
+              if("isEnabled" in gmItem_operator.specs) {
+                rep_free__touchSlot.touchSlotConfig.isEnabled        = gmItem_operator.specs.isEnabled;
+              }
 
               //facade
               const rep_free__facade = rep_free__operator.parts["facade"];
 
               rep_free__facade.mathNode = gmItem_operator.specs.funcWrapper.semantics.node__operatorNode;
               rep_free__facade.originX  = "center";
+
+              if("isEnabled" in gmItem_operator.specs) {
+                rep_free__facade.opacity = gmItem_operator.specs.isEnabled ? 1 : 0.4;
+              }
 
             });
           }
@@ -56660,7 +57727,7 @@
             width: 100,
             height: 100,
           };
-          const icTargetTouchSlot = infiniteCanvas.createIcGMTargetTouchSlot(trueRect_2, 12);
+          const icTargetTouchSlot = infiniteCanvas.createIcGMTargetTouchSlot(trueRect_2, {targetValue: 12});
           infiniteCanvas.addIcObject(icTargetTouchSlot);
 
 
