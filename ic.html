@@ -14,6 +14,9 @@
       height: 100%;
       margin: 0;
 
+      /* 17756649/disable-the-horizontal-scroll */
+      max-width: 100%; overflow-x: hidden;
+
       /* Prevent document pinch-zoom & touch-hold-to-highlight */
       touch-action: none;
 
@@ -21737,7 +21740,12 @@
           const brushZIndex_new = getBrushZIndex_new(screment, isABScroll);
 
           //set zIndex of next freeDrawing object
+          logger.log("logZIndexScroll", "brushZIndex_new:", brushZIndex_new);
           inputProperties.setBrushZIndex(brushZIndex_new);
+
+          //refresh brush
+          const brushConfig = fabricIntegration.brushConfig__freeDrawing();
+          fabricIntegration.configureFreeDrawingBrush(brushConfig);
 
         } else {
 
@@ -38356,7 +38364,8 @@
           function freeDrawing_objectAdded__atomic(e) {
             logger.log("logFD", "freeDrawing_objectAdded__atomic", e);
 
-            const brushConfig = fabricIntegration.brushConfig__current;
+            // const brushConfig = fabricIntegration.brushConfig__current;
+            const brushConfig = fabricIntegration.brushConfig__freeDrawing();   //SHU: even fresher
 
             const fColor   = brushConfig.fColor;
             const rgbColor = fColor.toRgb();
@@ -44361,6 +44370,13 @@
               return acc;
             }, null);
 
+            // updateValue = arr_keyCode.reduce((acc, keyCode) => {
+            //   if (keyCode == e.code) {
+            //     acc = acc && down;
+            //   }
+            //   return acc;
+            // }, true);
+
             return updateValue;
           };
 
@@ -44494,10 +44510,10 @@
 
 
           // this.altKeyDown = false;
-          this.keyDownToggles = {};
+          this.keyDownToggles  = {};
           this.keyDownTimeouts = {};
 
-          this.keyUpABToggles = {};
+          this.keyUpABToggles  = {};
 
 
           this.configureKeyboardEventHandlers();
@@ -44709,15 +44725,38 @@
           }
           configureKeyDownToggles();
 
+          
 
           function configureKeyDownTimeouts() {
 
             const default_timeout_delayInMs = 17; //17 ms == 60 fps
             const arrows_timeout_delayInMs = 500;
 
+            function create_keyDownFunc__custom_1(arr_keyCode) {
+              return (e, down) => {
+                var updateValue;
+
+                if (globalsSingleton.isEditing) {
+                  //ignore
+                  updateValue = null;
+                } else {
+                  updateValue = arr_keyCode.reduce((acc, keyCode) => {
+                  if (keyCode == e.code) {
+                    acc = down;
+                  }
+                  return acc;
+                }, null);
+                }
+
+                return updateValue;
+              };
+            }
+
             keyboardIntegration.keyDownTimeouts = {
 
-              a: new KeyDownTimeout("a", KeyDownToggle.defaultKeyDownFunc(["KeyQ"]), () => {
+              // a: new KeyDownTimeout("a", KeyDownToggle.defaultKeyDownFunc(["KeyQ"]), () => {
+              a: new KeyDownTimeout("a", create_keyDownFunc__custom_1(["KeyQ"]), () => {
+
                 var scaleAmount_for_100ms;
 
                 if (keyboardIntegration.keyDownToggles.ctrlLeft.isActive) {
@@ -44739,7 +44778,8 @@
                 keyboardIntegration.infiniteCanvas.manageUpdate__scale_withScaleAmount(scaleAmount);
               }, default_timeout_delayInMs),
 
-              z: new KeyDownTimeout("z", KeyDownToggle.defaultKeyDownFunc(["KeyW"]), () => {
+              // z: new KeyDownTimeout("z", KeyDownToggle.defaultKeyDownFunc(["KeyW"]), () => {
+              z: new KeyDownTimeout("z", create_keyDownFunc__custom_1(["KeyW"]), () => {
                 var scaleAmount_for_100ms;
 
                 if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
@@ -45883,6 +45923,15 @@
                   }
                 }
                 break;
+
+              // case "ShiftLeft":
+              // case "AltLeft":
+              //   {
+              //     e.preventDefault();
+              //     return;
+              //   }
+              //   break;
+
               default:
                 break;
             }
