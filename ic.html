@@ -647,6 +647,16 @@
 
   <!-- <script src='lib/base64.js' type='text/javascript'></script> -->
 
+  <script>
+    //more utils
+
+    String.prototype.insert = function (index, string) {
+      var ind = index < 0 ? this.length + index  :  index;
+      return  this.substring(0, ind) + string + this.substr(ind);
+    };
+
+  </script>
+
   <script src='lib/Queue.js' type='text/javascript'> </script>
   <script src='lib/PriorityQueue.js' type='text/javascript'> </script>
 
@@ -675,7 +685,9 @@
     
 
   <script src='lib/fabric+zIndex.js'       type='text/javascript'></script>
+  <script src='lib/fabric+comb.js'         type='text/javascript'></script>
   <script src='lib/fabricjs+floodFill.js'  type='text/javascript'></script>
+
 
   <script>
     class FabricUtils {
@@ -1235,7 +1247,25 @@
   <script src='lib/mathquill/mathquill.min.js' type='text/javascript'></script>
   <script>
     const MQ = MathQuill.getInterface(2);
-    console.log("MQ", MQ);
+    logger.log("logNumberTyping", "MQ", MQ);
+
+    // function decorate_keystroke_forClass(klass) {
+    //   const keystroke__old = klass.keystroke;
+    //   klass.keystroke = function(key, e, ctrlr) {
+    //     logger.log("logNumberTyping", "MQ.keystroke", key, e, ctrlr);
+    //     if(key === 'KeyZ') {
+    //       e.preventDefault();
+    //       return;
+    //     } else {
+    //       keystroke__old(key, e, ctrlr);
+    //     }
+    //   };
+    // }
+    // decorate_keystroke_forClass(MQ.MathBlock);
+    // decorate_keystroke_forClass(MQ.RootTextBlock);
+    // decorate_keystroke_forClass(MQ.LatexCommandInput);
+    // decorate_keystroke_forClass(MQ.EditableField);
+
 
     function createMathField() {
       var outMathField;
@@ -1247,21 +1277,205 @@
       // span.style.width  = "100px";
       // span.style.height = "100px";
       span.style.fontSize = "80pt";
-      span.style.color = "purple";
+      span.style.color    = "purple";
 
 
       span.style.textAlign     = "center";
       span.style.verticalAlign = "middle";
 
-      const mathField = MQ.MathField(span, {
-        // handlers: {
-        //   edit: function (mathField) {
-        //     var tex = mathField.latex(); // Get entered math in LaTeX format
-        //     console.log("tex", tex);
-        //   }
+
+      function handler__edit(mathField) {
+        const tex = mathField.latex();
+
+        //debug
+        // {
+        //   const cursor = mathField.__controller.cursor;
+        //   logger.log("logNumberTyping", "getCursorIndex", "cursor:", cursor);
         // }
-      });
-      //console.log("mathField", mathField);
+
+        function checkNeedsUpgrade(tex) {
+          var outBool;
+          outBool = tex.includes("\\cdot");
+          return outBool;
+        }
+
+        function upgradedTex(tex) {
+          var outTex;
+          outTex = tex.replaceAll("\\cdot", "×");
+          return outTex;
+        }
+
+        function getMathFieldElement__withFilter(mathField, func__filter) {
+          // logger.log("logNumberTyping", "getMathFieldElement__withFilter", "mathField:", mathField);
+          var outEl;
+
+          const el__start = mathField.__controller.root.ends[-1];
+          if((el__start != null) && (el__start != 0) && func__filter(el__start)) {
+            outEl = el__start;
+          } else {
+            var found = false;
+            var el = el__start[1];
+            while(!found) {
+              // logger.log("logNumberTyping", "getMathFieldElement__withFilter", "el:", el);
+              found = (el != null) && (el != 0) && func__filter(el);
+              if(!found) {
+                if(el != null) {
+                  el = el[1];
+                } else {
+                  break;
+                }
+              }
+            }
+            outEl = el;
+          }
+
+          return outEl;
+        }
+
+        function getMathFieldElement__withId(mathField, id__el) {
+          return getMathFieldElement__withFilter(mathField, (el) => (el.id == id__el));
+        }
+
+        function getMathFieldElement__withString(mathField, str__el) {
+          return getMathFieldElement__withFilter(mathField, (el) => (el.ctrlSeq == str__el));
+        }
+
+        const isNeedUpgrade = checkNeedsUpgrade(tex);
+        if(isNeedUpgrade) {
+
+          //cursor hack (idea 1):  insert str__salt at cursor index, 
+          //              make update, 
+          //              get cursor back using str__salt 
+          //              remove str__salt
+
+          //disable edit handler
+          const handler__edit__prev = mathField.__options.handlers.fns.edit;
+          mathField.__options.handlers.fns.edit = (mathField) => {};
+
+            //store id of first element (before upgrade)
+          const el__first__beforeUpgrade     = getMathFieldElement__withFilter(mathField, (el) => true);
+          const id__el__first__beforeUpgrade = el__first__beforeUpgrade.id;
+
+          // var cursorOffset__beforeUpgrade = mathField.__controller.cursor.offset();
+          // if (!cursorOffset__beforeUpgrade) {
+          //   cursorOffset__beforeUpgrade = { 'top': 0, 'left': 0 }
+          // }
+
+          const str__salt = "𓀴";  //== "\ud80c\udc34" 
+          // const index__cursor__old = getCursorIndex(mathField);
+          // const tex__salted        = tex.insert(index__cursor, str__salt);
+          mathField.write(str__salt); //write str__salt at current cursor
+          const tex__salted = mathField.latex();
+          
+          const tex__salted__upgraded = upgradedTex(tex__salted);
+          // const index__cursor__new    = tex__salted__upgraded.indexOf(str__salt);
+          const el__beside_salt       = getMathFieldElement__withString(mathField, "\ud80c")[-1];
+          const id__el__beside_salt   = el__beside_salt.id;
+          logger.log("logNumberTyping", "id__el__beside_salt:", id__el__beside_salt);
+          // const el__beside_salt__2    = getMathFieldElement__withString(mathField, "\udc34")[1];
+          // var id__el__beside_salt__2;
+          // if(el__beside_salt__2 != null && el__beside_salt__2 != 0) {
+          //   id__el__beside_salt__2 = el__beside_salt__2.id;
+          // }
+          // logger.log("logNumberTyping", "id__el__beside_salt__2:", id__el__beside_salt__2);
+          
+          const tex__upgraded         = tex__salted__upgraded.replace(str__salt, "");
+
+          //perform update
+          mathField.latex("");
+          mathField.write(tex__upgraded);
+          logger.log("logNumberTyping", "mathField__new:", mathField);
+
+          // mathField.reflow();
+
+          //set cursor index
+          // setCursorIndex(mathField, index__cursor__new);
+
+            //store id of first element (after upgrade)
+          const el__first__afterUpgrade     = getMathFieldElement__withFilter(mathField, (el) => true);
+          const id__el__first__afterUpgrade = el__first__afterUpgrade.id;
+          
+ 
+          const offset__id                        = id__el__first__afterUpgrade - id__el__first__beforeUpgrade - 1;
+          logger.log("logNumberTyping", "offset__id:", offset__id);
+          
+          const id__el__beside_salt__afterUpgrade = id__el__beside_salt + offset__id;
+          logger.log("logNumberTyping", "id__el__beside_salt__afterUpgrade:", id__el__beside_salt__afterUpgrade);
+          const el__beside_salt__afterUpgrade     = getMathFieldElement__withId(mathField, id__el__beside_salt__afterUpgrade);
+          logger.log("logNumberTyping", "el__beside_salt__afterUpgrade:", el__beside_salt__afterUpgrade);
+
+          // var id__el__beside_salt__2__afterUpgrade;
+          // var el__beside_salt__2__afterUpgrade;
+          // if(id__el__beside_salt__2 != null) {
+          //   id__el__beside_salt__2__afterUpgrade = id__el__beside_salt__2 + offset__id;
+          //   logger.log("logNumberTyping", "id__el__beside_salt__2__afterUpgrade:", id__el__beside_salt__2__afterUpgrade);
+          //   el__beside_salt__2__afterUpgrade     = getMathFieldElement__withId(mathField, id__el__beside_salt__afterUpgrade);
+          //   logger.log("logNumberTyping", "el__beside_salt__afterUpgrade:", el__beside_salt__afterUpgrade);
+          // }
+
+          if(el__beside_salt__afterUpgrade != null) {
+            // el__beside_salt__afterUpgrade.jQ.focus();
+
+            // mathField.blur();
+
+            const cursor = mathField.__controller.cursor;
+            logger.log("logNumberTyping", "cursor:", cursor);
+
+            // cursor.hide();
+
+            cursor.hide();
+            mathField.blur();
+
+            cursor[-1]    = el__beside_salt__afterUpgrade;
+            cursor[+1]    = el__beside_salt__afterUpgrade[1];
+            // cursor.parent = mathField;
+
+            // cursor.insAtRightEnd(el__beside_salt__afterUpgrade);
+            // mathField.finalizeInsert(cursor.options, cursor);
+ 
+            // const func__old = mathField.__controller.textarea.focus;
+            // mathField.__controller.textarea.focus = () => {};
+            // mathField.__controller.textarea.focus = func__old;
+
+            // // if(el__beside_salt__2__afterUpgrade != null) {
+            // //   cursor.insAtLeftEnd(el__beside_salt__2__afterUpgrade);
+            // // }
+
+            mathField.focus();
+            cursor.show();
+           
+          }
+          // mathField.__controller.cursor[-1] = el;
+          // mathField.__controller.cursor[+1] = 
+          // mathField.__controller.cursor.hide();
+          // mathField.__controller.cursor.show();
+          // logger.log("logNumberTyping", "cursor__prev", mathField.__controller.cursor);
+
+          // mathField.__controller.cursor.offset = cursorOffset__beforeUpgrade;
+
+          //reenable edit handler
+          mathField.__options.handlers.fns.edit = handler__edit__prev;
+        }
+
+      }
+
+      const mathField = MQ.MathField(span, {
+        handlers: {
+          edit: handler__edit,
+        }
+      }); 
+      logger.log("logNumberTyping", "mathField:", mathField);
+
+      // const keystroke__old = mathField.keystroke;
+      // mathField.keystroke = function(key, e, ctrlr) {
+      //   logger.log("logNumberTyping", "MQ.keystroke", key, e, ctrlr);
+      //   if(key === 'KeyZ') {
+      //     e.preventDefault();
+      //     return;
+      //   } else {
+      //     keystroke__old(key, e, ctrlr);
+      //   }
+      // };
 
       outMathField = mathField;
 
@@ -18186,6 +18400,9 @@
           const icObj__support__as_composite = infiniteCanvas.createIcComposite(trueRect__support__as_composite, parts, compositeConfig, content);
           icObj__support__as_composite.cType = "support";
           
+          //SHU: illusion
+          icObj__support__as_composite.fill = "transparent";
+          
             //add composite form
           infiniteCanvas.onceOnAddRepresentedForIcObject(icObj__support__as_composite, (icObj__support__as_composite) => {
 
@@ -18214,6 +18431,9 @@
           const icObj__support__as_composite = infiniteCanvas.createIcComposite(trueRect__support__as_composite, parts, compositeConfig, content);
           icObj__support__as_composite.cType = "support";
 
+          //SHU: illusion
+          icObj__support__as_composite.fill = "transparent";
+
           infiniteCanvas.addIcObject(icObj__support__as_composite);
         }
           
@@ -18230,7 +18450,23 @@
         const inputProperties = this.inputProperties;
 
         const activeColor = inputProperties.getActiveColor();
-        switch (icObj.type) {
+
+        function getStrMainType(icObj) {
+          var outString;
+
+          // outString = ("t__" + icObj.type);
+          outString = icObj.type;
+
+          if(icObj.cType != null) {
+            // outString = ("ct__" + icObj.cType);
+            outString = icObj.cType;
+          }
+
+          return outString;
+        }
+        
+        const str__mainType = getStrMainType(icObj);
+        switch (str__mainType) {
           case "rect":
           case "point":
           case "sparkle":
@@ -18269,6 +18505,13 @@
 
           case "povRect":
             break;
+
+
+          //composite
+          case "freeDrawingObj":
+          case "support":
+            break;
+
 
           default:
             icObj.fill = activeColor;
@@ -21629,7 +21872,6 @@
         //get selected objects
         const arr_rep_free_selected = this.getArr_selected_rep_free();
 
-        //version 2: update object's opacity
         arr_rep_free_selected.forEach((rep_free, i) => {
           
           if("mathNode" in rep_free /*&& rep_free.mathNode instanceof math.ConstantNode*/) {
@@ -21659,6 +21901,25 @@
             
             rep_free.mathNode = mathNode__new;
           }
+          
+        });
+
+      }
+
+
+      manageUpdate__selectedObj__homeScale__withScaleAmount(scaleAmount) {
+
+        //get selected objects
+        const arr_rep_free_selected = this.getArr_selected_rep_free();
+
+        arr_rep_free_selected.forEach((rep_free, i) => {
+          
+          const homeScale__old = Object.assign({}, rep_free.homeScale);
+          const homeScale__new = {
+            X: homeScale__old.X * (1 + scaleAmount),
+            Y: homeScale__old.Y * (1 + scaleAmount),
+          };
+          rep_free.homeScale = homeScale__new;
           
         });
 
@@ -21952,14 +22213,13 @@
           //transfer tex
           {
             const tex = mathField.latex();
-            console.log("tex", tex);
+            logger.log("logNumberTyping", "tex:", tex);
 
             //this is where fun starts
             function mathFieldTex_to_mathNode(tex) {
               var outMathNode;
 
               try {
-
                 // outMathNode = math.parse(tex);
 
                 const mathExpression = MathExpression.fromLatex(tex);
@@ -21977,11 +22237,58 @@
               return outMathNode;
             }
 
-            const mathNode__new = mathFieldTex_to_mathNode(tex);
-            // mathNode__new.autoSimplify = true;
+            function parseToOperatorNode(tex) {
+              var outNode;
 
-            //store generated mathNode
-            this.mathNode_numberTyping = mathNode__new;
+              const [str__comp1, ...arr__comp__rest] = tex.split("\\ ");
+              logger.log("logNumberTyping", "str__comp1:", str__comp1);
+              logger.log("logNumberTyping", "arr__comp__rest:", arr__comp__rest);
+
+              if(str__comp1 == "+"
+              || str__comp1 == "-"
+              || str__comp1 == "×" 
+              || str__comp1 == "frac") {
+                
+              } else {
+                outNode = null;
+              }
+
+              return outNode;
+            }
+
+            const mathNode__operator = parseToOperatorNode(tex);
+
+            if(mathNode__operator != null) { 
+
+            } else {
+
+              const mathNode__new      = mathFieldTex_to_mathNode(tex);
+              // mathNode__new.autoSimplify = true;
+
+              if(mathNode__new != null) {
+
+                if(fabricIntegration.fabricCanvas.isDrawingMode) {
+                  //create/add divided segment
+                  // const position__icMathNode = this.getTrueCursor();
+                  // const mathNode   = this.mathNode_numberTyping.cloneDeep();
+                  // const dividedSegment = this.createIcMathNode(position__icMathNode.x, position__icMathNode.y, mathNode);
+                  // this.addNewIcObject(icMathNode);
+
+                } else {
+
+                  //create/add icMathNode
+                  const position__icMathNode = this.getTrueCursor();
+                  const mathNode   = mathNode__new.cloneDeep();
+                  const icMathNode = this.createIcMathNode(position__icMathNode.x, position__icMathNode.y, mathNode);
+                  this.addNewIcObject(icMathNode);
+                }
+              
+              } else {
+
+              } 
+
+            }
+
           }
 
           //remove all listeners
@@ -21994,26 +22301,6 @@
           //destroy mathField
           mathField.revert();
         }
-
-        if(this.mathNode_numberTyping != null) {
-
-          if(fabricIntegration.fabricCanvas.isDrawingMode) {
-            //create/add divided segment
-            const position__icMathNode = this.getTrueCursor();
-            const mathNode   = this.mathNode_numberTyping.cloneDeep();
-            const dividedSegment = this.createIcMathNode(position__icMathNode.x, position__icMathNode.y, mathNode);
-            this.addNewIcObject(icMathNode);
-
-          } else {
-            //create/add icMathNode
-            const position__icMathNode = this.getTrueCursor();
-            const mathNode   = this.mathNode_numberTyping.cloneDeep();
-            const icMathNode = this.createIcMathNode(position__icMathNode.x, position__icMathNode.y, mathNode);
-            this.addNewIcObject(icMathNode);
-          }
-
-        }
-
 
         this.mathNode_numberTyping  = null;
         this.mathField_numberTyping = null;
@@ -30941,6 +31228,7 @@
             preserveObjectStacking: true,
           });
           installFabricZIndexUpgrade(fabricCanvas);     //fabric+zIndex.js
+          installFabricCombUpgrade(fabricCanvas);       //fabric+comb.js
 
           //improve performance: (?)
           // fabricCanvas.contextTop       = fabricCanvas.upperCanvasEl.getContext('2d', { willReadFrequently: true }); 
@@ -38287,6 +38575,17 @@
           this.fabricCanvas.freeDrawingBrush = new fabric.ZPencilBrush(this.fabricCanvas);
           this.fabricCanvas.freeDrawingBrush._setBrushStyles(this.fabricCanvas.contextContainer);
 
+          //install CombPencilBrush
+          // this.fabricCanvas.freeDrawingBrush = new fabric.CombPencilBrush(this.fabricCanvas, [
+          //   new fabric.ZPencilBrush(this.fabricCanvas),
+          //   new fabric.PencilBrush(this.fabricCanvas),
+          // ]);
+          // this.fabricCanvas.freeDrawingBrush = new fabric.CombPencilBrush(this.fabricCanvas, [
+          //   new fabric.OffsettedBrush(new fabric.ZPencilBrush(this.fabricCanvas), {dx:   0, dy: 100}),
+          //   new fabric.OffsettedBrush(new fabric.PencilBrush(this.fabricCanvas),  {dx: 100, dy:   0}),
+          // ]);
+          // this.fabricCanvas.freeDrawingBrush._setBrushStyles(this.fabricCanvas.contextContainer);
+
           //install adhesive freeDrawing
           // this.fabricCanvas.on('mouse:down:before', (this.freeDrawing__adhesive__checkForSupport).bind(this));
         }
@@ -38324,7 +38623,7 @@
           brush.width = brushConfig.width;
           brush.color = brushConfig.color;
 
-          brush.homeScale = brushConfig.homeScale;
+          // brush.homeScale = brushConfig.homeScale;   //SHU: too hard for now
 
           brush.zIndex__ic = brushConfig.zIndex__ic;
           brush.zIndex     = this.fObjZIndexForIcZIndex(brush.zIndex__ic);
@@ -38364,17 +38663,17 @@
           function freeDrawing_objectAdded__atomic(e) {
             logger.log("logFD", "freeDrawing_objectAdded__atomic", e);
 
-            // const brushConfig = fabricIntegration.brushConfig__current;
-            const brushConfig = fabricIntegration.brushConfig__freeDrawing();   //SHU: even fresher
+            const brushConfig__atDrawingStart = fabricIntegration.brushConfig__current;
+            const brushConfig__atDrawingEnd   = fabricIntegration.brushConfig__freeDrawing();   //SHU: even fresher
 
-            const fColor   = brushConfig.fColor;
+            const fColor   = brushConfig__atDrawingStart.fColor;
             const rgbColor = fColor.toRgb();
             const opacity  = fColor.getAlpha();
 
             //get fObj
             const fObj = e.target;
             fObj.set({
-              strokeWidth:  brushConfig.width,
+              strokeWidth:  brushConfig__atDrawingEnd.width,
 
               stroke:  rgbColor,
               opacity: opacity,
@@ -38388,7 +38687,7 @@
             logger.log("logFD", "fObj", fObj);
             fObj.moveTo(fObj.zIndex);
 
-            fObj.zIndex__ic = brushConfig.zIndex__ic;
+            fObj.zIndex__ic = brushConfig__atDrawingEnd.zIndex__ic;
 
             fabricIntegration.manageCreatedFreeDrawingObject__atomic(fObj);
           }
@@ -38490,6 +38789,11 @@
             const icComposite     = infiniteCanvas.createIcComposite(trueRect__composite, parts, compositeConfig); 
             icComposite.cType = "freeDrawingObj";
             // icComposite.fillColor = "green";
+
+            //SHU: illusion
+            icComposite.fill    = "transparent";
+            // icComposite.opacity = 0;
+
 
             //add composite 
             this.infiniteCanvas.addNewIcObject(icComposite);
@@ -44144,7 +44448,7 @@
           this.homeScale = {X:1.0,Y:1.0};
 
 
-
+          this.comb__nbStrokes = 2;
 
           this.isAdhesive = false;
         }
@@ -44412,7 +44716,7 @@
               const keyDownTimeout = this;
 
               function theFunc() {
-                logger.log("KeyDownTimeout", "call triggeredFunc()");
+                logger.log("KeyDownTimeout", "call triggeredFunc()", e);
                 keyDownTimeout.triggeredFunc();
               }
 
@@ -44609,12 +44913,17 @@
                   return;
                 }
 
+                // /**/
+                // if (isActive) {
+                //   fabricIntegration.enterSlicing();
+                // } else {
+                //   fabricIntegration.leaveSlicing();
+                // }
+                // /**/
+
                 /**/
-                if (isActive) {
-                  fabricIntegration.enterSlicing();
-                } else {
-                  fabricIntegration.leaveSlicing();
-                }
+                //craneScroll
+                  //only side effect is used
                 /**/
               }),
 
@@ -44752,12 +45061,22 @@
               };
             }
 
+            function getScaleAmount(factor) {
+              var scaleAmount_for_100ms;
+              if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+                scaleAmount_for_100ms = factor * 0.3;
+              } else {
+                scaleAmount_for_100ms = factor * 0.1;
+              }
+
+              const scaleAmount = default_timeout_delayInMs / 100 * scaleAmount_for_100ms;
+              return scaleAmount;
+            }
+
             keyboardIntegration.keyDownTimeouts = {
 
               // a: new KeyDownTimeout("a", KeyDownToggle.defaultKeyDownFunc(["KeyQ"]), () => {
               a: new KeyDownTimeout("a", create_keyDownFunc__custom_1(["KeyQ"]), () => {
-
-                var scaleAmount_for_100ms;
 
                 if (keyboardIntegration.keyDownToggles.ctrlLeft.isActive) {
                   //ignore
@@ -44768,28 +45087,29 @@
                   return;
                 }
 
-                if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
-                  scaleAmount_for_100ms = -0.3;
+                const scaleAmount = getScaleAmount(-1);
+                if(keyboardIntegration.keyDownToggles.digit1.isActive) {
+                  //craneScroll
+                  keyboardIntegration.infiniteCanvas.manageUpdate__selectedObj__homeScale__withScaleAmount(scaleAmount);
                 } else {
-                  scaleAmount_for_100ms = -0.1;
+                  //zScroll
+                  keyboardIntegration.infiniteCanvas.manageUpdate__scale_withScaleAmount(scaleAmount);
                 }
-
-                const scaleAmount = default_timeout_delayInMs / 100 * scaleAmount_for_100ms;
-                keyboardIntegration.infiniteCanvas.manageUpdate__scale_withScaleAmount(scaleAmount);
+              
               }, default_timeout_delayInMs),
 
               // z: new KeyDownTimeout("z", KeyDownToggle.defaultKeyDownFunc(["KeyW"]), () => {
               z: new KeyDownTimeout("z", create_keyDownFunc__custom_1(["KeyW"]), () => {
-                var scaleAmount_for_100ms;
 
-                if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
-                  scaleAmount_for_100ms = +0.3;
+                const scaleAmount = getScaleAmount(+1);
+                if(keyboardIntegration.keyDownToggles.digit1.isActive) {
+                  //craneScroll
+                  keyboardIntegration.infiniteCanvas.manageUpdate__selectedObj__homeScale__withScaleAmount(scaleAmount);
                 } else {
-                  scaleAmount_for_100ms = +0.1;
+                  //zScroll
+                  keyboardIntegration.infiniteCanvas.manageUpdate__scale_withScaleAmount(scaleAmount);
                 }
 
-                const scaleAmount = default_timeout_delayInMs / 100 * scaleAmount_for_100ms;
-                keyboardIntegration.infiniteCanvas.manageUpdate__scale_withScaleAmount(scaleAmount);
               }, default_timeout_delayInMs),
 
 
@@ -44862,13 +45182,18 @@
 
               "space": new KeyUpABToggle("space", KeyUpABToggle.defaultKeyUpFunc(["Space"]), (isModeA) => {
                 const infiniteCanvas = keyboardIntegration.infiniteCanvas;
-                if(!isModeA) {
-                  inputProperties.homeScale              = Object.assign({}, infiniteCanvas.scale);
-                  infiniteCanvas.lock_homeScale_isActive = true;
-                } else {
-                  infiniteCanvas.lock_homeScale_isActive = false;
-                }
                 
+                if(keyboardIntegration.keyDownToggles.digit1.isActive) {
+
+                  if(!isModeA) {
+                    inputProperties.homeScale              = Object.assign({}, infiniteCanvas.scale);
+                    infiniteCanvas.lock_homeScale_isActive = true;
+                  } else {
+                    infiniteCanvas.lock_homeScale_isActive = false;
+                  }
+
+                }
+
               }),
 
             };
@@ -46242,8 +46567,22 @@
               valueScroll(event);
             } 
             /**/else/**/ 
+            if (keyboardIntegration.keyDownToggles.space.isActive) {
+              orthScroll(event);
+            }
+
+            /**/else/**/ 
+            if (infiniteCanvas.isZIndexEditing && keyboardIntegration.keyDownToggles.digit1.isActive) {
+              zIndexEditingScroll(event);
+              craneScroll(event);
+            }
+            /**/else/**/ 
             if (infiniteCanvas.isZIndexEditing) {
               zIndexEditingScroll(event);
+            }
+            /**/else/**/ 
+            if (keyboardIntegration.keyDownToggles.digit1.isActive) {
+              craneScroll(event);
             }
             else {
               zoomScroll(event);
@@ -46295,18 +46634,33 @@
               infiniteCanvas.manageUpdate__selectedObj__value(cfg);
             }
 
+            function getShiftAmount(event) {
+              const deltaY = event.deltaY;
+              // const scaleAmount = -deltaY / 500;
+              const scroll_step = mouseIntegration.inputProperties.scrollProperties.step;
+              //console.log("onMouseWheel", "scroll_step", scroll_step);
+              const shiftAmount = -deltaY * scroll_step;
+
+              const shiftAmount_max = 0.99;
+              const shiftAmount_min = -0.99;
+              const shiftAmount_bounded = Math.min(shiftAmount_max, Math.max(shiftAmount_min, shiftAmount));
+
+              return shiftAmount_bounded;
+            }
+
+            function orthScroll(event) {
+              const shiftAmount = getShiftAmount(event);
+              mouseIntegration.infiniteCanvas.manageUpdate__freeDrawing__orthScroll(shiftAmount);
+            }
+
+
             function zIndexEditingScroll(event) {
               const deltaY = event.deltaY;
               const screment = deltaY > 0 ? 1 : -1;
               infiniteCanvas.manageUpdate__zIndex_withScrement(screment);
             }
 
-            function zoomScroll(event) {
-
-              if(keyboardIntegration.keyDownToggles.space.isActive) {
-                mouseIntegration.infiniteCanvas.isDryScrolling = true;
-              }
-
+            function getScaleAmount(event) {
               const deltaY = event.deltaY;
               // const scaleAmount = -deltaY / 500;
               const scroll_step = mouseIntegration.inputProperties.scrollProperties.step;
@@ -46317,7 +46671,23 @@
               const scaleAmount_min = -0.99;
               const scaleAmount_bounded = Math.min(scaleAmount_max, Math.max(scaleAmount_min, scaleAmount));
 
-              mouseIntegration.infiniteCanvas.manageUpdate__scale_withScaleAmount(scaleAmount_bounded);
+              return scaleAmount_bounded;
+            }
+
+            function craneScroll(event) {
+
+              const scaleAmount = getScaleAmount(event);
+              mouseIntegration.infiniteCanvas.manageUpdate__selectedObj__homeScale__withScaleAmount(scaleAmount);
+            }
+
+            function zoomScroll(event) {
+
+              if(keyboardIntegration.keyDownToggles.space.isActive) {
+                mouseIntegration.infiniteCanvas.isDryScrolling = true;
+              }
+
+              const scaleAmount = getScaleAmount(event);
+              mouseIntegration.infiniteCanvas.manageUpdate__scale_withScaleAmount(scaleAmount);
 
               /*
               var zoom = canvas.getZoom();
