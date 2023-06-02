@@ -685,7 +685,10 @@
     
 
   <script src='lib/fabric+zIndex.js'       type='text/javascript'></script>
+  
+  <script src='lib/CircularBuffer.js'      type='text/javascript'></script>
   <script src='lib/fabric+comb.js'         type='text/javascript'></script>
+  
   <script src='lib/fabricjs+floodFill.js'  type='text/javascript'></script>
 
 
@@ -6780,9 +6783,14 @@
         this.isFreeDrawingPan      = false;
         this.hasBeenFreeDrawingPan = false;
 
+        this.isObjectHoldingPan      = false;
+        this.hasBeenObjectHoldingPan = false;
+
         this.isZScrollingPan      = false;
         this.hasBeenZscrollingPan = false;
 
+        this.isPreparingFreeDrawingComb = false;
+        this.counter__comb              = 0;
 
         this.isColorPickerAvailable = true;
 
@@ -21864,6 +21872,17 @@
           fabricIntegration.configureFreeDrawingBrush(brushConfig);
         }
 
+      }
+
+      manageUpdate__comb__addStroke() {
+
+      }
+
+
+      manageUpdate__freeDrawing__orthScroll(shiftAmount) {
+        const spacing__old = fabricIntegration.fabricCanvas.freeDrawingBrush.spacing;
+        const spacing__new = spacing__old + shiftAmount * 100;
+        fabricIntegration.fabricCanvas.freeDrawingBrush.setSpacing(spacing__new);
       }
 
 
@@ -38571,20 +38590,25 @@
           }
 
 
-          //install ZPencilBrush
-          this.fabricCanvas.freeDrawingBrush = new fabric.ZPencilBrush(this.fabricCanvas);
-          this.fabricCanvas.freeDrawingBrush._setBrushStyles(this.fabricCanvas.contextContainer);
+          // //install ZPencilBrush
+          // this.fabricCanvas.freeDrawingBrush = new fabric.ZPencilBrush(this.fabricCanvas);
+          // this.fabricCanvas.freeDrawingBrush._setBrushStyles(this.fabricCanvas.contextContainer);
 
           //install CombPencilBrush
           // this.fabricCanvas.freeDrawingBrush = new fabric.CombPencilBrush(this.fabricCanvas, [
           //   new fabric.ZPencilBrush(this.fabricCanvas),
           //   new fabric.PencilBrush(this.fabricCanvas),
           // ]);
+          
           // this.fabricCanvas.freeDrawingBrush = new fabric.CombPencilBrush(this.fabricCanvas, [
-          //   new fabric.OffsettedBrush(new fabric.ZPencilBrush(this.fabricCanvas), {dx:   0, dy: 100}),
-          //   new fabric.OffsettedBrush(new fabric.PencilBrush(this.fabricCanvas),  {dx: 100, dy:   0}),
+            // new fabric.OffsettedBrush(new fabric.ZPencilBrush(this.fabricCanvas), {dx:   0, dy: -100}),
+            // new fabric.OffsettedBrush(new fabric.PencilBrush(this.fabricCanvas),  {dx:   0, dy: +100}),
           // ]);
-          // this.fabricCanvas.freeDrawingBrush._setBrushStyles(this.fabricCanvas.contextContainer);
+
+          const brush__0 = new fabric.OffsettedBrush(new fabric.ZPencilBrush(this.fabricCanvas), {dx: 0, dy: 0});
+          brush__0._setBrushStyles(this.fabricCanvas.contextContainer);
+          this.fabricCanvas.freeDrawingBrush = new fabric.CombPencilBrush(this.fabricCanvas, [brush__0]);
+          this.fabricCanvas.freeDrawingBrush._setBrushStyles(this.fabricCanvas.contextContainer);
 
           //install adhesive freeDrawing
           // this.fabricCanvas.on('mouse:down:before', (this.freeDrawing__adhesive__checkForSupport).bind(this));
@@ -38618,7 +38642,11 @@
 
           this.brushConfig__current = brushConfig;
 
-          const brush = this.fabricCanvas.freeDrawingBrush;
+          var brush = this.fabricCanvas.freeDrawingBrush;
+          if(brush instanceof fabric.CombPencilBrush) {
+            brush = brush.arr_brush[0].brush_raw;   //SHU: a bit ugly
+            // logger.log("logComb", "brush = brush.arr_brush[0];");
+          } 
 
           brush.width = brushConfig.width;
           brush.color = brushConfig.color;
@@ -44857,7 +44885,13 @@
                 //only side effect is used
               }),
               space: new KeyDownToggle("space", KeyDownToggle.defaultKeyDownFunc(["Space"]), (isActive) => {
-                //only side effect is used
+
+                if(fabricIntegration.fabricCanvas.isDrawingMode) {
+                  infiniteCanvas.isPreparingFreeDrawingComb = isActive;
+                } else {
+                  infiniteCanvas.isPreparingFreeDrawingComb = false;
+                }
+
               }),
 
               intlBackslash: new KeyDownToggle("intlBackslash", KeyDownToggle.defaultKeyDownFunc(["IntlBackslash"]), (isActive) => {
@@ -46536,6 +46570,11 @@
                 infiniteCanvas.leavePan__objectHolding();
               }
 
+              if(infiniteCanvas.isPreparingFreeDrawingComb) {
+                // infiniteCanvas.manageUpdate__comb__addStroke();
+                this.counter__comb = this.counter__comb + 1; 
+              }
+
             }
 
             infiniteCanvas.logCursor();
@@ -46639,9 +46678,9 @@
               // const scaleAmount = -deltaY / 500;
               const scroll_step = mouseIntegration.inputProperties.scrollProperties.step;
               //console.log("onMouseWheel", "scroll_step", scroll_step);
-              const shiftAmount = -deltaY * scroll_step;
+              const shiftAmount = deltaY * scroll_step;
 
-              const shiftAmount_max = 0.99;
+              const shiftAmount_max = +0.99;
               const shiftAmount_min = -0.99;
               const shiftAmount_bounded = Math.min(shiftAmount_max, Math.max(shiftAmount_min, shiftAmount));
 
@@ -46667,7 +46706,7 @@
               //console.log("onMouseWheel", "scroll_step", scroll_step);
               const scaleAmount = -deltaY * scroll_step;
 
-              const scaleAmount_max = 0.99;
+              const scaleAmount_max = +0.99;
               const scaleAmount_min = -0.99;
               const scaleAmount_bounded = Math.min(scaleAmount_max, Math.max(scaleAmount_min, scaleAmount));
 
