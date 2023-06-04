@@ -685,6 +685,9 @@
     
 
   <script src='lib/fabric+zIndex.js'       type='text/javascript'></script>
+
+  <script src='lib/fabric+brushPreview.js' type='text/javascript'></script>
+  <script src='lib/fabric+brushClone.js'   type='text/javascript'></script>
   
   <script src='lib/CircularBuffer.js'      type='text/javascript'></script>
   <script src='lib/fabric+comb.js'         type='text/javascript'></script>
@@ -5658,6 +5661,10 @@
       node__empty: new math.SymbolNode(""),
     };
 
+
+    Math.sum = (...a) => Array.prototype.reduce.call(a,(a,b) => a+b)
+    Math.avg = (...a) => Math.sum(...a)/a.length;
+
   </script>
   <script>
     //debug
@@ -6789,8 +6796,9 @@
         this.isZScrollingPan      = false;
         this.hasBeenZscrollingPan = false;
 
-        this.isPreparingFreeDrawingComb = false;
-        this.counter__comb              = 0;
+        this.isCombSetup            = false;
+        this.step__combSetup        = 0;
+        // this.counter__comb          = 0;
 
         this.isColorPickerAvailable = true;
 
@@ -21880,9 +21888,20 @@
 
 
       manageUpdate__freeDrawing__orthScroll(shiftAmount) {
+        const infiniteCanvas = this;
+
         const spacing__old = fabricIntegration.fabricCanvas.freeDrawingBrush.spacing;
-        const spacing__new = spacing__old + shiftAmount * 100;
-        fabricIntegration.fabricCanvas.freeDrawingBrush.setSpacing(spacing__new);
+        const spacing__new = Math.max(20, spacing__old + shiftAmount * 100);
+        
+        if(infiniteCanvas.isCombSetup) {
+          if(infiniteCanvas.step__combSetup == 1) {
+            infiniteCanvas.combSetup__moveToStep(2);
+          }
+          infiniteCanvas.combSetup__spacing(spacing__new);
+        } else {
+          fabricIntegration.fabricCanvas.freeDrawingBrush.setSpacing(spacing__new);
+        }
+
       }
 
 
@@ -22173,6 +22192,47 @@
         
       }
 
+
+
+      //comb
+
+      enterCombSetup() {
+        logger.log("logComb", "enterCombSetup");
+        this.isCombSetup = true;
+        this.combSetup__moveToStep(1);
+      }
+
+      combSetup__moveToStep(index) {
+        if(this.isCombSetup) {
+          this.step__combSetup = index;
+        } else {
+          throw new Error("can't moveTostep while isCombSetup == false");
+        }
+      }
+
+      //step 1
+      combSetup__addBrush() {
+        const brush__comb = fabricIntegration.fabricCanvas.freeDrawingBrush; //comb brush
+        
+        const brush__src = brush__comb.arr_brush[0].brush_raw;
+        logger.log("logComb", "brush__src", brush__src);
+
+        const brush__clone = brush__src.deepClone();
+        logger.log("logComb", "brush__clone", brush__clone);
+
+        brush__comb.addBrush(brush__clone);
+      }
+
+      //step 2
+      combSetup__spacing(spacing) {
+        fabricIntegration.fabricCanvas.freeDrawingBrush.setSpacing(spacing);
+      }
+
+      leaveCombSetup() {
+        logger.log("logComb", "leaveCombSetup");
+        infiniteCanvas.isCombSetup     = false;
+        infiniteCanvas.step__combSetup = 0;
+      }
 
 
 
@@ -31246,8 +31306,9 @@
 
             preserveObjectStacking: true,
           });
-          installFabricZIndexUpgrade(fabricCanvas);     //fabric+zIndex.js
-          installFabricCombUpgrade(fabricCanvas);       //fabric+comb.js
+          installFabricZIndexUpgrade(fabricCanvas);         //fabric+zIndex.js
+          installFabricCombUpgrade(fabricCanvas);           //fabric+comb.js
+          installFabricBrushPreviewUpgrade(fabricCanvas);   //fabric+brushPreview.js
 
           //improve performance: (?)
           // fabricCanvas.contextTop       = fabricCanvas.upperCanvasEl.getContext('2d', { willReadFrequently: true }); 
@@ -38605,7 +38666,9 @@
             // new fabric.OffsettedBrush(new fabric.PencilBrush(this.fabricCanvas),  {dx:   0, dy: +100}),
           // ]);
 
-          const brush__0 = new fabric.OffsettedBrush(new fabric.ZPencilBrush(this.fabricCanvas), {dx: 0, dy: 0});
+          const brush__zpencil = new fabric.ZPencilBrush(this.fabricCanvas);
+          previewBrush__upgrade(brush__zpencil);
+          const brush__0 = new fabric.OffsettedBrush(brush__zpencil, {dx: 0, dy: 0});
           brush__0._setBrushStyles(this.fabricCanvas.contextContainer);
           this.fabricCanvas.freeDrawingBrush = new fabric.CombPencilBrush(this.fabricCanvas, [brush__0]);
           this.fabricCanvas.freeDrawingBrush._setBrushStyles(this.fabricCanvas.contextContainer);
@@ -44887,9 +44950,11 @@
               space: new KeyDownToggle("space", KeyDownToggle.defaultKeyDownFunc(["Space"]), (isActive) => {
 
                 if(fabricIntegration.fabricCanvas.isDrawingMode) {
-                  infiniteCanvas.isPreparingFreeDrawingComb = isActive;
-                } else {
-                  infiniteCanvas.isPreparingFreeDrawingComb = false;
+                  if(isActive) {
+                    infiniteCanvas.enterCombSetup();
+                  } else {
+                    // infiniteCanvas.leaveCombSetup();
+                  }
                 }
 
               }),
@@ -46476,6 +46541,11 @@
           function onMouseDown(event) {
             if (event.button == 0) {
               mouseIntegration.leftMouseDown  = true;
+
+              if(infiniteCanvas.isCombSetup) {
+                infiniteCanvas.leaveCombSetup();
+              }
+              
             } else if (event.button == 2) {
               mouseIntegration.rightMouseDown = true;
             }
@@ -46505,15 +46575,18 @@
               //   mouseIntegration.infiniteCanvas.manageCursorMove_offset();
               // }
 
-              var factor;
-              // if (mouseIntegration.leftMouseDown) {
-              //   //reverse pan
-              //   factor = -1;
-              // } else 
-              {
-                factor = +1;
+              if(!infiniteCanvas.isCombSetup) {
+                var factor;
+                // if (mouseIntegration.leftMouseDown) {
+                //   //reverse pan
+                //   factor = -1;
+                // } else 
+                {
+                  factor = +1;
+                }
+                infiniteCanvas.manageCursorMove_offset(factor);
               }
-              infiniteCanvas.manageCursorMove_offset(factor);
+
 
             } 
             
@@ -46570,9 +46643,12 @@
                 infiniteCanvas.leavePan__objectHolding();
               }
 
-              if(infiniteCanvas.isPreparingFreeDrawingComb) {
-                // infiniteCanvas.manageUpdate__comb__addStroke();
-                this.counter__comb = this.counter__comb + 1; 
+              // if(infiniteCanvas.isPreparingFreeDrawingComb) {
+              // if(fabricIntegration.fabricCanvas.isDrawingMode && !mouseIntegration.leftMouseDown) {
+              // if(keyboardIntegration.keyDownToggles.space.isActive) {
+              if(infiniteCanvas.isCombSetup && (infiniteCanvas.step__combSetup == 1) ) {
+                // this.counter__comb = this.counter__comb + 1;
+                infiniteCanvas.combSetup__addBrush();
               }
 
             }
