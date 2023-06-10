@@ -21893,15 +21893,26 @@
       manageUpdate__freeDrawing__orthScroll(shiftAmount) {
         const infiniteCanvas = this;
 
-        const spacing__old = fabricIntegration.fabricCanvas.freeDrawingBrush.spacing;
-        const spacing__new = Math.max(20, spacing__old + shiftAmount * 100);
-        
+        const spacing__min = 1e-8;
+
         if(infiniteCanvas.isCombSetup) {
           if(infiniteCanvas.step__combSetup == 1) {
+            const isSingleBrush = !("arr_brush" in fabricIntegration.fabricCanvas.freeDrawingBrush);
+            // const isSingleBrush = (fabricIntegration.fabricCanvas.freeDrawingBrush.arr_brush?.length == 1);
+
+            if(isSingleBrush) {
+              infiniteCanvas.combSetup__autoComb2();
+            }
             infiniteCanvas.combSetup__moveToStep(2);
           }
+          const spacing__old = fabricIntegration.fabricCanvas.freeDrawingBrush.spacing;
+          const spacing__new = Math.max(spacing__min, spacing__old + shiftAmount * 50);
+
           infiniteCanvas.combSetup__spacing(spacing__new);
         } else {
+          const spacing__old = fabricIntegration.fabricCanvas.freeDrawingBrush.spacing;
+          const spacing__new = Math.max(spacing__min, spacing__old + shiftAmount * 50);
+
           fabricIntegration.fabricCanvas.freeDrawingBrush.setSpacing(spacing__new);
         }
 
@@ -22213,9 +22224,77 @@
         }
       }
 
+      combSetup__createCombBrush__debug(nb_brush) {
+
+        const fabricCanvas = fabricIntegration.fabricCanvas;
+
+        const brush__pencil__1 = new fabric.PencilBrush(fabricCanvas);
+        brush__pencil__1.color = new fabric.Color("red").toRgba();
+        brush__pencil__1.width = 20;
+        brush__pencil__1.zIndex__ic = 10;
+        brushUpgrade__preview(brush__pencil__1);
+        brushUpgrade__pathWithBrushProperty(brush__pencil__1);
+        const brush__pencil__2 = new fabric.PencilBrush(fabricCanvas);
+        brush__pencil__2.color = new fabric.Color("blue").toRgba();
+        brush__pencil__2.width = 20;
+        brush__pencil__2.zIndex__ic = 100;
+        brushUpgrade__preview(brush__pencil__2);
+        brushUpgrade__pathWithBrushProperty(brush__pencil__2);
+        
+        var combBrush;
+        if(nb_brush == 1) {
+          combBrush = new fabric.CombPencilBrush(fabricCanvas, [
+            brush__pencil__1,
+            // brush__pencil__2,
+          ]);
+        } else {
+          combBrush = new fabric.CombPencilBrush(fabricCanvas, [
+            brush__pencil__1,
+            brush__pencil__2,
+          ]);
+        }
+
+        brush__pencil__1.debug__name = "red";
+        brush__pencil__2.debug__name = "blue";
+        combBrush.debug__name = "comb";
+
+        return combBrush;
+      }
+
+      combSetup__setComb(combBrush) {
+
+        //store singleBrush
+        const fabricCanvas = fabricIntegration.fabricCanvas;
+        const brush        = fabricCanvas.freeDrawingBrush;
+        
+        const isSingleBrush = !("arr_brush" in brush);
+        if(isSingleBrush) {
+          inputProperties.brush__single = brush;
+        } else {
+          // throw new Error("brush should be single at this step", brush);
+        }
+
+        //swap to comb brush
+        fabricIntegration.setBrush__hotSwap(combBrush);
+      }
+
       //step 1
       combSetup__addBrush() {
-        const brush__comb = fabricIntegration.fabricCanvas.freeDrawingBrush; //comb brush
+        const fabricCanvas = fabricIntegration.fabricCanvas;
+        const brush        = fabricCanvas.freeDrawingBrush; 
+
+        const isSingleBrush = !("arr_brush" in brush);
+
+        var combBrush;
+        if(isSingleBrush) {
+
+          combBrush = this.combSetup__createCombBrush__debug(1);
+          this.combSetup__setComb(combBrush);
+        } else {
+          combBrush = brush;
+        }
+
+        
         
         // {
         //   const brush__src = brush__comb.arr_brush[0].brush_raw;
@@ -22230,26 +22309,28 @@
         //   brush__comb.addBrush(brush__clone);
         // }
 
-        // const brush__zpencil = new fabric.ZPencilBrush(this.fabricCanvas);
-        // brush__zpencil.color = ColorUtils.randomColor();
-        // brush__zpencil.width = 20;
-        // previewBrush__upgrade(brush__zpencil);
-        // brush__zpencil.canvas = fabricIntegration.fabricCanvas;
+        const brush__child__new = new fabric.PencilBrush(fabricCanvas);
+        brush__child__new.color = ColorUtils.randomColor();
+        brush__child__new.width = 20;
+        brush__child__new.zIndex__ic = 20;
+        brushUpgrade__preview(brush__child__new);
+        brushUpgrade__pathWithBrushProperty(brush__child__new);
 
-        // brush__comb.addBrush(brush__zpencil);
+        combBrush.addBrush(brush__child__new);
+      }
 
-        const brush__pencil = new fabric.PencilBrush(this.fabricCanvas);
-        brush__pencil.color = ColorUtils.randomColor();
-        brush__pencil.width = 20;
-        previewBrush__upgrade(brush__pencil);
-        brush__pencil.canvas = fabricIntegration.fabricCanvas;
-
-        brush__comb.addBrush(brush__pencil);
+      combSetup__autoComb2() {
+        const combBrush = this.combSetup__createCombBrush__debug(2);
+        this.combSetup__setComb(combBrush);
       }
 
       //step 2
       combSetup__spacing(spacing) {
-        fabricIntegration.fabricCanvas.freeDrawingBrush.setSpacing(spacing);
+        const brush       = fabricIntegration.fabricCanvas.freeDrawingBrush;
+        const isCombBrush = ("arr_brush" in brush);  
+        if(isCombBrush) {
+          brush.setSpacing(spacing);
+        }
       }
 
       leaveCombSetup() {
@@ -38675,14 +38756,15 @@
           }
 
 
-          // //install ZPencilBrush
-          // const brush__zpencil = new fabric.ZPencilBrush(this.fabricCanvas);
-          // brush__zpencil.color = new fabric.Color("red").toRgba();
-          // brush__zpencil.width = 20;
-          // brush__zpencil.zIndex__ic = 0;
-          // brushUpgrade__pathWithBrushProperty(brush__zpencil);
-          // this.fabricCanvas.freeDrawingBrush = brush__zpencil;
-          // this.fabricCanvas.freeDrawingBrush._setBrushStyles(this.fabricCanvas.contextContainer);
+          //install ZPencilBrush
+          const brush__zpencil = new fabric.ZPencilBrush(this.fabricCanvas);
+          brush__zpencil.color = new fabric.Color("purple").toRgba();
+          brush__zpencil.width = 20;
+          brush__zpencil.zIndex__ic = 0;
+          // previewBrush__upgrade(brush__zpencil);
+          brushUpgrade__pathWithBrushProperty(brush__zpencil);
+          this.fabricCanvas.freeDrawingBrush = brush__zpencil;
+          this.fabricCanvas.freeDrawingBrush._setBrushStyles(this.fabricCanvas.contextContainer);
 
           //install CombPencilBrush
           // this.fabricCanvas.freeDrawingBrush = new fabric.CombPencilBrush(this.fabricCanvas, [
@@ -38716,39 +38798,14 @@
           // this.fabricCanvas.freeDrawingBrush._setBrushStyles(this.fabricCanvas.contextContainer);
 
 
-          try {
+          // try {
 
-            const brush__pencil__1 = new fabric.PencilBrush(this.fabricCanvas);
-            brush__pencil__1.color = new fabric.Color("red").toRgba();
-            brush__pencil__1.width = 20;
-            brush__pencil__1.zIndex__ic = 10;
-            // brush__pencil__1.debug__name = "red";
-            brushUpgrade__preview(brush__pencil__1);
-            brushUpgrade__pathWithBrushProperty(brush__pencil__1);
-            const brush__pencil__2 = new fabric.PencilBrush(this.fabricCanvas);
-            brush__pencil__2.color = new fabric.Color("blue").toRgba();
-            brush__pencil__2.width = 20;
-            brush__pencil__2.zIndex__ic = 100;
-            // brush__pencil__2.debug__name = "blue";
-            brushUpgrade__preview(brush__pencil__2);
-            brushUpgrade__pathWithBrushProperty(brush__pencil__2);
-            const combBrush = new fabric.CombPencilBrush(this.fabricCanvas, [
-              // new fabric.OffsettedBrush(brush__pencil__1,  {dx:   0, dy: -100}),
-              // new fabric.OffsettedBrush(brush__pencil__2,  {dx:   0, dy: +100}),
-              // fabric.OffsettedBrush.decorate(brush__pencil__1,  {dx:   0, dy: -100}),
-              // fabric.OffsettedBrush.decorate(brush__pencil__2,  {dx:   0, dy: +100}),
-              brush__pencil__1,
-              brush__pencil__2,
-            ]);
-            this.fabricCanvas.freeDrawingBrush = combBrush;
+          //   const combBrush = this.infiniteCanvas.combSetup__createCombBrush__debug(2);
+          //   this.fabricCanvas.freeDrawingBrush = combBrush;
 
-            brush__pencil__1.debug__name = "red";
-            brush__pencil__2.debug__name = "blue";
-            combBrush.debug__name = "comb";
-
-          } catch(e) {
-            logger.log("logComb", "error", e);
-          }
+          // } catch(e) {
+          //   logger.log("logComb", "error", e);
+          // }
 
 
 
@@ -38939,6 +38996,13 @@
 
           //get all created freeDrawing objects
           this.manageCreatedFreeDrawingObjects(this.arr_icFreeDrawing);
+
+          //restore singleBrush
+          if(inputProperties.brush__single != null) {
+            const singleBrush = inputProperties.brush__single;
+            // fabricIntegration.setBrush__hotSwap(singleBrush);
+            fabricIntegration.fabricCanvas.freeDrawingBrush = singleBrush;
+          }
 
           this.fabricCanvas.isDrawingMode = false;
         }
@@ -39687,6 +39751,13 @@
             setTimeout(() => globalsSingleton.functionCallsQueue.next(), 1);
         }
 
+
+        setBrush__hotSwap(brush__new) {
+          const fabricIntegration = this;
+          fabricIntegration.simulateMouseUpDown__with_freeDrawingBrush(() => {
+            fabricIntegration.fabricCanvas.freeDrawingBrush = brush__new;
+          });
+        }
 
 
 
@@ -44626,6 +44697,8 @@
 
           this.brushIsAdhesive = true;
 
+          this.brush__single = null;
+
 
           this.homeScale = {X:1.0,Y:1.0};
 
@@ -46856,7 +46929,23 @@
 
             function orthScroll(event) {
               const shiftAmount = getShiftAmount(event);
+              
               mouseIntegration.infiniteCanvas.manageUpdate__freeDrawing__orthScroll(shiftAmount);
+
+              // //chunk update in small steps
+              // const nb_microSteps = 50;
+              // [...Array(nb_microSteps).keys()].forEach((i) => {
+              //   const shiftAmount__chunk = shiftAmount / nb_microSteps;
+              //   globalsSingleton.functionCallsQueue.add(() => {
+              //     // logger.log("logOrthScroll", "chunk(" + i + ")");
+              //     setTimeout(() => {
+              //       mouseIntegration.infiniteCanvas.manageUpdate__freeDrawing__orthScroll(shiftAmount__chunk);
+              //     }, 1);
+                  
+              //   });
+              //   // globalsSingleton.functionCallsQueue.next();
+              // });
+              
             }
 
 
