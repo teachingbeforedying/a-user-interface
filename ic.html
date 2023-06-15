@@ -6818,7 +6818,8 @@
         this.step__combSetup        = 0;
         // this.counter__comb          = 0;
 
-        this.isColorPickerAvailable = true;
+        this.isColorPickerAvailable         = true;
+        this.isApparentWidthPickerAvailable = true;
 
         this.isDryScrolling         = false;
 
@@ -21757,6 +21758,14 @@
           const func_inBetween__updateScaleAndDOffset = function() {
             //update scale
             infiniteCanvas.updateScaleAndDOffset(scale_new, dOffset);
+
+            // if(inputProperties.isHomeScaleLocked) {
+            //   const width__current = fabricIntegration.freeDrawingBrush.width; 
+            //   fabricIntegration.configureFreeDrawingBrush({
+            //     width: math.min(1, width__current * factor),
+            //   });
+            // }
+
             infiniteCanvas.redrawCanvas(RedrawOccasion.scaleChanged);
           };
         
@@ -38936,11 +38945,7 @@
             switch(k) {
               case "color":
                 {
-                  if(brush instanceof fabric.CombPencilBrush) {
-                    brush.setColor(v);
-                  } else {
-                    brush.color = v;
-                  }
+                  brush.color = v;
                 }
                 break;
               case "opacity":
@@ -40430,6 +40435,50 @@
           outFColor = new fabric.Color(rgbaString);
 
           return outFColor;
+        }
+
+
+
+
+        getFObj__under_cursor_p() {
+          var out_p;
+
+          const fabricIntegration = this;
+
+          const fabricCanvas   = fabricIntegration.fabricCanvas;
+          const infiniteCanvas = fabricIntegration.infiniteCanvas;
+          const cursor         = infiniteCanvas.cursor;
+
+          //local 1
+          {
+            const canvasElt = fabricCanvas;
+            // const canvasElt = fabricCanvas.lowerCanvasEl;
+            // const canvasElt = fabricCanvas.upperCanvasEl;
+
+            const pos__cursor__screen = this.getFCursor();
+
+            const canvasElt_p = Promise.resolve(canvasElt);
+
+            const fObj_p = canvasElt_p
+              .then((canvasElt) => {
+                logger.log("canvasElt", canvasElt);
+
+                return fabricIntegration.getFObj__atPos(canvasElt, pos__cursor__screen);
+              });
+
+            out_p = fObj_p;
+          }
+
+          return out_p;
+        }
+
+
+        getFObj__atPos(canvas, pos) {
+          const options = {
+            x: pos.x,
+            y: pos.y,
+          };
+          return canvas.findTarget(options);
         }
 
 
@@ -44822,6 +44871,7 @@
 
 
           this.homeScale = {X:1.0,Y:1.0};
+          this.isHomeScaleLocked = false;
 
 
           this.comb__nbStrokes = 2;
@@ -46326,25 +46376,67 @@
                     if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
                       //decompose
                       fabricIntegration.decomposeSelectedObject();
-                    } else if (keyboardIntegration.infiniteCanvas.isBatchPasting) {
+                    } 
+                    else if (keyboardIntegration.infiniteCanvas.isBatchPasting) {
                       //batch paste
                       keyboardIntegration.infiniteCanvas.leaveBatchPasting();
-                    } else if (keyboardIntegration.keyDownToggles.altLeft.isActive) {
+                    } 
+                    else if (keyboardIntegration.keyDownToggles.altLeft.isActive) {
                       //unlink
                       fabricIntegration.unlinkSelectedObjects();
-                    }  else if (keyboardIntegration.keyDownToggles.zIndexEditing.isActive) {
+                    }  
+                    else if (keyboardIntegration.keyDownToggles.zIndexEditing.isActive) {
                       keyboardIntegration.infiniteCanvas.manageZIndexEditing_sendToBack();
+                    } 
+                    else if (fabricIntegration.fabricCanvas.isDrawingMode && keyboardIntegration.infiniteCanvas.isColorPickerAvailable) {
+                      const fObj__cursor_p = fabricIntegration.getFObj__under_cursor_p();
+
+                      fObj__cursor_p.then((fObj) => {
+                        logger.log("fObj__cursor", fObj);
+
+                        if(fObj != null) {
+
+                          const icObj = fObj.icObj;
+
+                          if(icObj.type == "freeDrawing") {
+                            const width     = icObj.strokeWidth;
+                            const homeScale = icObj.homeScale;
+
+                            //set input properties
+                            keyboardIntegration.inputProperties.setBrushWidth(width);
+                            keyboardIntegration.inputProperties.homeScale         = homeScale;
+                            keyboardIntegration.inputProperties.isHomeScaleLocked = true;
+
+                            //update current brush
+                            fabricIntegration.configureFreeDrawingBrush({
+                              width:     inputProperties.getActiveBrushWidth(),
+                              homeScale: inputProperties.homeScale,
+                              // isHomeScaleLocked: true,
+                            });
+
+                          } else {
+                            //SHU TODO: apparentWidth of any object
+                          }
+
+                        } else {
+                          keyboardIntegration.inputProperties.isHomeScaleLocked = false;
+
+                          //update current brush
+                          fabricIntegration.configureFreeDrawingBrush({
+                            // width:     inputProperties.getActiveBrushWidth(),
+                            homeScale: keyboardIntegration.infiniteCanvas.scale,
+                            // isHomeScaleLocked: true,
+                          });
+
+                        }
+
+                      });
+
                     } else {
-
-                      if (fabricIntegration.fabricCanvas.isDrawingMode) {
-                        //send brush to back
-                        keyboardIntegration.infiniteCanvas.manageZIndexEditing_sendToBack();
-                      } else {
-                        //ungroup
-                        fabricIntegration.ungroupSelectedObject();
-                      }
-
+                      //ungroup
+                      fabricIntegration.ungroupSelectedObject();
                     }
+
                   }
                   break;
 
@@ -46432,8 +46524,11 @@
                         logger.log("fColor__cursor", fColor);
                         keyboardIntegration.inputProperties.setFColor__working(fColor);
 
-                        //refresh current brush color
-                        fabricIntegration.configureFreeDrawingBrush({color: inputProperties.getActiveRgbaColorString()});
+                        //update current brush color
+                        fabricIntegration.configureFreeDrawingBrush({
+                          color: inputProperties.getActiveRgbaColorString(),
+                        });
+
                       });
 
                     } else if (keyboardIntegration.keyDownToggles.altLeft.isActive) {
@@ -46691,6 +46786,8 @@
               
               case "KeyB":
                 {
+                  keyboardIntegration.infiniteCanvas.isApparentWidthPickerAvailable = true;
+
                   if (keyboardIntegration.keyDownToggles.ctrlLeft.isActive) {
                       //batch paste
                       keyboardIntegration.infiniteCanvas.enterBatchPasting();
@@ -46970,6 +47067,7 @@
                 ||
                 inputProperties.brushWidth__isElastic
             ) {
+              infiniteCanvas.isApparentWidthPickerAvailable = false;  //disable apparentWidthPicker when brushWidthScroll has been used
               brushWidthScroll(event);
             }
             /**/else/**/ 
