@@ -21936,6 +21936,7 @@
 
 
       manageUpdate__freeDrawing__orthScroll(shiftAmount) {
+        logger.log("logComb", "manageUpdate__freeDrawing__orthScroll", "shiftAmount:", shiftAmount);
         const infiniteCanvas = this;
 
         const spacing__min = 1e-8;
@@ -21946,17 +21947,27 @@
             // const isSingleBrush = (fabricIntegration.fabricCanvas.freeDrawingBrush.arr_brush?.length == 1);
 
             if(isSingleBrush) {
-              infiniteCanvas.combSetup__autoComb2();
+              if(shiftAmount > 0) {
+                infiniteCanvas.combSetup__autoComb(2);
+              } else {
+                infiniteCanvas.combSetup__autoComb(3);
+              }
             }
             infiniteCanvas.combSetup__moveToStep(2);
           }
+
+          const factor = this.isReverseCombSpacing ? -1 : + 1;
+
           const spacing__old = fabricIntegration.fabricCanvas.freeDrawingBrush.spacing;
-          const spacing__new = Math.max(spacing__min, spacing__old + shiftAmount * 50);
+          const spacing__new = Math.max(spacing__min, spacing__old + shiftAmount * 50 * factor);
 
           infiniteCanvas.combSetup__spacing(spacing__new);
         } else {
+
+          const factor = this.isReverseCombSpacing ? -1 : + 1;
+
           const spacing__old = fabricIntegration.fabricCanvas.freeDrawingBrush.spacing;
-          const spacing__new = Math.max(spacing__min, spacing__old + shiftAmount * 50);
+          const spacing__new = Math.max(spacing__min, spacing__old + shiftAmount * 50 * factor);
 
           fabricIntegration.fabricCanvas.freeDrawingBrush.setSpacing(spacing__new);
         }
@@ -22267,36 +22278,23 @@
 
         const fabricCanvas = fabricIntegration.fabricCanvas;
 
-        const brush__pencil__1 = new fabric.PencilBrush(fabricCanvas);
-        brush__pencil__1.color = new fabric.Color("red").toRgba();
-        brush__pencil__1.width = 20;
-        brush__pencil__1.zIndex__ic = 10;
-        brushUpgrade__preview(brush__pencil__1);
-        brushUpgrade__pathWithBrushProperty(brush__pencil__1);
-        const brush__pencil__2 = new fabric.PencilBrush(fabricCanvas);
-        brush__pencil__2.color = new fabric.Color("blue").toRgba();
-        brush__pencil__2.width = 20;
-        brush__pencil__2.zIndex__ic = 100;
-        brushUpgrade__preview(brush__pencil__2);
-        brushUpgrade__pathWithBrushProperty(brush__pencil__2);
-        
-        var combBrush;
-        if(nb_brush == 1) {
-          // combBrush = new fabric.CombPencilBrush(fabricCanvas, [
-          combBrush = fabric.CombPencilBrush.createInstance(fabricCanvas, [
-            brush__pencil__1,
-            // brush__pencil__2,
-          ]);
-        } else {
-          // combBrush = new fabric.CombPencilBrush(fabricCanvas, [
-          combBrush = fabric.CombPencilBrush.createInstance(fabricCanvas, [
-            brush__pencil__1,
-            brush__pencil__2,
-          ]);
+        function createChildBrush(index) {
+          const brush__pencil__1 = new fabric.PencilBrush(fabricCanvas);
+          brush__pencil__1.color = ColorUtils.randomColor();
+          brush__pencil__1.width = 20;
+          brush__pencil__1.zIndex__ic = 10;
+          brushUpgrade__preview(brush__pencil__1);
+          brushUpgrade__pathWithBrushProperty(brush__pencil__1);
+          brush__pencil__1.debug__name = brush__pencil__1.color;
+
+          return brush__pencil__1;
         }
 
-        brush__pencil__1.debug__name = "red";
-        brush__pencil__2.debug__name = "blue";
+        const arr_brush__raw = [...Array(nb_brush).keys()].map((i) => {
+          return createChildBrush(i);
+        });
+        
+        const combBrush = fabric.CombPencilBrush.createInstance(fabricCanvas, arr_brush__raw);
         combBrush.debug__name = "comb";
 
         return combBrush;
@@ -22386,12 +22384,13 @@
 
       }
 
-      combSetup__autoComb2() {
+      combSetup__autoComb(n) {
         const fabricCanvas = fabricIntegration.fabricCanvas;
 
-        const combBrush = this.combSetup__createCombBrush__debug(2);
+        const combBrush = this.combSetup__createCombBrush__debug(n);
         // const combBrush = new fabric.CombPencilBrush(fabricCanvas, []);
 
+        this.isReverseCombSpacing = (n == 3);
 
         logger.log("logComb", "autoComb2", "combBrush.arr_brush.length:", combBrush.arr_brush.length);
         // logger.log("logComb", "autoComb2", "fabric.CombPencilBrush.arr_brush?.length:", fabric.CombPencilBrush.arr_brush?.length);
@@ -47002,6 +47001,8 @@
 
             if (event.button == 0) {
               mouseIntegration.leftMouseDown  = false;
+
+              infiniteCanvas.isReverseCombSpacing = false;
 
               // SHU: horrible workaround
               if(infiniteCanvas.hasBeenFreeDrawingPan) {
