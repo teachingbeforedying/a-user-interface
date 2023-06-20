@@ -3,7 +3,7 @@
 
 ## Try it !
 (Keep ² or ` key pressed (right above TAB) and click to draw)    
-http://mathgame.fr/ic.html    
+https://mathgame.fr/ic.html    
        
 Advice: To be very comfortable and precise,       
 reverse left click and right click in your OS mouse settings,       
@@ -20,7 +20,7 @@ Infinite canvas: space is not constrained in width, height, or depth
 Z-scroll: resize your elements in a blink   
 Z-index: bring this in front of that    
 Create and save/load presentations with text, images, videos, ...    
-_Easy yet awesome freeDraw UX_      
+_Easy yet awesome freeDraw UX_ (zPencil, comb...)       
 Batch paste          
 Interactive objects     
 Operators      
@@ -31,6 +31,7 @@ _Vessels_
 _Pathmade operators_    
 _Platform operators_    
 _Cores_    
+Povs (replacement for 'slides')       
 ...and many others, scattered here and there    
 
 ## Video
@@ -42,7 +43,7 @@ https://www.youtube.com/watch?v=ZGPzRM4oQSw
 2. Open ic.html  
 (3. Mess around with objects and keyboard shortcuts)   
    
-For math stuff: go to /challenges/maths and open *.html   
+For math stuff: https://mathgame.fr (or index.html in offline mode)    
 <br/>
 
 ## Vision
