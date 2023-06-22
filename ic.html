@@ -2190,7 +2190,7 @@
         return outMathOperatorFuncName;
       }
 
-      static fromString_binary(opString) {
+      static fromOpString_binary(opString) {
         var outOp;
 
         function fnString_for_opString(opString) {
@@ -2205,6 +2205,7 @@
               break;
             case "x":
             case "×":
+            case "*":
               outString = "multiply";
               break;
             case "/":
@@ -2230,6 +2231,14 @@
         }
 
         const fnString = fnString_for_opString(opString);
+
+        outOp = Operator.fromString_binary(fnString);
+
+        return outOp;
+      }
+
+      static fromString_binary(fnString) {
+        var outOp;
 
         const opConfig = dict_opConfig[2][fnString];
         outOp = Operator.fromConfig(opConfig);
@@ -2742,7 +2751,7 @@
 
                 const op_lhs               = node_lhs.op;
                 logger.log("op_lhs", op_lhs);
-                const operator_symbol_side = Operator.fromString_binary(op_lhs);
+                const operator_symbol_side = Operator.fromOpString_binary(op_lhs);
                 const opName               = operator_symbol_side.name;
 
                 const magicForOpName = dict_magic_for_opName[opName];
@@ -2792,7 +2801,7 @@
 
                 const op_rhs               = node_rhs.op;
                 logger.log("op_rhs", op_rhs);
-                const operator_symbol_side = Operator.fromString_binary(op_rhs);
+                const operator_symbol_side = Operator.fromOpString_binary(op_rhs);
                 const opName               = operator_symbol_side.name;
 
                 const magicForOpName = dict_magic_for_opName[opName];
@@ -2926,7 +2935,7 @@
           break;
         case 2:
           {
-            const op     = Operator.fromString_binary(mathNode__operator.op);
+            const op     = Operator.fromOpString_binary(mathNode__operator.op);
             const node_b = mathNode__operator.args.find((mathNode) => (mathNode != MathSingleton.node__empty));
 
             outFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b, isShuffled);
@@ -13217,7 +13226,7 @@
         if (operatorNodeFactoryFuncWrapper_in != null) {
           operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_in;
         } else {
-          const op = Operator.fromString_binary("x");
+          const op = Operator.fromOpString_binary("x");
           const node_b = new math.ConstantNode(2);
           operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
         }
@@ -15244,7 +15253,7 @@
                   const value__operand = Number(string__operand);
                   logger.log("value__operand", value__operand);
 
-                  const op = Operator.fromString_binary(string__opSymbol);
+                  const op = Operator.fromOpString_binary(string__opSymbol);
                   const node_b = new math.ConstantNode(value__operand);
                   // const node_b = math.parse(string__operand);
                   const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
@@ -22692,23 +22701,52 @@
               return outMathNode;
             }
 
-            function parseToOperatorNode(tex) {
+            // function parseToOperatorNode(tex) {
+            //   var outNode;
+
+            //   const [str__comp1, ...arr__comp__rest] = tex.split("\\ ");
+            //   logger.log("logNumberTyping", "str__comp1:", str__comp1);
+            //   logger.log("logNumberTyping", "arr__comp__rest:", arr__comp__rest);
+              
+            //   const str__mathOperatorSymbol = str__comp1;
+            //   const mathOperatorFuncName = Operator.funcNameForSymbolString(str__mathOperatorSymbol);
+            //   if(mathOperatorFuncName != null) {
+            //     const node_a = MathSingleton.node__empty;
+
+            //     const str__b = arr__comp__rest[0];
+            //     const node_b = math.parse(str__b);
+
+            //     const node__operator = new math.OperatorNode(str__mathOperatorSymbol, mathOperatorFuncName, [node_a, node_b]);
+            //     outNode = node__operator;
+            //   } else {
+            //     throw new Error("couldn't find a funcName match for str__mathOperatorSymbol: " + str__mathOperatorSymbol);
+            //   } 
+              
+            //   return outNode;
+            // }
+
+            function parseToOperatorNode2(tex) {
               var outNode;
 
-              const [str__comp1, ...arr__comp__rest] = tex.split("\\ ");
-              logger.log("logNumberTyping", "str__comp1:", str__comp1);
-              logger.log("logNumberTyping", "arr__comp__rest:", arr__comp__rest);
-              
-              const str__mathOperatorSymbol = str__comp1;
-              const mathOperatorFuncName = Operator.funcNameForSymbolString(str__mathOperatorSymbol);
-              if(mathOperatorFuncName != null) {
-                const node_a = MathSingleton.node__empty;
+              //add symbol at start of tex and check if parsed as operatorNode
+              const str__symbol_pre      = "Ä";
+              const tex__with_symbol_pre = str__symbol_pre + " " + tex;
 
-                const str__b = arr__comp__rest[0];
-                const node_b = math.parse(str__b);
+              logger.log("logNT", "tex__with_symbol_pre:", tex__with_symbol_pre);
 
-                const node__operator = new math.OperatorNode(str__mathOperatorSymbol, mathOperatorFuncName, [node_a, node_b]);
-                outNode = node__operator;
+
+              const mathNode__parsed = math.parse(tex__with_symbol_pre);
+              if(mathNode__parsed instanceof math.OperatorNode) {
+                logger.log("logNT", "mathNode__parsed:", mathNode__parsed);
+
+                //replace mathNode__symbol__pre with node__empty
+                outNode = Rewriter.substitute(mathNode__parsed, (mathNode) => {
+                  const isFound = ((mathNode instanceof math.SymbolNode) && (mathNode.name == str__symbol_pre));
+                  return isFound;
+                }, (_) => {
+                  return MathSingleton.node__empty;
+                });
+
               } else {
                 throw new Error("couldn't find a funcName match for str__mathOperatorSymbol: " + str__mathOperatorSymbol);
               } 
@@ -22716,57 +22754,97 @@
               return outNode;
             }
 
-            var mathNode__operator;
-            try {
-              mathNode__operator = parseToOperatorNode(tex);
-            } catch(e) {
-              logger.log("logNT", "couldn't parse opString: ", tex, "error: ", e);
+
+
+
+            function refinedTex1(tex) {
+              var outTex;
+
+              // const isPlusOperator = /^\+\\/.test(tex);
+              // logger.log("logNT", "isPlusOperator:", isPlusOperator);
+
+              outTex = tex;
+
+              outTex = outTex.replaceAll("\\left",  "");
+              outTex = outTex.replaceAll("\\right", "");
+
+              outTex = outTex.replace(/^\+\\/, "[＋]"); //"[" + U+FF0B + "]"
+              outTex = outTex.replace(/^\-\\/, "[－]"); //"[" + U+FF0D + "]"
+
+              outTex = outTex.replaceAll("\\ ", " ");
+
+              // outTex = outTex.replaceAll("\\times", "\\cdot");
+              outTex = outTex.replaceAll("\\times", "*");
+
+              return outTex;
             }
-            
-            if(mathNode__operator != null) { 
 
-              //create/add icMathNode
-              const position__icMathNode = this.getTrueCursor();
-              const trueRect__operator = {
-                x:      position__icMathNode.x,
-                y:      position__icMathNode.y,
-                width:  120,
-                height: 120,
-              };
+            const tex__refined1 = refinedTex1(tex);
+            logger.log("logNT", "tex__refined1:", tex__refined1);
 
-              // const icMathNode = this.createIcMathNode(position__icMathNode.x, position__icMathNode.y, mathNode__operator);
-              // this.addNewIcObject(icMathNode);
+            const mathNode__new      = mathFieldTex_to_mathNode(tex__refined1);
+            // mathNode__new.autoSimplify = true;
 
-              const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect__operator, "from_operatorNode", {mathNode__operator: mathNode__operator});
-              infiniteCanvas.addNewIcObject(gmOperator);
+            if(mathNode__new != null) {
 
-            } else {
+              if(fabricIntegration.fabricCanvas.isDrawingMode) {
+                //create/add divided segment
+                // const position__icMathNode = this.getTrueCursor();
+                // const mathNode   = this.mathNode_numberTyping.cloneDeep();
+                // const dividedSegment = this.createIcMathNode(position__icMathNode.x, position__icMathNode.y, mathNode);
+                // this.addNewIcObject(icMathNode);
 
-              const mathNode__new      = mathFieldTex_to_mathNode(tex);
-              // mathNode__new.autoSimplify = true;
-
-              if(mathNode__new != null) {
-
-                if(fabricIntegration.fabricCanvas.isDrawingMode) {
-                  //create/add divided segment
-                  // const position__icMathNode = this.getTrueCursor();
-                  // const mathNode   = this.mathNode_numberTyping.cloneDeep();
-                  // const dividedSegment = this.createIcMathNode(position__icMathNode.x, position__icMathNode.y, mathNode);
-                  // this.addNewIcObject(icMathNode);
-
-                } else {
-
-                  //create/add icMathNode
-                  const position__icMathNode = this.getTrueCursor();
-                  const mathNode   = mathNode__new.cloneDeep();
-                  mathNode.autoSimplify = true;
-                  const icMathNode = this.createIcMathNode(position__icMathNode.x, position__icMathNode.y, mathNode);
-                  icMathNode.isTouchable = true;
-                  this.addNewIcObject(icMathNode);
-                }
-              
               } else {
 
+                //create/add icMathNode
+                const position__icMathNode = this.getTrueCursor();
+                const mathNode   = mathNode__new.cloneDeep();
+                mathNode.autoSimplify = true;
+                const icMathNode = this.createIcMathNode(position__icMathNode.x, position__icMathNode.y, mathNode);
+                icMathNode.isTouchable = true;
+                this.addNewIcObject(icMathNode);
+              }
+            
+            } else {
+
+              function refinedTex2(tex) {
+                var outTex;
+
+                outTex = tex;
+                outTex = outTex.replaceAll("[＋]", "+");  //"[" + U+FF0B + "]"
+                outTex = outTex.replaceAll("[－]", "-");  //"[" + U+FF0D + "]"
+
+                return outTex;
+              }
+
+              const tex__refined2 = refinedTex2(tex__refined1);
+
+              var mathNode__operator;
+              try {
+                mathNode__operator = parseToOperatorNode2(tex__refined2);
+              } catch(e) {
+                logger.log("logNT", "couldn't parse opString: ", tex, "error: ", e);
+              }
+              
+              if(mathNode__operator != null) { 
+
+                //create/add icMathNode
+                const position__icMathNode = this.getTrueCursor();
+                const trueRect__operator = {
+                  x:      position__icMathNode.x,
+                  y:      position__icMathNode.y,
+                  width:  120,
+                  height: 120,
+                };
+
+                // const icMathNode = this.createIcMathNode(position__icMathNode.x, position__icMathNode.y, mathNode__operator);
+                // this.addNewIcObject(icMathNode);
+
+                const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect__operator, "from_operatorNode", {mathNode__operator: mathNode__operator});
+                infiniteCanvas.addNewIcObject(gmOperator);
+
+              } else {
+                
               } 
 
             }
@@ -49675,7 +49753,7 @@
               const valueString_b = arr_split_operatorMiniString[1];
               const value_b = Number(valueString_b);
 
-              const op = Operator.fromString_binary(opString);
+              const op = Operator.fromOpString_binary(opString);
               const node_b = new math.ConstantNode(value_b);
 
               const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
@@ -49974,7 +50052,7 @@
               type: "gm_operator",
               zIndex: 51,
               config: {
-                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromOpString_binary("+"), new math.ConstantNode(1)),
               },
               // rect_rel: {
               //   l: 0.15,
@@ -49993,7 +50071,7 @@
               type: "gm_operator",
               zIndex: 52,
               config: {
-                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromOpString_binary("+"), new math.ConstantNode(1)),
               },
               // rect_rel: {
               //   l: 0.35,
@@ -50012,7 +50090,7 @@
               type: "gm_operator",
               zIndex: 53,
               config: {
-                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromOpString_binary("+"), new math.ConstantNode(1)),
               },
               // rect_rel: {
               //   l: 0.55,
@@ -50031,7 +50109,7 @@
               type: "gm_operator",
               zIndex: 54,
               config: {
-                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromOpString_binary("+"), new math.ConstantNode(1)),
               },
               // rect_rel: {
               //   l: 0.75,
@@ -50149,7 +50227,7 @@
               type: "gm_operator",
               zIndex: 51,
               config: {
-                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromOpString_binary("+"), new math.ConstantNode(1)),
               },
               // rect_rel: {
               //   l: 0.15,
@@ -50168,7 +50246,7 @@
               type: "gm_operator",
               zIndex: 52,
               config: {
-                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromOpString_binary("+"), new math.ConstantNode(1)),
               },
               // rect_rel: {
               //   l: 0.35,
@@ -50187,7 +50265,7 @@
               type: "gm_operator",
               zIndex: 53,
               config: {
-                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromOpString_binary("+"), new math.ConstantNode(1)),
               },
               // rect_rel: {
               //   l: 0.55,
@@ -50206,7 +50284,7 @@
               type: "gm_operator",
               zIndex: 54,
               config: {
-                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromOpString_binary("+"), new math.ConstantNode(1)),
               },
               // rect_rel: {
               //   l: 0.75,
@@ -50375,7 +50453,7 @@
               type: "gm_operator",
               zIndex: 51,
               config: {
-                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromOpString_binary("+"), new math.ConstantNode(1)),
               },
               rect_rel: {
                 l: 0.05,
@@ -50388,7 +50466,7 @@
               type: "gm_operator",
               zIndex: 52,
               config: {
-                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromOpString_binary("+"), new math.ConstantNode(1)),
               },
               rect_rel: {
                 l: 0.25,
@@ -50401,7 +50479,7 @@
               type: "gm_operator",
               zIndex: 53,
               config: {
-                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromOpString_binary("+"), new math.ConstantNode(1)),
               },
               rect_rel: {
                 l: 0.45,
@@ -50414,7 +50492,7 @@
               type: "gm_operator",
               zIndex: 54,
               config: {
-                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromOpString_binary("+"), new math.ConstantNode(1)),
               },
               rect_rel: {
                 l: 0.65,
@@ -50427,7 +50505,7 @@
               type: "gm_operator",
               zIndex: 55,
               config: {
-                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromOpString_binary("+"), new math.ConstantNode(1)),
               },
               rect_rel: {
                 l: 0.90,
@@ -50604,7 +50682,7 @@
                 type: "gm_operator",
                 zIndex: 51,
                 config: {
-                  operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                  operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromOpString_binary("+"), new math.ConstantNode(1)),
                 },  
                 rect_rel: {
                   l: 0.30,
@@ -50617,7 +50695,7 @@
                 type: "gm_operator",
                 zIndex: 52,
                 config: {
-                  operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                  operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromOpString_binary("+"), new math.ConstantNode(1)),
                 },
                 rect_rel: {
                   l: 0.60,
@@ -50720,7 +50798,7 @@
                 type: "gm_operator",
                 zIndex: 51,
                 config: {
-                  operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                  operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromOpString_binary("+"), new math.ConstantNode(1)),
                 },  
                 rect_rel: {
                   l: 0.20,
@@ -50733,7 +50811,7 @@
                 type: "gm_operator",
                 zIndex: 52,
                 config: {
-                  operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                  operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromOpString_binary("+"), new math.ConstantNode(1)),
                 },
                 rect_rel: {
                   l: 0.45,
@@ -50746,7 +50824,7 @@
                 type: "gm_operator",
                 zIndex: 53,
                 config: {
-                  operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                  operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromOpString_binary("+"), new math.ConstantNode(1)),
                 },
                 rect_rel: {
                   l: 0.70,
@@ -50846,7 +50924,7 @@
               type: "gm_operator",
               zIndex: 51,
               config: {
-                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromOpString_binary("+"), new math.ConstantNode(1)),
                 isEnabled: false,
               },
               rect_rel: {
@@ -50860,7 +50938,7 @@
               type: "gm_operator",
               zIndex: 52,
               config: {
-                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromOpString_binary("+"), new math.ConstantNode(1)),
                 isEnabled: false,
               },
               rect_rel: {
@@ -50970,7 +51048,7 @@
               type: "gm_operator",
               zIndex: 51,
               config: {
-                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromOpString_binary("+"), new math.ConstantNode(1)),
                 isEnabled: false,
               },
               rect_rel: {
@@ -50984,7 +51062,7 @@
               type: "gm_operator",
               zIndex: 52,
               config: {
-                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromOpString_binary("+"), new math.ConstantNode(1)),
                 isEnabled: false,
               },
               rect_rel: {
@@ -50998,7 +51076,7 @@
               type: "gm_operator",
               zIndex: 53,
               config: {
-                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromOpString_binary("+"), new math.ConstantNode(1)),
                 isEnabled: false,
               },
               rect_rel: {
@@ -51012,7 +51090,7 @@
               type: "gm_operator",
               zIndex: 54,
               config: {
-                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1)),
+                operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper_binary(Operator.fromOpString_binary("+"), new math.ConstantNode(1)),
                 isEnabled: false,
               },
               rect_rel: {
@@ -51594,7 +51672,7 @@
               {
                 const config = componentConfig.config;
                 
-                const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(Operator.fromString_binary("+"), new math.ConstantNode(1));
+                const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(Operator.fromOpString_binary("+"), new math.ConstantNode(1));
                 
                 const cfg = {
                   operatorNodeFactoryFuncWrapper: operatorNodeFactoryFuncWrapper,
@@ -54943,7 +55021,7 @@
           const arr_factor = [2, 3, 5, 7];
           const arr_gmItem_operator = arr_factor.map(factor => {
 
-            const op = Operator.fromString_binary("x");
+            const op = Operator.fromOpString_binary("x");
             const node_b = new math.ConstantNode(factor);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
 
@@ -55046,8 +55124,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide = Operator.divide();
-            const op_add = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               op_multiply,
@@ -55211,8 +55289,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               op_multiply,
@@ -55371,8 +55449,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               // op_multiply,
@@ -55447,8 +55525,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               // op_multiply,
@@ -55608,8 +55686,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide = Operator.divide();
-            const op_add = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               op_multiply,
@@ -55684,8 +55762,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide = Operator.divide();
-            const op_add = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               op_multiply,
@@ -56118,7 +56196,7 @@
           const nb_operators__constant = 4;
 
           const arr_operatorNodeFuncWrapper = [+1000,+100,+10,+1].map(number => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
@@ -56189,8 +56267,8 @@
           //
           //   const op_multiply = Operator.multiply();
           //   const op_divide   = Operator.divide();
-          //   const op_add      = Operator.fromString_binary("+");
-          //   const op_subtract = Operator.fromString_binary("-");
+          //   const op_add      = Operator.fromOpString_binary("+");
+          //   const op_subtract = Operator.fromOpString_binary("-");
           //
           //   const arr_op = [
           //     // op_multiply,
@@ -56354,7 +56432,7 @@
           const nb_operators__constant = 4;
 
           const arr_operatorNodeFuncWrapper = [+1000,+0,+10,+1].map(number => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
@@ -56425,8 +56503,8 @@
           //
           //   const op_multiply = Operator.multiply();
           //   const op_divide   = Operator.divide();
-          //   const op_add      = Operator.fromString_binary("+");
-          //   const op_subtract = Operator.fromString_binary("-");
+          //   const op_add      = Operator.fromOpString_binary("+");
+          //   const op_subtract = Operator.fromOpString_binary("-");
           //
           //   const arr_op = [
           //     // op_multiply,
@@ -56593,7 +56671,7 @@
           const nb_operators__constant = 4;
 
           const arr_operatorNodeFuncWrapper = [+0,+100,+0,+1].map(number => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
@@ -56666,8 +56744,8 @@
           //
           //   const op_multiply = Operator.multiply();
           //   const op_divide   = Operator.divide();
-          //   const op_add      = Operator.fromString_binary("+");
-          //   const op_subtract = Operator.fromString_binary("-");
+          //   const op_add      = Operator.fromOpString_binary("+");
+          //   const op_subtract = Operator.fromOpString_binary("-");
           //
           //   const arr_op = [
           //     // op_multiply,
@@ -56833,7 +56911,7 @@
           const nb_operators__constant = 4;
 
           const arr_operatorNodeFuncWrapper = [+1000,+100,+10,+1].map(number => {
-            const op_sub = Operator.fromString_binary("-");
+            const op_sub = Operator.fromOpString_binary("-");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_sub, node_b);
             return operatorNodeFuncWrapper;
@@ -56904,8 +56982,8 @@
           //
           //   const op_multiply = Operator.multiply();
           //   const op_divide   = Operator.divide();
-          //   const op_add      = Operator.fromString_binary("+");
-          //   const op_subtract = Operator.fromString_binary("-");
+          //   const op_add      = Operator.fromOpString_binary("+");
+          //   const op_subtract = Operator.fromOpString_binary("-");
           //
           //   const arr_op = [
           //     // op_multiply,
@@ -57069,7 +57147,7 @@
           const nb_operators__constant = 4;
 
           const arr_operatorNodeFuncWrapper = [+1000,+100,+10,+1].map(number => {
-            const op_sub = Operator.fromString_binary("-");
+            const op_sub = Operator.fromOpString_binary("-");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_sub, node_b);
             return operatorNodeFuncWrapper;
@@ -57140,8 +57218,8 @@
           //
           //   const op_multiply = Operator.multiply();
           //   const op_divide   = Operator.divide();
-          //   const op_add      = Operator.fromString_binary("+");
-          //   const op_subtract = Operator.fromString_binary("-");
+          //   const op_add      = Operator.fromOpString_binary("+");
+          //   const op_subtract = Operator.fromOpString_binary("-");
           //
           //   const arr_op = [
           //     // op_multiply,
@@ -57312,7 +57390,7 @@
           const nb_operators__constant = 4;
 
           const arr_operatorNodeFuncWrapper = [+500,+50,+5,+0.5].map(number => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
@@ -57383,8 +57461,8 @@
           //
           //   const op_multiply = Operator.multiply();
           //   const op_divide   = Operator.divide();
-          //   const op_add      = Operator.fromString_binary("+");
-          //   const op_subtract = Operator.fromString_binary("-");
+          //   const op_add      = Operator.fromOpString_binary("+");
+          //   const op_subtract = Operator.fromOpString_binary("-");
           //
           //   const arr_op = [
           //     // op_multiply,
@@ -57554,7 +57632,7 @@
           const nb_operators__constant = 4;
 
           const arr_operatorNodeFuncWrapper = [+250,+25,+2.5,+0.25].map(number => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
@@ -57625,8 +57703,8 @@
           //
           //   const op_multiply = Operator.multiply();
           //   const op_divide   = Operator.divide();
-          //   const op_add      = Operator.fromString_binary("+");
-          //   const op_subtract = Operator.fromString_binary("-");
+          //   const op_add      = Operator.fromOpString_binary("+");
+          //   const op_subtract = Operator.fromOpString_binary("-");
           //
           //   const arr_op = [
           //     // op_multiply,
@@ -57796,7 +57874,7 @@
           const nb_operators__constant = 4;
 
           const arr_operatorNodeFuncWrapper = [+10,+1,+0.1,+0.01].map(number => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
@@ -57867,8 +57945,8 @@
           //
           //   const op_multiply = Operator.multiply();
           //   const op_divide   = Operator.divide();
-          //   const op_add      = Operator.fromString_binary("+");
-          //   const op_subtract = Operator.fromString_binary("-");
+          //   const op_add      = Operator.fromOpString_binary("+");
+          //   const op_subtract = Operator.fromOpString_binary("-");
           //
           //   const arr_op = [
           //     // op_multiply,
@@ -58041,7 +58119,7 @@
           };
 
           const arr_operatorNodeFuncWrapper = [+10,+1,+0.1,+0.01].map(number => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
@@ -58213,7 +58291,7 @@
           const nb_operators__constant = 4;
 
           const arr_operatorNodeFuncWrapper = ["0.1","0.01","0.001","0.0001"].map((numberString) => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             // const node_b = new math.ConstantNode(number);
 
             const bignumber__val = math.bignumber(numberString);
@@ -58388,7 +58466,7 @@
           const nb_operators__constant = 4;
 
           const operatorNodeFuncWrapper__add = (() => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(1);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
@@ -58559,7 +58637,7 @@
           const nb_operators__constant = 4;
 
           const operatorNodeFuncWrapper__add = (() => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(math.bignumber(+0.1));
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
@@ -58677,7 +58755,7 @@
           const nb_operators__constant = 4;
 
           const operatorNodeFuncWrapper__add = (() => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(1);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
@@ -58853,7 +58931,7 @@
           const nb_operators__constant = 4;
 
           const operatorNodeFuncWrapper__add = (() => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(1);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
@@ -59027,7 +59105,7 @@
           const nb_operators__constant = 2;
 
           const arr_operatorNodeFuncWrapper = [+1, -1].map(number => {
-            const op_sub = Operator.fromString_binary("+");
+            const op_sub = Operator.fromOpString_binary("+");
             var node_b;
             if(number == -1) {
               node_b = new math.ParenthesisNode(new SignedConstantNode(number, true));
@@ -59208,7 +59286,7 @@
           const nb_operators__constant = 2;
 
           const arr_operatorNodeFuncWrapper = [+1, -1].map(number => {
-            const op_sub = Operator.fromString_binary("+");
+            const op_sub = Operator.fromOpString_binary("+");
             var node_b;
             if(number == -1) {
               node_b = new math.ParenthesisNode(new SignedConstantNode(number, true));
@@ -59390,7 +59468,7 @@
           const nb_operators__constant = 2;
 
           const arr_operatorNodeFuncWrapper = [+1, -1].map(number => {
-            const op_sub = Operator.fromString_binary("+");
+            const op_sub = Operator.fromOpString_binary("+");
             var node_b;
             if(number == -1) {
               node_b = new math.ParenthesisNode(new SignedConstantNode(number, true));
@@ -59583,7 +59661,7 @@
           const nb_operators__constant = 2;
 
           const arr_operatorNodeFuncWrapper = [+1, -1].map(number => {
-            const op_sub = Operator.fromString_binary("+");
+            const op_sub = Operator.fromOpString_binary("+");
             var node_b;
             if(number == -1) {
               node_b = new math.ParenthesisNode(new SignedConstantNode(number, true));
@@ -59783,7 +59861,7 @@
 
 
           const arr_operatorNodeFuncWrapper = arr_value_b.map(number => {
-            const op_sub = Operator.fromString_binary("+");
+            const op_sub = Operator.fromOpString_binary("+");
             var node_b;
             if(number < 0) {
               node_b = new math.ParenthesisNode(new SignedConstantNode(number, true));
@@ -59974,7 +60052,7 @@
 
 
           const arr_operatorNodeFuncWrapper = arr_value_b.map(number => {
-            const op_sub = Operator.fromString_binary("+");
+            const op_sub = Operator.fromOpString_binary("+");
             var node_b;
             if(number < 0) {
               node_b = new math.ParenthesisNode(new SignedConstantNode(number, true));
@@ -60157,7 +60235,7 @@
           // Rewriter.test_simplification_rules();
 
           const arr_operatorNodeFuncWrapper = [-2,-3,-5,-10].map(number => {
-            const op_mult = Operator.fromString_binary("x");
+            const op_mult = Operator.fromOpString_binary("x");
             var node_b;
             if(number < 0) {
               node_b = new math.ParenthesisNode(new SignedConstantNode(number, true));
@@ -60321,7 +60399,7 @@
           // Rewriter.test_simplification_rules();
 
           const arr_operatorNodeFuncWrapper = [+2,+3,+5,+7].map(number => {
-            const op_mult = Operator.fromString_binary("x");
+            const op_mult = Operator.fromOpString_binary("x");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_mult, node_b);
             return operatorNodeFuncWrapper;
@@ -60505,7 +60583,7 @@
           // Rewriter.test_simplification_rules();
 
           const arr_operatorNodeFuncWrapper = [+2,+3,+5,+7].map(number => {
-            const op_mult = Operator.fromString_binary("x");
+            const op_mult = Operator.fromOpString_binary("x");
 
             // const node_b = new math.ConstantNode(number);
             const exponent = Utils.randomElementInArray([2,3,4,5,6,7,8,9,10]);
@@ -60690,7 +60768,7 @@
           const nb_operators__constant = 4;
 
           const arr_operatorNodeFuncWrapper = [+2,+3,+5,+7].map(number => {
-            const op_mult = Operator.fromString_binary("x");
+            const op_mult = Operator.fromOpString_binary("x");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_mult, node_b);
             return operatorNodeFuncWrapper;
@@ -60776,7 +60854,7 @@
 
             // const operatorNodeFuncWrapper = gmItem__operator.specs.funcWrapper.inverse;
 
-            const op_mult = Operator.fromString_binary("x");
+            const op_mult = Operator.fromOpString_binary("x");
             const node_b = new math.OperatorNode("/", "divide", [new math.ConstantNode(1), new math.ConstantNode(number)]);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_mult, node_b);
 
@@ -60900,7 +60978,7 @@
           const nb_operators__constant = 4;
 
           const arr_operatorNodeFuncWrapper = [+2,+3,+5,+7].map(number => {
-            const op_mult = Operator.fromString_binary("x");
+            const op_mult = Operator.fromOpString_binary("x");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_mult, node_b);
             return operatorNodeFuncWrapper;
@@ -60986,7 +61064,7 @@
 
             // const operatorNodeFuncWrapper = gmItem__operator.specs.funcWrapper.inverse;
 
-            const op_mult = Operator.fromString_binary("x");
+            const op_mult = Operator.fromOpString_binary("x");
             const node_b = new math.OperatorNode("/", "divide", [new math.ConstantNode(1), new math.ConstantNode(number)]);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_mult, node_b);
 
@@ -61112,7 +61190,7 @@
           const nb_operators__constant = 4;
 
           const arr_operatorNodeFuncWrapper = [+2,+3,+5,+7].map(number => {
-            const op_mult = Operator.fromString_binary("/");
+            const op_mult = Operator.fromOpString_binary("/");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_mult, node_b);
             return operatorNodeFuncWrapper;
@@ -61198,7 +61276,7 @@
 
             // const operatorNodeFuncWrapper = gmItem__operator.specs.funcWrapper.inverse;
 
-            const op_mult = Operator.fromString_binary("x");
+            const op_mult = Operator.fromOpString_binary("x");
             const node_b = new math.OperatorNode("/", "divide", [new math.ConstantNode(1), new math.ConstantNode(number)]);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_mult, node_b);
 
@@ -61372,7 +61450,7 @@
           const nb_operators__constant = 4;
 
           const arr_operatorNodeFuncWrapper = [+2,+3,+5,+7].map(number => {
-            const op_mult = Operator.fromString_binary("/");
+            const op_mult = Operator.fromOpString_binary("/");
 
             const exponent = Utils.randomElementInArray([2,3,4,5,6,7,8,9,10]);
             const node_b = new math.OperatorNode("^", "pow", [new math.ConstantNode(number), new math.ConstantNode(exponent)]);
@@ -61461,7 +61539,7 @@
 
             // const operatorNodeFuncWrapper = gmItem__operator.specs.funcWrapper.inverse;
 
-            const op_mult = Operator.fromString_binary("x");
+            const op_mult = Operator.fromOpString_binary("x");
 
             const exponent = Utils.randomElementInArray([2,3,4,5,6,7,8,9,10]);
             const node_c = new math.OperatorNode("^", "pow", [new math.ConstantNode(number), new math.ConstantNode(exponent)]);
@@ -61640,7 +61718,7 @@
           const nb_operators__constant = 4;
 
           const arr_operatorNodeFuncWrapper = [+2,+3,+5,+7].map(number => {
-            const op_mult = Operator.fromString_binary("x");
+            const op_mult = Operator.fromOpString_binary("x");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_mult, node_b);
             return operatorNodeFuncWrapper;
@@ -61726,7 +61804,7 @@
 
             // const operatorNodeFuncWrapper = gmItem__operator.specs.funcWrapper.inverse;
 
-            const op_mult = Operator.fromString_binary("x");
+            const op_mult = Operator.fromOpString_binary("x");
             const node_b = new math.OperatorNode("/", "divide", [new math.ConstantNode(1), new math.ConstantNode(number)]);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_mult, node_b);
 
@@ -61900,7 +61978,7 @@
           const nb_operators__constant = 4;
 
           const arr_operatorNodeFuncWrapper = [+2,+3,+5,+7].map(number => {
-            const op_mult = Operator.fromString_binary("x");
+            const op_mult = Operator.fromOpString_binary("x");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_mult, node_b);
             return operatorNodeFuncWrapper;
@@ -61986,7 +62064,7 @@
 
             // const operatorNodeFuncWrapper = gmItem__operator.specs.funcWrapper.inverse;
 
-            const op_mult = Operator.fromString_binary("x");
+            const op_mult = Operator.fromOpString_binary("x");
             const node_b = new math.OperatorNode("/", "divide", [new math.ConstantNode(1), new math.ConstantNode(number)]);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_mult, node_b);
 
@@ -62167,7 +62245,7 @@
           }
 
           const arr_operatorNodeFuncWrapper = [+2,+3,+5,+7].map(number => {
-            const op_mult = Operator.fromString_binary("x");
+            const op_mult = Operator.fromOpString_binary("x");
 
             const node_d = random_node__pow();
             const node_e = random_node__pow();
@@ -62389,7 +62467,7 @@
           const nb_operators__constant = 4;
 
           const arr_operatorNodeFuncWrapper__raw = [+2,+3,+5,+7].map(number => {
-            const op_mult = Operator.fromString_binary("^");
+            const op_mult = Operator.fromOpString_binary("^");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_mult, node_b);
             return operatorNodeFuncWrapper;
@@ -62686,7 +62764,7 @@
           const nb_operators__constant = 4;
 
           const arr_operatorNodeFuncWrapper = [+100,+10,+1].map(number => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
@@ -62817,7 +62895,7 @@
           const nb_operators__constant = 4;
 
           const arr_operatorNodeFuncWrapper = [+10,+1,+0.1,+0.01].map(number => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
@@ -62995,7 +63073,7 @@
           const nb_operators__constant = 4;
 
           const arr_operatorNodeFuncWrapper = [+100,+10,+1,+0.1].map(number => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
@@ -63188,7 +63266,7 @@
           const nb_operators__constant = 4;
 
           const operatorNodeFuncWrapper__add = (() => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(math.bignumber(+1.0));
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
@@ -63337,21 +63415,21 @@
           const nb_operators__constant = 4;
 
           const operatorNodeFuncWrapper__add0 = (() => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(math.bignumber(+1.0));
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
           })();
 
           const operatorNodeFuncWrapper__add1 = (() => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(math.bignumber(+0.1));
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
           })();
 
           const operatorNodeFuncWrapper__add2 = (() => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(math.bignumber(+0.01));
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
@@ -63550,7 +63628,7 @@
           const nb_operators__constant = 4;
 
           const operatorNodeFuncWrapper__add = (() => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(+1.0);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
@@ -63716,21 +63794,21 @@
           const nb_operators__constant = 4;
 
           const operatorNodeFuncWrapper__add0 = (() => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(math.bignumber(+1.0));
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
           })();
 
           const operatorNodeFuncWrapper__add1 = (() => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(math.bignumber(+0.1));
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
           })();
 
           const operatorNodeFuncWrapper__add2 = (() => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(math.bignumber(+0.01));
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
@@ -63899,7 +63977,7 @@
           const nb_operators__constant = 4;
 
           const operatorNodeFuncWrapper__add = (() => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(1);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
@@ -64102,8 +64180,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               // op_multiply,
@@ -64176,8 +64254,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               op_multiply,
@@ -64340,8 +64418,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               // op_multiply,
@@ -64414,8 +64492,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               // op_multiply,
@@ -64488,8 +64566,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               op_multiply,
@@ -64561,8 +64639,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               // op_multiply,
@@ -64728,8 +64806,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               // op_multiply,
@@ -64802,8 +64880,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               // op_multiply,
@@ -64876,8 +64954,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               op_multiply,
@@ -64949,8 +65027,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               // op_multiply,
@@ -65115,8 +65193,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               // op_multiply,
@@ -65191,8 +65269,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               // op_multiply,
@@ -65363,8 +65441,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               // op_multiply,
@@ -65439,8 +65517,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               // op_multiply,
@@ -65611,8 +65689,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               op_multiply,
@@ -65687,8 +65765,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               op_multiply,
@@ -65908,8 +65986,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               // op_multiply,
@@ -65984,8 +66062,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               // op_multiply,
@@ -66205,8 +66283,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               // op_multiply,
@@ -66281,8 +66359,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               // op_multiply,
@@ -66580,8 +66658,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               // op_multiply,
@@ -66656,8 +66734,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               // op_multiply,
@@ -66884,8 +66962,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               // op_multiply,
@@ -66960,8 +67038,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               // op_multiply,
@@ -67054,7 +67132,7 @@
               const outMathNode = Rewriter.substitute(node_expr, (node) => {
                 const isFound = node instanceof math.SymbolNode && node.name == "x";
                 return isFound;
-              }, () => {
+              }, (_) => {
                 return new math.ConstantNode(number);
               });
 
@@ -67137,7 +67215,7 @@
               const outMathNode = Rewriter.substitute(node_expr, (node) => {
                 const isFound = node instanceof math.SymbolNode && node.name == "y";
                 return isFound;
-              }, () => {
+              }, (_) => {
                 return new math.ConstantNode(number);
               });
 
@@ -67307,14 +67385,14 @@
           const nb_operators = 4;
 
           const arr_operatorNodeFuncWrapper__subtract = [5,1].map(number => {
-            const op_add = Operator.fromString_binary("-");
+            const op_add = Operator.fromOpString_binary("-");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
           });
 
           const arr_operatorNodeFuncWrapper__add = [1,5].map(number => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
@@ -67386,8 +67464,8 @@
           const number = 1 + Math.floor(Math.random() * 9);
           const node_b = new math.ConstantNode(number);
 
-          const op_add      = Operator.fromString_binary("+");
-          const op_subtract = Operator.fromString_binary("-");
+          const op_add      = Operator.fromOpString_binary("+");
+          const op_subtract = Operator.fromOpString_binary("-");
           const op_initial_trans = Utils.randomElementInArray([op_add, op_subtract]);
 
           const operatorNodeFuncWrapper__initial_trans = operatorNodeFactoryFuncWrapper_binary(op_initial_trans, node_b);
@@ -67526,14 +67604,14 @@
           const nb_operators = 4;
 
           const arr_operatorNodeFuncWrapper__subtract = [10,1].map(number => {
-            const op_add = Operator.fromString_binary("-");
+            const op_add = Operator.fromOpString_binary("-");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
           });
 
           const arr_operatorNodeFuncWrapper__add = [1,10].map(number => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
@@ -67605,8 +67683,8 @@
           const number = 24 + Math.floor(Math.random() * 50);
           const node_b = new math.ConstantNode(number);
 
-          const op_add      = Operator.fromString_binary("+");
-          const op_subtract = Operator.fromString_binary("-");
+          const op_add      = Operator.fromOpString_binary("+");
+          const op_subtract = Operator.fromOpString_binary("-");
           const op_initial_trans = Utils.randomElementInArray([op_add, op_subtract]);
 
           const operatorNodeFuncWrapper__initial_trans = operatorNodeFactoryFuncWrapper_binary(op_initial_trans, node_b);
@@ -67766,14 +67844,14 @@
           const nb_operators = 4;
 
           const arr_operatorNodeFuncWrapper__subtract = [5,1].map(number => {
-            const op_add = Operator.fromString_binary("-");
+            const op_add = Operator.fromOpString_binary("-");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
           });
 
           const arr_operatorNodeFuncWrapper__add = [1,5].map(number => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
@@ -67930,8 +68008,8 @@
           const number = 1 + Math.floor(Math.random() * 9);
           const node_b = new math.ConstantNode(number);
 
-          const op_add      = Operator.fromString_binary("+");
-          const op_subtract = Operator.fromString_binary("-");
+          const op_add      = Operator.fromOpString_binary("+");
+          const op_subtract = Operator.fromOpString_binary("-");
           const op_initial_trans = Utils.randomElementInArray([op_add, op_subtract]);
 
           const operatorNodeFuncWrapper__initial_trans = operatorNodeFactoryFuncWrapper_binary(op_initial_trans, node_b);
@@ -68014,14 +68092,14 @@
           const nb_operators = 4;
 
           const arr_operatorNodeFuncWrapper__subtract = [5,1].map(number => {
-            const op_add = Operator.fromString_binary("-");
+            const op_add = Operator.fromOpString_binary("-");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
           });
 
           const arr_operatorNodeFuncWrapper__add = [1,5].map(number => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
@@ -68303,8 +68381,8 @@
             const number = 1 + Math.floor(Math.random() * 9);
             const node_b = new math.ConstantNode(number);
 
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
             const op_initial_trans = Utils.randomElementInArray([op_add, op_subtract]);
 
             const operatorNodeFuncWrapper__initial_trans = operatorNodeFactoryFuncWrapper_binary(op_initial_trans, node_b);
@@ -68452,14 +68530,14 @@
           const arr_value = [2,3,5,10];
 
           const arr_operatorNodeFuncWrapper__multiply = arr_value.map(number => {
-            const op_mult = Operator.fromString_binary("x");
+            const op_mult = Operator.fromOpString_binary("x");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_mult, node_b);
             return operatorNodeFuncWrapper;
           });
 
           const arr_operatorNodeFuncWrapper__divide = arr_value.map(number => {
-            const op_divide = Operator.fromString_binary("/");
+            const op_divide = Operator.fromOpString_binary("/");
             const node_b    = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_divide, node_b);
             return operatorNodeFuncWrapper;
@@ -68531,8 +68609,8 @@
           // const number = 1 + Math.floor(Math.random() * 9);
           // const node_b = new math.ConstantNode(number);
           //
-          // const op_add      = Operator.fromString_binary("x");
-          // const op_subtract = Operator.fromString_binary("/");
+          // const op_add      = Operator.fromOpString_binary("x");
+          // const op_subtract = Operator.fromOpString_binary("/");
           // const op_initial_trans = Utils.randomElementInArray([op_add, op_subtract]);
           //
           // const operatorNodeFuncWrapper__initial_trans = operatorNodeFactoryFuncWrapper_binary(op_initial_trans, node_b);
@@ -68595,14 +68673,14 @@
           const arr_value_2to10 = [...Array(9).keys()].map(index => index + 2);
 
           const arr_operatorNodeFuncWrapper__multiply = arr_value_2to10.map(number => {
-            const op_mult = Operator.fromString_binary("x");
+            const op_mult = Operator.fromOpString_binary("x");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_mult, node_b);
             return operatorNodeFuncWrapper;
           });
 
           const arr_operatorNodeFuncWrapper__divide = arr_value_2to10.map(number => {
-            const op_divide = Operator.fromString_binary("/");
+            const op_divide = Operator.fromOpString_binary("/");
             const node_b    = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_divide, node_b);
             return operatorNodeFuncWrapper;
@@ -68863,8 +68941,8 @@
             const number = 1 + Math.floor(Math.random() * 9);
             const node_b = new math.ConstantNode(number);
 
-            const op_mult      = Operator.fromString_binary("x");
-            const op_divide    = Operator.fromString_binary("/");
+            const op_mult      = Operator.fromOpString_binary("x");
+            const op_divide    = Operator.fromOpString_binary("/");
             const op_initial_trans = Utils.randomElementInArray([op_mult, op_divide]);
 
             const operatorNodeFuncWrapper__initial_trans = operatorNodeFactoryFuncWrapper_binary(op_initial_trans, node_b);
@@ -68963,28 +69041,28 @@
           const arr_value_2to10 = [...Array(9).keys()].map(index => index + 2);
 
           const arr_operatorNodeFuncWrapper__add = arr_value_1to9.map(number => {
-            const op = Operator.fromString_binary("+");
+            const op = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
             return operatorNodeFuncWrapper;
           });
 
           const arr_operatorNodeFuncWrapper__subtract = arr_value_1to9.map(number => {
-            const op = Operator.fromString_binary("-");
+            const op = Operator.fromOpString_binary("-");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
             return operatorNodeFuncWrapper;
           });
 
           const arr_operatorNodeFuncWrapper__multiply = arr_value_2to10.map(number => {
-            const op_mult = Operator.fromString_binary("x");
+            const op_mult = Operator.fromOpString_binary("x");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_mult, node_b);
             return operatorNodeFuncWrapper;
           });
 
           const arr_operatorNodeFuncWrapper__divide = arr_value_2to10.map(number => {
-            const op_divide = Operator.fromString_binary("/");
+            const op_divide = Operator.fromOpString_binary("/");
             const node_b    = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_divide, node_b);
             return operatorNodeFuncWrapper;
@@ -69255,11 +69333,11 @@
             const node_b_1to9  = new math.ConstantNode(1 + Math.floor(Math.random() * 9));
             const node_b_2to10 = new math.ConstantNode(2 + Math.floor(Math.random() * 8));
 
-            const op_add      = Operator.fromString_binary("+");
-            const op_sub      = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_sub      = Operator.fromOpString_binary("-");
 
-            const op_mult     = Operator.fromString_binary("x");
-            const op_divide   = Operator.fromString_binary("/");
+            const op_mult     = Operator.fromOpString_binary("x");
+            const op_divide   = Operator.fromOpString_binary("/");
 
             const op_offset = Utils.randomElementInArray([op_add, op_sub])
             const op_scale  = Utils.randomElementInArray([op_mult, op_divide]);
@@ -69423,8 +69501,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               op_multiply,
@@ -69795,10 +69873,10 @@
             const number = 1 + Math.floor(Math.random() * 9);
             const node_b = new math.ConstantNode(number);
 
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
-            const op_multiply = Operator.fromString_binary("x");
-            const op_divide   = Operator.fromString_binary("/");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
+            const op_multiply = Operator.fromOpString_binary("x");
+            const op_divide   = Operator.fromOpString_binary("/");
             const op_initial_trans = Utils.randomElementInArray([op_add, op_subtract, op_multiply, op_divide]);
 
             const operatorNodeFuncWrapper__initial_trans = operatorNodeFactoryFuncWrapper_binary(op_initial_trans, node_b);
@@ -69923,8 +70001,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               // op_multiply,
@@ -70008,8 +70086,8 @@
 
             const op_multiply = Operator.multiply();
             const op_divide   = Operator.divide();
-            const op_add      = Operator.fromString_binary("+");
-            const op_subtract = Operator.fromString_binary("-");
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
 
             const arr_op = [
               op_multiply,
@@ -70172,7 +70250,7 @@
           const nb_operators__constant = 4;
 
           const arr_operatorNodeFuncWrapper = [+2,+3,+4,+5,+6,+7,+8,+9].map(number => {
-            const op_mult = Operator.fromString_binary("x");
+            const op_mult = Operator.fromOpString_binary("x");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_mult, node_b);
             return operatorNodeFuncWrapper;
@@ -70286,7 +70364,7 @@
           const nb_operators__constant = 4;
 
           const arr_operatorNodeFuncWrapper__mult = [+2,+3,+4,+5,+6,+7,+8,+9].map(number => {
-            const op_mult = Operator.fromString_binary("x");
+            const op_mult = Operator.fromOpString_binary("x");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_mult, node_b);
             return operatorNodeFuncWrapper;
@@ -70356,7 +70434,7 @@
           //input
 
           const arr_operatorNodeFuncWrapper__input = [+5,+3,+2,+1,+50,+30,+20,+10].map(number => {
-            const op_add = Operator.fromString_binary("+");
+            const op_add = Operator.fromOpString_binary("+");
             const node_b = new math.ConstantNode(number);
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_add, node_b);
             return operatorNodeFuncWrapper;
@@ -70461,7 +70539,7 @@
           const nb_operators__constant = 4;
 
           const arr_operatorNodeFuncWrapper = [+20,+30,+40,+50,+60,+70,+80,+90].map(number => {
-            const op_mult = Operator.fromString_binary("x");
+            const op_mult = Operator.fromOpString_binary("x");
             const node_b = new math.ConstantNode(number);
             // const node_b = new FixedDecimalConstantNode(math.bignumber(node_b__c.evaluate({})));
 
@@ -70580,7 +70658,7 @@
 
           // const arr_operatorNodeFuncWrapper = [+2,+3,+4,+5,+6,+7,+8,+9].map(i => 0.1 * i).map(number => {   // /!\ NOT THE SAME OUTPUT
           const arr_operatorNodeFuncWrapper = [+0.2,+0.3,+0.4,+0.5,+0.6,+0.7,+0.8,+0.9].map(number => {        // /!\ NOT THE SAME OUTPUT
-            const op_mult = Operator.fromString_binary("x");
+            const op_mult = Operator.fromOpString_binary("x");
             const node_b = new math.ConstantNode(number);
 
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_mult, node_b);
@@ -70716,7 +70794,7 @@
 
           // const arr_operatorNodeFuncWrapper = [+2,+3,+4,+5,+6,+7,+8,+9].map(i => 0.1 * i).map(number => {   // /!\ NOT THE SAME OUTPUT
           const arr_operatorNodeFuncWrapper = [+2,+3,+4,+5, +0.1, +6,+7,+8,+9, +10].map(number => {        // /!\ NOT THE SAME OUTPUT
-            const op_mult = Operator.fromString_binary("x");
+            const op_mult = Operator.fromOpString_binary("x");
             const node_b = new math.ConstantNode(number);
 
             const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_mult, node_b);
@@ -73462,7 +73540,7 @@
               height: 200,
             };
 
-            const op = Operator.fromString_binary("/");
+            const op = Operator.fromOpString_binary("/");
             const node_b = new math.ConstantNode(2);
             const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
 
@@ -73517,7 +73595,7 @@
           //     height: 150,
           //   };
           //
-          //   const op     = Operator.fromString_binary("x");
+          //   const op     = Operator.fromOpString_binary("x");
           //   const node_b = new math.ConstantNode(2);
           //   const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
           //
@@ -73536,7 +73614,7 @@
               height: 150,
             };
 
-            const op = Operator.fromString_binary("x");
+            const op = Operator.fromOpString_binary("x");
             const node_b = new math.ConstantNode(2);
             const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
 
@@ -73555,7 +73633,7 @@
               height: 150,
             };
 
-            const op = Operator.fromString_binary("/");
+            const op = Operator.fromOpString_binary("/");
             const node_b = new math.ConstantNode(2);
             const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
 
@@ -73575,7 +73653,7 @@
               height: 150,
             };
 
-            const op = Operator.fromString_binary("x");
+            const op = Operator.fromOpString_binary("x");
             const node_b = new math.ConstantNode(3);
             const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
 
@@ -73594,7 +73672,7 @@
               height: 150,
             };
 
-            const op = Operator.fromString_binary("/");
+            const op = Operator.fromOpString_binary("/");
             const node_b = new math.ConstantNode(3);
             const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
 
@@ -73613,7 +73691,7 @@
               height: 150,
             };
 
-            const op = Operator.fromString_binary("x");
+            const op = Operator.fromOpString_binary("x");
             const node_b = new math.ConstantNode(5);
             const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
 
@@ -73632,7 +73710,7 @@
               height: 150,
             };
 
-            const op = Operator.fromString_binary("/");
+            const op = Operator.fromOpString_binary("/");
             const node_b = new math.ConstantNode(5);
             const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
 
@@ -73651,7 +73729,7 @@
               height: 150,
             };
 
-            const op = Operator.fromString_binary("x");
+            const op = Operator.fromOpString_binary("x");
             const node_b = new math.ConstantNode(7);
             const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
 
@@ -73670,7 +73748,7 @@
               height: 150,
             };
 
-            const op = Operator.fromString_binary("/");
+            const op = Operator.fromOpString_binary("/");
             const node_b = new math.ConstantNode(7);
             const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
 
@@ -79744,7 +79822,7 @@
           // const arr_opSymbol_valueb =  [...arr_add];
 
           outArr = arr_opSymbol_valueb.map(([string__opSymbol, value_b]) => {
-            const op = Operator.fromString_binary(string__opSymbol);
+            const op = Operator.fromOpString_binary(string__opSymbol);
             const node_b = new math.ConstantNode(value_b);
             const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b);
             return operatorNodeFactoryFuncWrapper;
