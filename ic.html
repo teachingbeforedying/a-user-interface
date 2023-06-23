@@ -5194,6 +5194,143 @@
 
     }
   </script>
+  <script>
+    class Parser {
+
+      static parse__rational__repeating_decimal(str__repeating_decimal) {
+        var outMathNode;
+
+        const value = math.fraction("0." + "'" + str__repeating_decimal + "'");
+        outMathNode = new math.ConstantNode(value);
+
+        return outMathNode;
+      }
+
+      static parse__rational__explicit(str__rational__explicit) {
+        logger.log("logNT", "parse__rational__explicit", str__rational__explicit);
+
+        var outMathNode;
+
+        const str__sign = (str__rational__explicit[0] == "-") ? "-" : "+";
+        var str__wo_dots__wo_sign;
+        if(/^[+-]/.test(str__rational__explicit)) {
+          str__wo_dots__wo_sign = str__rational__explicit.slice(1);
+        } else {
+          str__wo_dots__wo_sign = str__rational__explicit;
+        }
+
+        const [str__left, str__right] = str__wo_dots__wo_sign.split(".");
+        // logger.log("logNT", "str__right:", str__right);
+        const arr_match  = str__right.match(/^(.*)\'(.*?)\'$/);
+        // logger.log("logNT", "arr_match:", arr_match);
+
+        const str__unrepeated_decimal = arr_match[1];
+        const str__repeating_decimal  = arr_match[2];
+        const int__decimal_place__of_repeating = str__rational__explicit.indexOf(".") - str__rational__explicit.indexOf("'"); 
+        // logger.log("logNT", "int__decimal_place__of_repeating:", int__decimal_place__of_repeating);
+
+        const mathNode__sign   = math.parse(str__sign + "1");
+        const mathNode__left   = math.parse(str__left);
+        const mathNode__right1 = math.parse("0." + str__unrepeated_decimal);
+
+        const mathNode__right2__1 = new math.OperatorNode("^", "pow", [new math.ConstantNode(10), new math.ConstantNode(int__decimal_place__of_repeating + 1)]);
+        const mathNode__right2__2 = Parser.parse__rational__repeating_decimal(str__repeating_decimal);
+        const mathNode__right2 = new math.OperatorNode("*", "multiply", [mathNode__right2__1, mathNode__right2__2]);
+
+        outMathNode = new math.OperatorNode("+", "add", [mathNode__left, mathNode__right1, mathNode__right2]);
+        outMathNode = new math.ConstantNode(outMathNode.evaluate({}));
+        // logger.log("logNT", "outMathNode:", outMathNode);
+
+        outMathNode = new math.OperatorNode("*", "multiply", [mathNode__sign, outMathNode]);
+        outMathNode = new math.ConstantNode(outMathNode.evaluate({}));
+        // logger.log("logNT", "outMathNode:", outMathNode);
+        
+        return outMathNode;
+      }
+
+      static getRepeatingTrailingPatternInString(str_in) {
+        var outString;
+
+        function maxRepeat__atEnd(input) {
+          var reg = /(?=((.+)(?:.*?\2)+))/g;
+          var sub = ""; //somewhere to stick temp results
+          var maxstr = ""; // our maximum length repeated string
+          reg.lastIndex = 0; // because reg previously existed, we may need to reset this
+          sub = reg.exec(input); // find the first repeated string
+          while (!(sub == null)){
+            if ((!(sub == null)) && (sub[2].length > maxstr.length)){
+            maxstr = sub[2];
+            }
+            sub = reg.exec(input);
+            reg.lastIndex++; // start searching from the next position
+          }
+          return maxstr;
+        }
+
+        if(str_in.length == 1) {
+          outString = str_in;
+        } else {
+          outString = maxRepeat__atEnd(str_in);
+        }
+        
+        return outString;
+      }
+
+      static parse__rational__implicit(str__rational__implicit) {
+        logger.log("logNT", "parse__rational__implicit", str__rational__implicit);
+
+        var outMathNode;
+
+        const str__without_trailing_dots = str__rational__implicit.replace("...","");
+
+        const str__sign = (str__without_trailing_dots[0] == "-") ? "-" : "+";
+        var str__wo_dots__wo_sign;
+        if(/^[+-]/.test(str__without_trailing_dots)) {
+          str__wo_dots__wo_sign = str__without_trailing_dots.slice(1);
+        } else {
+          str__wo_dots__wo_sign = str__without_trailing_dots;
+        }
+
+        const [str__left, str__right] = str__wo_dots__wo_sign.split(".");
+        // logger.log("logNT", "str__right:", str__right);
+
+        const str__repeating_decimal  = Parser.getRepeatingTrailingPatternInString(str__right);
+        // logger.log("logNT", "str__repeating_decimal:", str__repeating_decimal);
+
+        const index__repeating_decimal         = str__right.indexOf(str__repeating_decimal);
+        const int__decimal_place__of_repeating = -index__repeating_decimal - 1;
+        // logger.log("logNT", "int__decimal_place__of_repeating:", int__decimal_place__of_repeating);
+
+        const str__unrepeated_decimal = str__right.slice(0, index__repeating_decimal);
+        // logger.log("logNT", "str__unrepeated_decimal:", str__unrepeated_decimal);
+
+
+        const mathNode__sign   = math.parse(str__sign + "1");
+        const mathNode__left   = math.parse(str__left);
+        const mathNode__right1 = math.parse("0." + str__unrepeated_decimal);
+
+        const mathNode__right2__1 = new math.OperatorNode("^", "pow", [new math.ConstantNode(10), new math.ConstantNode(int__decimal_place__of_repeating + 1)]);
+        const mathNode__right2__2 = Parser.parse__rational__repeating_decimal(str__repeating_decimal);
+        const mathNode__right2 = new math.OperatorNode("*", "multiply", [mathNode__right2__1, mathNode__right2__2]);
+
+        // logger.log("logNT", "mathNode_left:",      mathNode__left);
+        // logger.log("logNT", "mathNode_right1:",    mathNode__right1);
+        // logger.log("logNT", "mathNode_right2__1:", mathNode__right2__1);
+        // logger.log("logNT", "mathNode_right2__2:", mathNode__right2__2);
+        // logger.log("logNT", "mathNode_right2:",    mathNode__right2);
+
+        outMathNode = new math.OperatorNode("+", "add", [mathNode__left, mathNode__right1, mathNode__right2]);
+        outMathNode = new math.ConstantNode(outMathNode.evaluate({}));
+
+        outMathNode = new math.OperatorNode("*", "multiply", [mathNode__sign, outMathNode]);
+        outMathNode = new math.ConstantNode(outMathNode.evaluate({}));
+        // logger.log("logNT", "outMathNode:", outMathNode);
+        
+        return outMathNode;
+      }
+
+    }
+  </script>
 
 
 
@@ -22670,33 +22807,64 @@
             function mathFieldTex_to_mathNode(tex) {
               var outMathNode;
 
-              try {
+              function parseRational(tex) {
+                logger.log("logNT", "parseRational", tex);
+                var outMathNode;
+                try {
+                  const regex__rational__explicit = /(^[+-]?[0-9]+\.[0-9]*\'[0-9]+\'$)/;
+                  const isRational__explicit = regex__rational__explicit.test(tex);
+                  
+                  if(isRational__explicit) {
+                    outMathNode = Parser.parse__rational__explicit(tex);
+                  } else {
+                    const regex__rational__implicit = /(^[+-]?[0-9]+\.[0-9]+\.\.\.$)/;
+                    const isRational__implicit = regex__rational__implicit.test(tex);
 
-                // const value__fraction = new Fraction(tex);
-                const value__fraction = math.fraction(tex);
-                logger.log("logNT", "value__fraction:", value__fraction);
+                    if(isRational__implicit) {
+                      outMathNode = Parser.parse__rational__implicit(tex);
+                    } else {
+                      outMathNode = null;
+                    }
+                  }
                 
-                outMathNode = new math.ConstantNode(value__fraction);
-                logger.log("logNT", "outMathNode:", outMathNode);
+                } catch(e) {
+                  throw e;
+                }
+                return outMathNode;
+              }
 
+              function parseFraction(tex) {
+                var outMathNode;
+                try {
+                  // const value__fraction = new Fraction(tex);
+                  const value__fraction = math.fraction(tex);
+                  logger.log("logNT", "value__fraction:", value__fraction);
 
-              } catch(e1) {
-                  logger.log("logNT", "e1:", e1);
+                  outMathNode = new math.ConstantNode(value__fraction);
+                  logger.log("logNT", "outMathNode:", outMathNode);
+                } catch(e) {
 
-                  try {
-                    // outMathNode = math.parse(tex);
+                }
+                return outMathNode;
+              }
 
-                    const mathExpression = MathExpression.fromLatex(tex);
+              function parseExpression(tex) {
+                var outMathNode;
+                try {
+                  const mathExpression = MathExpression.fromLatex(tex);
                     const text = mathExpression.toString();
                     logger.log("logNT", "text:", text);
                     outMathNode = math.parse(text);
+                } catch(e) {
 
-                    //don't parse "=" into ":="
-                  } catch(e2) {
-                    outMathNode = null;
-                  }
-
+                }
+                return outMathNode;
               }
+
+              outMathNode = null;
+              outMathNode = outMathNode ? outMathNode : parseRational(tex);
+              outMathNode = outMathNode ? outMathNode : parseFraction(tex);
+              outMathNode = outMathNode ? outMathNode : parseExpression(tex);
 
               return outMathNode;
             }
@@ -22767,6 +22935,8 @@
 
               outTex = outTex.replaceAll("\\left",  "");
               outTex = outTex.replaceAll("\\right", "");
+
+              outTex = outTex.replaceAll(":", "/");
 
               outTex = outTex.replace(/^\+\\/, "[＋]"); //"[" + U+FF0B + "]"
               outTex = outTex.replace(/^\-\\/, "[－]"); //"[" + U+FF0D + "]"
@@ -31944,10 +32114,10 @@
           const fabricCanvas = fabricIntegration.fabricCanvas;
 
           //create supervessel
-          setTimeout(() => {      //SHU: encore une envie de vomir
-            const rep_free__supervessel = fabricIntegration.createSupervessel();
-            // const rep_free__superante   = fabricIntegration.createSuperante();
-          }, 500);
+          // setTimeout(() => {      //SHU: encore une envie de vomir
+          //   const rep_free__supervessel = fabricIntegration.createSupervessel();
+          //   // const rep_free__superante   = fabricIntegration.createSuperante();
+          // }, 500);
 
           // fabricCanvas.on('selection:cleared', function(options) {
           //   // console.log("selection:cleared", options);
@@ -45490,6 +45660,8 @@
               v: new KeyDownToggle("v", KeyDownToggle.defaultKeyDownFunc(["KeyV"])),
               b: new KeyDownToggle("b", KeyDownToggle.defaultKeyDownFunc(["KeyB"])),
               d: new KeyDownToggle("d", KeyDownToggle.defaultKeyDownFunc(["KeyD"])),
+              n: new KeyDownToggle("n", KeyDownToggle.defaultKeyDownFunc(["KeyN"])),
+
 
 
 
@@ -45795,26 +45967,26 @@
                 keyboardIntegration.fabricIntegration.setAntiAliasEnabled(isModeA);
               }),
 
-              "n": new KeyUpABToggle("n", KeyUpABToggle.defaultKeyUpFunc(["KeyN"]), (isModeA) => {
-                keyboardIntegration.fabricIntegration.setSupervesselEnabled(isModeA);
-              }),
+              // "n": new KeyUpABToggle("n", KeyUpABToggle.defaultKeyUpFunc(["KeyN"]), (isModeA) => {
+              //   keyboardIntegration.fabricIntegration.setSupervesselEnabled(isModeA);
+              // }),
 
-              "d": new KeyUpABToggle("d", KeyUpABToggle.defaultKeyUpFunc(["KeyD"]), (isModeA) => {
-                // const infiniteCanvas = keyboardIntegration.infiniteCanvas;
-                // if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
-                //   if (!isModeA) {
-                //     infiniteCanvas.createIcLine_start();
-                //   } else {
-                //     infiniteCanvas.createIcLine_end();
-                //   }
-                // } else {
-                //   if (!isModeA) {
-                //     infiniteCanvas.createIcHUDLine_start();
-                //   } else {
-                //     infiniteCanvas.createIcHUDLine_end();
-                //   }
-                // }
-              }),
+              // "d": new KeyUpABToggle("d", KeyUpABToggle.defaultKeyUpFunc(["KeyD"]), (isModeA) => {
+              //   // const infiniteCanvas = keyboardIntegration.infiniteCanvas;
+              //   // if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+              //   //   if (!isModeA) {
+              //   //     infiniteCanvas.createIcLine_start();
+              //   //   } else {
+              //   //     infiniteCanvas.createIcLine_end();
+              //   //   }
+              //   // } else {
+              //   //   if (!isModeA) {
+              //   //     infiniteCanvas.createIcHUDLine_start();
+              //   //   } else {
+              //   //     infiniteCanvas.createIcHUDLine_end();
+              //   //   }
+              //   // }
+              // }),
 
               // "KeyZ": new KeyUpABToggle("w", KeyUpABToggle.defaultKeyUpFunc(["KeyZ"]), (isModeA) => {
               //   const infiniteCanvas = keyboardIntegration.infiniteCanvas;
@@ -47301,7 +47473,7 @@
               brushWidthScroll(event);
             }
             /**/else/**/ 
-            if (keyboardIntegration.keyDownToggles.d.isActive) {
+            if (keyboardIntegration.keyDownToggles.n.isActive) {
               valueScroll(event);
             } 
             /**/else/**/ 
