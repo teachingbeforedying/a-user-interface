@@ -22350,8 +22350,8 @@
 
             if(isSingleBrush) {
               if(shiftAmount > 0) {
-                // infiniteCanvas.combSetup__autoComb(2);
-                infiniteCanvas.combSetup__autoComb(5);
+                infiniteCanvas.combSetup__autoComb(2);
+                // infiniteCanvas.combSetup__autoComb(5);
               } else {
                 infiniteCanvas.combSetup__autoComb(3);
               }
@@ -22702,11 +22702,11 @@
         // const combBrush = fabric.CombPencilBrush.createInstance(fabricCanvas, arr_brush__raw);
         // combBrush.debug__name = "comb";
 
-        // const combBrush = fabric.ZCombPencilBrush.createInstance(fabricCanvas, arr_brush__raw);
-        // combBrush.debug__name = "zComb";
+        const combBrush = fabric.ZCombPencilBrush.createInstance(fabricCanvas, arr_brush__raw);
+        combBrush.debug__name = "zComb";
 
-        const combBrush = fabric.SideCombPencilBrush.createInstance(fabricCanvas, arr_brush__raw);
-        combBrush.debug__name = "sideComb";
+        // const combBrush = fabric.SideCombPencilBrush.createInstance(fabricCanvas, arr_brush__raw);
+        // combBrush.debug__name = "sideComb";
 
         return combBrush;
       }
@@ -32106,6 +32106,9 @@
 
           this.singleUseBehaviors = {};
 
+          this.dict_brush = {};          
+
+
           //debug
           {
             // this.isEnabled_supervessel = true;
@@ -39403,6 +39406,34 @@
           
         }
 
+
+        storeBrush(brush, brushName) {
+          this.dict_brush[brushName] = brush;
+        }
+
+        getStoredBrush(brushName) {
+          return this.dict_brush[brushName];
+        }
+
+
+
+        saveBrush(brushName) {
+          const fabricCanvas = this.fabricCanvas;
+          const brush        = fabricCanvas.freeDrawingBrush; 
+
+          const brush__clone = brush.deepClone();
+          this.storeBrush(brush__clone, brushName);
+        }
+        
+        restoreBrush(brushName) {
+          const fabricCanvas = this.fabricCanvas;
+
+          const brush = this.getStoredBrush(brushName);
+          
+          fabricCanvas.freeDrawingBrush = brush; 
+        }
+
+
         configureFreeDrawingBrush(dict_update) {
           // logger.log("logFDZ", "configureFreeDrawingBrush", "dict_update:", dict_update);
 
@@ -39574,6 +39605,12 @@
           //setup brush
           // const brushConfig = this.brushConfig__freeDrawing();
           // this.configureFreeDrawingBrush(brushConfig);
+          this.configureFreeDrawingBrush({
+            
+          });
+
+          const brushZIndex_new = infiniteCanvas.getFreshIcZIndex__max();
+          fabricIntegration.configureFreeDrawingBrush({zIndex__ic: brushZIndex_new});
 
           this.fabricCanvas.isDrawingMode = true;
 
@@ -39600,6 +39637,7 @@
           if(inputProperties.brush__single != null) {
             const singleBrush = inputProperties.brush__single;
             // fabricIntegration.setBrush__hotSwap(singleBrush);
+            singleBrush._reset();
             fabricIntegration.fabricCanvas.freeDrawingBrush = singleBrush;
           }
 
@@ -39639,7 +39677,6 @@
             icComposite.fill    = "transparent";
             // icComposite.opacity = 0;
 
-
             //add composite 
             this.infiniteCanvas.addNewIcObject(icComposite);
 
@@ -39652,6 +39689,8 @@
           }
 
           // if(icObj__freeDrawing__result.fObj.isAdhesive) {
+          const isAdhesive = arr_icFreeDrawing.find(e => true)?.exoObject.isAdhesive;
+          if(isAdhesive) {
 
             if((arr_icFreeDrawing.length > 0) && (this.adhesive__support__icObj != null)) {
               const icObj__support           = this.adhesive__support__icObj;
@@ -39661,7 +39700,7 @@
               this.infiniteCanvas.manageAdhesion(icObj__freeDrawing__result, icObj__support__rep_free);  
             }
 
-          // }
+          }
 
 
           //clear
@@ -40365,34 +40404,30 @@
         brushConfig__operatorPathDrawing() {
           var outBrushConfig = {};
 
-          outBrushConfig.width = 90;
-
           const rgbaColorString = "rgba(233,212,96,0.5)";
-          outBrushConfig.color = rgbaColorString;
-
           const fColor = new fabric.Color(rgbaColorString);
-          logger.log("fColor", fColor);
-          outBrushConfig.fColor = fColor;
+
+          outBrushConfig = {
+            width:   90,
+            color:   fColor.toRgb(),
+            opacity: fColor.getAlpha(),
+          };          
 
           return outBrushConfig;
         }
 
         enterPathmadeOperatorPathDrawing(type__pathmadeOp) {
           const fabricIntegration = this;
-          const fabricCanvas = fabricIntegration.fabricCanvas;
+          const fabricCanvas   = fabricIntegration.fabricCanvas;
           const infiniteCanvas = fabricIntegration.infiniteCanvas;
 
-          // const brushConfig = fabricIntegration.brushConfig__operatorPathDrawing();
-          // fabricIntegration.configureFreeDrawingBrush(brushConfig);
-          throw new Error("SHU TODO");
+          // fabricIntegration.saveBrush("main");
 
+          const brushConfig = fabricIntegration.brushConfig__operatorPathDrawing();
+          fabricIntegration.configureFreeDrawingBrush(brushConfig);
 
-          const fColor = brushConfig.fColor;
-          const rgbColor = fColor.toRgb();
-          const opacity = fColor.getAlpha();
 
           fabricCanvas.isDrawingMode = true;
-
 
 
           //replay related
@@ -40413,8 +40448,8 @@
               } else {
 
                 fObj.set({
-                  stroke: rgbColor,
-                  opacity: opacity,
+                  stroke:  brushConfig.color,
+                  opacity: brushConfig.opacity,
                 });
 
                 fabricIntegration.current_operatorPathDrawing_objects.push(e.target);
@@ -40544,6 +40579,9 @@
 
 
           fabricIntegration.fabricCanvas.isDrawingMode = false;
+
+          // fabricIntegration.restoreBrush("main");
+
         }
 
         manageCreatedOperatorPathDrawingObjects(arr_fObj) {
@@ -40606,7 +40644,7 @@
 
         enterPathmadeOperatorPathDrawing__composite(type__pathmadeOp) {
           const fabricIntegration = this;
-          const fabricCanvas = fabricIntegration.fabricCanvas;
+          const fabricCanvas   = fabricIntegration.fabricCanvas;
           const infiniteCanvas = fabricIntegration.infiniteCanvas;
 
           //start multiPathmadeOperator creation
@@ -40807,25 +40845,25 @@
 
           const fabricIntegration = this;
 
-          const fabricCanvas = fabricIntegration.fabricCanvas;
+          const fabricCanvas   = fabricIntegration.fabricCanvas;
           const infiniteCanvas = fabricIntegration.infiniteCanvas;
-          const cursor = infiniteCanvas.cursor;
+          const cursor         = infiniteCanvas.cursor;
 
           logger.log("fabricCanvas", fabricCanvas);
 
-          // //global     //SHU: this is working
+          //global     //SHU: this is working
           // {
           //   const html_elt = document.body;
           //   logger.log("html_elt", html_elt);
-          //
+          
           //   const canvasElt_p = html2canvas(html_elt);
-          //
+          
           //   const magicValue = 0.75; //SHU: ugliness is my co-pilot
           //   const pos = {
           //     x: Math.floor(cursor.x * magicValue),
           //     y: Math.floor(cursor.y * magicValue),
           //   };
-          //
+          
           //   const color_p = canvasElt_p
           //   // .then((canvasElt) => {
           //   //
@@ -40837,10 +40875,10 @@
           //   // })
           //   .then((canvasElt) => {
           //     logger.log("canvasElt", canvasElt);
-          //
+          
           //     return fabricIntegration.getFColor__atPos(canvasElt, pos);
           //   });
-          //
+          
           //   out_p = color_p;
           // }
 
@@ -40852,13 +40890,20 @@
 
             const pos__cursor__screen = this.getFCursor();
 
-            const canvasElt_p = Promise.resolve(canvasElt);
+            const magicValue = 1.50; //SHU: ugliness is my co-pilot
+            const pos = {
+              x: Math.floor(pos__cursor__screen.x * magicValue),
+              y: Math.floor(pos__cursor__screen.y * magicValue),
+            };
 
+
+            const canvasElt_p = Promise.resolve(canvasElt);
             const color_p = canvasElt_p
               .then((canvasElt) => {
                 logger.log("canvasElt", canvasElt);
 
-                return fabricIntegration.getFColor__atPos(canvasElt, pos__cursor__screen);
+                // return fabricIntegration.getFColor__atPos(canvasElt, pos__cursor__screen);
+                return fabricIntegration.getFColor__atPos(canvasElt, pos);
               });
 
             out_p = color_p;
@@ -40882,6 +40927,7 @@
           logger.log("pos", pos.x, pos.y);
 
           const ctx = canvas.getContext("2d");
+          // const ctx = canvas.contextContainer;
           logger.log("ctx", ctx);
 
           const px = ctx.getImageData(pos.x, pos.y, 1, 1).data;
@@ -45803,6 +45849,7 @@
                 const isCosmetic = keyboardIntegration.keyDownToggles.altLeft.isActive;
                 const cfg = {
                   isCosmetic: isCosmetic,
+                  isAdhesive: inputProperties.brushIsAdhesive,
                 };
                 if (isActive) {
                   fabricIntegration.enterFreeDrawing(cfg);
@@ -45925,13 +45972,13 @@
                   return;
                 } else {
 
-                  if (isActive) {
-                    const type = "conveyor";
-                    // const type = "shadePossessor";
-                    fabricIntegration.enterPathmadeOperatorPathDrawing__composite(type);
-                  } else {
-                    fabricIntegration.leavePathmadeOperatorPathDrawing__composite();
-                  }
+                  // if (isActive) {
+                  //   const type = "conveyor";
+                  //   // const type = "shadePossessor";
+                  //   fabricIntegration.enterPathmadeOperatorPathDrawing__composite(type);
+                  // } else {
+                  //   fabricIntegration.leavePathmadeOperatorPathDrawing__composite();
+                  // }
 
                 }
 
@@ -46620,10 +46667,12 @@
                 case "Digit9":
                   {
                     // keyboardIntegration.infiniteCanvas.addNewCountdown();
-                    keyboardIntegration.infiniteCanvas.addNewIcEngined_debug();
+                    // keyboardIntegration.infiniteCanvas.addNewIcEngined_debug();
 
                     // keyboardIntegration.infiniteCanvas.manageMoveEvent_debug();
                     // keyboardIntegration.infiniteCanvas.addNewCounter();
+
+                    inputProperties.updateBrush__toggleAdhesive();
                   }
                   break;
 
@@ -72682,7 +72731,7 @@
 
           // this.debug_zScroll_composite();
           
-          // this.debug_zIndexFreeDrawing();
+          this.debug_zIndexFreeDrawing();
 
           // this.debug_fObjOverlapping();
 
