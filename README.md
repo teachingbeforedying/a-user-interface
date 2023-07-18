@@ -1,5 +1,4 @@
-<img src="./img/ic_better_logo2.png" width="50%" height="50%">
-<img src="./img/zScrollzIndexFreeDraw.png" width="50%" height="50%">
+<img src="./img/ezgif-1-c40d1c86f3.gif" width="50%" height="50%">
 
 ## Try it !
 (Keep ² or ` key pressed (right above TAB) and click to draw)    
