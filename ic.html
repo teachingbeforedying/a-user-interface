@@ -419,6 +419,30 @@
       }
 
 
+      static colorWithLightness(color, lightness) {
+
+      }
+
+      static fColorWithLightness(fColor, lightness) {
+        var outFColor;
+
+        const hslaString__old = fColor.toHsla();
+        logger.log("logColor", "hslaString__old", hslaString__old);
+
+        //example: "hsla( 300 , 50% , 80% , 0.5 )"
+        const regex__lightness = /(hsla\(.*,.*,)(.*)(%,.*\))/;
+
+        const str__lightness__new = math.floor(lightness * 100);
+
+        const hslaString__new = hslaString__old.replace(regex__lightness, "$1" + str__lightness__new + "$3");
+        logger.log("logColor", "hslaString__new", hslaString__new);
+
+        outFColor = fabric.Color.fromHsla(hslaString__new);
+
+        return outFColor;
+      }
+
+
     }
 
 
@@ -22376,6 +22400,52 @@
 
       }
 
+      manageUpdate__lightness(lightness) {
+
+        if(fabricIntegration.fabricCanvas.isDrawingMode && mouseIntegration.leftMouseDown) {
+        //   //--- Simulate a natural mouse-click sequence.
+
+          const func_inBetween = function() {
+            fabricIntegration.configureFreeDrawingBrush({lightness: lightness});
+          };
+
+          fabricIntegration.simulateMouseUpDown__with_freeDrawingBrush(() => {
+            fabricIntegration.leaveFreeDrawing__atomic();
+            func_inBetween();
+            fabricIntegration.enterFreeDrawing__atomic({isCosmetic: false});
+          });
+
+        } else {
+          //get selected objects
+          const arr_rep_free_selected = this.getArr_selected_rep_free();
+
+          //version 1: update object's main color
+            // const rgbaColorString = inputProperties.getActiveRgbaColorString();
+
+            // //update main color of object
+            // arr_rep_free_selected.forEach((rep_free, i) => {
+            //   switch(rep_free.type) {
+            //     case "rect":
+            //       rep_free.fill = rgbaColorString;
+            //       break;
+            //     case "text":
+            //       rep_free.textColor = rgbaColorString;
+            //       break;
+            //     default:
+            //       rep_free.fill = rgbaColorString;
+            //       break;
+            //   }
+            // });
+
+          //version 2: update object's lightness
+          arr_rep_free_selected.forEach((rep_free, i) => {
+            rep_free.lightness = lightness;
+          });
+
+        }
+
+      }
+
       manageUpdate__brushWidth(brushWidth) {
 
         if(fabricIntegration.fabricCanvas.isDrawingMode && mouseIntegration.leftMouseDown) {
@@ -39589,6 +39659,14 @@
                   brush.color = fColor.toRgba();
                 }
                 break;
+              case "lightness":
+                {
+                  const fColor__old = new fabric.Color(brush.color);
+                  const lightness = v;
+                  const fColor__new = ColorUtils.fColorWithLightness(fColor__old, lightness);
+                  brush.color = fColor__new.toRgba(); 
+                }
+                break;
               case "width":
                 {
                   brush.width = v;
@@ -42152,6 +42230,18 @@
           return v;
         }
 
+        static vector_2d__normalized(v_in) {
+          var outV;
+
+          const d = Geometry.norm_2d(v_in);
+          outV = {
+            X: v_in.X / math.sqrt(d),
+            Y: v_in.Y / math.sqrt(d),
+          };
+          
+          return outV;
+        }
+
         static translatedPoint(point, v) {
           const x = point.x + v.X;
           const y = point.y + v.Y;
@@ -42365,6 +42455,10 @@
           }
 
           return angleInDegrees_bounded;
+        }
+
+        static pointWithRotation__rad(point_from, point_center, angleInRadians) {
+          return Geometry.pointWithRotation(point_from, point_center, angleInRadians * 180.0 / math.PI);
         }
 
         static pointWithRotation(point_from, point_center, angleInDegrees) {
@@ -42620,6 +42714,89 @@
           };
           return outRect;
         }
+
+
+
+
+
+
+        static getArr_extangent_point__circleCircle(p1,r1,p2,r2) {
+          logger.log("logZSegment", "getArr_extangent_point__circleCircle", p1,r1,p2,r2);
+
+          var outArr;
+
+          //get small/big
+          const [c__min, c__max] = [{p: p1, r: r1}, {p: p2, r: r2}].sort((obj1,obj2) => {
+            return obj1.r < obj2.r;
+          });
+          logger.log("logZSegment", "c__min", c__min);
+          logger.log("logZSegment", "c__max", c__max);
+
+          // const c__diff = {
+          //   p: c__max.p,
+          //   r: c__max.r - c__min.r,
+          // };
+          // const [point__B1, point__B2] = Geometry.getArr_tangent_point__circlePoint(c__diff.p, c__diff.r, c__min.p);
+
+          const v = Geometry.vector_2d(c__min.p, c__max.p);     
+          logger.log("logZSegment", "v", v);
+
+          const d = Geometry.norm_2d(v);
+          logger.log("logZSegment", "d", d);
+
+          const angle__gamma = -Math.atan2( (c__max.p.y - c__min.p.y) , (c__max.p.x - c__min.p.x) );
+          logger.log("logZSegment", "angle__gamma", angle__gamma);
+
+          
+          outArr = [-1,1].reduce((acc,sign) => {
+            const angle__beta  = sign * Math.asin( (c__max.r - c__min.r) / d);
+            const angle__alpha = angle__gamma - angle__beta;
+            
+            const arr__point = [
+              {
+                x: c__min.p.x + sign * c__min.r * Math.sin(angle__alpha),
+                y: c__min.p.y + sign * c__min.r * Math.cos(angle__alpha),
+              },
+              {
+                x: c__max.p.x + sign * c__max.r * Math.sin(angle__alpha),
+                y: c__max.p.y + sign * c__max.r * Math.cos(angle__alpha),
+              },
+            ];
+            logger.log("logZSegment", "arr__point", arr__point);
+
+            acc.push(arr__point);
+            
+            return acc;  
+            
+          }, []);
+        
+          return outArr;
+        }
+
+        static getArr_tangent_point__circlePoint(p1,r1,p2) {
+          const v = Geometry.vector_2d(p2, p1);     
+          const d = Geometry.norm_2d(v);
+          const v__normalized = Geometry.vector_2d__normalized(v);
+          
+          // const angle__beta = math.asin(r1/d);
+          // const s = d * math.cos(angle__beta);
+
+          const angle__kappa = math.acos(r1/d);
+          
+          const point__A  = {
+            x: p1.x - v__normalized.X * r1,
+            y: p1.y - v__normalized.Y * r1,
+          };
+
+          const point__B1 = Geometry.pointWithRotation__rad(point__A, p1, +angle__kappa);
+          const point__B2 = Geometry.pointWithRotation__rad(point__A, p1, -angle__kappa);
+
+          return [point__B1, point__B2];
+        }
+
+        // static getArr_tangent_line_eq__circlePoint(p1,r1,p2) {     
+        //
+        // }
 
 
       }
@@ -45513,9 +45690,12 @@
 
           this.setNextColor(0);
 
-          this.opacity = 1.0;
+          this.opacity   = 1.0;
+          this.lightness = 0.5;
+          
           const screment = 0;
           this.setNextOpacity(screment);
+          this.setNextLightness(screment);
 
 
           this.fColor__working = null;
@@ -45638,21 +45818,56 @@
           debug.setActiveColor(this.getActiveRgbaColorString());
         }
 
+
+        getActiveLightness() {
+          return this.lightness;
+        }
+
+        setNextLightness(screment) {
+          console.log("setNextLightness", screment);
+
+          const lightness_prev = this.lightness;
+
+          const step_lightness = 0.1;
+          const screment_lightness = step_lightness * (-screment);
+
+          const lightness_bounded = Math.min(1.0, Math.max(0.0, lightness_prev + screment_lightness));
+          this.lightness = lightness_bounded;
+
+          if (this.fColor__working != null) {
+            // this.fColor__working.setAlpha(brightness_bounded);
+            this.fColor__working = ColorUtils.fColorWithLightness(this.fColor__working, this.lightness);
+          }
+
+          //debug
+          const rgbaColorString = this.getActiveRgbaColorString();
+          logger.log("logColor", "rgbaColorString", rgbaColorString);
+          ic_HUD.setActiveColor(rgbaColorString);
+          debug.setActiveColor(rgbaColorString);
+        }
+
+
+
         getActiveFColor() {
           var outFColor;
 
           if (this.fColor__working != null) {
             outFColor = this.fColor__working;
           } else {
-            const color   = this.getActiveColor();
-            const opacity = this.getActiveOpacity();
+            const color      = this.getActiveColor();
+            
+            const opacity    = this.getActiveOpacity();
+            const lightness  = this.getActiveLightness();
 
-            const fColor = new fabric.Color(color);
+
+            var fColor = new fabric.Color(color);
             if(color == "transparent") {
               fColor.setAlpha(0);
             } else {
               fColor.setAlpha(opacity);
             }
+
+            fColor = ColorUtils.fColorWithLightness(fColor, lightness);
 
             outFColor = fColor;
           }
@@ -47743,6 +47958,10 @@
 
           function onMouseWheel(event) {
 
+            if (keyboardIntegration.keyDownToggles.c.isActive && keyboardIntegration.keyDownToggles.v.isActive) {
+              lightnessScroll(event);
+            } 
+            /**/else/**/ 
             if (keyboardIntegration.keyDownToggles.c.isActive) {
               infiniteCanvas.isColorPickerAvailable = false;    //disable colorPicker when colorScroll has been used
               colorScroll(event);
@@ -47801,6 +48020,15 @@
 
               const opacity = inputProperties.getActiveOpacity();
               infiniteCanvas.manageUpdate__opacity(opacity);
+            }
+
+            function lightnessScroll(event) {
+              const deltaY = event.deltaY;
+              const screment = deltaY > 0 ? 1 : -1;
+              inputProperties.setNextLightness(screment);
+
+              const lightness = inputProperties.getActiveLightness();
+              infiniteCanvas.manageUpdate__lightness(lightness);
             }
 
             function brushWidthScroll(event) {
@@ -72877,7 +73105,7 @@
 
           // this.debug_zScroll_composite();
           
-          this.debug_zIndexFreeDrawing();
+          // this.debug_zIndexFreeDrawing();
 
           // this.debug_fObjOverlapping();
 
@@ -72886,6 +73114,8 @@
           // this.debug_touch();
 
           // this.debug_decoration();
+
+          // this.debug_zSegment();
 
           // this.debug_th();
 
@@ -77693,6 +77923,50 @@
         }
 
 
+        debug_zSegment() {
+
+          //same homeScale
+          {
+            const p1 = {
+              x: 1000,
+              y: 200,
+            };
+            const r1 = 100;
+            const c1 = infiniteCanvas.createIcCircle(p1, r1);
+            c1.fill = "";
+            infiniteCanvas.addIcObject(c1);
+            
+
+            const p2 = {
+              x: 1500,
+              y: 800,
+            };
+            const r2 = 400;
+            const c2 = infiniteCanvas.createIcCircle(p2, r2);
+            c2.fill = "";
+            infiniteCanvas.addIcObject(c2);
+
+
+
+            const arr__arr_point = Geometry.getArr_extangent_point__circleCircle(p1,r1,p2,r2);
+            logger.log("logZSegment", "arr__arr_point", arr__arr_point);
+
+            
+            arr__arr_point.forEach(([pE1, pE2]) => {
+              logger.log("logZSegment", "[pE1,pE2]", [pE1,pE2]);
+              const icSegment = infiniteCanvas.createIcSegment(pE1, pE2);
+              infiniteCanvas.addIcObject(icSegment);
+            });
+
+          }
+
+
+
+        }
+
+
+
+
 
 
 
@@ -80891,7 +81165,7 @@
             const img__captured = rep_free__eye.img__captured;
 
             const arr_brightness = [...Array(11).keys()].map(index => index * 0.1);
-            const arr_contrast = [...Array(11).keys()].map(index => index * 0.1);
+            const arr_contrast   = [...Array(11).keys()].map(index => index * 0.1);
 
             arr_brightness.forEach((value__brightness, i) => {
               arr_contrast.forEach((value__contrast, j) => {
