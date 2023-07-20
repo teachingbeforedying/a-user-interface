@@ -8079,14 +8079,14 @@
         const type = "polygon";
         const rect__enveloppe = Geometry.getEnveloppeRect(arr_point);
 
-        const position = Geometry.createPoint(rect__enveloppe.x, rect__enveloppe.y);
-        const size = Geometry.createSize(rect__enveloppe.width, rect__enveloppe.height);
+        const position  = Geometry.createPoint(rect__enveloppe.x, rect__enveloppe.y);
+        const size      = Geometry.createSize(rect__enveloppe.width, rect__enveloppe.height);
         const homeScale = Object.assign({}, this.scale);
 
         const icObj = this.createIcObject(type, position, size, homeScale);
 
         const cfg_default = {
-          stroke: "red",
+          stroke:    "red",
           fillColor: "blue",
         };
         const cfg = cfg_in ? Object.assign(cfg_default, cfg_in) : cfg_default;
@@ -8095,7 +8095,7 @@
           arr_point: arr_point,
 
           "stroke": cfg.stroke,
-          "fill": cfg.fillColor,
+          "fill":   cfg.fillColor,
         };
 
         const icPolygon = Object.assign(icObj, icPolygon_spec);
@@ -9342,7 +9342,7 @@
           // width: width,
           // height: height,
           point_start: point_start,
-          point_end: point_end,
+          point_end:   point_end,
 
           stroke: "#000000",    //default
         };
@@ -10886,6 +10886,50 @@
         return icPathmadeOperator;
       }
 
+
+
+      // createIcZSegment(icCircle1, icCircle2) {
+      createIcZSegment(p__start,r__start, p__end,r__end) {
+        const infiniteCanvas = this;
+
+        const icCircle__start = infiniteCanvas.createIcCircle(p__start, r__start);
+        icCircle__start.fill  = "";
+
+        const icCircle__end   = infiniteCanvas.createIcCircle(p__end, r__end);
+        icCircle__end.fill    = "";
+
+        const arr__arr_point = Geometry.getArr_extangent_point__circleCircle(p__start,r__start, p__end,r__end);
+        // logger.log("logZSegment", "arr__arr_point", arr__arr_point);
+
+        const arr_point = [arr__arr_point[0][0], arr__arr_point[0][1], arr__arr_point[1][1], arr__arr_point[1][0]];
+        const icPolygon = infiniteCanvas.createIcPolygon(arr_point);
+        icPolygon.fill  = "rgba(100,100,150,0.5)";
+
+        const parts = {
+      	  "zPoint_start": icCircle__start,
+	        "zPoint_end":   icCircle__end,
+          "zsstroke":     icPolygon,
+        };
+
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+
+        const trueRect__composite = {
+          x:      p__start.x - r__start,
+          y:      p__start.y - r__start,
+          width:  r__start / 4.0,
+          height: r__start / 4.0,
+        };
+        const icComposite = this.createIcComposite(trueRect__composite, parts, compositeConfig);
+        icComposite.cType = "zSegment";
+
+
+        const icZSegment = icComposite;
+
+        const engine_zSegment = new ZSegmentEngine();
+        infiniteCanvas.installEngineOnIcObj(icZSegment, "zSegment", engine_zSegment);
+
+        return icZSegment;
+      }
 
 
 
@@ -30764,6 +30808,336 @@
 
 
 
+      class ZSegmentEngine {
+        constructor() {
+
+          this.initialized = false;
+
+          this.initialize = function (scopeObj) {
+
+            //"wake up":
+            //bind all funcs
+            // function isFunction(functionToCheck) {
+            //   return functionToCheck && {}.toString.call(functionToCheck) === '[object Function]';
+            // }
+            const isFunction = value => value && (Object.prototype.toString.call(value) === "[object Function]" || "function" === typeof value || value instanceof Function);
+
+            this.awoken = {
+              'i_am': "awoken",
+            };
+            console.log("this.virgin", this.virgin);
+            Object.entries(this.virgin)
+              .filter(([propName, prop]) => isFunction(prop))
+              .forEach(([propName, prop], i) => {
+                this.awoken[propName] = prop.bind(this.awoken);
+              });
+
+            // this.scopeObj  = scopeObj;
+            //engineCarrier,
+            //infiniteCanvas,
+            this.awoken.scopeObj = scopeObj;
+
+            this.initialized = true;
+          };
+
+
+          this.createZSStrokeListener = function () {
+
+            const zsstroke__listener = (representation, propName, oldValue, newValue) => {
+              // logger.log("zsstroke__listener");
+              const updatesDict = {
+                [propName]: {
+                  old: oldValue,
+                  new: newValue,
+                },
+              };
+              this.manageZSStrokeUpdate(representation, updatesDict);
+            };
+
+            return zsstroke__listener;
+          };
+
+
+          this.createZPointListener = function () {
+
+            const zPoint__listener = (representation, propName, oldValue, newValue) => {
+              const updatesDict = {
+                [propName]: {
+                  old: oldValue,
+                  new: newValue,
+                },
+              };
+              this.manageZPointUpdate(representation, updatesDict);
+            };
+
+            return zPoint__listener;
+          };
+
+
+
+          this.createListeners = function () {
+            var outListenersDict = {};
+
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const handle         = this.scopeObj.engineCarrier;
+
+            //get free_rep
+            const handle__represented = infiniteCanvas.getRepresented(handle.id);
+            const handle__rep_free    = handle__represented.r_free();
+
+            //zsstroke
+            {
+              const zsstroke__listener = this.createZSStrokeListener();
+              const id__zsstroke = handle__rep_free.parts.zsstroke.id;
+              outListenersDict[id__zsstroke] = zsstroke__listener;
+            }
+
+            //zPoints
+            //zPoint_start
+            {
+              const zPoint__listener = this.createZPointListener();
+              const id__zPoint_start = handle__rep_free.parts.zPoint_start.id;
+              outListenersDict[id__zPoint_start] = zPoint__listener;
+            }
+
+            //zPoint_end
+            {
+              const zPoint__listener = this.createZPointListener();
+              const id__zPoint_end = handle__rep_free.parts.zPoint_end.id;
+              outListenersDict[id__zPoint_end] = zPoint__listener;
+            }
+
+            return outListenersDict;
+          };
+
+
+
+
+          // this.getArr_everyone = function () {
+
+          //   const infiniteCanvas = this.scopeObj.infiniteCanvas;
+          //   const handle = this.scopeObj.engineCarrier;
+
+
+          //   //get free_rep
+          //   const handle__represented = infiniteCanvas.getRepresented(handle.id);
+          //   const handle__rep_free = handle__represented.r_free();
+
+          //   const parts = handle__rep_free.parts;
+
+          //   return [handle__rep_free] + Object.values(parts);
+          // };
+
+          // this.getArr_everyoneBut = function (rep) {
+          //   const arr_everyoneElse = this.getArr_everyone().filter(rep => rep.id != solo_rep.id);
+          //   return arr_everyoneElse;
+          // };
+
+          // this.onEveryoneBut = function (solo_rep) {
+          //   const arr_everyoneElse = this.getArr_everyoneBut(solo_rep);
+          //   arr_everyoneElse.forEach((rep, i) => {
+          //     const listener = this.listeners[rep.id];
+          //     rep.onInnerUpdate(listener);
+          //   });
+          // };
+
+          // this.offEveryoneBut = function (rep) {
+          //   const arr_everyoneElse = this.getArr_everyoneBut(solo_rep);
+          //   arr_everyoneElse.forEach((rep, i) => {
+          //     const listener = this.listeners[rep.id];
+          //     rep.offInnerUpdate(listener);
+          //   });
+          // };
+
+
+          //zsstroke update
+          this.manageZSStrokeUpdate = function (icObj_compositePart, outerUpdatesDict) {
+
+          };
+
+          this.updateZSStroke = function() {
+            logger.log("logZSegment", "updateZZStroke");
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const handle         = this.scopeObj.engineCarrier;
+
+            //get free_rep
+            const handle__represented = infiniteCanvas.getRepresented(handle.id);
+            const handle__rep_free    = handle__represented.r_free();
+
+            const c1 = handle__rep_free.parts.zPoint_start;
+            const c2 = handle__rep_free.parts.zPoint_end;
+            
+            const p1 = c1.position;
+            const p2 = c2.position;
+            
+            const r1 = c1.radius;
+            const r2 = c2.radius;
+            const r1__screen = r1 * 1.0 / c1.homeScale.X * c1.scale.X;
+            const r2__screen = r2 * 1.0 / c2.homeScale.X * c2.scale.X;
+            
+            const arr__arr_point = Geometry.getArr_extangent_point__circleCircle(p1,r1__screen,p2,r2__screen);
+            // logger.log("logZSegment", "arr__arr_point", arr__arr_point);
+            const arr_point = [arr__arr_point[0][0], arr__arr_point[0][1], arr__arr_point[1][1], arr__arr_point[1][0]];
+
+
+            const rect__enveloppe = Geometry.getEnveloppeRect(arr_point);
+
+            const position        = Geometry.createPoint(rect__enveloppe.x, rect__enveloppe.y);
+            const size            = Geometry.createSize(rect__enveloppe.width, rect__enveloppe.height);
+
+
+            const rep_free__zsstroke = handle__rep_free.parts.zsstroke;
+
+            const listener__zsStroke = this.listeners[rep_free__zsstroke.id];
+            rep_free__zsstroke.offInnerUpdate(listener__zsStroke);
+            rep_free__zsstroke.position  = position;
+            rep_free__zsstroke.size      = size;
+            rep_free__zsstroke.onInnerUpdate(listener__zsStroke);
+
+            rep_free__zsstroke.arr_point = arr_point; 
+          };
+
+          //zPoint update
+          this.manageZPointUpdate = function (icObj_zPoint, outerUpdatesDict) {
+
+            //SHU FLUID
+            logger.log("manageZPointUpdate", icObj_zPoint, outerUpdatesDict);
+
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const handle         = this.scopeObj.engineCarrier;
+
+            const id__zPoint = icObj_zPoint.id;
+            console.log("id__zPoint", id__zPoint);
+
+            // const compositeConfig = handle.compositeConfig;
+            // console.log("compositeConfig", compositeConfig);
+            // const isMobile = compositeConfig[id__point].isMobile;
+
+            // if (isMobile) {
+
+            //get free_rep
+            const handle__represented = infiniteCanvas.getRepresented(handle.id);
+            const handle__rep_free    = handle__represented.r_free();
+
+            // const part__represented   = infiniteCanvas.getRepresented(icObj_compositePart.id);
+
+            // rep_free__composite.composite.managePartUpdate(rep_free__compositePart, outerUpdatesDict);
+            if (outerUpdatesDict.position != null || outerUpdatesDict.homeScale != null || outerUpdatesDict.scale != null) {
+
+              // var offset = {dx: 0, dy: 0};
+              // if (outerUpdatesDict.position != null) {
+              //   offset = {
+              //     dx: outerUpdatesDict.position.new.x - outerUpdatesDict.position.old.x,
+              //     dy: outerUpdatesDict.position.new.y - outerUpdatesDict.position.old.y,
+              //   };
+              // }
+
+              const rep_free__zsstroke = handle__rep_free.parts.zsstroke;
+              {
+
+                // const engine_compositeSegment = this.scopeObj.engineCarrier.dict_engine["compositeSegment"].engine.awoken;
+                // const listener__sStroke       = engine_compositeSegment.listeners[icSStroke.id];
+                // console.log("°°°listener", listener);
+
+                const listener__zsStroke = this.listeners[rep_free__zsstroke.id];
+
+                //listen:off
+                // rep_free__sstroke.offInnerUpdate(listener__sStroke);   //SHU: innerUpdate must be kept on for live update of zsstroke
+
+                //mutate
+                logger.log("mutating zsstroke:", rep_free__zsstroke.id);
+                {
+                  this.updateZSStroke();
+                }
+
+                //listen:on
+                // rep_free__sstroke.onInnerUpdate(listener__sStroke);   //SHU: innerUpdate must be kept on for live update of zsstroke
+              }
+
+            }
+
+            // }
+
+          };
+
+
+          this.start = function () {
+            console.log("ZSegmentEngine::start, this", this);
+            console.log("ZSegmentEngine::start", "this.scopeObj", this.scopeObj);
+
+            this.listeners = this.createListeners();
+
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const handle         = this.scopeObj.engineCarrier;
+
+            console.log("ZSegmentEngine.start", handle.id);
+
+            //get free_rep
+            const handle__represented = infiniteCanvas.getRepresented(handle.id);
+            const handle__rep_free    = handle__represented.r_free();
+
+            //listen to handle
+            // const handle__listener = this.listeners[handle.id];
+            // handle__rep_free.onInnerUpdate(handle__listener);
+
+            //listen to points
+            // const parts = handle__rep_free.parts;
+            // const arr_parts_all = Object.values(parts);
+
+            const arr_zPoint = [handle__rep_free.parts.zPoint_start, handle__rep_free.parts.zPoint_end];
+            arr_zPoint.forEach((zPoint__rep_free, i) => {
+              logger.log("zPoint__rep_free", zPoint__rep_free);
+
+              //set compositeId if not done yet         //SHU: horror
+              // part__rep_free.compositeId = handle__rep_free.id;
+
+              //'activate' listeners
+              logger.log("this.listeners", this.listeners);
+              const zPoint__listener = this.listeners[zPoint__rep_free.id];
+              logger.log("zPoint__listener", zPoint__listener);
+              // if(typeof part__rep_free.onInnerUpdate === "function") { //SHU HORROR
+              zPoint__rep_free.onInnerUpdate(zPoint__listener);
+              // }
+            });
+
+          };
+
+          this.stop = function () {
+
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const handle         = this.scopeObj.engineCarrier;
+
+            console.log("ZSegmentEngine.stop", handle);
+
+            //get free_rep
+            const handle__represented = infiniteCanvas.getRepresented(handle.id);
+            const handle__rep_free    = handle__represented.r_free();
+
+            // const handle__listener = this.listeners[handle.id];
+            // handle__rep_free.offInnerUpdate(handle__listener);
+
+            // const parts = handle__rep_free.parts;
+            // const arr_parts_all = Object.values(parts);
+            // arr_parts_all.forEach((part__rep_free, i) => {
+
+            //   // const part__listener = this.listeners[part__rep_free.id];
+            //   // part__rep_free.offInnerUpdate(part__listener);
+
+            //   this.removePart(part__rep_free);
+            // });
+
+          };
+
+
+
+          this.virgin = Object.assign({}, this);  //virgin == not bound
+
+
+        }
+
+      }
+
+
 
 
 
@@ -33103,6 +33477,10 @@
                 standardRedraw(fObj);
               }
               else if (propName == "point_start" || propName == "point_end") {
+                standardRedraw(fObj);
+              } 
+              else if(propName == "arr_point") {
+                fObj.points = icObj.arr_point;
                 standardRedraw(fObj);
               }
               else if (propName == "img") {
@@ -73105,7 +73483,7 @@
 
           // this.debug_zScroll_composite();
           
-          // this.debug_zIndexFreeDrawing();
+          this.debug_zIndexFreeDrawing();
 
           // this.debug_fObjOverlapping();
 
@@ -73115,7 +73493,7 @@
 
           // this.debug_decoration();
 
-          // this.debug_zSegment();
+          this.debug_zSegment();
 
           // this.debug_th();
 
@@ -77925,42 +78303,122 @@
 
         debug_zSegment() {
 
-          //same homeScale
+          // //same homeScale
+          // {
+          //   const p1 = {
+          //     x: 1000,
+          //     y: 200,
+          //   };
+          //   const r1 = 100;
+          //   const c1 = infiniteCanvas.createIcCircle(p1, r1);
+          //   c1.fill = "";
+          //   infiniteCanvas.addIcObject(c1);
+            
+
+          //   const p2 = {
+          //     x: 1500,
+          //     y: 800,
+          //   };
+          //   const r2 = 400;
+          //   const c2 = infiniteCanvas.createIcCircle(p2, r2);
+          //   c2.fill = "";
+          //   infiniteCanvas.addIcObject(c2);
+
+
+
+          //   const arr__arr_point = Geometry.getArr_extangent_point__circleCircle(p1,r1,p2,r2);
+          //   logger.log("logZSegment", "arr__arr_point", arr__arr_point);
+
+            
+          //   // arr__arr_point.forEach(([pE1, pE2]) => {
+          //   //   logger.log("logZSegment", "[pE1,pE2]", [pE1,pE2]);
+          //   //   const icSegment = infiniteCanvas.createIcSegment(pE1, pE2);
+          //   //   infiniteCanvas.addIcObject(icSegment);
+          //   // });
+
+          //   const arr_point = [arr__arr_point[0][0], arr__arr_point[0][1], arr__arr_point[1][1], arr__arr_point[1][0]];
+          //   const icPolygon = infiniteCanvas.createIcPolygon(arr_point);
+          //   icPolygon.fill = "rgba(100,100,150,0.5)";
+          //   infiniteCanvas.addIcObject(icPolygon);
+
+          // }
+
+          // //different homeScales
+          // {
+          //   const homeScale1 = {X: 1.5, Y: 1.5};
+          //   const homeScale2 = {X: 0.5, Y: 0.5};
+
+          //   const scale1 = {X: 10.7, Y: 10.7};
+          //   const scale2 = {X: 0.8, Y: 0.8};
+
+          //   const p1 = {
+          //     x: 3000,
+          //     y: 200,
+          //   };
+          //   const r1 = 100;
+          //   const c1 = infiniteCanvas.createIcCircle(p1, r1);
+          //   c1.fill = "";
+          //   c1.homeScale = homeScale1;
+          //   c1.scale     = scale1;
+          //   infiniteCanvas.addIcObject(c1);
+            
+
+          //   const p2 = {
+          //     x: 3500,
+          //     y: 800,
+          //   };
+          //   const r2 = 400;
+          //   const c2 = infiniteCanvas.createIcCircle(p2, r2);
+          //   c2.fill = "";
+          //   c2.homeScale = homeScale2;
+          //   c2.scale     = scale2;
+          //   infiniteCanvas.addIcObject(c2);
+
+
+          //   const r1__screen = r1 * 1.0 / c1.homeScale.X * c1.scale.X;
+          //   const r2__screen = r2 * 1.0 / c2.homeScale.X * c2.scale.X;
+          //   const arr__arr_point = Geometry.getArr_extangent_point__circleCircle(p1,r1__screen,p2,r2__screen);
+          //   logger.log("logZSegment", "arr__arr_point", arr__arr_point);
+
+            
+          //   // arr__arr_point.forEach(([pE1, pE2]) => {
+          //   //   logger.log("logZSegment", "[pE1,pE2]", [pE1,pE2]);
+          //   //   const icSegment = infiniteCanvas.createIcSegment(pE1, pE2);
+          //   //   infiniteCanvas.addIcObject(icSegment);
+          //   // });
+
+          //   const arr_point = [arr__arr_point[0][0], arr__arr_point[0][1], arr__arr_point[1][1], arr__arr_point[1][0]];
+          //   const icPolygon = infiniteCanvas.createIcPolygon(arr_point);
+          //   icPolygon.fill = "rgba(100,100,150,0.5)";
+          //   infiniteCanvas.addIcObject(icPolygon);
+
+          // }
+
+          //icObj
           {
             const p1 = {
-              x: 1000,
+              x: 5000,
               y: 200,
             };
             const r1 = 100;
-            const c1 = infiniteCanvas.createIcCircle(p1, r1);
-            c1.fill = "";
-            infiniteCanvas.addIcObject(c1);
             
 
             const p2 = {
-              x: 1500,
+              x: 5500,
               y: 800,
             };
             const r2 = 400;
-            const c2 = infiniteCanvas.createIcCircle(p2, r2);
-            c2.fill = "";
-            infiniteCanvas.addIcObject(c2);
 
+            try {
+              const icZSegment = infiniteCanvas.createIcZSegment(p1,r1,p2,r2);
+              logger.log("logZSegment", "icZSegment", icZSegment);
+              infiniteCanvas.addIcObject(icZSegment);
+            } catch(e) {
+              logger.log("logZSegment", "error:", e);
+            }
 
-
-            const arr__arr_point = Geometry.getArr_extangent_point__circleCircle(p1,r1,p2,r2);
-            logger.log("logZSegment", "arr__arr_point", arr__arr_point);
-
-            
-            arr__arr_point.forEach(([pE1, pE2]) => {
-              logger.log("logZSegment", "[pE1,pE2]", [pE1,pE2]);
-              const icSegment = infiniteCanvas.createIcSegment(pE1, pE2);
-              infiniteCanvas.addIcObject(icSegment);
-            });
 
           }
-
-
 
         }
 
