@@ -7104,6 +7104,11 @@
         this.isZScrollingPan      = false;
         this.hasBeenZscrollingPan = false;
 
+        this.isZSegmentDrawingMode              = false;
+        this.isZSegmentDrawingMode_zPointMoving = false;
+        this.id__zPointMoving                   = -1;
+
+
         this.isCombSetup            = false;
         this.step__combSetup        = 0;
         // this.counter__comb          = 0;
@@ -10893,9 +10898,12 @@
         const infiniteCanvas = this;
 
         const icCircle__start = infiniteCanvas.createIcCircle(p__start, r__start);
-        icCircle__start.fill  = "";
+        icCircle__start.stroke  = "blue";
+        icCircle__start.fill    = "";
+
 
         const icCircle__end   = infiniteCanvas.createIcCircle(p__end, r__end);
+        icCircle__end.stroke  = "red";
         icCircle__end.fill    = "";
 
         const enveloppeRect__circleCircle  = Geometry.getEnveloppeRect__circleCircle(p__start,r__start, p__end,r__end);
@@ -10903,31 +10911,15 @@
         const arr__arr_point = Geometry.getArr_extangent_point__circleCircle(p__start,r__start, p__end,r__end);
         // logger.log("logZSegment", "arr__arr_point", arr__arr_point);
         const arr_point = [arr__arr_point[0][0], arr__arr_point[0][1], arr__arr_point[1][1], arr__arr_point[1][0]];
-        // const enveloppeRect__arr_point     = Geometry.getEnveloppeRect(arr_point);
-
-        // const arr_point__refined = arr_point.map((point) => {
-        //   return {
-        //     x: point.x,
-        //     y: point.y,
-        //   };
-        // })
 
         const icPolygon = infiniteCanvas.createIcPolygon(arr_point);
-        // const icPolygon = infiniteCanvas.createIcPolygon(arr_point__refined);
-
-        // const position = {
-        //   x: enveloppeRect__circleCircle.x,
-        //   y: enveloppeRect__circleCircle.y,
-        // };
-        // const size = {
-        //   width:  enveloppeRect__circleCircle.width,
-        //   height: enveloppeRect__circleCircle.height,
-        // };
-        // icPolygon.position = position;
-        // icPolygon.size     = size;
-        // icPolygon.originX  = "left";
-        // icPolygon.originY  = "top";
-        icPolygon.fill  = "rgba(100,100,150,0.5)";
+        icPolygon.stroke = "rgba(150, 50,150,0.5)";
+        icPolygon.fill   = "rgba(200,200,200,0.3)";
+        icPolygon.homeScale = {
+          X: 1.0,
+          Y: 1.0,
+        };
+        
 
         const parts = {
       	  "zPoint_start": icCircle__start,
@@ -10935,7 +10927,10 @@
           "zsstroke":     icPolygon,
         };
 
-        const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+        // const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+        
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, true);
+        // compositeConfig[icPolygon.id].isMobile = false;
 
         const trueRect__composite = {
           // x:      p__start.x - r__start,
@@ -10947,6 +10942,17 @@
         };
         const icComposite = this.createIcComposite(trueRect__composite, parts, compositeConfig);
         icComposite.cType = "zSegment";
+
+        //deactivate composite listeners
+        infiniteCanvas.onceOnAddRepresentedForIcObject((icComposite), (icComposite) => {
+          const rep_free__icComposite = infiniteCanvas.getRepresented(icComposite.id).r_free();
+          const listeners__in_composite = rep_free__icComposite.dict_engine["composite"].engine.awoken.listeners;
+          Object.values(rep_free__icComposite.parts).forEach((rep_free__part) => {
+            const listener = listeners__in_composite[rep_free__part.id];
+            rep_free__part.offInnerUpdate(listener);
+          });
+        });
+
 
 
         const icZSegment = icComposite;
@@ -22727,6 +22733,7 @@
       }
 
 
+
       // zIndex
 
       enterZIndexEditing() {
@@ -22927,6 +22934,46 @@
 
         }
         
+      }
+
+
+      //zSegment
+
+      enterZSegmentDrawing(cfg) {
+        logger.log("logZSegment", "enterZSegmentDrawing", cfg);
+        this.isZSegmentDrawingMode = true;
+        
+        const fabricCanvas = fabricIntegration.fabricCanvas;
+
+        //change cursor appearance
+        {
+          const cursor__crosshair_custom = 'url("./img/ic/cursor__zSegment_64__better.png") 32 32, auto';
+
+          fabricCanvas.defaultCursor = cursor__crosshair_custom;
+          fabricCanvas.hoverCursor   = cursor__crosshair_custom;
+          fabricCanvas.moveCursor    = cursor__crosshair_custom;
+        }
+          
+        
+
+
+      }
+
+      leaveZSegmentDrawing() {
+        logger.log("logZSegment", "leaveZSegmentDrawing");
+
+        const fabricCanvas = fabricIntegration.fabricCanvas;
+
+        //reset cursor appearance
+        {
+          fabricCanvas.defaultCursor = "auto";
+          fabricCanvas.hoverCursor   = "auto";
+          fabricCanvas.moveCursor    = "auto";
+        }
+
+        this.id__zPointMoving                   = -1;
+        this.isZSegmentDrawingMode_zPointMoving = false;
+        this.isZSegmentDrawingMode              = false;
       }
 
 
@@ -31092,67 +31139,15 @@
               rep_free__zsstroke.position = {
                 x: rect_enveloppe__arr_point.x,
                 y: rect_enveloppe__arr_point.y,
-              }; 
+              };
+
+              rep_free__zsstroke.homeScale = {
+                X: 1.0,
+                Y: 1.0,
+              };
+
               rep_free__zsstroke.onInnerUpdate(listener__zsStroke);
             }
-
-            // //remove old zsstroke, add new zsstroke
-            // {
-            //   //remove old
-            //   const rep_free__zsstroke = handle__rep_free.parts.zsstroke;
-            //     //off listener
-            //   // const listener__zsStroke = this.listeners[rep_free__zsstroke.id];
-            //   // rep_free__zsstroke.offInnerUpdate(listener__zsStroke);
-
-            //     //store id
-            //   // const id__zzstroke       = rep_free__zsstroke.id;
-
-            //     //remove 
-            //   handle__rep_free.dict_engine["composite"].engine.awoken.removePart__shallow(rep_free__zsstroke);
-            //   setTimeout(() => {
-            //     rep_free__zsstroke.im_dying_now = true;
-            //   }, 1);
-
-            //   //add new
-            //   const icPolygon = infiniteCanvas.createIcPolygon(arr_point);
-            //   icPolygon.fill  = "";
-
-            //   // const rep_free__zPoint__moved = [c1,c2].find(c => c.id == id__zPoint);
-            //   // icPolygon.homeScale = {
-            //   //   X: rep_free__zPoint__moved.homeScale.X,
-            //   //   Y: rep_free__zPoint__moved.homeScale.Y,
-            //   // };
-            //   icPolygon.homeScale = {
-            //     X: c1.homeScale.X,
-            //     Y: c1.homeScale.Y,
-            //   };
-            //   logger.log("logZSegment", "icPolygon", icPolygon);
-
-            //     //reassign id
-            //   // icPolygon.id = id__zzstroke;
-            //   infiniteCanvas.addIcObject(icPolygon);
-            //   const rep_free__icPolygon = infiniteCanvas.getRepresented(icPolygon.id).r_free();
-
-            //     //add to composite
-            //   handle__rep_free.dict_engine["composite"].engine.awoken.addNamedPart("zsstroke", rep_free__icPolygon);
-            //   // handle__rep_free.parts.zsstroke = rep_free__icPolygon;
-
-            //   // handle__rep_free.dict_engine["composite"].engine.awoken.addPart(rep_free__icPolygon);
-
-            //     //reassign listener
-            //   // rep_free__icPolygon.onInnerUpdate(listener__zsStroke);
-
-
-            //   {
-            //     const listener__zsstroke = this.createZSStrokeListener();
-            //     const id__zsstroke = handle__rep_free.parts.zsstroke.id;
-            //     this.listeners[id__zsstroke] = listener__zsstroke;
-              
-            //     rep_free__icPolygon.onInnerUpdate(listener__zsstroke);
-            //   }
-
-            // }
-
 
           };
 
@@ -33559,13 +33554,13 @@
               fabricCanvas.renderAll();
             }
 
-            function hardRedraw() {   //REDRAw HACK
-              infiniteCanvas.updateScaleAndDOffset({
-                X: infiniteCanvas.scale.X * (1.0 + 1e-10),
-                Y: infiniteCanvas.scale.Y * (1.0 + 1e-10),
-              }, { dx: 0, dy: 0 });
-              infiniteCanvas.redrawCanvas(RedrawOccasion.scaleChanged);
-            }
+            // function hardRedraw() {   //REDRAw HACK
+            //   infiniteCanvas.updateScaleAndDOffset({
+            //     X: infiniteCanvas.scale.X * (1.0 + 1e-10),
+            //     Y: infiniteCanvas.scale.Y * (1.0 + 1e-10),
+            //   }, { dx: 0, dy: 0 });
+            //   infiniteCanvas.redrawCanvas(RedrawOccasion.scaleChanged);
+            // }
 
             const innerUpdateListener = (icObj_fRep, propName, oldValue, newValue) => {
               // logger.log("innerUpdateListener", icObj_fRep.id_rep, propName, newValue);
@@ -33660,42 +33655,6 @@
                 });
                 fObj._setPositionDimensions({});
                 fObj.setCoords();
-
-
-
-                // const currentShape = fObj;
-
-                // // adjust shape position by using minX and minY offsets
-                // // var minx = currentShape.get("minX");
-                // // var miny = currentShape.get("minY");
-                // const rect__enveloppe = Geometry.getEnveloppeRect(arr_point);
-                // var minx = rect__enveloppe.x;
-                // var miny = rect__enveloppe.y;
-                // currentShape.set({
-                //     left: currentShape.get("left") + minx,
-                //     top:  currentShape.get("top")  + miny,
-                // });
-
-                // // adjust points coordinates by 
-                // // 1- subtracting the center point coords 
-                // // 2- adding the left-top coords  
-                // // 3- subtracting minX and minY offsets
-                // var pCenter = currentShape.getCenterPoint();
-                // var l = currentShape.get("left");
-                // var t = currentShape.get("top");
-                // var adjPoints = currentShape.get("points").map(function(p) {
-                //     return {
-                //         x: p.x - pCenter.x + l - minx,
-                //         y: p.y - pCenter.y + t - miny
-                //     };
-                // });
-                // logger.log("logZSegment", "innerUpdate", "adjPoints", adjPoints);
-
-                // currentShape.set({
-                //   points: adjPoints,
-                // });
-                // fObj._setPositionDimensions({});
-                // fObj.setCoords();
 
                 standardRedraw(fObj);
               }
@@ -41206,6 +41165,139 @@
 
 
 
+        simulateMouseUpDown(func_inBetween) {
+            const fabricIntegration = this;
+            const fabricCanvas      = fabricIntegration.fabricCanvas;
+
+            globalsSingleton.functionCallsQueue.add(() => {
+
+              //step 1
+              const fCursor__mouseUp = fabricIntegration.getFCursor(false);
+              const x__mouseUp = fCursor__mouseUp.x;
+              const y__mouseUp = fCursor__mouseUp.y;
+              const mouseEvent__mouseUp = new MouseEvent("mouseup", {
+                isTrusted: true,
+                altKey : false, 
+                bubbles : true,
+                button : 0,
+                buttons : 0,
+                cancelBubble : false,
+                cancelable : true,
+                clientX: x__mouseUp,
+                clientY: y__mouseUp,
+                composed: true,
+                ctrlKey: false,
+                currentTarget: null,
+                defaultPrevented: false,
+                detail: 1,
+                eventPhase: 0,
+                fromElement: null,
+                layerX: x__mouseUp,
+                layerY: y__mouseUp,
+                metaKey: false,
+                movementX: 0,
+                movementY: 0,
+                offsetX: x__mouseUp,
+                offsetY: y__mouseUp,
+                pageX: x__mouseUp,
+                pageY: y__mouseUp,
+                relatedTarget: null,
+                returnValue: true,
+                screenX: x__mouseUp,
+                screenY: y__mouseUp,
+                shiftKey: false,
+                sourceCapabilities: new InputDeviceCapabilities({firesTouchEvents: false}),
+                srcElement: fabricCanvas.upperCanvasEl,
+                target:     fabricCanvas.upperCanvasEl,
+                timeStamp: 5848.39999999851,
+                toElement:  fabricCanvas.upperCanvasEl,
+                view: window,
+                which: 1,
+                x: x__mouseUp,
+                y: y__mouseUp,
+              });
+              const options__mouseUp = {
+                absolutePointer: fabricCanvas._absolutePointer,
+                button: 1,
+                e:       mouseEvent__mouseUp,
+                isClick: false,
+                pointer: fCursor__mouseUp,
+                subTargets: [],
+                target: null,
+                transform: null,
+              };
+              fabricCanvas._onMouseUp(options__mouseUp);
+
+            }).add(() => {
+              //step 2
+              func_inBetween();
+              
+            }).add(() => {
+              //step 3
+              const fCursor__mouseDown = fabricIntegration.getFCursor(false);
+              const x__mouseDown = fCursor__mouseDown.x;
+              const y__mouseDown = fCursor__mouseDown.y;
+              const mouseEvent__mouseDown = new MouseEvent("mousedown", {
+                isTrusted: true,
+                altKey : false, 
+                bubbles : true,
+                button : 0,
+                buttons : 1,
+                cancelBubble : false,
+                cancelable : true,
+                clientX: x__mouseDown,
+                clientY: y__mouseDown,
+                composed: true,
+                ctrlKey: false,
+                currentTarget: null,
+                defaultPrevented: false,
+                detail: 1,
+                eventPhase: 0,
+                fromElement: null,
+                layerX: x__mouseDown,
+                layerY: y__mouseDown,
+                metaKey: false,
+                movementX: 0,
+                movementY: 0,
+                offsetX: x__mouseDown,
+                offsetY: y__mouseDown,
+                pageX: x__mouseDown,
+                pageY: y__mouseDown,
+                relatedTarget: null,
+                returnValue: true,
+                screenX: x__mouseDown,
+                screenY: y__mouseDown,
+                shiftKey: false,
+                sourceCapabilities: new InputDeviceCapabilities({firesTouchEvents: false}),
+                srcElement: fabricCanvas.upperCanvasEl,
+                target:     fabricCanvas.upperCanvasEl,
+                timeStamp: 5848.39999999851,
+                toElement:  fabricCanvas.upperCanvasEl,
+                view: window,
+                which: 1,
+                x: x__mouseDown,
+                y: y__mouseDown,
+              });
+              const options__mouseDown = {
+                absolutePointer: fabricCanvas._absolutePointer,
+                button: 1,
+                e:       mouseEvent__mouseDown,
+                isClick: false,
+                pointer: fabricCanvas._pointer,
+                subTargets: [],
+                target: null,
+                transform: null,
+              };
+              fabricCanvas._onMouseDown(options__mouseDown);
+
+            });
+
+            // start the sequence
+            setTimeout(() => globalsSingleton.functionCallsQueue.next(), 1);
+        }
+
+
+
         //pathmade
 
         brushConfig__operatorPathDrawing() {
@@ -46787,9 +46879,6 @@
               d: new KeyDownToggle("d", KeyDownToggle.defaultKeyDownFunc(["KeyD"])),
               n: new KeyDownToggle("n", KeyDownToggle.defaultKeyDownFunc(["KeyN"])),
 
-
-
-
               shiftLeft: new KeyDownToggle("shiftLeft", KeyDownToggle.defaultKeyDownFunc(["ShiftLeft"]), (isActive) => {
                 //only side effect is used
               }),
@@ -46844,6 +46933,17 @@
                   fabricIntegration.enterFreeDrawing(cfg);
                 } else {
                   fabricIntegration.leaveFreeDrawing();
+                }
+                /**/
+              }),
+
+              q: new KeyDownToggle("q", KeyDownToggle.defaultKeyDownFunc(["KeyA"]), (isActive) => {
+                /**/
+                const cfg = {};
+                if (isActive) {
+                  infiniteCanvas.enterZSegmentDrawing(cfg);
+                } else {
+                  infiniteCanvas.leaveZSegmentDrawing();
                 }
                 /**/
               }),
@@ -47442,11 +47542,11 @@
                   }
                   break;
 
-                case "KeyA":
-                  {
-                    keyboardIntegration.infiniteCanvas.addNewCircle();
-                  }
-                  break;
+                // case "KeyA":
+                //   {
+                //     keyboardIntegration.infiniteCanvas.addNewCircle();
+                //   }
+                //   break;
 
                 case "KeyH":
                   {
@@ -48466,6 +48566,33 @@
               // if(infiniteCanvas.isCombSetup) {
               //   infiniteCanvas.leaveCombSetup();
               // }
+
+              if(infiniteCanvas.isZSegmentDrawingMode) {
+                //spawn zSegment
+                const p1 = infiniteCanvas.getTrueCursor();
+                const r1 = 50;
+                // const p2 = {
+                //   x: p1.x + 10,
+                //   y: p1.y + 10,
+                // };
+                const p2 = p1;
+                const r2 = 50;
+
+                const icZSegment = infiniteCanvas.createIcZSegment(p1, r1, p2, r2);
+                infiniteCanvas.addIcObject(icZSegment);
+
+                //hold zPoint__end
+                fabricIntegration.fabricCanvas.selection = false;
+                infiniteCanvas.isAltering = true;
+
+                const rep_free__zPoint__end = infiniteCanvas.getRepresented(icZSegment.parts.zPoint_end.id).r_free();
+                infiniteCanvas.setActiveObject(rep_free__zPoint__end);
+
+                  //make zPoint__end follow mouse cursor
+                  infiniteCanvas.isZSegmentDrawingMode_zPointMoving = true;
+                  infiniteCanvas.id__zPointMoving                   = rep_free__zPoint__end.id;
+
+              }
               
             } else if (event.button == 2) {
               mouseIntegration.rightMouseDown = true;
@@ -48483,9 +48610,17 @@
             infiniteCanvas.updateCursor(cursor);
 
 
-            // if (mouseIntegration.leftMouseDown) {
-            //   infiniteCanvas.manageCursorMove_line();
-            // }
+            if (mouseIntegration.leftMouseDown) {
+              // infiniteCanvas.manageCursorMove_line();
+
+              if(infiniteCanvas.isZSegmentDrawingMode_zPointMoving) {
+                const p = infiniteCanvas.getTrueCursor();
+
+                const rep_free__zPoint__end = infiniteCanvas.getRepresented(infiniteCanvas.id__zPointMoving).r_free();
+                rep_free__zPoint__end.position = p;
+              }
+
+            }
             /*else*/ if (mouseIntegration.rightMouseDown) {
               //console.log("onMouseMove", "rightMouseDown", "event", event);
 
