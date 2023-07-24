@@ -7109,6 +7109,9 @@
         this.id__zSegment                       = -1;
         this.id__zPointMoving                   = -1;
 
+        this.adhesive__support__icObj = null;
+        this.adhesive__isAdhesiveKick = false;
+
 
         this.isCombSetup            = false;
         this.step__combSetup        = 0;
@@ -7529,6 +7532,12 @@
         });
       }
 
+      getArr_icObj__containingPoint(repName = "official", truePoint) {
+        return this.getArr_icObj(repName).filter((rep_free__icObj) => {
+          return Geometry.isPointContainedInRect(truePoint, rep_free__icObj.getTrueRect2());
+        });
+      }
+
       getArrIcPoint_near(pos, repName = "official") {
         const arr_icObj = this.getArr_icObj(repName);
         const arr_icPoint = arr_icObj.filter(icObj => icObj.type == "point");
@@ -7586,7 +7595,14 @@
         return outIcObj;            
       }
 
+      getCandidateSupportUnderPoint(truePoint, icObj_to_adhere) {
+        var outIcObj;
 
+        const arr_icObj = this.getArr_icObj__containingPoint("free", truePoint).sort((icObj1, icObj2) => (icObj1.zIndex < icObj2.zIndex));
+        outIcObj = arr_icObj.find((icObj) => (icObj.zIndex < icObj_to_adhere.zIndex));
+
+        return outIcObj;            
+      }
 
 
 
@@ -40179,6 +40195,7 @@
           logger.log("logFD", "freeDrawing__adhesive__checkForSupport");
 
           const fabricIntegration = this;
+          const infiniteCanvas    = fabricIntegration.infiniteCanvas;
 
           const fCursor       = fabricIntegration.getFCursor(false);
           const fObj__support = fabricIntegration.getFObjAtFPosition(fCursor);
@@ -40191,7 +40208,7 @@
           if(fObj__support != null) {
             const icObj__support = fObj__support.icObj;
             if(icObj__support != null) {
-              this.adhesive__support__icObj = icObj__support;
+              infiniteCanvas.adhesive__support__icObj = icObj__support;
               logger.log("logFD", "freeDrawing__adhesive__checkForSupport", "icObj__support:", icObj__support);
 
             } 
@@ -40453,6 +40470,8 @@
         manageCreatedFreeDrawingObjects(arr_icFreeDrawing) {
           logger.log("logFD", "manageCreatedFreeDrawingObjects", arr_icFreeDrawing);
 
+          const infiniteCanvas = this.infiniteCanvas;
+
           var icObj__freeDrawing__result;
           if(arr_icFreeDrawing.length > 1) {
 
@@ -40479,7 +40498,7 @@
             // icComposite.opacity = 0;
 
             //add composite 
-            this.infiniteCanvas.addNewIcObject(icComposite);
+            infiniteCanvas.addNewIcObject(icComposite);
 
             icObj__freeDrawing__result = icComposite;
 
@@ -40493,12 +40512,25 @@
           const isAdhesive = arr_icFreeDrawing.find(e => true)?.exoObject.isAdhesive;
           if(isAdhesive) {
 
-            if((arr_icFreeDrawing.length > 0) && (this.adhesive__support__icObj != null)) {
-              const icObj__support           = this.adhesive__support__icObj;
-              const icObj__support__rep_free = infiniteCanvas.getRepresented(icObj__support.id).r_free(); //SHU: probably overkill
+            if((arr_icFreeDrawing.length > 0) && (infiniteCanvas.adhesive__support__icObj != null)) {
+              const icObj__support__start           = infiniteCanvas.adhesive__support__icObj;
+              const rep_free__icObj__support__start = infiniteCanvas.getRepresented(icObj__support__start.id).r_free(); //SHU: probably overkill
 
               //manage adhesion
-              this.infiniteCanvas.manageAdhesion(icObj__freeDrawing__result, icObj__support__rep_free);  
+              infiniteCanvas.manageAdhesion(icObj__freeDrawing__result, rep_free__icObj__support__start);  
+            }
+
+            if(infiniteCanvas.adhesive__isAdhesiveKick) {
+              const true_cursor = infiniteCanvas.getTrueCursor();
+              const icObj__support__end = infiniteCanvas.getCandidateSupportUnderPoint(true_cursor, icObj__freeDrawing__result);
+              if(icObj__support__end != null) {
+                const rep_free__icObj__support__end = infiniteCanvas.getRepresented(icObj__support__end.id).r_free();
+
+                //manage adhesion
+                infiniteCanvas.manageAdhesion(icObj__freeDrawing__result, rep_free__icObj__support__end);  
+              }
+
+              infiniteCanvas.adhesive__isAdhesiveKick = false;
             }
 
           }
@@ -40506,7 +40538,7 @@
 
           //clear
           this.arr_icFreeDrawing = [];
-          this.adhesive__support__icObj = null;
+          infiniteCanvas.adhesive__support__icObj = null;
         }
 
         simulateMouseUpInDrawingMode(func_after) {
@@ -43283,6 +43315,23 @@
                      r1.top < r2.top ||
                    r1.right > r2.right ||
                   r1.bottom > r2.bottom);
+        }
+
+        static isPointContainedInRect(point, rect) {
+          logger.log("logGeom", "isPointContainedInRect", "rect", rect);
+
+          const r1 = this.createLRTBRect({
+            left:   rect.x,
+            top:    rect.y,
+            width:  rect.width,
+            height: rect.height,
+          });
+          logger.log("logGeom", "isPointContainedInRect", "r1", r1);
+          
+          return !(  point.x <= r1.left  ||
+                     point.y <= r1.top   ||
+                     point.x >= r1.right ||
+                     point.y >= r1.bottom  );
         }
 
         static distance(p1, p2) {
@@ -47426,7 +47475,12 @@
                     if (keyboardIntegration.keyDownToggles.ctrlLeft.isActive) {
                       fabricIntegration.selectAll();
                     } else if (keyboardIntegration.keyDownToggles.intlBackslash.isActive) {
-                      infiniteCanvas.operateOnSelected__adhere();
+                      if(fabricIntegration.fabricCanvas.isDrawingMode) {
+                        logger.log("logAdhere", "adhesiveKick");
+                        infiniteCanvas.adhesive__isAdhesiveKick = true;
+                      } else {
+                        infiniteCanvas.operateOnSelected__adhere();
+                      }
                     }
                   }
                   break;
@@ -47862,6 +47916,13 @@
                       };
                       keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("c:objectAtIndex", cfg);
                     }
+
+                    // {
+                    //   const infiniteCanvas = keyboardIntegration.infiniteCanvas;
+                    //   const truePoint = infiniteCanvas.getTrueCursor();
+                    //   const arr_icObj = infiniteCanvas.getArr_icObj__containingPoint("free", truePoint);
+                    //   logger.log("logIC", "getArr_icObj__containingPoint", arr_icObj);
+                    // }
 
                   }
                   break;
