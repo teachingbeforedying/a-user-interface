@@ -17,6 +17,8 @@
       /* 17756649/disable-the-horizontal-scroll */
       max-width: 100%; overflow-x: hidden;
 
+      max-height: 100%; overflow-y: hidden;
+
       /* Prevent document pinch-zoom & touch-hold-to-highlight */
       touch-action: none;
 
@@ -6886,7 +6888,7 @@
     </div>
   </div>
   <script>
-    const canvas = document.getElementById("myCanvas");
+    const canvas  = document.getElementById("myCanvas");
     canvas.width  = window.innerWidth;
     canvas.height = window.innerHeight;
   </script>
@@ -13037,6 +13039,64 @@
 
         return icP2P;
       }
+
+
+      createIcCanvas(trueRect) {
+        const infiniteCanvas = this;
+
+        const type      = "icCanvas";
+        const position  = Geometry.createPoint(trueRect.x, trueRect.y);
+        const size      = Geometry.createSize(trueRect.width, trueRect.height);
+        const homeScale = Object.assign({}, this.scale);
+
+        const icObj = this.createIcObject(type, position, size, homeScale);
+
+
+        const canvas__iC  = document.createElement('canvas');
+        canvas__iC.width  = trueRect.width;
+        canvas__iC.height = trueRect.height;
+        document.body.appendChild(canvas__iC);
+
+        const dict__iC = create_iC(canvas__iC);
+
+        dict__iC.fabricIntegration.fabricCanvas.backgroundColor = "rgba(150,100,50,0.7)";
+
+        const icCanvas__spec = {
+          dict__iC: dict__iC,
+        };
+
+        const icCanvas = Object.assign(icObj, icCanvas__spec);
+
+        //debug
+        this.onceOnAddRepresentedForIcObject(icCanvas, (icCanvas) => {
+          const rep_free__icCanvas__child = infiniteCanvas.getRepresented(icCanvas.id).r_free();
+
+          {
+            const infiniteCanvas__child = dict__iC.infiniteCanvas;
+            setTimeout(() => {
+
+              const trueRect = {
+                x: 160,
+                y: 10,
+                width: 150,
+                height: 80,
+              };
+              const icRect = infiniteCanvas__child.createIcRect(trueRect);
+              icRect.fill = "orange";
+              infiniteCanvas__child.addIcObject(icRect);
+
+              //trigger img refresh
+              rep_free__icCanvas__child.position = Object.assign({}, rep_free__icCanvas__child.position);
+
+            }, 3000);
+          }
+        });
+
+        return icCanvas;
+      }
+
+
+
 
 
       createIcButton(trueRect, buttonConfig_in) {
@@ -19485,6 +19545,31 @@
         const icP2P = this.createIcP2P(trueRect);
         this.addNewIcObject(icP2P);
       }
+
+
+      addNewIcCanvas() {
+
+        const true_cursor = this.getTrueCursor();
+
+        const left = true_cursor.x;
+        const top  = true_cursor.y;
+
+        const width  = 320;   //"information" size
+        const height = 180;
+
+        const trueRect = {
+          x:      left,
+          y:      top,
+          width:  width,
+          height: height,
+        };
+
+        const icCanvas = this.createIcCanvas(trueRect);
+        this.addNewIcObject(icCanvas);
+      }
+
+
+
 
       addNewGreenMouseBox(mathNode) {
         const true_cursor = this.getTrueCursor();
@@ -33595,6 +33680,15 @@
                     fObj.setCoords();
                   }
                   break;
+                case "icCanvas":
+                  {
+                    logger.log("logICIC", "standardRedraw", "icCanvas");
+                    const fabricCanvas    = icObj.dict__iC.fabricIntegration.fabricCanvas;
+                    const el__lowerCanvas = fabricCanvas.lowerCanvasEl;
+                    fObj.setElement(el__lowerCanvas);
+                    fObj.setCoords();
+                  }
+                  break;
                 default:
                   break;
               }
@@ -34351,6 +34445,14 @@
             case "sparkle":
               {
                 const fObj = this.createFabricSparkleWithIcObj(icObj);
+                fObj_p = Promise.resolve(fObj);
+              }
+              break;
+
+              
+            case "icCanvas":
+              {
+                const fObj = this.createFabricCanvasWithIcObj(icObj);
                 fObj_p = Promise.resolve(fObj);
               }
               break;
@@ -37513,6 +37615,74 @@
         }
 
 
+
+        createFabricCanvasWithIcObj(icObj) {
+
+          // const scale  = infiniteCanvas.scale;
+          const fabricCanvas    = icObj.dict__iC.fabricIntegration.fabricCanvas;
+          const el__lowerCanvas = fabricCanvas.lowerCanvasEl;
+
+          var fObj = new fabric.Image(el__lowerCanvas);
+
+          fObj.set({
+            left: icObj.position.x,
+            top: icObj.position.y,
+
+            // width:  icObj.img.width,
+            // height: icObj.img.height,
+
+            // width:  icObj.size.width,
+            // height: icObj.size.height,
+
+            width: 100,
+            height: 100,
+
+            scaleX: icObj.scale.X,
+            scaleY: icObj.scale.Y,
+
+            flipX: icObj.flip.X,
+            flipY: icObj.flip.Y,
+
+            angle: icObj.orientation,
+
+            icObj: icObj,
+          });
+
+
+          if (icObj.force_width) {
+            const factor__force_width = icObj.width / icObj.img.width;
+            fObj.set({
+              scaleX: fObj.scaleX * factor__force_width,
+            });
+          }
+          if (icObj.force_height) {
+            const factor__force_height = icObj.height / icObj.img.height;
+            fObj.set({
+              scaleY: fObj.scaleY * factor__force_height,
+            });
+          }
+
+          //event listeners
+          if (icObj.canBeHeld) {
+            this.addInteraction_hold(fObj);
+          }
+          if (icObj.canBeMoved) {
+            this.addInteraction_move(fObj);
+          }
+          if (icObj.canBeResized) {
+            this.addInteraction_resize2(fObj);
+          }
+          if (icObj.canBeRotated) {
+            this.addInteraction_rotate(fObj);
+          }
+
+
+          this.addInteraction_select(fObj);
+          // this.addListeners(fObj);
+
+
+          return fObj;
+        }
 
 
 
@@ -48257,6 +48427,10 @@
                       //.isAltering-copy
                       const event = null;
                       fabricIntegration.copySelection(event);
+                    } else if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+
+                      keyboardIntegration.infiniteCanvas.addNewIcCanvas();
+
                     }
                   }
                   break;
@@ -49206,7 +49380,8 @@
 
     <script>
 
-      function create_iC() {
+      function create_iC(canvas) {
+        var outDict;
 
         const inputProperties      = new InputProperties();
 
@@ -49238,6 +49413,9 @@
         // const canvas = document.getElementById("myCanvas");
         const fabricIntegration = new FabricIntegration(infiniteCanvas, inputProperties);
         fabricIntegration.clipboardIntegration = clipboardIntegration;
+
+
+
 
         //debug {
         // console.log("fabricIntegration.fabricCanvas", fabricIntegration.fabricCanvas);
@@ -49595,7 +49773,7 @@
 
         // const touchIntegration    = new TouchIntegration(canvasContainer, infiniteCanvas, inputProperties);
 
-        const dict__iC = {
+        outDict = {
           infiniteCanvas:         infiniteCanvas,
           fabricIntegration:      fabricIntegration,
           inputProperties:        inputProperties,
@@ -49605,7 +49783,7 @@
           fileIntegration:        fileIntegration,
         };
 
-        return dict__iC;
+        return outDict;
       }
 
       //globals               //SHU: TODO? should be incorporated to globalsSingleton
@@ -49618,7 +49796,7 @@
       var fileIntegration;
 
       globalsSingleton.functionCallsQueue.add(() => {
-        const dict__iC = create_iC();
+        const dict__iC = create_iC(canvas);
         infiniteCanvas       = dict__iC.infiniteCanvas;
         fabricIntegration    = dict__iC.fabricIntegration;
         inputProperties      = dict__iC.inputProperties;
