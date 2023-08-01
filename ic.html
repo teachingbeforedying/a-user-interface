@@ -47025,6 +47025,7 @@
 
         update(e, down) {
           const updateValue = this.keyDownFunc(e, down);
+          logger.log("logKT", "updateValue", updateValue);
           if (updateValue != null) {
             if (this.isActive != updateValue) {
               this.isActive = updateValue;
@@ -47033,12 +47034,27 @@
           }
         }
 
-        static defaultKeyDownFunc(arr_keyCode) {
+        static defaultKeyDownFunc(arr_keyCode, propertyName = "code") {
           const keyDownFunc = (e, down) => {
+            logger.log("logKT", "keyDownFunc", arr_keyCode, e[propertyName], down);
+            
+            var str_code;
+            switch(propertyName) {
+              case "code":
+                str_code = e[propertyName]
+                break;
+              case "button":
+                str_code = "button" + e[propertyName]
+                break;
+              default:
+                throw new Error("unsupported propertyName: " + propertyName);
+            }
+            
             var updateValue;
 
             updateValue = arr_keyCode.reduce((acc, keyCode) => {
-              if (keyCode == e.code) {
+              // if (keyCode == e.code) {
+              if(keyCode == str_code) {
                 acc = down;
               }
               return acc;
@@ -48690,6 +48706,12 @@
                     return;
                   }
                   break;
+
+                case "Back":
+                  {
+                    e.preventDefault();
+                  }
+                  break;
                 default:
                   break;
               }
@@ -48880,6 +48902,8 @@
 
 
 
+
+
       class MouseIntegration {
 
         constructor(canvasContainer, infiniteCanvas, inputProperties, keyboardIntegration) {
@@ -48900,9 +48924,9 @@
           const mouseIntegration = this;
 
           const keyboardIntegration = this.keyboardIntegration;
-          const inputProperties = this.inputProperties;
+          const inputProperties     = this.inputProperties;
 
-          const infiniteCanvas = this.infiniteCanvas;
+          const infiniteCanvas      = this.infiniteCanvas;
 
 
           canvasContainer.addEventListener('mousedown', onMouseDown);
@@ -48911,8 +48935,330 @@
           canvasContainer.addEventListener('mousemove', onMouseMove,  false);
           canvasContainer.addEventListener('wheel',     onMouseWheel, false);
 
+
+
+          function configureKeyDownToggles() {
+
+            mouseIntegration.keyDownToggles = {
+              button3: new KeyDownToggle("button3", KeyDownToggle.defaultKeyDownFunc(["button3"], "button"), (isActive) => {
+                logger.log("logMouse", "KeyDownToggle", "button3", "isActive:", isActive);
+                
+                const isCosmetic = keyboardIntegration.keyDownToggles.altLeft.isActive;
+                const cfg = {
+                  isCosmetic: isCosmetic,
+                  isAdhesive: inputProperties.brushIsAdhesive,
+                };
+                if (isActive) {
+                  fabricIntegration.enterFreeDrawing(cfg);
+                } else {
+                  fabricIntegration.leaveFreeDrawing();
+                }
+
+              }),
+
+
+            };
+
+          }
+          configureKeyDownToggles();
+
+
+
+          function configureKeyDownTimeouts() {
+
+            const default_timeout_delayInMs = 17; //17 ms == 60 fps
+            const arrows_timeout_delayInMs = 500;
+
+            function create_keyDownFunc__custom_1(arr_keyCode) {
+              return (e, down) => {
+                var updateValue;
+
+                if (globalsSingleton.isEditing) {
+                  //ignore
+                  updateValue = null;
+                } else {
+                  updateValue = arr_keyCode.reduce((acc, keyCode) => {
+                  if (keyCode == e.code) {
+                    acc = down;
+                  }
+                  return acc;
+                }, null);
+                }
+
+                return updateValue;
+              };
+            }
+
+            function getScaleAmount(factor) {
+              var scaleAmount_for_100ms;
+              if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+                scaleAmount_for_100ms = factor * 0.3;
+              } else {
+                scaleAmount_for_100ms = factor * 0.1;
+              }
+
+              const scaleAmount = default_timeout_delayInMs / 100 * scaleAmount_for_100ms;
+              return scaleAmount;
+            }
+
+            mouseIntegration.keyDownTimeouts = {
+
+              // // a: new KeyDownTimeout("a", KeyDownToggle.defaultKeyDownFunc(["KeyQ"]), () => {
+              // a: new KeyDownTimeout("a", create_keyDownFunc__custom_1(["KeyQ"]), () => {
+
+              //   if (keyboardIntegration.keyDownToggles.ctrlLeft.isActive) {
+              //     //ignore
+              //     return;
+              //   }
+              //   if (keyboardIntegration.keyDownToggles.intlBackslash.isActive) {
+              //     //ignore
+              //     return;
+              //   }
+
+              //   const scaleAmount = getScaleAmount(-1);
+              //   if(keyboardIntegration.keyDownToggles.digit1.isActive) {
+              //     //craneScroll
+              //     keyboardIntegration.infiniteCanvas.manageUpdate__selectedObj__homeScale__withScaleAmount(scaleAmount);
+              //   } else {
+              //     //zScroll
+              //     keyboardIntegration.infiniteCanvas.manageUpdate__scale_withScaleAmount(scaleAmount);
+              //   }
+              
+              // }, default_timeout_delayInMs),
+
+              // // z: new KeyDownTimeout("z", KeyDownToggle.defaultKeyDownFunc(["KeyW"]), () => {
+              // z: new KeyDownTimeout("z", create_keyDownFunc__custom_1(["KeyW"]), () => {
+
+              //   const scaleAmount = getScaleAmount(+1);
+              //   if(keyboardIntegration.keyDownToggles.digit1.isActive) {
+              //     //craneScroll
+              //     keyboardIntegration.infiniteCanvas.manageUpdate__selectedObj__homeScale__withScaleAmount(scaleAmount);
+              //   } else {
+              //     //zScroll
+              //     keyboardIntegration.infiniteCanvas.manageUpdate__scale_withScaleAmount(scaleAmount);
+              //   }
+
+              // }, default_timeout_delayInMs),
+
+
+              // //arrows
+
+              // arrow_up: new KeyDownTimeout("arrow_up", KeyDownToggle.defaultKeyDownFunc(["ArrowUp"]), () => {
+              //   keyboardIntegration.infiniteCanvas.operateOnSupervessel__moveStep(0, -1);
+              // }, arrows_timeout_delayInMs),
+              // arrow_down: new KeyDownTimeout("arrow_down", KeyDownToggle.defaultKeyDownFunc(["ArrowDown"]), () => {
+              //   keyboardIntegration.infiniteCanvas.operateOnSupervessel__moveStep(0, +1);
+              // }, arrows_timeout_delayInMs),
+              // arrow_left: new KeyDownTimeout("arrow_left", KeyDownToggle.defaultKeyDownFunc(["ArrowLeft"]), () => {
+              //   keyboardIntegration.infiniteCanvas.operateOnSupervessel__moveStep(-1, 0);
+              // }, arrows_timeout_delayInMs),
+              // arrow_right: new KeyDownTimeout("arrow_right", KeyDownToggle.defaultKeyDownFunc(["ArrowRight"]), () => {
+              //   keyboardIntegration.infiniteCanvas.operateOnSupervessel__moveStep(+1, 0);
+              // }, arrows_timeout_delayInMs),
+
+            };
+
+          }
+          configureKeyDownTimeouts();
+
+
+          function configureKeyUpABToggles() {
+
+            mouseIntegration.keyUpABToggles = {
+              // ":": new KeyUpABToggle(":", KeyUpABToggle.defaultKeyUpFunc(["Period"]), (isModeA) => {
+              //   keyboardIntegration.fabricIntegration.setAntiAliasEnabled(isModeA);
+              // }),
+
+              // // "n": new KeyUpABToggle("n", KeyUpABToggle.defaultKeyUpFunc(["KeyN"]), (isModeA) => {
+              // //   keyboardIntegration.fabricIntegration.setSupervesselEnabled(isModeA);
+              // // }),
+
+              // // "d": new KeyUpABToggle("d", KeyUpABToggle.defaultKeyUpFunc(["KeyD"]), (isModeA) => {
+              // //   // const infiniteCanvas = keyboardIntegration.infiniteCanvas;
+              // //   // if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+              // //   //   if (!isModeA) {
+              // //   //     infiniteCanvas.createIcLine_start();
+              // //   //   } else {
+              // //   //     infiniteCanvas.createIcLine_end();
+              // //   //   }
+              // //   // } else {
+              // //   //   if (!isModeA) {
+              // //   //     infiniteCanvas.createIcHUDLine_start();
+              // //   //   } else {
+              // //   //     infiniteCanvas.createIcHUDLine_end();
+              // //   //   }
+              // //   // }
+              // // }),
+
+              // // "KeyZ": new KeyUpABToggle("w", KeyUpABToggle.defaultKeyUpFunc(["KeyZ"]), (isModeA) => {
+              // //   const infiniteCanvas = keyboardIntegration.infiniteCanvas;
+              // //   if (!isModeA) {
+              // //     infiniteCanvas.createIcBrokenLine_start();
+              // //   } else {
+              // //     infiniteCanvas.createIcBrokenLine_end();
+              // //   }
+              // // }),
+
+              // "^": new KeyUpABToggle("^", KeyUpABToggle.defaultKeyUpFunc(["BracketLeft"]), (isModeA) => {
+              //   const infiniteCanvas = keyboardIntegration.infiniteCanvas;
+              //   if (!isModeA) {
+              //     infiniteCanvas.debug_sparkleAnims(true);
+              //   } else {
+              //     infiniteCanvas.debug_sparkleAnims(false);
+              //   }
+              // }),
+
+              // "space": new KeyUpABToggle("space", KeyUpABToggle.defaultKeyUpFunc(["Space"]), (isModeA) => {
+              //   const infiniteCanvas = keyboardIntegration.infiniteCanvas;
+                
+              //   if(keyboardIntegration.keyDownToggles.digit1.isActive) {
+
+              //     if(!isModeA) {
+              //       inputProperties.homeScale              = Object.assign({}, infiniteCanvas.scale);
+              //       infiniteCanvas.lock_homeScale_isActive = true;
+              //     } else {
+              //       infiniteCanvas.lock_homeScale_isActive = false;
+              //     }
+
+              //   }
+
+              // }),
+
+            };
+
+          }
+          configureKeyUpABToggles();
+
+
+
+          function updateKeyDownToggles(e, down) {
+            const arr_keyDownToggles = Object.values(mouseIntegration.keyDownToggles);
+            arr_keyDownToggles.forEach((keyDownToggle, i) => {
+              logger.log("logMouse", "updateKeyDownToggles", "keyDownToggle", keyDownToggle);
+              keyDownToggle.update(e, down);
+            });
+          }
+
+          function updateKeyDownTimeouts(e, down) {
+            const arr_keyDownTimeouts = Object.values(mouseIntegration.keyDownTimeouts);
+            arr_keyDownTimeouts.forEach((keyDownTimeout, i) => {
+              keyDownTimeout.update(e, down);
+            });
+          }
+
+          function updateKeyUpABToggles(e) {
+            const arr_keyUpABToggles = Object.values(mouseIntegration.keyUpABToggles);
+            arr_keyUpABToggles.forEach((keyUpABToggle, i) => {
+              keyUpABToggle.update(e);
+            });
+          }
+
+
+          function handleKeyDownOnce(e) {
+            logger.log("logMouse", "handleKeyDownOnce", "e.button", e.button);
+
+            logger.log("globalsSingleton.isEditing", globalsSingleton.isEditing);
+            //prevent initial keyDown from propagating
+            // switch(e.code) {
+            //   case "KeyZ":
+            //   case "KeyB":
+            //     {
+            //       if (globalsSingleton.isEditing) {
+            //         if(infiniteCanvas.isNumberTyping) {
+            //           e.preventDefault();
+            //         }
+            //         return;
+            //       }
+            //     }
+            //     break;
+
+            //   // case "ShiftLeft":
+            //   // case "AltLeft":
+            //   //   {
+            //   //     e.preventDefault();
+            //   //     return;
+            //   //   }
+            //   //   break;
+
+            //   default:
+            //     break;
+            // }
+
+            // if (fabricIntegration.shouldIgnoreShortcutInput()) {
+            //   return;
+            // }
+
+            // //ignore KeyZ
+            // if(!infiniteCanvas.isNumberTyping && e.code == "KeyZ") {    //SHU: a bit complicated, it's to prevent MathQuill.mathField from starting with "w"
+            //   e.preventDefault();
+            // }
+            updateKeyDownToggles(e, true);
+            // updateKeyDownTimeouts(e, true);
+
+
+            // switch (e.code) {
+            //   /*
+            //   // case "ShiftLeft":
+            //   case "KeyZ":
+            //     handleKey_Shift(e);
+            //     break;
+            //   // case "ControlLeft":
+            //   case "KeyX":
+            //     handleKey_Ctrl(e);
+            //     break;
+            //   */
+
+            //   // case "AltLeft":
+            //   // case "AltRight":
+            //   //   keyboardIntegration.altKeyDown = true;
+            //   //   break;
+
+            //   case "KeyC":
+            //     {
+            //       keyboardIntegration.infiniteCanvas.isColorPickerAvailable = true;
+            //     }
+            //     break;
+              
+            //   case "KeyB":
+            //     {
+            //       keyboardIntegration.infiniteCanvas.isApparentWidthPickerAvailable = true;
+
+            //       if (keyboardIntegration.keyDownToggles.ctrlLeft.isActive) {
+            //           //batch paste
+            //           keyboardIntegration.infiniteCanvas.enterBatchPasting();
+            //       }
+            //     }
+            //     break;
+
+            //   default:
+            //     break;
+            // }
+          }
+
+
+
+
+
+
+
+
+
+
           // mouse functions
           function onMouseDown(event) {
+
+            if(event.repeat) {
+              updateKeyDownTimeouts(event, true);
+            } else {
+              handleKeyDownOnce(event);
+              updateKeyDownTimeouts(event, true);
+            }
+
+
+
+
+
+
             if (event.button == 0) {
               mouseIntegration.leftMouseDown  = true;
 
@@ -48995,6 +49341,11 @@
           function onMouseUp(event) {
             logger.log("logMouse", "onMouseUp", event);
 
+            updateKeyDownToggles(event, false);
+            updateKeyDownTimeouts(event, false);
+            updateKeyUpABToggles(event);
+
+
             if (event.button == 0) {
               mouseIntegration.leftMouseDown  = false;
 
@@ -49040,6 +49391,8 @@
                 infiniteCanvas.combSetup__addBrush();
               }
 
+            } else if(event.button == 3) {
+              event.preventDefault();
             }
 
             infiniteCanvas.logCursor();
