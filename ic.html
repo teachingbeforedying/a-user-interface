@@ -51,6 +51,8 @@
   <link href="lib/video-js.min.css" rel="stylesheet">
   <script src="lib/video.min.js"></script>
 
+  <script src="lib/wad.min.js"></script>
+
   <script src="lib/jszip.min.js" type='text/javascript'> </script>
   <script src="lib/FileSaver.min.js" type='text/javascript'> </script>
 
@@ -8472,7 +8474,11 @@
         const type = "audio";
 
         const position  = Geometry.createPoint(trueRect.x, trueRect.y);
+        
         const size      = Geometry.createSize(trueRect.width, trueRect.height);
+        audio_in.style.width  = "" + trueRect.width  + "px";
+        audio_in.style.height = "" + trueRect.height + "px";
+
         const homeScale = Object.assign({}, this.scale);
 
         const icObj = this.createIcObject(type, position, size, homeScale);
@@ -8486,10 +8492,7 @@
         }
 
         const icAudio_spec = {
-          audio: audio,
-          img: null,
-          force_width:  false,
-          force_height: false,
+          el__audio: audio,
         };
 
         const icAudio = Object.assign(icObj, icAudio_spec);
@@ -8497,6 +8500,9 @@
         const engine    = new AudioEngine();
         const eType     = "audio";
         const icEngined = infiniteCanvas.installEngineOnIcObj(icAudio, eType, engine);
+
+        //debug
+        audio.play();
 
         return icEngined;
       }
@@ -23522,6 +23528,59 @@
 
 
 
+
+      //microphone recording
+
+      enterMicrophoneRecording() {
+        logger.log("logNT", "enterNumberTyping");
+        const infiniteCanvas = this;
+
+        // globalsSingleton.isEditing = true;
+        infiniteCanvas.isMicrophoneRecording = true;
+
+        //wad
+        {
+          //create wad
+          const voice   = new Wad({source: 'mic'})
+          const polywad = new Wad.Poly({
+              recorder: {
+                  options: { mimeType : 'audio/webm' },
+                  onstop: function(event) {
+                    let blob = new Blob(this.recorder.chunks, { 'type' : 'audio/webm;codecs=opus' });
+                    // window.open(URL.createObjectURL(blob));
+                    infiniteCanvas.func__handleRecordedBlob(blob);
+                  },
+              }
+          })
+          polywad.add(voice)
+          voice.play()
+          polywad.recorder.start()
+
+          infiniteCanvas.polywad_microphoneRecording = polywad;
+        }
+
+      }
+
+      leaveMicrophoneRecording() {
+        logger.log("logNT", "leaveNumberTyping");
+        const infiniteCanvas = this;
+
+        infiniteCanvas.func__handleRecordedBlob = function(blob) {
+          const audio = document.createElement("audio");
+          audio.src   = blob;
+          infiniteCanvas.addNewAudio(audio);   
+        };
+        const polywad = infiniteCanvas.polywad_microphoneRecording;
+        
+        polywad.recorder.stop();
+
+        infiniteCanvas.isMicrophoneRecording = false;
+        // globalsSingleton.isEditing  = false;
+      }
+
+
+
+
       //batch pasting
 
       enterBatchPasting() {
@@ -31499,7 +31558,7 @@
             console.log("engine::start, this", this);
             logger.log("dropTouchSlotEngine::start", "this.scopeObj", this.scopeObj);
             const infiniteCanvas = this.scopeObj.infiniteCanvas;
-            const icVideo = this.scopeObj.engineCarrier;
+            const icVideo        = this.scopeObj.engineCarrier;
 
             {
               function startRefreshLoop() {
@@ -31530,7 +31589,7 @@
                     counter = counter + 1;
                   }
 
-                  if (icObj.isShouldRequestAnimationFrame) {
+                  if (icVideo.isShouldRequestAnimationFrame) {
                     requestAnimationFrame(refreshLoop);
                   }
 
@@ -31546,8 +31605,8 @@
 
                 }
 
-                icObj.isShouldRequestAnimationFrame = true;
-                icObj.requestAnimationFrame = requestAnimationFrame(refreshLoop);
+                icVideo.isShouldRequestAnimationFrame = true;
+                icVideo.requestAnimationFrame = requestAnimationFrame(refreshLoop);
 
               }
 
@@ -31612,7 +31671,7 @@
             console.log("engine::start, this", this);
             logger.log("dropTouchSlotEngine::start", "this.scopeObj", this.scopeObj);
             const infiniteCanvas = this.scopeObj.infiniteCanvas;
-            const icVideo        = this.scopeObj.engineCarrier;
+            const icAudio        = this.scopeObj.engineCarrier;
 
             {
               function startRefreshLoop() {
@@ -31626,17 +31685,17 @@
                 /// register refresh loop
                 function refreshLoop() {
 
-                  const represented = infiniteCanvas.getRepresented(icVideo.id);
+                  const represented = infiniteCanvas.getRepresented(icAudio.id);
                   // console.log("represented", represented);
                   const rep_official = represented.r_official();
                   const rep_free     = represented.r_free();
 
-                  const video = icVideo.video;
+                  const audio = icAudio.audio;
 
 
                   /// reduce frame-rate
-                  const nb_skipped_frames__video = 0;
-                  if (counter % (nb_skipped_frames__video + 1) == 0) {
+                  const nb_skipped_frames__audio = 0;
+                  if (counter % (nb_skipped_frames__audio + 1) == 0) {
                     setNewFrame();
                     counter = 1;
                   } else {
@@ -31651,7 +31710,7 @@
                   function setNewFrame() {
                     // logger.log("log1", "setNewFrame");
 
-                    // ImageUtils.imageFromVideo_p(video).then((img) => {
+                    // ImageUtils.imageFromAudio_p(audio).then((img) => {
                     //   rep_free.img = img;
                     // });
 
@@ -31659,8 +31718,8 @@
 
                 }
 
-                icVideo.isShouldRequestAnimationFrame = true;
-                icVideo.requestAnimationFrame         = requestAnimationFrame(refreshLoop);
+                icAudio.isShouldRequestAnimationFrame = true;
+                icAudio.requestAnimationFrame         = requestAnimationFrame(refreshLoop);
 
               }
 
@@ -35050,70 +35109,8 @@
 
         createFabricAudioWithIcObj(icObj) {
           logger.log("log1", "createFabricAudioWithIcObj", icObj);
-          const fabricIntegration = this;
 
-          const fabricCanvas    = fabricIntegration.fabricCanvas;
-          const el__lowerCanvas = fabricCanvas.lowerCanvasEl;
-
-          // var fObj = new fabric.Image(icObj.image__facade);
-          var fObj = new fabric.Image(icObj.el__audio);
-
-          fObj.set({
-            left: icObj.position.x,
-            top: icObj.position.y,
-
-            // width:  icObj.img.width,
-            // height: icObj.img.height,
-
-            // width:  icObj.size.width,
-            // height: icObj.size.height,
-
-            width: 100,
-            height: 100,
-
-            scaleX: icObj.scale.X,
-            scaleY: icObj.scale.Y,
-
-            flipX: icObj.flip.X,
-            flipY: icObj.flip.Y,
-
-            angle: icObj.orientation,
-
-            icObj: icObj,
-          });
-
-
-          if (icObj.force_width) {
-            const factor__force_width = icObj.width / icObj.img.width;
-            fObj.set({
-              scaleX: fObj.scaleX * factor__force_width,
-            });
-          }
-          if (icObj.force_height) {
-            const factor__force_height = icObj.height / icObj.img.height;
-            fObj.set({
-              scaleY: fObj.scaleY * factor__force_height,
-            });
-          }
-
-          //event listeners
-          if (icObj.canBeHeld) {
-            this.addInteraction_hold(fObj);
-          }
-          if (icObj.canBeMoved) {
-            this.addInteraction_move(fObj);
-          }
-          if (icObj.canBeResized) {
-            this.addInteraction_resize2(fObj);
-          }
-          if (icObj.canBeRotated) {
-            this.addInteraction_rotate(fObj);
-          }
-
-
-          this.addInteraction_select(fObj);
-          // this.addListeners(fObj);
-
+          var fObj = this.createFabricRectWithIcObj(icObj);
 
           return fObj;
         }
@@ -46235,7 +46232,7 @@
         static createAudio_p(file) {
           return FileIntegration.getFileData_p(file)
             .then(FileIntegration.dataToAudioSrc_p)
-            .then(FileIntegration.AudioFromAudioSrc_p);
+            .then(FileIntegration.audioFromAudioSrc_p);
         }
 
         static audioFromAudioSrc_p(audioSrc) {
@@ -46248,11 +46245,11 @@
 
             // img.crossOrigin = 'Anonymous';
 
-            audio.src = vidSrc;
+            audio.src = audioSrc;
 
             /// setup with auto preload and loop
             audio.preload = 'auto';
-            audio.loop = true;
+            audio.loop    = true;
 
             // audio.addEventListener('canplay', start, false);
 
@@ -46270,7 +46267,7 @@
             audioSrc_p = FileIntegration.dataToBlob_p(data)
               .then(blob1 => {
                 //change blob type
-                const blob2 = new Blob([blob1], { type: 'audio/mp3' })
+                const blob2 = new Blob([blob1], { type: 'audio/mpeg' })
                 return blob2;
               })
               .then(FileIntegration.getFileData_p);
@@ -47551,6 +47548,10 @@
               d: new KeyDownToggle("d", KeyDownToggle.defaultKeyDownFunc(["KeyD"])),
               n: new KeyDownToggle("n", KeyDownToggle.defaultKeyDownFunc(["KeyN"])),
 
+              i: new KeyDownToggle("i", KeyDownToggle.defaultKeyDownFunc(["KeyI"]), (isActive) => {
+                infiniteCanvas.isImportMode = isActive;
+              }),
+
               shiftLeft: new KeyDownToggle("shiftLeft", KeyDownToggle.defaultKeyDownFunc(["ShiftLeft"]), (isActive) => {
                 //only side effect is used
               }),
@@ -47582,6 +47583,18 @@
                   infiniteCanvas.enterNumberTyping();
                 } else {
                   infiniteCanvas.leaveNumberTyping();
+                }
+
+              }),
+
+              a: new KeyDownToggle("q", KeyDownToggle.defaultKeyDownFunc(["KeyQ"]), (isActive) => {
+
+                if(infiniteCanvas.isImportMode && keyboardIntegration.keyDownToggles.altLeft.isActive) {
+                  if (isActive) {
+                    infiniteCanvas.enterMicrophoneRecording();
+                  } else {
+                    infiniteCanvas.leaveMicrophoneRecording();
+                  }
                 }
 
               }),
@@ -47807,6 +47820,10 @@
                   return;
                 }
                 if (keyboardIntegration.keyDownToggles.intlBackslash.isActive) {
+                  //ignore
+                  return;
+                }
+                if (infiniteCanvas.isImportMode && keyboardIntegration.keyDownToggles.altLeft.isActive) {
                   //ignore
                   return;
                 }
@@ -48075,41 +48092,47 @@
 
                 case "KeyI":
                   {
-                    if (keyboardIntegration.keyDownToggles.ctrlLeft.isActive) {
-                      // FileIntegration.importVideo_p()
-                      //   .then(video => {
-                      //     infiniteCanvas.manageImport__video(video);
-                      //     keyboardIntegration.keyDownToggles.ctrlLeft.isActive = false; //force untoggle (bugfix)
-                      //   });
-                      FileIntegration.importAudio_p()
-                        .then(audio => {
-                          infiniteCanvas.manageImport__audio(audio);
-                          keyboardIntegration.keyDownToggles.ctrlLeft.isActive = false; //force untoggle (bugfix)
-                        });
-                    }
-                    else if (keyboardIntegration.keyDownToggles.altLeft.isActive) {
-                      FileIntegration.videoFromWebcam_p()
-                        .then(video => {
-                          infiniteCanvas.manageImport__video(video);
-                          keyboardIntegration.keyDownToggles.altLeft.isActive = false;
-                        });
-                    }
-                    else if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
-                      FileIntegration.importImage_folder_p()
-                        .then(arr_img => {
-                          arr_img.forEach(img => {
-                            infiniteCanvas.manageImport__image(img);
-                          });
-                        });
-                    }
-                    else {
-                      FileIntegration.importImage_multiple_p()
-                        .then(arr_img => {
-                          arr_img.forEach(img => {
-                            infiniteCanvas.manageImport__image(img);
-                          });
-                        });
-                    }
+                    // if(infiniteCanvas.importMode == ImportMode.Image) {
+
+                    // }
+
+                    // if (keyboardIntegration.keyDownToggles.ctrlLeft.isActive) {
+                    //   // FileIntegration.importVideo_p()
+                    //   //   .then(video => {
+                    //   //     infiniteCanvas.manageImport__video(video);
+                    //   //     keyboardIntegration.keyDownToggles.ctrlLeft.isActive = false; //force untoggle (bugfix)
+                    //   //   });
+
+                    //   FileIntegration.importAudio_p()
+                    //     .then(audio => {
+                    //       infiniteCanvas.manageImport__audio(audio);
+                    //       keyboardIntegration.keyDownToggles.ctrlLeft.isActive = false; //force untoggle (bugfix)
+                    //     });
+                      
+                    // }
+                    // else if (keyboardIntegration.keyDownToggles.altLeft.isActive) {
+                    //   FileIntegration.videoFromWebcam_p()
+                    //     .then(video => {
+                    //       infiniteCanvas.manageImport__video(video);
+                    //       keyboardIntegration.keyDownToggles.altLeft.isActive = false;
+                    //     });
+                    // }
+                    // else if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+                    //   FileIntegration.importImage_folder_p()
+                    //     .then(arr_img => {
+                    //       arr_img.forEach(img => {
+                    //         infiniteCanvas.manageImport__image(img);
+                    //       });
+                    //     });
+                    // }
+                    // else {
+                    //   FileIntegration.importImage_multiple_p()
+                    //     .then(arr_img => {
+                    //       arr_img.forEach(img => {
+                    //         infiniteCanvas.manageImport__image(img);
+                    //       });
+                    //     });
+                    // }
                   }
 
                   break;
@@ -49007,6 +49030,15 @@
               // }
 
               switch(e.code) {
+                case "KeyQ":
+                  {
+                    //ignore repeating KeyQ while microphoneRecording
+                    if (infiniteCanvas.isImportMode && keyboardIntegration.keyDownToggles.altLeft.isActive) {
+                      e.preventDefault();
+                    }
+                    return;
+                  }
+                  break;
                 case "KeyZ":
                   {
                     //ignore repeating KeyZ while numberTyping
