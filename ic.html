@@ -53,6 +53,13 @@
 
   <script src="lib/wad.min.js"></script>
 
+  <script src="lib/pdfjs/pdf.min.js"></script>
+  <script>
+    // console.log("pdfjsLib", pdfjsLib);
+    const PDFJS = pdfjsLib;
+    // console.log("logPDF", "PDFJS:", PDFJS);
+  </script>
+
   <script src="lib/jszip.min.js" type='text/javascript'> </script>
   <script src="lib/FileSaver.min.js" type='text/javascript'> </script>
 
@@ -1278,13 +1285,14 @@
     }
 
     class SvgHelper {
+
       static toDataURL(svgEl) {
         var outDataUrl;
 
         // const svgSource = svgEl.outerHTML;
 
         const serializer = new XMLSerializer();
-        const svgSource = serializer.serializeToString(svgEl);
+        const svgSource  = serializer.serializeToString(svgEl);
 
         // svgSource = svgSource.replaceAll('http://', 'https://');
         console.log("svgSource", svgSource);
@@ -1295,6 +1303,18 @@
 
         return outDataUrl;
       }
+
+      // static fromString(str_in) {
+      //   var outSvgEl;
+
+      //   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      //   svg.innerHTML = str_in;
+
+      //   outSvgEl = svg;
+
+      //   return outSvgEl;
+      // }
+
     }
   </script>
   <!-- <script>
@@ -8627,6 +8647,26 @@
         return icTex;
       }
 
+      createIcBigTex(left, top, tex) {
+        const type = "bigTex";
+        const position = Geometry.createPoint(left, top);
+
+        // const size      = Geometry.createSize(img.width, img.height);
+        const size = Geometry.createSize(500, 500);
+
+        const homeScale = Object.assign({}, this.scale);
+
+        const icObj = this.createIcObject(type, position, size, homeScale);
+
+        const icTex_spec = {
+          tex: tex,
+        };
+
+        const icTex = Object.assign(icObj, icTex_spec);
+
+        return icTex;
+      }
+
       createIcMathNode(left, top, mathNode) {
         console.log("createIcMathNode", left, top, mathNode);
 
@@ -9008,6 +9048,43 @@
 
 
         return icHtmlElt;
+      }
+
+      createIcHTMLObject(left, top, el_html) {
+        logger.log("logHTML", "createIcHTMLObject", left, top, el_html);
+        const infiniteCanvas = this;
+
+        const type     = "htmlObject";
+        const position = Geometry.createPoint(left, top);
+
+        // const size      = Geometry.createSize(img.width, img.height);
+        const size = Geometry.createSize(100, 100);
+
+        const homeScale = Object.assign({}, this.scale);
+
+        const icObj = this.createIcObject(type, position, size, homeScale);
+
+        const icHtmlObject_spec = {
+          el_html: el_html,
+        };
+
+        const icHtmlObject = Object.assign(icObj, icHtmlObject_spec);
+
+
+
+        // const htmlEltObserver = createHtmlEltObserver(html_elt);
+        // htmlEltObserver.rx_observable__mutation.subscribe({
+        //   next: (html_elt_mutated) => {
+
+        //     const represented = infiniteCanvas.getRepresented(icHtmlElt.id);
+        //     const rep_free = represented.getRepresentation("free");
+
+        //     rep_free.htmlElt = html_elt_mutated;
+
+        //   },
+        // });
+
+        return icHtmlObject;
       }
 
 
@@ -19161,6 +19238,24 @@
         this.addNewIcObject(icText);
       }
 
+      addNewHTMLObject(htmlObject = "<html><body>lol</body></html>") {
+
+        const true_cursor = this.getTrueCursor();
+
+        const left = true_cursor.x;
+        const top = true_cursor.y;
+
+        const icHTMLObject = this.createIcHTMLObject(left, top, htmlObject);
+
+        // //debug
+        // const width  = 100;   //"information" size
+        // const height = 100;
+        // icText.width  = width;
+        // icText.height = height;
+
+        this.addNewIcObject(icHTMLObject);
+      }
+
       addNewTag(text = "icTag") {
 
         const true_cursor = this.getTrueCursor();
@@ -24430,7 +24525,9 @@
         this.addNewText(text);
       }
 
-
+      manageImport__htmlObject(htmlObject) {
+        this.addNewHTMLObject(htmlObject);
+      }
 
 
 
@@ -34013,6 +34110,12 @@
                     standardRedraw(fObj);
                   });
               }
+              else if (propName == "el_html") {
+                fObj.refreshScreenshot_p()
+                  .then((fObj) => {
+                    standardRedraw(fObj);
+                  });
+              }
               else if (propName == "arcStart" || propName == "arcEnd") {
                 fObj.isDirty__clipPath = true;
                 standardRedraw(fObj);
@@ -34147,6 +34250,12 @@
                     standardRedraw(fObj);
                   });
               }
+              else if (propName == "el_html") {
+                fObj.refreshScreenshot_p()
+                  .then((fObj) => {
+                    standardRedraw(fObj);
+                  });
+              }
               else if (propName == "img") {
                 console.log("log1", "icObj_fRep", "onOuterUpdate", "img", icObj_fRep);
 
@@ -34220,7 +34329,12 @@
                   fabricCanvas.renderAll();
                 });
             }
-
+            else if (icObj.type == "htmlObject") {
+              fObj.refreshScreenshot_p()
+                .then((fObj) => {
+                  fabricCanvas.renderAll();
+                });
+            }
 
             if (icObj.im_active_now) {
               fabricIntegration.fabricCanvas.setActiveObject(fObj);
@@ -34453,6 +34567,20 @@
                 fObj_p = Promise.resolve(fObj);
               }
               break;
+            case "bigTex":
+              {
+                const fObj = this.createFabricBigTexWithIcObj(icObj);
+                fObj_p = Promise.resolve(fObj);
+              }
+              break;
+
+            case "htmlObject":
+              {
+                const fObj = this.createFabricHtmlObjectWithIcObj(icObj);
+                fObj_p = Promise.resolve(fObj);
+              }
+              break;
+
 
             case "mathNode":
               {
@@ -34896,7 +35024,7 @@
         createFabricITextWithIcObj(icObj) {
           // console.log("createFabricITextWithIcObj", icObj);
 
-          const scale = this.infiniteCanvas.scale;
+          // const scale = this.infiniteCanvas.scale;
 
           var fObj = new fabric.IText(icObj.text);
           fObj.set({
@@ -36021,6 +36149,249 @@
         }
 
 
+        createFabricBigTexWithIcObj(icObj) {
+
+          const fabricCanvas = this.fabricCanvas;
+
+          const fObj = new fabric.Group();
+
+          fObj.set({
+            left: icObj.position.x,
+            top:  icObj.position.y,
+
+            width:  icObj.size.width,
+            height: icObj.size.height,
+
+
+            scaleX: icObj.scale.X,
+            scaleY: icObj.scale.Y,
+
+            flipX: icObj.flip.X,
+            flipY: icObj.flip.Y,
+
+            angle: icObj.orientation,
+
+            originX: "left",
+            originY: "top",
+
+
+            icObj: icObj,
+          });
+
+
+          fObj.refreshTex_p = () => {
+            console.log("refreshTex");
+
+            const tex  = icObj.tex;
+            const fill = icObj.fill;
+
+            const svgEl   = TexHelper.toSvgEl(tex, fill);
+            const dataUrl = SvgHelper.toDataURL(svgEl);
+            const fObj_svg_image_p = new Promise((resolve, reject) => {
+
+              fabric.Image.fromURL(dataUrl, function (img) {
+                console.log("img", img);
+                // fabricCanvas.add(img);
+                // console.log('CORS enabled + crossOrigin property - DataURL: ', img.toDataURL());
+
+                // img.set({
+                //   originX: "left",
+                //   originY: "top",
+                //   left:0,
+                //   top:0,
+                // });
+                // img.setCoords();
+
+                resolve(img);
+              },
+                null,
+                {
+                  crossOrigin: 'Anonymous',
+                });
+
+            });
+
+            const add_fObjfObj_svg_image_p = fObj_svg_image_p.then((fObj_child) => {
+              if (fObj.child_tex != null) {
+                fObj.remove(fObj.child_tex);
+              }
+
+              //add svg image as child
+              fObj.child_tex = fObj_child;
+
+              // fObj.add(fObj_child);
+              fObj.addWithUpdate(fObj_child);
+              console.log("fObj, added child:", fObj_child);
+
+              /*
+              fObj.set({
+                width:  icObj.size.width,
+                height: icObj.size.height,
+              });
+              */
+
+
+              function adapt_child() {
+                const width = icObj.size.width;
+                const height = icObj.size.height;
+                fObj_child.scaleToHeight(width);
+                fObj_child.scaleToWidth(height);
+              }
+
+              function adapt_group() {
+                fObj.set({
+                  width: fObj_child.width,
+                  height: fObj_child.height,
+                });
+              }
+
+              adapt_child();
+
+
+              return fObj;
+            });
+
+            return add_fObjfObj_svg_image_p;
+          };
+
+          //event listeners
+          if (icObj.canBeHeld) {
+            this.addInteraction_hold(fObj);
+          }
+          if (icObj.canBeMoved) {
+            this.addInteraction_move(fObj);
+          }
+          if (icObj.canBeResized) {
+            this.addInteraction_resize2(fObj);
+          }
+          if (icObj.canBeRotated) {
+            this.addInteraction_rotate(fObj);
+          }
+
+
+          this.addInteraction_select(fObj);
+          // this.addListeners(fObj);
+
+          // fObj.refreshTex_p()
+          // .then((fObj) => {
+          //   fabricCanvas.renderAll();
+          // });
+
+          return fObj;
+        }
+
+        createFabricHtmlObjectWithIcObj(icObj) {
+
+          const fabricCanvas = this.fabricCanvas;
+
+          const fObj = new fabric.Group();
+
+          fObj.set({
+            left: icObj.position.x,
+            top:  icObj.position.y,
+
+            width:  icObj.size.width,
+            height: icObj.size.height,
+
+
+            scaleX: icObj.scale.X,
+            scaleY: icObj.scale.Y,
+
+            flipX: icObj.flip.X,
+            flipY: icObj.flip.Y,
+
+            angle: icObj.orientation,
+
+            originX: "left",
+            originY: "top",
+
+
+            icObj: icObj,
+          });
+
+
+          fObj.refreshScreenshot_p = () => {
+            console.log("refreshScreenshot_p");
+
+            const el_html = icObj.el_html;
+
+            // const canvasElt_p = html2canvas(html_elt);
+            // const canvasElt_p = html2canvas(el_html, {
+            //   // onclone: function (clone__htmlElt) {
+            //   // clone__htmlElt.style.visibility = "visible";
+            //   // clone__htmlElt.style.display = "block";
+            //   // },
+            // });
+
+            const canvasElt_p = Promise.resolve(el_html);
+
+            const fObj_hmtlElt_image_p = canvasElt_p.then((canvasElt) => {
+
+              function getNumericalValueForPxString(pxString) {
+                return parseInt(pxString.replace("px", ""));
+              }
+
+              const width__canvasElt  = getNumericalValueForPxString(canvasElt.style.width);
+              const height__canvasElt = getNumericalValueForPxString(canvasElt.style.height);
+
+              const img = new fabric.Image(canvasElt);
+
+              const group = fObj;
+              img.set({
+                // left: 0,
+                // top: 0,
+                //SHU: that smell of Scotch Tape
+                left: -group.width  / 2,
+                top:  -group.height / 2,
+
+                //debug
+                // stroke: "yellow",
+                // strokeWidth: 2,
+              });
+
+              return img;
+            });
+
+            const add_fObjfObj_htmlElt_image_p = fObj_hmtlElt_image_p.then((fObj_child) => {
+              if (fObj.child_htmlScreenshot != null) {
+                fObj.remove(fObj.child_htmlScreenshot);
+              }
+
+              //add image as child
+              fObj.child_htmlScreenshot = fObj_child;
+
+              // fObj.add(fObj_child);
+              fObj.addWithUpdate(fObj_child);        //this updates group's size to fit children
+              console.log("fObj, added child:", fObj_child);
+
+              return fObj;
+            });
+
+            return add_fObjfObj_htmlElt_image_p;
+          };
+
+          //event listeners
+          if (icObj.canBeHeld) {
+            this.addInteraction_hold(fObj);
+          }
+          if (icObj.canBeMoved) {
+            this.addInteraction_move(fObj);
+          }
+          if (icObj.canBeResized) {
+            this.addInteraction_resize2(fObj);
+          }
+          if (icObj.canBeRotated) {
+            this.addInteraction_rotate(fObj);
+          }
+
+
+          this.addInteraction_select(fObj);
+          // this.addListeners(fObj);
+
+
+          return fObj;
+        }
+
         // createFabricMathNodeWithIcObj(icObj) {
         //
         //   const fabricCanvas = this.fabricCanvas;
@@ -36547,7 +36918,6 @@
             const html_elt = icObj.htmlElt;
             console.log("html_elt", html_elt);
 
-            // const canvasElt_p = html2canvas(html_elt);
             const canvasElt_p = html2canvas(html_elt, {
               // onclone: function (clone__htmlElt) {
               // clone__htmlElt.style.visibility = "visible";
@@ -46029,6 +46399,89 @@
         //
         // }
 
+        static dataToBlob_p(data) {
+          return fetch(data)
+            .then(res => res.blob());
+        }
+
+
+        //IMPORT text
+
+        static accept_text() {
+          const accept = ".txt, .rtf";
+          return accept;
+        }
+
+        static importText_p() {
+          const accept = FileIntegration.accept_text();
+          return FileIntegration.openFile_p(accept)
+            .then(FileIntegration.createText_p);
+        }
+
+        static importText_folder_p() {
+          const accept = FileIntegration.accept_text();
+          return FileIntegration.openFolder_p(accept)
+            .then(arr_file => {
+              return Promise.all(arr_file.map(FileIntegration.createText_p));
+            });
+        }
+
+        static importText_multiple_p() {
+          const accept = FileIntegration.accept_text();
+          return FileIntegration.openMultiple_p(accept)
+            .then(arr_file => {
+              return Promise.all(arr_file.map(FileIntegration.createText_p));
+            });
+        }
+
+        static createText_p(file) {
+          return FileIntegration.getFileData_p(file)
+            .then(FileIntegration.dataToTextSrc_p)
+            .then(FileIntegration.textFromTextSrc_p);
+        }
+
+        static textFromTextSrc_p(textSrc) {
+          logger.log('textSrc', textSrc);
+
+          // return new Promise(r => img.onload=r, img.src=imgSrc)
+          return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = (error) => reject(error);
+
+            // img.crossOrigin = 'Anonymous';
+
+            img.src = imgSrc;
+          });
+        }
+
+        static dataToImgSrc_p(data) {
+          var imgSrc_p;
+
+          if (data.startsWith("data:image")) {
+            imgSrc_p = Promise.resolve(data);
+          } else {
+            imgSrc_p = FileIntegration.dataToBlob_p(data)
+              .then(blob1 => {
+                //change blob type
+                const blob2 = new Blob([blob1], { type: 'image/png' })
+                return blob2;
+              })
+              .then(FileIntegration.getFileData_p);
+            // .then(blob2 => {
+            //   const imgSrc = URL.createObjectURL(blob2);
+            //   ////console.log("converted imgSrc:", imgSrc);
+            //   //>>converted imgSrc: blob:http://localhost:8080/7243f1de-493f-412b-b1ec-b042b0cbcac4
+            //   return imgSrc;
+            // });
+          }
+
+          return imgSrc_p;
+        }
+
+        static imageContentsToBlob_p(img) {
+          return this.dataToBlob_p(img.src);
+        }
 
 
         //IMPORT image
@@ -46103,11 +46556,6 @@
           }
 
           return imgSrc_p;
-        }
-
-        static dataToBlob_p(data) {
-          return fetch(data)
-            .then(res => res.blob());
         }
 
         static imageContentsToBlob_p(img) {
@@ -46274,6 +46722,133 @@
           }
 
           return audioSrc_p;
+        }
+
+
+
+        //IMPORT htmlobject (pdf,...)
+
+        static accept_htmlObject() {
+          const accept = ".pdf, .html";
+          return accept;
+        }
+
+        static importHtmlObject_p() {
+          const accept = FileIntegration.accept_htmlObject();
+          return FileIntegration.openFile_p(accept)
+            .then(FileIntegration.createHtmlObject_p);
+        }
+
+        static importHtmlObject_folder_p() {
+          const accept = FileIntegration.accept_htmlObject();
+          return FileIntegration.openFolder_p(accept)
+            .then(arr_file => {
+              return Promise.all(arr_file.map(FileIntegration.createHtmlObject_p));
+            });
+        }
+
+        static importHtmlObject_multiple_p() {
+          const accept = FileIntegration.accept_htmlObject();
+          return FileIntegration.openMultiple_p(accept)
+            .then(arr_file => {
+              return Promise.all(arr_file.map(FileIntegration.createHtmlObject_p));
+            });
+        }
+
+        static createHtmlObject_p(file) {
+          return FileIntegration.getFileData_p(file)
+            .then(FileIntegration.dataToHtmlObjectSrc_p)
+            .then(FileIntegration.htmlObjectFromHtmlObjectSrc_p);
+        }
+
+        static htmlObjectFromHtmlObjectSrc_p(htmlObjectSrc) {
+          logger.log("logHTML", 'htmlObjectSrc', htmlObjectSrc);
+
+          let loadingTask = PDFJS.getDocument(htmlObjectSrc);
+          // let loadingTask = PDFJS.getDocument({
+          //   htmlObjectSrc, 
+          //   // Try to export JPEG images directly if they don't need any further
+          //   // processing.
+          //   nativeImageDecoderSupport: PDFJS.NativeImageDecoding.DISPLAY,
+          // });
+
+          // loadingTask.onProgress = function(progressData) {
+          //   this.progress(progressData.loaded / progressData.total)
+          // };
+
+          return loadingTask.promise.then(function (pdf) {
+            logger.log("logPDF", "pdf:", pdf);
+
+            //
+            // Fetch the first page
+            //
+            return pdf.getPage(1).then(function getPageHelloWorld(page) {
+              logger.log("logPDF", "page:", page);
+
+              var scale    = 4.0;
+              // var viewport = page.getViewport({scale: scale});
+              var viewport = page.getViewport({scale: scale});
+              logger.log("logPDF", "viewport:", viewport);
+
+              //
+              // Prepare canvas using PDF page dimensions
+              //
+              var el_canvas    = document.createElement("canvas");
+              el_canvas.height = viewport.height;
+              el_canvas.width  = viewport.width;
+
+              //
+              // Render PDF page into canvas context
+              //
+              // 
+              var context   = el_canvas.getContext('2d');
+
+              let renderTask = page.render({
+                canvasContext: context, 
+                viewport: viewport,
+              });
+
+              // Wait for rendering to finish
+              return renderTask.promise.then(function() {
+                  //debug
+                  // const dataURL = el_canvas.toDataURL();
+                  // FileIntegration.save_image(dataURL);
+
+                  return el_canvas;
+              });
+              
+            });
+
+          });
+
+        }
+
+        static dataToHtmlObjectSrc_p(data) {
+          var htmlobjectSrc_p;
+
+          // if (data.startsWith("data:image")) {
+          //   htmlobjectSrc_p = Promise.resolve(data);
+          // } else {
+            htmlobjectSrc_p = FileIntegration.dataToBlob_p(data)
+              .then(blob1 => {
+                //change blob type
+                const blob2 = new Blob([blob1], { type: 'application/pdf' })
+                return blob2;
+              })
+              .then(FileIntegration.getFileData_p);
+            // .then(blob2 => {
+            //   const htmlobjectSrc = URL.createObjectURL(blob2);
+            //   ////console.log("converted htmlobjectSrc:", htmlobjectSrc);
+            //   //>>converted htmlobjectSrc: blob:http://localhost:8080/7243f1de-493f-412b-b1ec-b042b0cbcac4
+            //   return htmlobjectSrc;
+            // });
+          // }
+
+          return htmlobjectSrc_p;
+        }
+
+        static imageContentsToBlob_p(htmlobject) {
+          return this.dataToBlob_p(htmlobject.src);
         }
 
 
@@ -48126,13 +48701,65 @@
                     //     });
                     // }
                     // else {
-                    //   FileIntegration.importImage_multiple_p()
-                    //     .then(arr_img => {
-                    //       arr_img.forEach(img => {
-                    //         infiniteCanvas.manageImport__image(img);
+                      // FileIntegration.importImage_multiple_p()
+                      //   .then(arr_img => {
+                      //     arr_img.forEach(img => {
+                      //       infiniteCanvas.manageImport__image(img);
+                      //     });
+                      //   });
+                    // }
+
+
+                    // FileIntegration.importText_multiple_p()
+                    //     .then(arr_text => {
+                    //       arr_text.forEach(text => {
+                    //         infiniteCanvas.manageImport__text(text);
                     //       });
                     //     });
-                    // }
+
+                    try {
+
+                      FileIntegration.importHtmlObject_multiple_p()
+                        .then(arr_elObject => {
+                          arr_elObject.forEach(elObject => {
+                            logger.log("logPDF", "elObject", elObject);
+                            infiniteCanvas.manageImport__htmlObject(elObject);
+                          });
+                        });
+
+
+                      // const filepath = "https://getsamplefiles.com/download/pdf/sample-2.pdf";
+                        
+                      // const getPDF_p = PDFJS.getDocument(filepath);
+                      // logger.log("logPDF", "getPDF_p:", getPDF_p);
+                      
+                      // getPDF_p.then(function getPdfHelloWorld(pdf) {
+                      //   //
+                      //   // Fetch the first page
+                      //   //
+                      //   pdf.getPage(1).then(function getPageHelloWorld(page) {
+                      //     var scale    = 1.5;
+                      //     var viewport = page.getViewport(scale);
+
+                      //     //
+                      //     // Prepare canvas using PDF page dimensions
+                      //     //
+                      //     var canvas    = document.getElementById('myCanvas');
+                      //     var context   = canvas.getContext('2d');
+                      //     canvas.height = viewport.height;
+                      //     canvas.width  = viewport.width;
+
+                      //     //
+                      //     // Render PDF page into canvas context
+                      //     //
+                      //     page.render({canvasContext: context, viewport: viewport});
+                      //   });
+                      // });
+
+                    } catch(err) {
+                      logger.log("logHTML", "err:", err);
+                    }
+
                   }
 
                   break;
@@ -74940,6 +75567,8 @@
           // this.debug_zSegment();
           // this.debug_icPolygon();
 
+          // this.debug_bigText();
+
 
           // this.debug_th();
 
@@ -79928,7 +80557,39 @@
 
         }
 
+        debug_bigText() {
 
+          try {
+
+            const nb_lines          = 1;
+            const nb_chars_per_line = 100;
+
+            [...Array(10).keys()].forEach((index) => {
+
+              const str__bigText = [...Array(nb_lines).keys()].reduce((acc, index1) => {
+                const str__line = [...Array(nb_chars_per_line).keys()].map(index2 => Utils.randomElementInArray("abcdefghijklmnopqrstuvwxyz")).join("");
+                acc = acc.concat(str__line).concat("\n");
+                return acc;
+              }, "");
+              logger.log("logBigText", "str__bigText:", str__bigText);
+
+              // const svgEl = SvgHelper.fromString(str__bigText);
+              // const svgEl = TexHelper.toSvgEl(str__bigText);
+              // logger.log("logBigText", "svgEl:", svgEl);
+              // const icSvg = infiniteCanvas.createIcSvg(400,400, svgEl);
+              // infiniteCanvas.addIcObject(icSvg);
+
+              const icTex = infiniteCanvas.createIcTex(400, 400, str__bigText);
+              icTex.stroke = "black";
+              infiniteCanvas.addIcObject(icTex);
+
+            });
+            
+          } catch(err) {
+            logger.log("logBigText", "err:", err);
+          }
+          
+        }
 
 
         debug_th() {
