@@ -9087,6 +9087,62 @@
         return icHtmlObject;
       }
 
+      createIcPDF(left, top, dict_pdf) {
+        logger.log("logHTML", "createIcPDF", left, top, dict_pdf);
+        const infiniteCanvas = this;
+
+        const type      = "pdf";
+        const position  = Geometry.createPoint(left, top);
+        const size      = Geometry.createSize(100, 100);
+        const homeScale = Object.assign({}, this.scale);
+
+        const padding = {
+          X: 0,
+          Y: 0,
+        };
+        const arr_icHtmlObject__page = dict_pdf.arr_dict_page.reduce((acc, dict_page) => {
+
+          const el_canvas = dict_page.el_canvas;
+
+          const icHtmlObject__page = infiniteCanvas.createIcHTMLObject(acc.x, acc.y, el_canvas);
+          
+          acc.x = acc.x + padding.X + el_canvas.width;
+          // acc.y = acc.y + padding.Y + el_canvas.height;
+
+          acc.arr_icHtmlObject.push(icHtmlObject__page);
+
+          return acc;
+        }, {
+          x:left,
+          y:top,
+          arr_icHtmlObject: [],
+        }).arr_icHtmlObject;
+        
+        const arr_entries = arr_icHtmlObject__page.map((icHtmlObject__page, index) => {
+          const name = "page_" + index;
+          return [name, icHtmlObject__page];
+        });
+
+        var parts = {};
+        parts = Object.assign(parts, Object.fromEntries(arr_entries));
+
+        // const facade      = infiniteCanvas.createIcMathNode(x,y,mathNode);
+        // parts.facade = facade;
+
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+
+        const trueRect__composite = {
+          x:      left - 50,
+          y:      top,
+          width:  50,
+          height: 50,
+        };
+        const icComposite = this.createIcComposite(trueRect__composite, parts, compositeConfig);
+        icComposite.cType = "pdf";
+
+        return icComposite;
+      }
+
 
 
 
@@ -19256,6 +19312,18 @@
         this.addNewIcObject(icHTMLObject);
       }
 
+      addNewPDF(dict_pdf) {
+
+        const true_cursor = this.getTrueCursor();
+
+        const left = true_cursor.x;
+        const top  = true_cursor.y;
+
+        const icPDF = this.createIcPDF(left, top, dict_pdf);
+
+        this.addNewIcObject(icPDF);
+      }
+
       addNewTag(text = "icTag") {
 
         const true_cursor = this.getTrueCursor();
@@ -24529,6 +24597,9 @@
         this.addNewHTMLObject(htmlObject);
       }
 
+      manageImport__pdf(dict_pdf) {
+        this.addNewPDF(dict_pdf);
+      }
 
 
       //top down request
@@ -46779,10 +46850,9 @@
           return loadingTask.promise.then(function (pdf) {
             logger.log("logPDF", "pdf:", pdf);
 
-            //
-            // Fetch the first page
-            //
-            return pdf.getPage(1).then(function getPageHelloWorld(page) {
+            function getPage_p(index) {
+
+              pdf.getPage(1).then(function getPageHelloWorld(page) {
               logger.log("logPDF", "page:", page);
 
               var scale    = 4.0;
@@ -46819,6 +46889,12 @@
               
             });
 
+            }
+
+            return Promise.all( )
+            
+            
+
           });
 
         }
@@ -46851,6 +46927,137 @@
           return this.dataToBlob_p(htmlobject.src);
         }
 
+
+        //IMPORT pdf
+
+        static accept_pdf() {
+          const accept = ".pdf";
+          return accept;
+        }
+
+        static importPDF_p() {
+          const accept = FileIntegration.accept_pdf();
+          return FileIntegration.openFile_p(accept)
+            .then(FileIntegration.createDictPDF_p);
+        }
+
+        static importPDF_folder_p() {
+          const accept = FileIntegration.accept_pdf();
+          return FileIntegration.openFolder_p(accept)
+            .then(arr_file => {
+              return Promise.all(arr_file.map(FileIntegration.createDictPDF_p));
+            });
+        }
+
+        static importPDF_multiple_p() {
+          const accept = FileIntegration.accept_pdf();
+          return FileIntegration.openMultiple_p(accept)
+            .then(arr_file => {
+              return Promise.all(arr_file.map(FileIntegration.createDictPDF_p));
+            });
+        }
+
+        static createDictPDF_p(file) {
+          return FileIntegration.getFileData_p(file)
+            .then(FileIntegration.dataToPDFSrc_p)
+            .then(FileIntegration.dictPDFFromPDFSrc_p);
+        }
+
+        static dictPDFFromPDFSrc_p(pdfSrc) {
+          logger.log("logPDF", 'pdfSrc:', pdfSrc);
+          var out_p;
+
+          let loadingTask = PDFJS.getDocument(pdfSrc);
+          // let loadingTask = PDFJS.getDocument({
+          //   htmlObjectSrc, 
+          //   // Try to export JPEG images directly if they don't need any further
+          //   // processing.
+          //   nativeImageDecoderSupport: PDFJS.NativeImageDecoding.DISPLAY,
+          // });
+
+          // loadingTask.onProgress = function(progressData) {
+          //   this.progress(progressData.loaded / progressData.total)
+          // };
+
+          out_p = loadingTask.promise.then(function (pdf) {
+            logger.log("logPDF", "pdf:", pdf);
+
+            function getPage_p(index) {
+
+              return pdf.getPage(index + 1).then(function (page) {
+                logger.log("logPDF", "page:", page);
+
+                var scale    = 4.0;
+                // var viewport = page.getViewport({scale: scale});
+                var viewport = page.getViewport({scale: scale});
+                logger.log("logPDF", "viewport:", viewport);
+
+                //
+                // Prepare canvas using PDF page dimensions
+                //
+                var el_canvas    = document.createElement("canvas");
+                el_canvas.height = viewport.height;
+                el_canvas.width  = viewport.width;
+
+                //
+                // Render PDF page into canvas context
+                //
+                // 
+                var context   = el_canvas.getContext('2d');
+
+                let renderTask = page.render({
+                  canvasContext: context, 
+                  viewport: viewport,
+                });
+
+                // Wait for rendering to finish
+                return renderTask.promise.then(function() {
+                    //debug
+                    // const dataURL = el_canvas.toDataURL();
+                    // FileIntegration.save_image(dataURL);
+
+                    // return el_canvas;
+
+                    const dict_page = {
+                      page: page,
+                      el_canvas: el_canvas,
+                    };
+
+                    return dict_page;
+                });
+              
+              });
+
+            }
+
+            return Promise.all([...Array(pdf.numPages).keys()].map(getPage_p))
+              .then((arr_dict_page) => {
+                const dict_pdf = {
+                  pdf: pdf,
+                  arr_dict_page: arr_dict_page,
+                };
+
+                return dict_pdf;
+              });
+
+          });
+
+          return out_p;
+        }
+
+        static dataToPDFSrc_p(data) {
+          var pdfSrc_p;
+
+          pdfSrc_p = FileIntegration.dataToBlob_p(data)
+            .then(blob1 => {
+              //change blob type
+              const blob2 = new Blob([blob1], { type: 'application/pdf' })
+              return blob2;
+            })
+            .then(FileIntegration.getFileData_p);
+
+          return pdfSrc_p;
+        }
 
 
         //file utils
@@ -48719,45 +48926,24 @@
 
                     try {
 
-                      FileIntegration.importHtmlObject_multiple_p()
-                        .then(arr_elObject => {
-                          arr_elObject.forEach(elObject => {
-                            logger.log("logPDF", "elObject", elObject);
-                            infiniteCanvas.manageImport__htmlObject(elObject);
+                      // FileIntegration.importHtmlObject_multiple_p()
+                      //   .then(arr_elObject => {
+                      //     arr_elObject.forEach(elObject => {
+                      //       logger.log("logPDF", "elObject", elObject);
+                      //       infiniteCanvas.manageImport__htmlObject(elObject);
+                      //     });
+                      //   });
+
+                      FileIntegration.importPDF_multiple_p()
+                        .then(arr_dict_pdf => {
+                          arr_dict_pdf.forEach(dict_pdf => {
+                            logger.log("logPDF", "dict_pdf", dict_pdf);
+                            infiniteCanvas.manageImport__pdf(dict_pdf);
                           });
                         });
 
-
-                      // const filepath = "https://getsamplefiles.com/download/pdf/sample-2.pdf";
-                        
-                      // const getPDF_p = PDFJS.getDocument(filepath);
-                      // logger.log("logPDF", "getPDF_p:", getPDF_p);
-                      
-                      // getPDF_p.then(function getPdfHelloWorld(pdf) {
-                      //   //
-                      //   // Fetch the first page
-                      //   //
-                      //   pdf.getPage(1).then(function getPageHelloWorld(page) {
-                      //     var scale    = 1.5;
-                      //     var viewport = page.getViewport(scale);
-
-                      //     //
-                      //     // Prepare canvas using PDF page dimensions
-                      //     //
-                      //     var canvas    = document.getElementById('myCanvas');
-                      //     var context   = canvas.getContext('2d');
-                      //     canvas.height = viewport.height;
-                      //     canvas.width  = viewport.width;
-
-                      //     //
-                      //     // Render PDF page into canvas context
-                      //     //
-                      //     page.render({canvasContext: context, viewport: viewport});
-                      //   });
-                      // });
-
                     } catch(err) {
-                      logger.log("logHTML", "err:", err);
+                      logger.log("logPDF", "err:", err);
                     }
 
                   }
