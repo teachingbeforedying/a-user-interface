@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- <meta name="viewport" content= "width=device-width, user-scalable=no">--> <!--does not work -->
+  <title>3dRoom</title>
+
+  <style>
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+
+      /* 17756649/disable-the-horizontal-scroll */
+      max-width: 100%; overflow-x: hidden;
+
+      max-height: 100%; overflow-y: hidden;
+
+      /* Prevent document pinch-zoom & touch-hold-to-highlight */
+      touch-action: none;
+
+      -webkit-touch-callout: none;
+      /* iOS Safari */
+      -webkit-user-select: none;
+      /* Safari */
+      -khtml-user-select: none;
+      /* Konqueror HTML */
+      -moz-user-select: none;
+      /* Old versions of Firefox */
+      -ms-user-select: none;
+      /* Internet Explorer/Edge */
+      user-select: none;
+      /* Non-prefixed version, currently supported by Chrome, Edge, Opera and Firefox */
+    }
+  </style>
+
+  <script src="./lib/3D/three.bundle.min.js" type="text/javascript"></script>
+  <script>
+    console.log("THREE", THREE);
+  </script>
+
+</head>
+
+<body>
+
+  <style>
+    #myCanvas {
+      position: absolute;
+      left: 0;
+      top:  0;
+      border: 0px solid green;
+      width:  100%;
+      height: 100%;
+
+      display: none;
+    }
+  </style>
+  <canvas id="myCanvas"></canvas>
+
+  <style>
+    #rendererCanvas {
+      position: absolute;
+      left: 0;
+      top:  0;
+      border: 0px solid green;
+      width:  100%;
+      height: 100%;
+    }
+  </style>
+  <canvas id="rendererCanvas"></canvas>
+
+  <script>
+    let camera, scene, renderer, controls;
+
+    const arr_object = [];
+
+    let raycaster;
+
+    let moveForward  = false;
+    let moveBackward = false;
+    let moveLeft     = false;
+    let moveRight    = false;
+    let canJump      = false;
+
+    let prevTime    = performance.now();
+    const velocity  = new THREE.Vector3();
+    const direction = new THREE.Vector3();
+    const vertex    = new THREE.Vector3();
+    const color     = new THREE.Color();
+
+    init();
+    animate();
+
+    function init() {
+
+      camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 1000 );
+      camera.position.y = 10;
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color( 0xffffff );
+      scene.fog = new THREE.Fog( 0xffffff, 0, 750 );
+
+      const light = new THREE.HemisphereLight( 0xeeeeff, 0x777788, 2.5 );
+      light.position.set( 0.5, 1, 0.75 );
+      scene.add( light );
+
+
+      //controls
+      controls = new THREE.PointerLockControls( camera, document.body );
+      window.addEventListener( 'click', function () {
+
+        controls.lock();
+
+      } );
+      // const blocker      = document.getElementById( 'blocker' );
+      // const instructions = document.getElementById( 'instructions' );
+
+      // instructions.addEventListener( 'click', function () {
+
+      //   controls.lock();
+
+      // } );
+
+      // controls.addEventListener( 'lock', function () {
+
+      //   instructions.style.display = 'none';
+      //   blocker.style.display = 'none';
+
+      // } );
+
+      // controls.addEventListener( 'unlock', function () {
+
+      //   blocker.style.display = 'block';
+      //   instructions.style.display = '';
+
+      // } );
+
+      scene.add( controls.getObject() );
+
+      const onKeyDown = function ( event ) {
+
+        switch ( event.code ) {
+
+          case 'ArrowUp':
+          case 'KeyW':
+            moveForward = true;
+            break;
+
+          case 'ArrowLeft':
+          case 'KeyA':
+            moveLeft = true;
+            break;
+
+          case 'ArrowDown':
+          case 'KeyS':
+            moveBackward = true;
+            break;
+
+          case 'ArrowRight':
+          case 'KeyD':
+            moveRight = true;
+            break;
+
+          case 'Space':
+            if ( canJump === true ) velocity.y += 350;
+            canJump = false;
+            break;
+
+        }
+
+      };
+
+      const onKeyUp = function ( event ) {
+
+        switch ( event.code ) {
+
+          case 'ArrowUp':
+          case 'KeyW':
+            moveForward = false;
+            break;
+
+          case 'ArrowLeft':
+          case 'KeyA':
+            moveLeft = false;
+            break;
+
+          case 'ArrowDown':
+          case 'KeyS':
+            moveBackward = false;
+            break;
+
+          case 'ArrowRight':
+          case 'KeyD':
+            moveRight = false;
+            break;
+
+        }
+
+      };
+
+      document.addEventListener( 'keydown', onKeyDown );
+      document.addEventListener( 'keyup', onKeyUp );
+
+      raycaster = new THREE.Raycaster( new THREE.Vector3(), new THREE.Vector3( 0, - 1, 0 ), 0, 10 );
+
+
+
+
+
+
+      
+
+      scene.add( new THREE.AmbientLight( 0x444444 ) );
+
+      //geometry
+      const size__room = {  //size's x, y, z are width, height, depth.
+        x:  35,
+        y:  35,
+        z:  55,
+      };
+
+      const geom__walls = new THREE.BoxGeometry(size__room.x,size__room.y,size__room.z);
+      const mat__walls  = new THREE.MeshNormalMaterial({
+          side: THREE.DoubleSide, // fix #3 - can do this to make room walls visible from both sides.
+          // side: THREE.BackSide,
+
+          transparent: true,
+          opacity: 0.7,
+      });
+      const room = new THREE.Mesh(geom__walls, mat__walls);
+      console.log("room:", room);
+      // room.rotation.set(-Math.PI/3, 0.3, -0.3 );
+      
+      // const boundingBox__room = new THREE.Box3().setFromObject(room);
+      // const size__room = boundingBox__room.getSize(); //size's x, y, z are width, height, depth.
+
+      room.position.y = room.position.y + size__room.y / 2.0;
+
+      scene.add(room);
+        
+      // {
+      //   var geom__edges = new THREE.EdgesGeometry( geom__walls );
+      //   var geom__line  = new LineSegmentsGeometry().fromEdgesGeometry( geom__edges );
+
+      //   const mat__line = new LineMaterial( {
+      //     color: 0x4080ff,
+      //     linewidth: 5,
+      //   } );
+
+      //   wireframe = new Wireframe( geom__line, mat__line );
+      //   wireframe.computeLineDistances();
+      //   wireframe.scale.set( 1, 1, 1 );
+      //   scene.add( wireframe );
+      // }
+
+
+
+
+      // floor
+
+      let geom__floor = new THREE.PlaneGeometry( 2000, 3000, 100, 100 );
+      geom__floor.rotateX( - Math.PI / 2 );
+
+
+      // const mat__floor = new THREE.MeshBasicMaterial( { vertexColors: true } );
+      const mat__floor = new THREE.MeshLambertMaterial({
+          side: THREE.DoubleSide // fix #3 - can do this to make room walls visible from both sides.
+          // side: THREE.FrontSide,
+      });
+
+      const floor = new THREE.Mesh( geom__floor, mat__floor );
+      scene.add( floor );
+
+
+
+      // objects
+
+        //box in room
+      const geom__box = new THREE.BoxGeometry( 6, 6, 6 );
+      const mat__box  = new THREE.MeshNormalMaterial({
+          side: THREE.FrontSide,
+      });
+      const box = new THREE.Mesh( geom__box, mat__box );
+      console.log("box:", box);
+      box.position.y = box.position.y + 3;
+      scene.add( box );
+      arr_object.push( box );
+
+
+
+        //canvas on wall
+      const canvas__wall  = document.getElementById("myCanvas");
+      const texture__wall = new THREE.CanvasTexture(canvas__wall);
+      // Setting magFilter and minFilter to THREE.NearestFilter
+      // console.log(texture__wall.magFilter); // 1006 ( THREE.LinearFilter - r146 )
+      // console.log(texture__wall.minFilter); // 1008 ( THREE.LinearMipmapLinearFilter - r146 )
+      // console.log(THREE.NearestFilter); // 1003 ( r146 )
+      texture__wall.magFilter = THREE.NearestFilter;
+      texture__wall.minFilter = THREE.NearestFilter;
+
+      const geom__wall = new THREE.PlaneGeometry( size__room.x, size__room.z );
+      const mat__wall  = new THREE.MeshBasicMaterial({ map: texture__wall });
+      const mesh__wall = new THREE.Mesh( geom__wall, mat__wall);
+      scene.add(mesh__wall);
+
+
+
+
+
+      const canvas__renderer = document.getElementById("rendererCanvas");
+      renderer = new THREE.WebGLRenderer( { 
+        canvas: canvas__renderer, 
+        antialias: true, 
+      });
+      renderer.setPixelRatio( window.devicePixelRatio );
+      renderer.setSize( window.innerWidth, window.innerHeight );
+      document.body.appendChild( renderer.domElement );
+
+      //
+
+      window.addEventListener( 'resize', onWindowResize );
+
+    }
+
+    function onWindowResize() {
+
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+
+      renderer.setSize( window.innerWidth, window.innerHeight );
+
+    }
+
+    function animate() {
+
+      requestAnimationFrame( animate );
+
+      const time = performance.now();
+
+      if ( controls.isLocked === true ) {
+
+        raycaster.ray.origin.copy( controls.getObject().position );
+        raycaster.ray.origin.y -= 10;
+
+        const intersections = raycaster.intersectObjects( arr_object, false );
+
+        const onObject = intersections.length > 0;
+
+        const delta = ( time - prevTime ) / 1000;
+
+        velocity.x -= velocity.x * 10.0 * delta;
+        velocity.z -= velocity.z * 10.0 * delta;
+
+        velocity.y -= 9.8 * 100.0 * delta; // 100.0 = mass
+
+        direction.z = Number( moveForward ) - Number( moveBackward );
+        direction.x = Number( moveRight ) - Number( moveLeft );
+        direction.normalize(); // this ensures consistent movements in all directions
+
+        if ( moveForward || moveBackward ) velocity.z -= direction.z * 400.0 * delta;
+        if ( moveLeft || moveRight ) velocity.x -= direction.x * 400.0 * delta;
+
+        if ( onObject === true ) {
+
+          velocity.y = Math.max( 0, velocity.y );
+          canJump = true;
+
+        }
+
+        controls.moveRight( - velocity.x * delta );
+        controls.moveForward( - velocity.z * delta );
+
+        controls.getObject().position.y += ( velocity.y * delta ); // new behavior
+
+        if ( controls.getObject().position.y < 10 ) {
+
+          velocity.y = 0;
+          controls.getObject().position.y = 10;
+
+          canJump = true;
+
+        }
+
+      }
+
+      prevTime = time;
+
+      renderer.render( scene, camera );
+
+    }
+
+
+  </script>
+
+
+</body>
+
