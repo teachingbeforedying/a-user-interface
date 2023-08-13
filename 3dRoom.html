@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- <meta name="viewport" content= "width=device-width, user-scalable=no">--> <!--does not work -->
-  <title>3dRoom</title>
+  <title>3DRoom</title>
 
   <style>
     html,
@@ -41,6 +41,9 @@
   <script>
     console.log("THREE", THREE);
   </script>
+
+  <script src="./lib/3D/three-laser-pointer.min.js" type="text/javascript"></script>
+
 
 </head>
 
@@ -91,17 +94,33 @@
     const vertex    = new THREE.Vector3();
     const color     = new THREE.Color();
 
+
+    let mesh__wall;
+    let laser;
+
+    let isLaserPointingIC;
+    let isCanCapture;
+
     init();
     animate();
 
     function init() {
 
-      camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 1000 );
-      camera.position.y = 10;
-
       scene = new THREE.Scene();
       scene.background = new THREE.Color( 0xffffff );
       scene.fog = new THREE.Fog( 0xffffff, 0, 750 );
+
+
+
+
+      camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 1000 );
+      camera.position.y = 10;
+
+  
+
+
+
+
 
       const light = new THREE.HemisphereLight( 0xeeeeff, 0x777788, 2.5 );
       light.position.set( 0.5, 1, 0.75 );
@@ -202,7 +221,24 @@
       };
 
       document.addEventListener( 'keydown', onKeyDown );
-      document.addEventListener( 'keyup', onKeyUp );
+      document.addEventListener( 'keyup',   onKeyUp   );
+
+
+      const onMouseUp = function ( event ) {
+        if(isCanCapture) {
+          console.log("captureNow");
+        }
+      };
+      document.addEventListener( 'mouseup', onMouseUp );
+
+
+      //laser
+      laser = new Laser({color: 0xff0000});
+      scene.add(laser);
+
+
+
+
 
       raycaster = new THREE.Raycaster( new THREE.Vector3(), new THREE.Vector3( 0, - 1, 0 ), 0, 10 );
 
@@ -301,12 +337,20 @@
       texture__wall.magFilter = THREE.NearestFilter;
       texture__wall.minFilter = THREE.NearestFilter;
 
-      const geom__wall = new THREE.PlaneGeometry( size__room.x, size__room.z );
+      const geom__wall = new THREE.PlaneGeometry( size__room.z, size__room.x );
       const mat__wall  = new THREE.MeshBasicMaterial({ map: texture__wall });
-      const mesh__wall = new THREE.Mesh( geom__wall, mat__wall);
+      mesh__wall = new THREE.Mesh( geom__wall, mat__wall);
+
+      mesh__wall.position.y = mesh__wall.position.y + size__room.y / 2.0;
+      mesh__wall.position.x = mesh__wall.position.x - size__room.x / 2.0 + 0.1;
+
+      // mesh__wall.rotation.set(-Math.PI/2, 0, -0.1 );
+      
+      mesh__wall.rotateY(Math.PI/2);
+
+
       scene.add(mesh__wall);
-
-
+      console.log("mesh__wall:", mesh__wall);
 
 
 
@@ -335,6 +379,8 @@
     }
 
     function animate() {
+
+      // checkCanCapture();
 
       requestAnimationFrame( animate );
 
@@ -386,10 +432,77 @@
 
       }
 
+      {
+        // laser.point(pLocal);
+        isCanCapture = checkCanCapture_withLaser();
+        if(isCanCapture) {
+          const rgb__green = 0x00ff00;
+          laser.setColor(rgb__green);
+        } else {
+          const rgb__red = 0xff0000;
+          laser.setColor(rgb__red);
+        }
+      }
+
+
+
       prevTime = time;
 
       renderer.render( scene, camera );
 
+    }
+
+    // function checkCanCapture() {
+    //   const arr_intersected = raycaster.intersectObjects( scene.children, true );
+    //   console.log("arr_intersected:", arr_intersected[0]);
+      
+    //   // const arr_3dObj = arr_intersected.map(intersected => intersected.object);
+    //   const distance = arr_intersected.filter(x => (x.object == mesh__wall))?.[0]?.distance;
+    //   if(distance != null) {
+    //     console.log("distance:", distance);
+    //   }
+    // }
+
+    function checkCanCapture_withLaser() {
+      var outBool = false;
+
+      laser.setSource(new THREE.Vector3(3, -4, -2), camera);
+
+      var pLocal = new THREE.Vector3( 0, 0, -1e4 );
+      var pWorld = pLocal.applyMatrix4( camera.matrixWorld );
+
+      const arr_mesh = [mesh__wall];
+      laser.pointWithRaytrace(pLocal, arr_mesh, null, 1);
+      
+      const arr_hit = laser.getMeshesHit();
+      // console.log("arr_hit:", arr_hit);
+
+      isLaserPointingIC = arr_hit.includes(mesh__wall);
+      // console.log("isLaserPointingIC:", isLaserPointingIC);
+
+      if(isLaserPointingIC) {
+        const arr_point = laser.getPoints();
+        // console.log("arr_point:", arr_point);
+
+        if(arr_point.length >= 2) {
+          const vect3__origin    = arr_point[0];
+          // console.log("vect3__origin:", vect3__origin);
+
+          const vect3__direction = (new THREE.Vector3()).subVectors(arr_point[1], arr_point[0]).normalize();
+          // console.log("vect3__direction:", vect3__direction);
+
+          const distance_max = 30;
+          const raycaster    = new THREE.Raycaster(vect3__origin, vect3__direction, 0, distance_max);
+          
+          const arr_intersected = raycaster.intersectObject(mesh__wall, true);
+          
+          const isCanCapture = (arr_intersected.length > 0);
+          outBool = isCanCapture;
+        }
+
+      }
+          
+      return outBool;
     }
 
 
