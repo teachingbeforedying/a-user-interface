@@ -41,10 +41,6 @@
 
 <body>
 
-  <script src="./lib/3D/three.bundle.min.js" type="text/javascript"></script>
-  <script src="./lib/3D/three-laser-pointer.min.js" type="text/javascript"></script>
-
-
   <!-- <video id="myVideo"></video> -->
   <!-- <button id="myButton"></button> -->
   <!-- <img id="myImage" src="https://i.stack.imgur.com/8fooU.png"></img> -->
@@ -67,9 +63,20 @@
   <script src="lib/jszip.min.js" type='text/javascript'> </script>
   <script src="lib/FileSaver.min.js" type='text/javascript'> </script>
 
-  <script src="lib/epub.min.js" type='text/javascript'></script>
+  <script src="lib/epub/epub.min.js" type='text/javascript'></script>
   <!-- <script>
     console.log("logEPUB", "ePub:", ePub);
+  </script> -->
+
+  <script src="lib/epub/epub-maker/vendor/beautify-html.js"         type='text/javascript'></script>
+  <script src="lib/epub/epub-maker/vendor/FileSaver.min.js"         type='text/javascript'></script>
+  <script src="lib/epub/epub-maker/vendor/handlebars.min.js"        type='text/javascript'></script>
+  <script src="lib/epub/epub-maker/vendor/jszip.min.js"             type='text/javascript'></script>
+  <script src="lib/epub/epub-maker/vendor/jszip-utils.min.js"       type='text/javascript'></script>
+  <script src="lib/epub/epub-maker/vendor/underscore.string.min.js" type='text/javascript'></script>
+  <script src="lib/epub/epub-maker/epub-maker.min.js"               type='text/javascript'></script>
+  <!-- <script>
+    console.log("logEPUB", "EpubMaker:", EpubMaker);
   </script> -->
 
   <!-- <script src="lib/panzoom.min.js" type='text/javascript'></script> -->
@@ -6857,15 +6864,21 @@
       const arr__var_kv = query.split("&");
       const dict_kv = arr__var_kv.reduce((acc, str_kv) => {
         var [k,v] = str_kv.split("=");
-        if(k == "challenge") {
-          //don't try to math.parse route
-        } else {
-          if(v != null) {
-            const mathNode = math.parse(v);
-            if(mathNode != null) {
-              v = mathNode;
+        switch(k) {
+          case "challenge":
+          case "worldType":
+            //don't try to math.parse
+            break;
+          default:
+          {
+            if(v != null) {
+              const mathNode = math.parse(v);
+              if(mathNode != null) {
+                v = mathNode;
+              }
             }
           }
+          break;
         }
         acc[k] = v;
         return acc;
@@ -6889,8 +6902,6 @@
       border: 0px solid black;
       width:  100%;
       height: 100%;
-
-      display: none;  /* for 3DRoom to display properly */
     }
 
     #myCanvas {
@@ -6935,7 +6946,7 @@
     }  
   </script> -->
 
-  <style>
+  <!-- <style>
     #rendererCanvas {
       position: absolute;
       left: 0;
@@ -6944,8 +6955,8 @@
       width:  100%;
       height: 100%;
     }
-  </style>
-  <canvas id="rendererCanvas"></canvas>
+  </style> -->
+  <!-- <canvas id="rendererCanvas"></canvas> -->
 
   <!-- 3DRoom -->
   <!-- <div id="renderer">
@@ -48322,6 +48333,42 @@
 
       }
 
+      class KeyUpTrigger {
+
+        constructor(name, keyUpFunc, triggeredFunc) {
+          this.name = name;
+          this.keyUpFunc     = keyUpFunc;
+          this.triggeredFunc = triggeredFunc;
+        }
+
+        update(e) {
+          const updateValue = this.keyUpFunc(e);
+          console.log("updateValue", updateValue);
+          if (updateValue) {
+            console.log("KeyUpTrigger::update", this.name);
+            this.triggeredFunc();
+          }
+        }
+
+        static defaultKeyUpFunc(arr_keyCode) {
+          const keyUpFunc = (e) => {
+            var updateValue;
+
+            updateValue = arr_keyCode.reduce((acc, keyCode) => {
+              if (keyCode == e.code) {
+                acc = true;
+              }
+              return acc;
+            }, null);
+
+            return updateValue;
+          };
+
+          return keyUpFunc;
+        }
+
+      }
+
       class KeyboardIntegration {
 
         constructor(infiniteCanvas, inputProperties, fileIntegration, fabricIntegration) {
@@ -48357,7 +48404,7 @@
           //keyboardIntegration.configureKeyDownToggles();
           //keyboardIntegration.configureKeyDownTimeouts();
           //keyboardIntegration.configureKeyUpABToggles();
-
+          //keyboardIntegration.configureKeyUpTriggers();
 
 
           function updateKeyDownToggles(e, down) {
@@ -48378,6 +48425,13 @@
             const arr_keyUpABToggles = Object.values(keyboardIntegration.keyUpABToggles);
             arr_keyUpABToggles.forEach((keyUpABToggle, i) => {
               keyUpABToggle.update(e);
+            });
+          }
+
+          function updateKeyUpTriggers(e) {
+            const arr_keyUpTriggers = Object.values(keyboardIntegration.keyUpTriggers);
+            arr_keyUpTriggers.forEach((keyUpTrigger, i) => {
+              keyUpTrigger.update(e);
             });
           }
 
@@ -48416,6 +48470,7 @@
             updateKeyDownToggles(e, false);
             updateKeyDownTimeouts(e, false);
             updateKeyUpABToggles(e);
+            updateKeyUpTriggers(e);
 
             // if (keyboardIntegration.keyDownToggles.p.isActive) {
             //   logger.log("keyboardIntegration.keyDownToggles.p.isActive");
@@ -48488,984 +48543,8 @@
 
             }
 
-            function handleKeyUp__default(e) {
-              switch (e.code) {
-
-                case "KeyQ":
-                  {
-                    if (keyboardIntegration.keyDownToggles.ctrlLeft.isActive) {
-                      fabricIntegration.selectAll();
-                    } else if (keyboardIntegration.keyDownToggles.intlBackslash.isActive) {
-                      if(fabricIntegration.fabricCanvas.isDrawingMode) {
-                        logger.log("logAdhere", "adhesiveKick");
-                        infiniteCanvas.adhesive__isAdhesiveKick = true;
-                      } else {
-                        infiniteCanvas.operateOnSelected__adhere();
-                      }
-                    }
-                  }
-                  break;
-
-                case "KeyI":
-                  {
-                    // if(infiniteCanvas.importMode == ImportMode.Image) {
-
-                    // }
-
-                    // if (keyboardIntegration.keyDownToggles.ctrlLeft.isActive) {
-                    //   // FileIntegration.importVideo_p()
-                    //   //   .then(video => {
-                    //   //     infiniteCanvas.manageImport__video(video);
-                    //   //     keyboardIntegration.keyDownToggles.ctrlLeft.isActive = false; //force untoggle (bugfix)
-                    //   //   });
-
-                    //   FileIntegration.importAudio_p()
-                    //     .then(audio => {
-                    //       infiniteCanvas.manageImport__audio(audio);
-                    //       keyboardIntegration.keyDownToggles.ctrlLeft.isActive = false; //force untoggle (bugfix)
-                    //     });
-                      
-                    // }
-                    // else if (keyboardIntegration.keyDownToggles.altLeft.isActive) {
-                    //   FileIntegration.videoFromWebcam_p()
-                    //     .then(video => {
-                    //       infiniteCanvas.manageImport__video(video);
-                    //       keyboardIntegration.keyDownToggles.altLeft.isActive = false;
-                    //     });
-                    // }
-                    // else if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
-                    //   FileIntegration.importImage_folder_p()
-                    //     .then(arr_img => {
-                    //       arr_img.forEach(img => {
-                    //         infiniteCanvas.manageImport__image(img);
-                    //       });
-                    //     });
-                    // }
-                    // else {
-                      // FileIntegration.importImage_multiple_p()
-                      //   .then(arr_img => {
-                      //     arr_img.forEach(img => {
-                      //       infiniteCanvas.manageImport__image(img);
-                      //     });
-                      //   });
-                    // }
-
-
-                    // FileIntegration.importText_multiple_p()
-                    //     .then(arr_text => {
-                    //       arr_text.forEach(text => {
-                    //         infiniteCanvas.manageImport__text(text);
-                    //       });
-                    //     });
-
-                    try {
-
-                      // FileIntegration.importHtmlObject_multiple_p()
-                      //   .then(arr_elObject => {
-                      //     arr_elObject.forEach(elObject => {
-                      //       logger.log("logPDF", "elObject", elObject);
-                      //       infiniteCanvas.manageImport__htmlObject(elObject);
-                      //     });
-                      //   });
-
-                      // FileIntegration.importPDF_multiple_p()
-                      //   .then(arr_dict_pdf => {
-                      //     arr_dict_pdf.forEach(dict_pdf => {
-                      //       logger.log("logPDF", "dict_pdf", dict_pdf);
-                      //       infiniteCanvas.manageImport__pdf(dict_pdf);
-                      //     });
-                      //   });
-
-                      FileIntegration.importEPUB_multiple_p()
-                        .then(arr_dict_epub => {
-                          arr_dict_epub.forEach(dict_epub => {
-                            logger.log("logEPUB", "dict_epub", dict_epub);
-                            infiniteCanvas.manageImport__epub(dict_epub);
-                          });
-                        });
-
-                    } catch(err) {
-                      logger.log("logPDF", "err:", err);
-                    }
-
-                  }
-
-                  break;
-
-                case "KeyS":
-                  {
-                    if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
-                      //compose
-                      fabricIntegration.spreadSelectedObjects();
-                    } else {
-                      infiniteCanvas.manageSaveInfinishute_p()
-                        .then((success) => {
-                          console.log("success", success);
-                        });
-                    }
-                  }
-                  break;
-                case "KeyL":
-                  {
-                    if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
-                      //lock everything
-                      infiniteCanvas.vitrify();
-                    } else if (keyboardIntegration.keyDownToggles.altLeft.isActive) {
-                      //unlock everything
-                      infiniteCanvas.vivify();
-                    } else {
-                      //load
-                      FileIntegration.loadInfinishute_p()
-
-                        //debug
-                        .then(infinishute => {
-                          console.log("loaded infinishute", infinishute);
-                          return infinishute;
-                        })
-
-                        .then(infinishute => {
-                          infiniteCanvas.manageLoadInfinishute(infinishute);
-                        });
-                    }
-                  }
-
-                  break;
-
-                /*
-                // case "ShiftLeft":
-                case "KeyZ":
-                  handleKey_Shift(e);
-                  break;
-                // case "ControlLeft":
-                case "KeyX":
-                  handleKey_Ctrl(e);
-                  break;
-                */
-
-
-                case "KeyE":
-                  {
-                    const cursor = null;
-                    // fabricIntegration.activateObjectAtCursor();
-
-                    //debug
-                    // keyboardIntegration.infiniteCanvas.addNewGMOperator_editable("x 1");
-
-                    keyboardIntegration.infiniteCanvas.operateOnActiveObject__export_asImg();
-                  }
-                  break;
-
-
-                case "KeyF":
-                  // if (keyboardIntegration.keyDownToggles.w.isActive) {
-                  if(fabricIntegration.fabricCanvas.isDrawingMode) {
-                    // keyboardIntegration.infiniteCanvas.addNewSpotPoint();
-                    fabricIntegration.floodFillAroundCursor();
-                    // fabricIntegration.floodFillAroundCursor__area_ruler();
-                  } else if (keyboardIntegration.keyDownToggles.zIndexEditing.isActive) {
-                    keyboardIntegration.infiniteCanvas.manageZIndexEditing_bringToFront();
-                  } else if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
-                      // keyboardIntegration.infiniteCanvas.addNewSpotPoint();
-                      keyboardIntegration.infiniteCanvas.addNewPoint();
-                  } else {
-                    if (fabricIntegration.fabricCanvas.isDrawingMode) {
-                        //send brush to front
-                        keyboardIntegration.infiniteCanvas.manageZIndexEditing_bringToFront();
-                      } else {
-                        keyboardIntegration.infiniteCanvas.addNewRect();
-                      }                      
-                  }
-                  break;
-
-
-                // case "KeyF":
-                //   handleKeyUp_F(e);
-                //   break;
-
-                // case "KeyT":
-                //   handleKeyUp_T(e);
-                //   break;
-                case "KeyT":
-                  {
-                    if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
-                      //tag
-                      const debug_text = "challenge.";
-                      keyboardIntegration.infiniteCanvas.addNewTag(debug_text);
-                    } else {
-                      //text
-                      const debug_text = "icText";
-                      // const debug_text = "return infiniteCanvas.createIcRect(trueRect);";
-                      // const debug_text = "scriptOutput = infiniteCanvas.createIcRect(trueRect);";
-                      keyboardIntegration.infiniteCanvas.addNewText(debug_text);
-                    }
-
-                  }
-                  break;
-
-                // case "KeyA":
-                //   {
-                //     keyboardIntegration.infiniteCanvas.addNewCircle();
-                //   }
-                //   break;
-
-                case "KeyH":
-                  {
-                    keyboardIntegration.infiniteCanvas.addNewSnapSlot();
-                  }
-                  break;
-
-                case "KeyR":
-                {
-                  const infiniteCanvas = keyboardIntegration.infiniteCanvas;
-                  if(infiniteCanvas.isCombSetup) {
-                    infiniteCanvas.manageUpdate__comb__toggleOrientation();
-                  }
-                }
-                break;
-
-                case "KeyZ":
-                  {
-                    // FileIntegration.importImage_p()
-                    //   .then(img => {
-                    //     infiniteCanvas.addNewSparkle(img);
-                    //   });
-                  }
-                  break;
-
-                // case "IntlBackslash":
-                //   {
-                //     // if(fabricIntegration.fabricCanvas.isDrawingMode) {
-                //     //  //toggle: adhesive drawings
-                //     //  inputProperties.updateBrush__toggleAdhesive();
-                //     // }
-                    
-                //     {
-                //       //toggle adhesive
-                //       inputProperties.toggleAdhesive();
-                //     }
-                     
-                //   }
-                //   break;
-
-                case "KeyX":
-                  {
-                    // if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
-                    //   keyboardIntegration.infiniteCanvas.operateOnActiveObject__poopGeminiShade();
-                    // }
-                    // else
-                    // if (keyboardIntegration.keyDownToggles.altLeft.isActive) {
-                    //   const mathNode = new math.SymbolNode("x");
-                    //   mathNode.autoSimplify = true;
-                    //
-                    //   keyboardIntegration.infiniteCanvas.addNewMathNode(mathNode);
-                    // }
-                    // else
-                    {
-                      if(infiniteCanvas.isEnabled_supervessel) {
-                        keyboardIntegration.infiniteCanvas.operateOnActiveObject__poopSameHomeScaleClone();
-                      } else {
-                        keyboardIntegration.infiniteCanvas.operateOnSelected__poopSameHomeScaleClone();
-                      }
-                    }
-                  }
-                  break;
-
-                case "KeyU":
-                  {
-                    // keyboardIntegration.infiniteCanvas.addNewTouchSlot();
-
-                    // keyboardIntegration.infiniteCanvas.addNewGMOperator();
-
-                    // keyboardIntegration.infiniteCanvas.addNewGMOperator_editable("x (22/7)");
-
-                    keyboardIntegration.infiniteCanvas.addNewP2P();
-                  }
-                  break;
-
-                case "KeyY":
-                  {
-                    // keyboardIntegration.infiniteCanvas.addNewGMChallenge(0);
-
-                    if (keyboardIntegration.keyDownToggles.altLeft.isActive) {
-                      const mathNode = new math.SymbolNode("y");
-                      mathNode.autoSimplify = true;
-
-                      keyboardIntegration.infiniteCanvas.addNewMathNode(mathNode);
-                    }
-                    else {
-                      keyboardIntegration.infiniteCanvas.addNewStore();
-                    }
-
-                  }
-                  break;
-
-                case "Digit1":
-                  {
-                    if(fabricIntegration.fabricCanvas.isDrawingMode) {
-                      inputProperties.brushWidth__isElastic = true;
-                    }
-                  }
-                break;
-
-
-                // case "Digit3":
-                //   {
-                //     // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__remove_parentheses");
-                //
-                //     // const mathNode = math.parse("3*2");
-                //     // keyboardIntegration.infiniteCanvas.addNewMNReictangle(mathNode);
-                //
-                //     // const sandBox_doubleObjects = new SandBox_doubleObjects(keyboardIntegration.infiniteCanvas);
-                //
-                //     keyboardIntegration.infiniteCanvas.addNewToggleRect();
-                //   }
-                // break;
-
-                // case "Digit4":
-                //   {
-                //     // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__remove_parentheses");
-                //     // keyboardIntegration.infiniteCanvas.operateOnActiveObject__executeScript();
-                //
-                //     // keyboardIntegration.infiniteCanvas.operateOnActiveObject__setBehavior("stickyRelease", true);
-                //     fabricIntegration.prepareSingleUseBehavior("stickyRelease");
-                //   }
-                // break;
-
-
-                // case "Digit5":
-                //   {
-                //     // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__remove_parentheses");
-                //     // keyboardIntegration.infiniteCanvas.addNewText("=");
-                //
-                //     fabricIntegration.linkSelectedObjects();
-                //   }
-                // break;
-
-                case "Digit6":
-                  {
-
-                    // {
-                    //   // const html_elt = document.getElementById("debug_nbObjects");
-                    //   // const html_elt = document.body;
-                    //
-                    //
-                    //   const input = document.createElement("INPUT");
-                    //   input.setAttribute("type", "text");
-                    //   // input.setAttribute("text", "lolilol");
-                    //
-                    //   input.style.backgroundColor = "yellow";
-                    //   document.body.appendChild(input);
-                    //
-                    //   const html_elt = input;
-                    //
-                    //
-                    //   /*
-                    //   const div = document.createElement("DIV");
-                    //   div.style.backgroundColor = "yellow";
-                    //   div.style.width  = "200px";
-                    //   div.style.height = "200px";
-                    //
-                    //   // div.style.visibility = "hidden";
-                    //   // div.style.display = "none";
-                    //
-                    //   document.body.appendChild(div);
-                    //
-                    //   const html_elt = div;
-                    //   */
-                    //
-                    //   keyboardIntegration.infiniteCanvas.addNewHtmlElt(html_elt);
-                    // }
-
-                    // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("mark__slash_simplifiable");
-
-                    keyboardIntegration.infiniteCanvas.manageEnterOrLeaveRecording();
-                  }
-                  break;
-
-                case "Digit7":
-                  {
-                    // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify");
-                    // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__step_by_step");
-                    // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__top_layer");
-
-                    // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("equation__add1");
-
-                    keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("split__top_layer");
-                    // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("decomposition__product_primes");
-
-                    // keyboardIntegration.infiniteCanvas.addNewGMSafetyZone();
-                  }
-                  break;
-
-                case "Digit8":
-                  {
-                    // keyboardIntegration.infiniteCanvas.addNewTouchSlot();
-                    // keyboardIntegration.infiniteCanvas.addNewGMTargetSlot();
-
-                    // keyboardIntegration.infiniteCanvas.addNewGMTargetTouchSlot();
-
-                    if(infiniteCanvas.isEnabled_supervessel) {
-                      keyboardIntegration.infiniteCanvas.operateOnActiveObject__toggleProperty("isTouchable");
-                    } else {
-                      keyboardIntegration.infiniteCanvas.operateOnSelected__toggleProperty("isTouchable");
-                    }
-                    
-                  }
-                  break;
-
-                case "Digit9":
-                  {
-                    // keyboardIntegration.infiniteCanvas.addNewCountdown();
-                    // keyboardIntegration.infiniteCanvas.addNewIcEngined_debug();
-
-                    // keyboardIntegration.infiniteCanvas.manageMoveEvent_debug();
-                    // keyboardIntegration.infiniteCanvas.addNewCounter();
-
-                    inputProperties.updateBrush__toggleAdhesive();
-                  }
-                  break;
-
-                case "F2":
-                  {
-                    const cfg = {
-                      isConsume: false,
-                    };
-                    keyboardIntegration.infiniteCanvas.addNewConductiveOperator_withType("randInBag", cfg);
-                  }
-                  break;
-
-                case "F4":
-                  {
-                    const cfg = {
-                      isConsume: true,
-                    };
-                    keyboardIntegration.infiniteCanvas.addNewConductiveOperator_withType("randInBag", cfg);
-                  }
-                  break;
-
-                case "F8":
-                  {
-                    const cfg = {
-                      min: 0,
-                      max: 20,
-                    };
-                    keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("rand_int", cfg);
-                  }
-                  break;
-
-                case "F9":
-                  {
-
-                    // const cfg = {
-                    //   f_name: "cos",
-                    // };
-                    //
-                    // if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
-                    //   keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("function", cfg);
-                    // } else {
-                    //   keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("functionamer", cfg);
-                    // }
-
-                    keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("format:toFixed");
-                  }
-                  break;
-
-                case "F10":
-                  {
-                    keyboardIntegration.infiniteCanvas.addNewText("=");
-                  }
-                  break;
-
-
-                case "KeyJ":
-                  {
-                    // keyboardIntegration.infiniteCanvas.addNewWell();
-
-                    {
-                      const cfg = {
-                        index: 1,
-                      };
-                      keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("c:objectAtIndex", cfg);
-                    }
-
-                    // {
-                    //   const infiniteCanvas = keyboardIntegration.infiniteCanvas;
-                    //   const truePoint = infiniteCanvas.getTrueCursor();
-                    //   const arr_icObj = infiniteCanvas.getArr_icObj__containingPoint("free", truePoint);
-                    //   logger.log("logIC", "getArr_icObj__containingPoint", arr_icObj);
-                    // }
-
-                  }
-                  break;
-
-                case "KeyN":
-                  {
-                    // keyboardIntegration.infiniteCanvas.addNewComposite();
-                    // keyboardIntegration.infiniteCanvas.addNewGreenMouseWell();
-                  }
-                  break;
-
-                case "KeyM":
-                  {
-                    logger.log("keyM");
-                    // keyboardIntegration.infiniteCanvas.addNewTouchSlot();
-                    // keyboardIntegration.infiniteCanvas.addNewBornAgainGreenMouse(1);
-
-                    // keyboardIntegration.infiniteCanvas.addNewRxSubject(1);
-                    // keyboardIntegration.infiniteCanvas.addNewLabelValue("lol", 9);
-
-                    keyboardIntegration.infiniteCanvas.operateOnActiveObject__split();     // == split supervessel cargo
-                  }
-                  break;
-
-                case "Comma":
-                  {
-                    // keyboardIntegration.infiniteCanvas.addNewButton();
-                    // keyboardIntegration.infiniteCanvas.addNewRxSubscription();
-
-                    keyboardIntegration.infiniteCanvas.operateOnActiveObject__join();     // == join supervessel cargo
-                  }
-                  break;
-
-
-
-
-                case "Quote":
-                  {
-                    const tex = '\\frac{1}{x^2-1}';
-                    // const svgEl = TexHelper.toSvgEl(tex);
-                    // keyboardIntegration.infiniteCanvas.addNewSvg(svgEl);
-
-                    // keyboardIntegration.infiniteCanvas.addNewTex(tex);
-
-                    // const expression = new algebra.Expression("x");
-                    // expression.autoSimplify = false;
-                    // keyboardIntegration.infiniteCanvas.addNewExpr(expression);
-
-                    // const equation = new algebra.Equation(new algebra.Expression("x"), new algebra.Expression("3"));
-                    // keyboardIntegration.infiniteCanvas.addNewExpr(equation);
-
-
-                    /*
-                    // const mathNode = math.parse("1");
-                    const mathNode = new math.ConstantNode(1);
-                    // const mathNode = new math.SymbolNode("x");
-                    mathNode.autoSimplify = true;
-                    // mathNode.autoSimplify = false;
-                    keyboardIntegration.infiniteCanvas.addNewMathNode(mathNode);
-                    */
-
-                    // const mathNode = random_mathNode_withDepth(4);
-                    // const mathNode = random_mathNode_withDepth_and_nbSymbols(4,0);
-                    // const mathNode = random_mathNode_withDepth_and_nbSymbols(4,1);
-
-                    // const mathNode = random_onion_mathNode(5);
-                    // const mathNode = random_onion_mathNode(5, false);
-                    // const mathNode = random_onion_mathNode(3);
-
-                    // const mathNode = random_onion_mathNode(2);
-                    const mathNode = random_onion_mathNode(3);
-                    // mathNode.autoSimplify = false;
-
-                    // const mathNode = random_terminal_mathNode_withType_inArr(["ConstantNode"]);
-                    // mathNode.autoSimplify = true;
-
-                    keyboardIntegration.infiniteCanvas.addNewMathNode(mathNode);
-                    // keyboardIntegration.infiniteCanvas.addNewGreenMouseBox(mathNode);
-                  }
-                  break;
-
-                case "Digit0":
-                  {
-                    // keyboardIntegration.infiniteCanvas.addNewFacet_mathNode();
-
-                    keyboardIntegration.infiniteCanvas.manageReplay_debug();
-                    // keyboardIntegration.infiniteCanvas.manageReplay_debug__machineGun();
-                  }
-                  break;
-
-
-
-
-
-
-
-
-                case "Equal":
-                  {
-                    // keyboardIntegration.infiniteCanvas.addNewObserver();
-                    keyboardIntegration.infiniteCanvas.addNewClickWell(-22);
-                  }
-                  break;
-
-                case "Minus":
-                  {
-                    // keyboardIntegration.infiniteCanvas.addNewTrigger();
-                    keyboardIntegration.infiniteCanvas.addNewEye();
-                  }
-                  break;
-
-                case "Backslash":
-                  {
-                    // keyboardIntegration.infiniteCanvas.addNewEventEmitter();
-
-                    const mathNode_left = new math.SymbolNode("x");
-                    mathNode_left.autoSimplify = false;
-                    const mathNode_right = new math.ConstantNode(1);
-                    mathNode_right.autoSimplify = true;
-                    const mathNode_equation = new math.RelationalNode(["equal"], [mathNode_left, mathNode_right]);
-                    // mathNode_equation.params[0].autoSimplify = false;
-                    // mathNode_equation.params[1].autoSimplify = true;
-                    mathNode_equation.isEquation = true;
-
-                    const mathNode = mathNode_equation;
-                    keyboardIntegration.infiniteCanvas.addNewMathNode(mathNode);
-                  }
-                  break;
-
-                case "BracketRight":
-                  {
-                    // keyboardIntegration.infiniteCanvas.addNewClickWell();
-                    // keyboardIntegration.infiniteCanvas.addNewEventReceiver();
-
-                    keyboardIntegration.infiniteCanvas.spawnImageCart();
-                  }
-                  break;
-
-                case "BracketRight":
-                  {
-                    keyboardIntegration.infiniteCanvas.addNewEventReceiver();
-                  }
-                  break;
-
-
-
-
-
-                case "KeyG":
-                  {
-                    if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
-                      //compose
-                      fabricIntegration.composeSelectedObjects();
-                    } else if (keyboardIntegration.keyDownToggles.altLeft.isActive) {
-                      //link
-                      fabricIntegration.linkSelectedObjects();
-                    } else {
-                      //group
-                      // fabricIntegration.groupSelectedObjects();
-
-                      //supervessel grab
-                      keyboardIntegration.infiniteCanvas.operateOnSupervessel__grab();
-                    }
-                  }
-                  break;
-
-                case "KeyB":
-                  {
-                    if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
-                      //decompose
-                      fabricIntegration.decomposeSelectedObject();
-                    } 
-                    else if (keyboardIntegration.infiniteCanvas.isBatchPasting) {
-                      //batch paste
-                      keyboardIntegration.infiniteCanvas.leaveBatchPasting();
-                    } 
-                    else if (keyboardIntegration.keyDownToggles.altLeft.isActive) {
-                      //unlink
-                      fabricIntegration.unlinkSelectedObjects();
-                    }  
-                    else if (keyboardIntegration.keyDownToggles.zIndexEditing.isActive) {
-                      keyboardIntegration.infiniteCanvas.manageZIndexEditing_sendToBack();
-                    } 
-                    else if (fabricIntegration.fabricCanvas.isDrawingMode && keyboardIntegration.infiniteCanvas.isColorPickerAvailable) {
-                      const fObj__cursor_p = fabricIntegration.getFObj__under_cursor_p();
-
-                      fObj__cursor_p.then((fObj) => {
-                        logger.log("fObj__cursor", fObj);
-
-                        if(fObj != null) {
-
-                          const icObj = fObj.icObj;
-
-                          if(icObj.type == "freeDrawing") {
-                            const width     = icObj.strokeWidth;
-                            const homeScale = icObj.homeScale;
-
-                            //set input properties
-                            keyboardIntegration.inputProperties.setBrushWidth(width);
-                            keyboardIntegration.inputProperties.homeScale         = homeScale;
-                            keyboardIntegration.inputProperties.isHomeScaleLocked = true;
-
-                            //update current brush
-                            fabricIntegration.configureFreeDrawingBrush({
-                              width:     inputProperties.getActiveBrushWidth(),
-                              homeScale: inputProperties.homeScale,
-                              // isHomeScaleLocked: true,
-                            });
-
-                          } else {
-                            //SHU TODO: apparentWidth of any object
-                          }
-
-                        } else {
-                          keyboardIntegration.inputProperties.isHomeScaleLocked = false;
-
-                          //update current brush
-                          fabricIntegration.configureFreeDrawingBrush({
-                            // width:     inputProperties.getActiveBrushWidth(),
-                            homeScale: keyboardIntegration.infiniteCanvas.scale,
-                            // isHomeScaleLocked: true,
-                          });
-
-                        }
-
-                      });
-
-                    } else {
-                      //ungroup
-                      fabricIntegration.ungroupSelectedObject();
-                    }
-
-                  }
-                  break;
-
-
-
-
-                // case "Digit0":
-                // case "Numpad0":
-                //   keyboardIntegration.infiniteCanvas.move_to_initial_position();
-                //   break;
-
-                case "BackQuote":
-                  //this key is reserved for freeDrawing
-                  break;
-
-
-
-                // case "KeyW":
-                //   {
-                //     const scaleAmount = -0.1;
-                //     keyboardIntegration.infiniteCanvas.manageScaleUpdateWithScaleAmount(scaleAmount);
-                //   }
-                //   break;
-                //
-                // case "KeyE":
-                //   {
-                //     const scaleAmount = 0.1;
-                //     keyboardIntegration.infiniteCanvas.manageScaleUpdateWithScaleAmount(scaleAmount);
-                //   }
-                //   break;
-
-
-                // case "KeyM":
-                case "Semicolon":
-                  // if(keyboardIntegration.keyDownToggles.r.isActive) {
-                  //   keyboardIntegration.infiniteCanvas.manageCenterRotation(-10);
-                  // } else {
-                  //   keyboardIntegration.infiniteCanvas.updateWithDOrientation(-10);
-                  // }
-
-                  keyboardIntegration.infiniteCanvas.addNewCollection("1..10");
-
-                  break;
-
-                // case "KeyP":
-                //   // if(keyboardIntegration.keyDownToggles.r.isActive) {
-                //   //   keyboardIntegration.infiniteCanvas.manageCenterRotation(+10);
-                //   // } else {
-                //   //   keyboardIntegration.infiniteCanvas.updateWithDOrientation(+10);
-                //   // }
-
-                //   // keyboardIntegration.infiniteCanvas.addNewCollectionOperator("+1");
-                //   // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("c:map:1",  {isCollectionOperator: true});
-
-                //   if (keyboardIntegration.keyDownToggles.altLeft.isActive) {
-                //     const mathNode = new math.SymbolNode("y");
-                //     mathNode.autoSimplify = true;
-                //     keyboardIntegration.infiniteCanvas.addNewMathNode(mathNode);
-
-                //   }
-                //   else {
-                //     keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("c:map:", { operatorString: "+ 1" });
-                //   }
-
-                //   break;
-
-                case "KeyK":
-                  {
-                    // function openUrlInNewTab(url){
-                    //   var win = window.open(url, '_blank');
-                    // }
-                    // openUrlInNewTab("https://www.qwant.com/?l=fr");
-
-                    keyboardIntegration.fabricIntegration.deleteAllObjects();
-                  }
-                  break;
-
-                case "KeyC":
-                  {
-                    if(keyboardIntegration.keyDownToggles.backquote.isActive && keyboardIntegration.infiniteCanvas.isColorPickerAvailable) {
-                      const fColor__cursor_p = fabricIntegration.getFColor__under_cursor_p();
-
-                      fColor__cursor_p.then((fColor) => {
-
-                        logger.log("fColor__cursor", fColor);
-                        keyboardIntegration.inputProperties.setFColor__working(fColor);
-
-                        //update current brush color
-                        fabricIntegration.configureFreeDrawingBrush({
-                          color: inputProperties.getActiveRgbaColorString(),
-                        });
-
-                      });
-
-                    } else if (keyboardIntegration.keyDownToggles.altLeft.isActive) {
-
-                      //coreify active object
-                      // keyboardIntegration.infiniteCanvas.operateOnActiveObject__coreify();
-
-                      //.isAltering-copy
-                      const event = null;
-                      fabricIntegration.copySelection(event);
-                    } else if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
-
-                      keyboardIntegration.infiniteCanvas.addNewIcCanvas();
-
-                    }
-                  }
-                  break;
-
-                case "KeyO":
-                  // {
-                  //   const infiniteCanvas = keyboardIntegration.infiniteCanvas;
-                  //   logger.log("infiniteCanvas.offset", Object.assign({}, infiniteCanvas.offset));
-                  //   logger.log("infiniteCanvas.scale",  Object.assign({}, infiniteCanvas.scale));
-                  //   logger.log("infiniteCanvas.coords_initial",  Object.assign({},  infiniteCanvas.coords_initial));
-                  // }
-                  {
-                    keyboardIntegration.infiniteCanvas.addNewCustomizableOperator();
-                  }
-                  break;
-
-                // case "AltLeft":
-                // case "AltRight":
-                //   keyboardIntegration.altKeyDown = false;
-                //   break;
-
-                
-                case "Slash":
-                  {
-                    if(infiniteCanvas.getSelectedIcObj() != null) {
-                      if(infiniteCanvas.isEnabled_supervessel) {
-                        keyboardIntegration.infiniteCanvas.operateOnActiveObject__toggleProperty("mathNode.autoSimplify");
-                      } else {
-                        keyboardIntegration.infiniteCanvas.operateOnSelected__toggleProperty("mathNode.autoSimplify");
-                      }
-                    } else {
-                      const position__cursor = infiniteCanvas.getTrueCursor();
-                      const trueRect_2 = {
-                        x: position__cursor.x,
-                        y: position__cursor.y,
-                        width:  200,
-                        height: 200,
-                      } 
-                      const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect_2, "simplify:force");
-                      infiniteCanvas.addIcObject(gmOperator);
-                    }
-                  }
-                  break;
-
-                case "Delete":
-                  fabricIntegration.deleteSelection();
-                  break;
-
-
-                case "Space":
-                  {
-                    const infiniteCanvas = keyboardIntegration.infiniteCanvas;
-                    if(!infiniteCanvas.isDryScrolling) {
-                      fabricIntegration.deselectAll();
-                    } else {
-                      infiniteCanvas.isDryScrolling = false;
-                    }
-
-                  }
-                  break;
-
-
-
-
-
-                default:
-
-                  //listen to numpad digits
-                  const arr_numpad = (e.code).split("Numpad");
-                  logger.log("arr_numpad", arr_numpad);
-                  const code__numpad = arr_numpad[1];
-                  if (code__numpad != null) {
-                    logger.log("arr_numpad[1]", arr_numpad[1]);
-
-                    switch (code__numpad) {
-                      case "Add":
-                        {
-                          const cfg = {
-                            isConsume: false,
-                          };
-                          keyboardIntegration.infiniteCanvas.addNewConductiveOperator_withType("+", cfg);
-
-                          //debug (pour les élèves en salle info)
-                          // keyboardIntegration.inputProperties.scrollProperties.step *= 2;
-                        }
-                        break;
-                      case "Subtract":
-                        {
-                          const cfg = {
-                            isConsume: false,
-                          };
-                          keyboardIntegration.infiniteCanvas.addNewConductiveOperator_withType("-", cfg);
-
-                          //debug (pour les élèves en salle info)
-                          // keyboardIntegration.inputProperties.scrollProperties.step /= 2;
-                        }
-                        break;
-                      case "Multiply":
-                        {
-                          const cfg = {
-                            isConsume: false,
-                          };
-                          keyboardIntegration.infiniteCanvas.addNewConductiveOperator_withType("x", cfg);
-                        }
-                        break;
-                      case "Divide":
-                        {
-                          const cfg = {
-                            isConsume: false,
-                          };
-                          keyboardIntegration.infiniteCanvas.addNewConductiveOperator_withType("/", cfg);
-                        }
-                        break;
-                      default:
-                        {
-                          const num__code = parseInt(code__numpad);
-                          logger.log("num__code", num__code);
-
-                          if (num__code != NaN) {
-                            const mathNode = new math.ConstantNode(num__code);
-                            mathNode.autoSimplify = true;
-
-                            keyboardIntegration.infiniteCanvas.addNewMathNode(mathNode);
-                          }
-
-                        }
-                        break;
-                    }
-
-                  }
-
-                  break;
-              }
-            }
+            // function handleKeyUp__default(e) {}
+              
           }
 
           function handleKeyDown(e) {
@@ -50123,6 +49202,884 @@
 
         }
 
+
+        configureKeyUpTriggers() {
+          const keyboardIntegration = this;
+          const infiniteCanvas = this.infiniteCanvas;
+
+          const fabricIntegration = this.fabricIntegration;
+
+
+          keyboardIntegration.keyUpTriggers = {
+            // "XX": new KeyUpTrigger("XX", KeyUpTrigger.defaultKeyUpFunc(["KeyXX"]), () => {
+            //
+            // }),
+
+            "KeyQ": new KeyUpTrigger("KeyQ", KeyUpTrigger.defaultKeyUpFunc(["KeyQ"]), () => {
+              if (keyboardIntegration.keyDownToggles.ctrlLeft.isActive) {
+                fabricIntegration.selectAll();
+              } else if (keyboardIntegration.keyDownToggles.intlBackslash.isActive) {
+                if(fabricIntegration.fabricCanvas.isDrawingMode) {
+                  logger.log("logAdhere", "adhesiveKick");
+                  infiniteCanvas.adhesive__isAdhesiveKick = true;
+                } else {
+                  infiniteCanvas.operateOnSelected__adhere();
+                }
+              }
+            }),
+
+            "KeyI": new KeyUpTrigger("KeyI", KeyUpTrigger.defaultKeyUpFunc(["KeyI"]), () => {
+              // if(infiniteCanvas.importMode == ImportMode.Image) {
+
+              // }
+
+              // if (keyboardIntegration.keyDownToggles.ctrlLeft.isActive) {
+              //   // FileIntegration.importVideo_p()
+              //   //   .then(video => {
+              //   //     infiniteCanvas.manageImport__video(video);
+              //   //     keyboardIntegration.keyDownToggles.ctrlLeft.isActive = false; //force untoggle (bugfix)
+              //   //   });
+
+              //   FileIntegration.importAudio_p()
+              //     .then(audio => {
+              //       infiniteCanvas.manageImport__audio(audio);
+              //       keyboardIntegration.keyDownToggles.ctrlLeft.isActive = false; //force untoggle (bugfix)
+              //     });
+                
+              // }
+              // else if (keyboardIntegration.keyDownToggles.altLeft.isActive) {
+              //   FileIntegration.videoFromWebcam_p()
+              //     .then(video => {
+              //       infiniteCanvas.manageImport__video(video);
+              //       keyboardIntegration.keyDownToggles.altLeft.isActive = false;
+              //     });
+              // }
+              // else if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+              //   FileIntegration.importImage_folder_p()
+              //     .then(arr_img => {
+              //       arr_img.forEach(img => {
+              //         infiniteCanvas.manageImport__image(img);
+              //       });
+              //     });
+              // }
+              // else {
+                // FileIntegration.importImage_multiple_p()
+                //   .then(arr_img => {
+                //     arr_img.forEach(img => {
+                //       infiniteCanvas.manageImport__image(img);
+                //     });
+                //   });
+              // }
+
+
+              // FileIntegration.importText_multiple_p()
+              //     .then(arr_text => {
+              //       arr_text.forEach(text => {
+              //         infiniteCanvas.manageImport__text(text);
+              //       });
+              //     });
+
+              try {
+
+                // FileIntegration.importHtmlObject_multiple_p()
+                //   .then(arr_elObject => {
+                //     arr_elObject.forEach(elObject => {
+                //       logger.log("logPDF", "elObject", elObject);
+                //       infiniteCanvas.manageImport__htmlObject(elObject);
+                //     });
+                //   });
+
+                // FileIntegration.importPDF_multiple_p()
+                //   .then(arr_dict_pdf => {
+                //     arr_dict_pdf.forEach(dict_pdf => {
+                //       logger.log("logPDF", "dict_pdf", dict_pdf);
+                //       infiniteCanvas.manageImport__pdf(dict_pdf);
+                //     });
+                //   });
+
+                // FileIntegration.importEPUB_multiple_p()
+                //   .then(arr_dict_epub => {
+                //     arr_dict_epub.forEach(dict_epub => {
+                //       logger.log("logEPUB", "dict_epub", dict_epub);
+                //       infiniteCanvas.manageImport__epub(dict_epub);
+                //     });
+                //   });
+
+
+
+                function downloadTestEpub(){
+                  const epubMaker = createTestEpub(
+                      { content: "gdfgdfg" },
+                      { content: "gdfgdfg", title: 'Preface' },
+                      { content: "gdfgdfg", title: 'It came from the desert' },
+                      { content: "gdfgdfg", title: 'No, it came from the Blue Lagoon' },
+                      { content: "gdfgdfg", title: 'Actually, it came from above' },
+                      { content: "gdfgdfg", title: 'It went back' },
+                      { content: "gdfgdfg", title: 'Note 1' },
+                      { content: "gdfgdfg", title: 'Note 2' }
+                  );
+
+                  epubMaker.downloadEpub();
+                }
+
+                function createTestEpub(header, preface, ch1, ch2, ch3, ch4, rn1, rn2) {
+                    return new EpubMaker()
+                        .withUuid('github.com/bbottema/js-epub-maker::it-came-from::example-using-idpf-wasteland')
+                        .withTemplate('idpf-wasteland')
+                        .withAuthor('T. Est')
+                        .withLanguage('en-GB')
+                        .withModificationDate(new Date(2015, 8, 7))
+                        .withRights({
+                          description: 'This work is shared with the public using the Attribution-ShareAlike 3.0 Unported (CC BY-SA 3.0) license.',
+                          license: 'http://creativecommons.org/licenses/by-sa/3.0/'
+                        })
+                        .withAttributionUrl('https://github.com/bbottema/js-epub-maker')
+                        .withCover('https://rawgit.com/bbottema/js-epub-maker/master/src/test/content-for-epub/js-epub-maker-cover.jpg', {
+                          license: 'http://creativecommons.org/licenses/by-sa/3.0/',
+                          attributionUrl: 'http://www.webestools.com/web20-title-generator-logo-title-maker-online-web20-effect-reflect-free-photoshop.html'
+                        })
+                        .withTitle('It Came From... [Example Using Waste Land Template]')
+                        .withSection(new EpubMaker.Section('frontmatter', 'frontmatter', { title: 'Title page' }, false, true)
+                            .withSubSection(new EpubMaker.Section('titlepage', 'manuscript-header', header, false, false))
+                        )
+                        .withSection(new EpubMaker.Section('bodymatter', 'bodymatter', { title: 'Start of the story' }, false, true)
+                            .withSubSection(new EpubMaker.Section(null, 'preface', preface, true, false))
+                            .withSubSection(new EpubMaker.Section(null, 'part-1', { title: 'Part 1' }, true, false)
+                                .withSubSection(new EpubMaker.Section(null, 'chapter-1', ch1, true, false))
+                                .withSubSection(new EpubMaker.Section(null, 'chapter-2', ch2, true, false))
+                            )
+                            .withSubSection(new EpubMaker.Section(null, 'part-2', { title: 'Part 2' }, true, false)
+                                .withSubSection(new EpubMaker.Section(null, 'chapter-3', ch3, true, false))
+                                .withSubSection(new EpubMaker.Section(null, 'chapter-4', ch4, true, false))
+                            )
+                        )
+                        .withSection(new EpubMaker.Section('backmatter', 'backmatter', { title: 'Notes and rest' }, false, true)
+                            .withSubSection(new EpubMaker.Section('rearnotes', 'rear-notes', { title: 'Notes on "It Came From"' }, true, false)
+                                .withSubSection(new EpubMaker.Section('rearnote', 'rearnote-1', rn1, false, false))
+                                .withSubSection(new EpubMaker.Section('rearnote', 'rearnote-2', rn2, false, false))
+                            )
+                        );
+                }
+
+                downloadTestEpub();
+
+              } catch(err) {
+                logger.log("logPDF", "err:", err);
+              }
+
+            }),
+
+            "KeyS": new KeyUpTrigger("KeyS", KeyUpTrigger.defaultKeyUpFunc(["KeyS"]), () => {
+              if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+                //compose
+                fabricIntegration.spreadSelectedObjects();
+              } else {
+                infiniteCanvas.manageSaveInfinishute_p()
+                  .then((success) => {
+                    console.log("success", success);
+                  });
+              }
+            }),
+
+            "KeyL": new KeyUpTrigger("KeyL", KeyUpTrigger.defaultKeyUpFunc(["KeyL"]), () => {
+              if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+                //lock everything
+                infiniteCanvas.vitrify();
+              } else if (keyboardIntegration.keyDownToggles.altLeft.isActive) {
+                //unlock everything
+                infiniteCanvas.vivify();
+              } else {
+                //load
+                FileIntegration.loadInfinishute_p()
+
+                  //debug
+                  .then(infinishute => {
+                    console.log("loaded infinishute", infinishute);
+                    return infinishute;
+                  })
+
+                  .then(infinishute => {
+                    infiniteCanvas.manageLoadInfinishute(infinishute);
+                  });
+              }
+            }),
+
+            "KeyE": new KeyUpTrigger("KeyE", KeyUpTrigger.defaultKeyUpFunc(["KeyE"]), () => {
+              const cursor = null;
+              // fabricIntegration.activateObjectAtCursor();
+
+              //debug
+              // keyboardIntegration.infiniteCanvas.addNewGMOperator_editable("x 1");
+
+              keyboardIntegration.infiniteCanvas.operateOnActiveObject__export_asImg();
+            }),
+
+            "KeyF": new KeyUpTrigger("KeyF", KeyUpTrigger.defaultKeyUpFunc(["KeyF"]), () => {
+              // if (keyboardIntegration.keyDownToggles.w.isActive) {
+              if(fabricIntegration.fabricCanvas.isDrawingMode) {
+                // keyboardIntegration.infiniteCanvas.addNewSpotPoint();
+                fabricIntegration.floodFillAroundCursor();
+                // fabricIntegration.floodFillAroundCursor__area_ruler();
+              } else if (keyboardIntegration.keyDownToggles.zIndexEditing.isActive) {
+                keyboardIntegration.infiniteCanvas.manageZIndexEditing_bringToFront();
+              } else if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+                  // keyboardIntegration.infiniteCanvas.addNewSpotPoint();
+                  keyboardIntegration.infiniteCanvas.addNewPoint();
+              } else {
+                if (fabricIntegration.fabricCanvas.isDrawingMode) {
+                    //send brush to front
+                    keyboardIntegration.infiniteCanvas.manageZIndexEditing_bringToFront();
+                  } else {
+                    keyboardIntegration.infiniteCanvas.addNewRect();
+                  }                      
+              }
+            }),
+
+            "KeyT": new KeyUpTrigger("KeyT", KeyUpTrigger.defaultKeyUpFunc(["KeyT"]), () => {
+              if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+                //tag
+                const debug_text = "challenge.";
+                keyboardIntegration.infiniteCanvas.addNewTag(debug_text);
+              } else {
+                //text
+                const debug_text = "icText";
+                // const debug_text = "return infiniteCanvas.createIcRect(trueRect);";
+                // const debug_text = "scriptOutput = infiniteCanvas.createIcRect(trueRect);";
+                keyboardIntegration.infiniteCanvas.addNewText(debug_text);
+              }
+            }),
+
+            "KeyA": new KeyUpTrigger("KeyA", KeyUpTrigger.defaultKeyUpFunc(["KeyA"]), () => {
+              // keyboardIntegration.infiniteCanvas.addNewCircle();
+            }),
+
+            "KeyH": new KeyUpTrigger("KeyH", KeyUpTrigger.defaultKeyUpFunc(["KeyH"]), () => {
+              keyboardIntegration.infiniteCanvas.addNewSnapSlot();
+            }),
+
+            "KeyR": new KeyUpTrigger("KeyR", KeyUpTrigger.defaultKeyUpFunc(["KeyR"]), () => {
+              const infiniteCanvas = keyboardIntegration.infiniteCanvas;
+              if(infiniteCanvas.isCombSetup) {
+                infiniteCanvas.manageUpdate__comb__toggleOrientation();
+              }
+            }),
+
+            // "KeyZ": new KeyUpTrigger("KeyZ", KeyUpTrigger.defaultKeyUpFunc(["KeyZ"]), () => {
+            //     // FileIntegration.importImage_p()
+            //     //   .then(img => {
+            //     //     infiniteCanvas.addNewSparkle(img);
+            //     //   });
+            // }),
+
+            // "IntlBackslash": new KeyUpTrigger("IntlBackslash", KeyUpTrigger.defaultKeyUpFunc(["IntlBackslash"]), () => {
+            //     // if(fabricIntegration.fabricCanvas.isDrawingMode) {
+            //     //  //toggle: adhesive drawings
+            //     //  inputProperties.updateBrush__toggleAdhesive();
+            //     // }
+                
+            //     {
+            //       //toggle adhesive
+            //       inputProperties.toggleAdhesive();
+            //     }
+            // }),
+
+            "KeyX": new KeyUpTrigger("KeyX", KeyUpTrigger.defaultKeyUpFunc(["KeyX"]), () => {
+              // if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+              //   keyboardIntegration.infiniteCanvas.operateOnActiveObject__poopGeminiShade();
+              // }
+              // else
+              // if (keyboardIntegration.keyDownToggles.altLeft.isActive) {
+              //   const mathNode = new math.SymbolNode("x");
+              //   mathNode.autoSimplify = true;
+              //
+              //   keyboardIntegration.infiniteCanvas.addNewMathNode(mathNode);
+              // }
+              // else
+              {
+                if(infiniteCanvas.isEnabled_supervessel) {
+                  keyboardIntegration.infiniteCanvas.operateOnActiveObject__poopSameHomeScaleClone();
+                } else {
+                  keyboardIntegration.infiniteCanvas.operateOnSelected__poopSameHomeScaleClone();
+                }
+              }
+            }),
+
+            "KeyU": new KeyUpTrigger("KeyU", KeyUpTrigger.defaultKeyUpFunc(["KeyU"]), () => {
+              // keyboardIntegration.infiniteCanvas.addNewTouchSlot();
+
+              // keyboardIntegration.infiniteCanvas.addNewGMOperator();
+
+              // keyboardIntegration.infiniteCanvas.addNewGMOperator_editable("x (22/7)");
+
+              keyboardIntegration.infiniteCanvas.addNewP2P();
+            }),
+
+            "KeyY": new KeyUpTrigger("KeyY", KeyUpTrigger.defaultKeyUpFunc(["KeyY"]), () => {
+              // keyboardIntegration.infiniteCanvas.addNewGMChallenge(0);
+
+              if (keyboardIntegration.keyDownToggles.altLeft.isActive) {
+                const mathNode = new math.SymbolNode("y");
+                mathNode.autoSimplify = true;
+
+                keyboardIntegration.infiniteCanvas.addNewMathNode(mathNode);
+              }
+              else {
+                keyboardIntegration.infiniteCanvas.addNewStore();
+              }
+            }),
+
+            "Digit1": new KeyUpTrigger("Digit1", KeyUpTrigger.defaultKeyUpFunc(["Digit1"]), () => {
+              if(fabricIntegration.fabricCanvas.isDrawingMode) {
+                inputProperties.brushWidth__isElastic = true;
+              }
+            }),
+
+            // "Digit3": new KeyUpTrigger("Digit3", KeyUpTrigger.defaultKeyUpFunc(["Digit3"]), () => {
+            //   // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__remove_parentheses");
+          
+            //   // const mathNode = math.parse("3*2");
+            //   // keyboardIntegration.infiniteCanvas.addNewMNReictangle(mathNode);
+          
+            //   // const sandBox_doubleObjects = new SandBox_doubleObjects(keyboardIntegration.infiniteCanvas);
+          
+            //   keyboardIntegration.infiniteCanvas.addNewToggleRect();
+            // }),
+
+            // "Digit4": new KeyUpTrigger("Digit4", KeyUpTrigger.defaultKeyUpFunc(["Digit4"]), () => {
+            //   // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__remove_parentheses");
+            //   // keyboardIntegration.infiniteCanvas.operateOnActiveObject__executeScript();
+          
+            //   // keyboardIntegration.infiniteCanvas.operateOnActiveObject__setBehavior("stickyRelease", true);
+            //   fabricIntegration.prepareSingleUseBehavior("stickyRelease");
+            // }),
+
+            // "Digit5": new KeyUpTrigger("Digit5", KeyUpTrigger.defaultKeyUpFunc(["Digit5"]), () => {
+            //   // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__remove_parentheses");
+            //   // keyboardIntegration.infiniteCanvas.addNewText("=");
+          
+            //   fabricIntegration.linkSelectedObjects();
+            // }),
+
+            "Digit6": new KeyUpTrigger("Digit6", KeyUpTrigger.defaultKeyUpFunc(["Digit6"]), () => {
+              // {
+              //   // const html_elt = document.getElementById("debug_nbObjects");
+              //   // const html_elt = document.body;
+              //
+              //
+              //   const input = document.createElement("INPUT");
+              //   input.setAttribute("type", "text");
+              //   // input.setAttribute("text", "lolilol");
+              //
+              //   input.style.backgroundColor = "yellow";
+              //   document.body.appendChild(input);
+              //
+              //   const html_elt = input;
+              //
+              //
+              //   /*
+              //   const div = document.createElement("DIV");
+              //   div.style.backgroundColor = "yellow";
+              //   div.style.width  = "200px";
+              //   div.style.height = "200px";
+              //
+              //   // div.style.visibility = "hidden";
+              //   // div.style.display = "none";
+              //
+              //   document.body.appendChild(div);
+              //
+              //   const html_elt = div;
+              //   */
+              //
+              //   keyboardIntegration.infiniteCanvas.addNewHtmlElt(html_elt);
+              // }
+
+              // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("mark__slash_simplifiable");
+
+              keyboardIntegration.infiniteCanvas.manageEnterOrLeaveRecording();
+            }),
+
+            "Digit7": new KeyUpTrigger("Digit7", KeyUpTrigger.defaultKeyUpFunc(["Digit7"]), () => {
+              // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify");
+              // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__step_by_step");
+              // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("simplify__top_layer");
+
+              // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("equation__add1");
+
+              keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("split__top_layer");
+              // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("decomposition__product_primes");
+
+              // keyboardIntegration.infiniteCanvas.addNewGMSafetyZone();
+            }),
+
+            "Digit8": new KeyUpTrigger("Digit8", KeyUpTrigger.defaultKeyUpFunc(["Digit8"]), () => {
+              // keyboardIntegration.infiniteCanvas.addNewTouchSlot();
+              // keyboardIntegration.infiniteCanvas.addNewGMTargetSlot();
+
+              // keyboardIntegration.infiniteCanvas.addNewGMTargetTouchSlot();
+
+              if(infiniteCanvas.isEnabled_supervessel) {
+                keyboardIntegration.infiniteCanvas.operateOnActiveObject__toggleProperty("isTouchable");
+              } else {
+                keyboardIntegration.infiniteCanvas.operateOnSelected__toggleProperty("isTouchable");
+              }
+            }),
+
+            "Digit9": new KeyUpTrigger("Digit9", KeyUpTrigger.defaultKeyUpFunc(["Digit9"]), () => {
+              // keyboardIntegration.infiniteCanvas.addNewCountdown();
+              // keyboardIntegration.infiniteCanvas.addNewIcEngined_debug();
+
+              // keyboardIntegration.infiniteCanvas.manageMoveEvent_debug();
+              // keyboardIntegration.infiniteCanvas.addNewCounter();
+
+              inputProperties.updateBrush__toggleAdhesive();
+            }),
+
+            "Digit0": new KeyUpTrigger("Digit0", KeyUpTrigger.defaultKeyUpFunc(["Digit0"]), () => {
+              // keyboardIntegration.infiniteCanvas.addNewFacet_mathNode();
+
+              keyboardIntegration.infiniteCanvas.manageReplay_debug();
+              // keyboardIntegration.infiniteCanvas.manageReplay_debug__machineGun();
+            }),
+
+
+            "F2": new KeyUpTrigger("F2", KeyUpTrigger.defaultKeyUpFunc(["F2"]), () => {
+              const cfg = {
+                isConsume: false,
+              };
+              keyboardIntegration.infiniteCanvas.addNewConductiveOperator_withType("randInBag", cfg);
+            }),
+
+            "F4": new KeyUpTrigger("F4", KeyUpTrigger.defaultKeyUpFunc(["F4"]), () => {
+              const cfg = {
+                isConsume: true,
+              };
+              keyboardIntegration.infiniteCanvas.addNewConductiveOperator_withType("randInBag", cfg);
+            }),
+
+            "F8": new KeyUpTrigger("F8", KeyUpTrigger.defaultKeyUpFunc(["F8"]), () => {
+              const cfg = {
+                min: 0,
+                max: 20,
+              };
+              keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("rand_int", cfg);
+            }),
+
+            "F9": new KeyUpTrigger("F9", KeyUpTrigger.defaultKeyUpFunc(["F9"]), () => {
+              // const cfg = {
+              //   f_name: "cos",
+              // };
+              //
+              // if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+              //   keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("function", cfg);
+              // } else {
+              //   keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("functionamer", cfg);
+              // }
+
+              keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("format:toFixed");
+            }),
+
+            "F10": new KeyUpTrigger("F10", KeyUpTrigger.defaultKeyUpFunc(["F10"]), () => {
+              keyboardIntegration.infiniteCanvas.addNewText("=");
+            }),
+
+
+
+            "KeyJ": new KeyUpTrigger("KeyJ", KeyUpTrigger.defaultKeyUpFunc(["KeyJ"]), () => {
+              // keyboardIntegration.infiniteCanvas.addNewWell();
+
+              {
+                const cfg = {
+                  index: 1,
+                };
+                keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("c:objectAtIndex", cfg);
+              }
+
+              // {
+              //   const infiniteCanvas = keyboardIntegration.infiniteCanvas;
+              //   const truePoint = infiniteCanvas.getTrueCursor();
+              //   const arr_icObj = infiniteCanvas.getArr_icObj__containingPoint("free", truePoint);
+              //   logger.log("logIC", "getArr_icObj__containingPoint", arr_icObj);
+              // }
+            }),
+
+            "KeyN": new KeyUpTrigger("KeyN", KeyUpTrigger.defaultKeyUpFunc(["KeyN"]), () => {
+              // keyboardIntegration.infiniteCanvas.addNewComposite();
+              // keyboardIntegration.infiniteCanvas.addNewGreenMouseWell();
+            }),
+
+            "KeyM": new KeyUpTrigger("KeyM", KeyUpTrigger.defaultKeyUpFunc(["KeyM"]), () => {
+              logger.log("keyM");
+              // keyboardIntegration.infiniteCanvas.addNewTouchSlot();
+              // keyboardIntegration.infiniteCanvas.addNewBornAgainGreenMouse(1);
+
+              // keyboardIntegration.infiniteCanvas.addNewRxSubject(1);
+              // keyboardIntegration.infiniteCanvas.addNewLabelValue("lol", 9);
+
+              keyboardIntegration.infiniteCanvas.operateOnActiveObject__split();     // == split supervessel cargo
+            }),
+
+            "Comma": new KeyUpTrigger("Comma", KeyUpTrigger.defaultKeyUpFunc(["Comma"]), () => {
+              // keyboardIntegration.infiniteCanvas.addNewButton();
+              // keyboardIntegration.infiniteCanvas.addNewRxSubscription();
+
+              keyboardIntegration.infiniteCanvas.operateOnActiveObject__join();     // == join supervessel cargo
+            }),
+
+            "Quote": new KeyUpTrigger("Quote", KeyUpTrigger.defaultKeyUpFunc(["Quote"]), () => {
+              const tex = '\\frac{1}{x^2-1}';
+              // const svgEl = TexHelper.toSvgEl(tex);
+              // keyboardIntegration.infiniteCanvas.addNewSvg(svgEl);
+
+              // keyboardIntegration.infiniteCanvas.addNewTex(tex);
+
+              // const expression = new algebra.Expression("x");
+              // expression.autoSimplify = false;
+              // keyboardIntegration.infiniteCanvas.addNewExpr(expression);
+
+              // const equation = new algebra.Equation(new algebra.Expression("x"), new algebra.Expression("3"));
+              // keyboardIntegration.infiniteCanvas.addNewExpr(equation);
+
+
+              /*
+              // const mathNode = math.parse("1");
+              const mathNode = new math.ConstantNode(1);
+              // const mathNode = new math.SymbolNode("x");
+              mathNode.autoSimplify = true;
+              // mathNode.autoSimplify = false;
+              keyboardIntegration.infiniteCanvas.addNewMathNode(mathNode);
+              */
+
+              // const mathNode = random_mathNode_withDepth(4);
+              // const mathNode = random_mathNode_withDepth_and_nbSymbols(4,0);
+              // const mathNode = random_mathNode_withDepth_and_nbSymbols(4,1);
+
+              // const mathNode = random_onion_mathNode(5);
+              // const mathNode = random_onion_mathNode(5, false);
+              // const mathNode = random_onion_mathNode(3);
+
+              // const mathNode = random_onion_mathNode(2);
+              const mathNode = random_onion_mathNode(3);
+              // mathNode.autoSimplify = false;
+
+              // const mathNode = random_terminal_mathNode_withType_inArr(["ConstantNode"]);
+              // mathNode.autoSimplify = true;
+
+              keyboardIntegration.infiniteCanvas.addNewMathNode(mathNode);
+              // keyboardIntegration.infiniteCanvas.addNewGreenMouseBox(mathNode);
+            }),
+
+
+
+            "Equal": new KeyUpTrigger("Equal", KeyUpTrigger.defaultKeyUpFunc(["Equal"]), () => {
+              // keyboardIntegration.infiniteCanvas.addNewObserver();
+              keyboardIntegration.infiniteCanvas.addNewClickWell(-22);
+            }),
+
+            "Minus": new KeyUpTrigger("Minus", KeyUpTrigger.defaultKeyUpFunc(["Minus"]), () => {
+              // keyboardIntegration.infiniteCanvas.addNewTrigger();
+              keyboardIntegration.infiniteCanvas.addNewEye();
+            }),
+
+            "Backslash": new KeyUpTrigger("Backslash", KeyUpTrigger.defaultKeyUpFunc(["Backslash"]), () => {
+              // keyboardIntegration.infiniteCanvas.addNewEventEmitter();
+
+              const mathNode_left = new math.SymbolNode("x");
+              mathNode_left.autoSimplify = false;
+              const mathNode_right = new math.ConstantNode(1);
+              mathNode_right.autoSimplify = true;
+              const mathNode_equation = new math.RelationalNode(["equal"], [mathNode_left, mathNode_right]);
+              // mathNode_equation.params[0].autoSimplify = false;
+              // mathNode_equation.params[1].autoSimplify = true;
+              mathNode_equation.isEquation = true;
+
+              const mathNode = mathNode_equation;
+              keyboardIntegration.infiniteCanvas.addNewMathNode(mathNode);
+            }),
+
+            "BracketRight": new KeyUpTrigger("BracketRight", KeyUpTrigger.defaultKeyUpFunc(["BracketRight"]), () => {
+              // keyboardIntegration.infiniteCanvas.addNewClickWell();
+              // keyboardIntegration.infiniteCanvas.addNewEventReceiver();
+
+              // keyboardIntegration.infiniteCanvas.spawnImageCart();
+              keyboardIntegration.infiniteCanvas.addNewEventReceiver();
+            }),
+
+            "KeyG": new KeyUpTrigger("KeyG", KeyUpTrigger.defaultKeyUpFunc(["KeyG"]), () => {
+              if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+                //compose
+                fabricIntegration.composeSelectedObjects();
+              } else if (keyboardIntegration.keyDownToggles.altLeft.isActive) {
+                //link
+                fabricIntegration.linkSelectedObjects();
+              } else {
+                //group
+                // fabricIntegration.groupSelectedObjects();
+
+                //supervessel grab
+                keyboardIntegration.infiniteCanvas.operateOnSupervessel__grab();
+              }
+            }),
+
+            "KeyB": new KeyUpTrigger("KeyB", KeyUpTrigger.defaultKeyUpFunc(["KeyB"]), () => {
+              if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+                //decompose
+                fabricIntegration.decomposeSelectedObject();
+              } 
+              else if (keyboardIntegration.infiniteCanvas.isBatchPasting) {
+                //batch paste
+                keyboardIntegration.infiniteCanvas.leaveBatchPasting();
+              } 
+              else if (keyboardIntegration.keyDownToggles.altLeft.isActive) {
+                //unlink
+                fabricIntegration.unlinkSelectedObjects();
+              }  
+              else if (keyboardIntegration.keyDownToggles.zIndexEditing.isActive) {
+                keyboardIntegration.infiniteCanvas.manageZIndexEditing_sendToBack();
+              } 
+              else if (fabricIntegration.fabricCanvas.isDrawingMode && keyboardIntegration.infiniteCanvas.isColorPickerAvailable) {
+                const fObj__cursor_p = fabricIntegration.getFObj__under_cursor_p();
+
+                fObj__cursor_p.then((fObj) => {
+                  logger.log("fObj__cursor", fObj);
+
+                  if(fObj != null) {
+
+                    const icObj = fObj.icObj;
+
+                    if(icObj.type == "freeDrawing") {
+                      const width     = icObj.strokeWidth;
+                      const homeScale = icObj.homeScale;
+
+                      //set input properties
+                      keyboardIntegration.inputProperties.setBrushWidth(width);
+                      keyboardIntegration.inputProperties.homeScale         = homeScale;
+                      keyboardIntegration.inputProperties.isHomeScaleLocked = true;
+
+                      //update current brush
+                      fabricIntegration.configureFreeDrawingBrush({
+                        width:     inputProperties.getActiveBrushWidth(),
+                        homeScale: inputProperties.homeScale,
+                        // isHomeScaleLocked: true,
+                      });
+
+                    } else {
+                      //SHU TODO: apparentWidth of any object
+                    }
+
+                  } else {
+                    keyboardIntegration.inputProperties.isHomeScaleLocked = false;
+
+                    //update current brush
+                    fabricIntegration.configureFreeDrawingBrush({
+                      // width:     inputProperties.getActiveBrushWidth(),
+                      homeScale: keyboardIntegration.infiniteCanvas.scale,
+                      // isHomeScaleLocked: true,
+                    });
+
+                  }
+
+                });
+
+              } else {
+                //ungroup
+                fabricIntegration.ungroupSelectedObject();
+              }
+            }),
+
+            "Numpad0": new KeyUpTrigger("Numpad0", KeyUpTrigger.defaultKeyUpFunc(["Numpad0"]), () => {
+              keyboardIntegration.infiniteCanvas.move_to_initial_position();
+            }),
+
+            "BackQuote": new KeyUpTrigger("BackQuote", KeyUpTrigger.defaultKeyUpFunc(["BackQuote"]), () => {
+              //this key is reserved for freeDrawing
+            }),
+
+            "Semicolon": new KeyUpTrigger("Semicolon", KeyUpTrigger.defaultKeyUpFunc(["Semicolon"]), () => {
+              // if(keyboardIntegration.keyDownToggles.r.isActive) {
+              //   keyboardIntegration.infiniteCanvas.manageCenterRotation(-10);
+              // } else {
+              //   keyboardIntegration.infiniteCanvas.updateWithDOrientation(-10);
+              // }
+
+              keyboardIntegration.infiniteCanvas.addNewCollection("1..10");
+            }),
+
+            // "KeyP": new KeyUpTrigger("KeyP", KeyUpTrigger.defaultKeyUpFunc(["KeyP"]), () => {
+            //   // if(keyboardIntegration.keyDownToggles.r.isActive) {
+            //   //   keyboardIntegration.infiniteCanvas.manageCenterRotation(+10);
+            //   // } else {
+            //   //   keyboardIntegration.infiniteCanvas.updateWithDOrientation(+10);
+            //   // }
+
+            //   // keyboardIntegration.infiniteCanvas.addNewCollectionOperator("+1");
+            //   // keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("c:map:1",  {isCollectionOperator: true});
+
+            //   if (keyboardIntegration.keyDownToggles.altLeft.isActive) {
+            //     const mathNode = new math.SymbolNode("y");
+            //     mathNode.autoSimplify = true;
+            //     keyboardIntegration.infiniteCanvas.addNewMathNode(mathNode);
+
+            //   }
+            //   else {
+            //     keyboardIntegration.infiniteCanvas.addNewGMOperator_withType("c:map:", { operatorString: "+ 1" });
+            //   }
+            // }),
+
+            "KeyK": new KeyUpTrigger("KeyK", KeyUpTrigger.defaultKeyUpFunc(["KeyK"]), () => {
+              // function openUrlInNewTab(url){
+              //   var win = window.open(url, '_blank');
+              // }
+              // openUrlInNewTab("https://www.qwant.com/?l=fr");
+
+              keyboardIntegration.fabricIntegration.deleteAllObjects();
+            }),
+
+            "KeyC": new KeyUpTrigger("KeyC", KeyUpTrigger.defaultKeyUpFunc(["KeyC"]), () => {
+              if(keyboardIntegration.keyDownToggles.backquote.isActive && keyboardIntegration.infiniteCanvas.isColorPickerAvailable) {
+                const fColor__cursor_p = fabricIntegration.getFColor__under_cursor_p();
+
+                fColor__cursor_p.then((fColor) => {
+
+                  logger.log("fColor__cursor", fColor);
+                  keyboardIntegration.inputProperties.setFColor__working(fColor);
+
+                  //update current brush color
+                  fabricIntegration.configureFreeDrawingBrush({
+                    color: inputProperties.getActiveRgbaColorString(),
+                  });
+
+                });
+
+              } else if (keyboardIntegration.keyDownToggles.altLeft.isActive) {
+
+                //coreify active object
+                // keyboardIntegration.infiniteCanvas.operateOnActiveObject__coreify();
+
+                //.isAltering-copy
+                const event = null;
+                fabricIntegration.copySelection(event);
+              } else if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+
+                keyboardIntegration.infiniteCanvas.addNewIcCanvas();
+
+              }
+            }),
+
+            "KeyO": new KeyUpTrigger("KeyO", KeyUpTrigger.defaultKeyUpFunc(["KeyO"]), () => {
+              // {
+              //   const infiniteCanvas = keyboardIntegration.infiniteCanvas;
+              //   logger.log("infiniteCanvas.offset", Object.assign({}, infiniteCanvas.offset));
+              //   logger.log("infiniteCanvas.scale",  Object.assign({}, infiniteCanvas.scale));
+              //   logger.log("infiniteCanvas.coords_initial",  Object.assign({},  infiniteCanvas.coords_initial));
+              // }
+              {
+                keyboardIntegration.infiniteCanvas.addNewCustomizableOperator();
+              }
+            }),
+
+            "Slash": new KeyUpTrigger("Slash", KeyUpTrigger.defaultKeyUpFunc(["Slash"]), () => {
+              if(infiniteCanvas.getSelectedIcObj() != null) {
+                if(infiniteCanvas.isEnabled_supervessel) {
+                  keyboardIntegration.infiniteCanvas.operateOnActiveObject__toggleProperty("mathNode.autoSimplify");
+                } else {
+                  keyboardIntegration.infiniteCanvas.operateOnSelected__toggleProperty("mathNode.autoSimplify");
+                }
+              } else {
+                const position__cursor = infiniteCanvas.getTrueCursor();
+                const trueRect_2 = {
+                  x: position__cursor.x,
+                  y: position__cursor.y,
+                  width:  200,
+                  height: 200,
+                } 
+                const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect_2, "simplify:force");
+                infiniteCanvas.addIcObject(gmOperator);
+              }
+            }),
+
+            "Delete": new KeyUpTrigger("Delete", KeyUpTrigger.defaultKeyUpFunc(["Delete"]), () => {
+              fabricIntegration.deleteSelection();
+            }),
+
+            "Space": new KeyUpTrigger("Space", KeyUpTrigger.defaultKeyUpFunc(["Space"]), () => {
+              const infiniteCanvas = keyboardIntegration.infiniteCanvas;
+              if(!infiniteCanvas.isDryScrolling) {
+                fabricIntegration.deselectAll();
+              } else {
+                infiniteCanvas.isDryScrolling = false;
+              }
+            }),
+          };
+
+
+
+
+  //         default:
+
+  // //listen to numpad digits
+  // const arr_numpad = (e.code).split("Numpad");
+  // logger.log("arr_numpad", arr_numpad);
+  // const code__numpad = arr_numpad[1];
+  // if (code__numpad != null) {
+  //   logger.log("arr_numpad[1]", arr_numpad[1]);
+
+  //   switch (code__numpad) {
+  //     case "Add":
+  //       {
+  //         const cfg = {
+  //           isConsume: false,
+  //         };
+  //         keyboardIntegration.infiniteCanvas.addNewConductiveOperator_withType("+", cfg);
+
+  //         //debug (pour les élèves en salle info)
+  //         // keyboardIntegration.inputProperties.scrollProperties.step *= 2;
+  //       }
+  //       break;
+  //     case "Subtract":
+  //       {
+  //         const cfg = {
+  //           isConsume: false,
+  //         };
+  //         keyboardIntegration.infiniteCanvas.addNewConductiveOperator_withType("-", cfg);
+
+  //         //debug (pour les élèves en salle info)
+  //         // keyboardIntegration.inputProperties.scrollProperties.step /= 2;
+  //       }
+  //       break;
+  //     case "Multiply":
+  //       {
+  //         const cfg = {
+  //           isConsume: false,
+  //         };
+  //         keyboardIntegration.infiniteCanvas.addNewConductiveOperator_withType("x", cfg);
+  //       }
+  //       break;
+  //     case "Divide":
+  //       {
+  //         const cfg = {
+  //           isConsume: false,
+  //         };
+  //         keyboardIntegration.infiniteCanvas.addNewConductiveOperator_withType("/", cfg);
+  //       }
+  //       break;
+  //     default:
+  //       {
+  //         const num__code = parseInt(code__numpad);
+  //         logger.log("num__code", num__code);
+
+  //         if (num__code != NaN) {
+  //           const mathNode = new math.ConstantNode(num__code);
+  //           mathNode.autoSimplify = true;
+
+  //           keyboardIntegration.infiniteCanvas.addNewMathNode(mathNode);
+  //         }
+
+  //       }
+  //       break;
+  //   }
+
+        }
+
       }
 
 
@@ -50167,7 +50124,7 @@
           function configureKeyDownTimeouts() {
 
             const default_timeout_delayInMs = 17; //17 ms == 60 fps
-            const arrows_timeout_delayInMs = 500;
+            const arrows_timeout_delayInMs  = 500;
 
             function create_keyDownFunc__custom_1(arr_keyCode) {
               return (e, down) => {
@@ -84166,6 +84123,10 @@
 
 
     <!-- 3DRoom -->
+    
+    <script src="./lib/3D/three.bundle.min.js"        type="text/javascript"></script>
+    <script src="./lib/3D/three-laser-pointer.min.js" type="text/javascript"></script>
+
     <script>
       class ICControls {
 
@@ -84181,9 +84142,11 @@
             keyboardIntegration.configureKeyDownToggles();
             keyboardIntegration.configureKeyDownTimeouts();
             keyboardIntegration.configureKeyUpABToggles();
-            // keyboardIntegration.configureKeyUpTriggers();
+            keyboardIntegration.configureKeyUpTriggers();
 
             mouseIntegration.configureKeyDownToggles();
+            // mouseIntegration.configureKeyDownTriggers();
+
           } else {
             // keyboardIntegration.configureKeyDownToggles();
             // keyboardIntegration.configureKeyDownTimeouts();
@@ -84886,9 +84849,92 @@
       }
 
 
-      globalsSingleton.functionCallsQueue.add(func_3DRoom);
-    </script>
 
+
+
+
+      function loadScript(str__path) {
+        const script = document.createElement('script');
+        script.type  = 'text/javascript';
+        script.src   = str__path;
+
+        const body = document.getElementsByTagName('head')[0];
+        body.appendChild(script);
+      }
+
+      function setup2D() {
+        infiniteCanvas.iC_controls.on();
+      }
+
+      function setup3D() {
+
+        const container__2D = document.getElementById("container__for_canvases");
+        container__2D.style.display = "none";  /* for 3DRoom to display properly */
+
+
+        // loadScript("./lib/3D/three.bundle.min.js");          //SHU: not working
+        // loadScript("./lib/3D/three-laser-pointer.min.js");   //SHU: not working
+
+        const body = document.getElementsByTagName('body')[0];
+
+        // //add <style>
+        // const str__css = '#rendererCanvas {     \
+        //   position: absolute;                   \
+        //   left: 0;                              \
+        //   top:  0;                              \
+        //   border: 0px solid green;              \
+        //   width:  100%;                         \
+        //   height: 100%;                         \
+        // }';
+        // const el__style = document.createElement('style');
+        // el__style.styleSheet.cssText = str__css;
+        // body.appendChild(el__style);
+
+        //add <canvas>
+        const canvas__renderer = document.createElement("canvas");
+        canvas__renderer.id = "rendererCanvas";
+
+        canvas__renderer.style.position = "absolute";
+        canvas__renderer.style.left     = "0";
+        canvas__renderer.style.top      = "0";
+        canvas__renderer.style.border   = "0px solid green";
+        canvas__renderer.style.width    = "100%";
+        canvas__renderer.style.height   = "100%";
+
+        body.appendChild(canvas__renderer);
+
+
+        globalsSingleton.functionCallsQueue.add(() => {
+          try {
+            func_3DRoom();
+          } catch(e) {
+            logger.log("log3D", "error:", e);
+          }
+        });
+      }
+
+      try {
+
+        const dict_query_var = globalsSingleton.dict_query_var;
+        logger.log("log3D", "dict_query_var:", dict_query_var);
+        if("worldType" in dict_query_var) {
+          const type__world = dict_query_var["worldType"];
+          if(type__world == "3D") {
+            setup3D();
+          } else {
+            setup2D();
+          }
+        } else {
+          setup2D();
+        }
+
+      } catch(e) {
+        logger.log("log3D", "error: ", e);
+      }
+      
+
+
+    </script>
 
 
 
