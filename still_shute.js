@@ -1,3 +1,4 @@
+const str__still_shute = `
 04 décembre 2020: initial morning program based on https://github.com/TomHumphries/InfiniteCanvasWhiteboard
 
 0 create zoom loops
@@ -3291,7 +3292,7 @@ edu: on pourrait envisager différemment les niveaux de difficulté:
   0 https://github.com/pkra/mathjax-img
   0 Xy-pic — Typesetting Graphs and Diagrams in TeX
     Xy-pic is a package for typesetting graphs and diagrams using the principle of logical composition of visual components.
-    \xymatrix{ . . . }
+    \ xymatrix{ . . . }
 **RichMathNode: number has a color stroke (draw in number, and this trait accompanies number (the whole thing is a composite)). If number increments, color stroke is still here.
                 number has hat
                 number has <anything>
@@ -12359,6 +12360,4 @@ edu::math: additionner VS ajouter:
     les fonctions de chaque module sont rassemblées dans un cadre fini
 
 
-
-
-.     
+`;    
