@@ -7226,6 +7226,8 @@
 
         this.index__counter = 1;
 
+        this.debug__offset__pdf_load = 0;
+
 
         //--track changes
 
@@ -7619,8 +7621,16 @@
       }
 
       getArr_icObj__containingPoint(repName = "official", truePoint) {
-        return this.getArr_icObj(repName).filter((rep_free__icObj) => {
-          return Geometry.isPointContainedInRect(truePoint, rep_free__icObj.getTrueRect2());
+        return this.getArr_icObj(repName).filter((rep_x__icObj) => {
+          return Geometry.isPointContainedInRect(truePoint, rep_x__icObj.getTrueRect2());
+        });
+      }
+
+      getArr_icObj__intersecting(repName = "official", icObj) {
+        return this.getArr_icObj(repName).filter((rep_x__icObj) => {
+          //SHU TODO: rect intersection
+          // return Geometry.rect;
+          return (rep_x__icObj.id != icObj.id);
         });
       }
 
@@ -7634,6 +7644,8 @@
         });
         return arr_icPoint__near;
       }
+
+
 
       getRootCompositeForContentOrPart(icObj__part) {  //recursively seek parent composite
         if(icObj__part.compositeId != -1) {
@@ -9244,10 +9256,17 @@
         icComposite.cType = "pdf";
 
 
+        const pdf = dict_pdf_a.pdf;
+        //spec
+        const icPDF_spec = {
+          pdf: pdf,
+        };
+        
+        const icPDF = Object.assign(icComposite, icPDF_spec);
 
-
-
-        infiniteCanvas.onceOnAddRepresentedForIcObject(icComposite, (icComposite) => {
+        infiniteCanvas.onceOnAddRepresentedForIcObject(icPDF, (icPDF) => {
+          const icComposite = icPDF;
+          const pdf         = icPDF.pdf;
 
           const rep_free__icComposite = infiniteCanvas.getRepresented(icComposite.id).r_free();
 
@@ -9259,41 +9278,41 @@
           const width__el  = 500;
           const height__el = 1000;
 
-          dict_pdf_a.arr_dict_page_p.filter((x,i) => (i < 10)).reduce((acc, dict_page_p, index) => {
+          // dict_pdf_a.arr_dict_page_p.filter((x,i) => (i < 10)).reduce((acc, dict_page_p, index) => {
 
-            const x = (padding.X + 500);
-            const y = 0;
+          //   const x = (padding.X + 500);
+          //   const y = 0;
 
-            acc = acc.then((_)=> {
+          //   acc = acc.then((_)=> {
 
-              return new Promise(resolve => setTimeout(resolve, 100)).then((_) => {
+          //     return new Promise(resolve => setTimeout(resolve, 100)).then((_) => {
 
-                return dict_page_p.then((dict_page) => {
-                  const el_canvas = dict_page.el_canvas;
-                  logger.log("logPDF", "el_canvas", el_canvas);
+          //       return dict_page_p.then((dict_page) => {
+          //         const el_canvas = dict_page.el_canvas;
+          //         logger.log("logPDF", "el_canvas", el_canvas);
 
-                  const x = index * (padding.X + width__el);
-                  const y = 0;
+          //         const x = index * (padding.X + width__el);
+          //         const y = 0;
 
-                  const icHtmlObject__page = infiniteCanvas.createIcHTMLObject(x, y, el_canvas);
+          //         const icHtmlObject__page = infiniteCanvas.createIcHTMLObject(x, y, el_canvas);
 
-                  infiniteCanvas.onceOnAddRepresentedForIcObject(icHtmlObject__page, (icHtmlObject__page) => {
-                    const rep_free__icHtmlObject__page = infiniteCanvas.getRepresented(icHtmlObject__page.id).r_free();
-                    rep_free__icComposite.dict_engine["composite"].engine.awoken.addPart(rep_free__icHtmlObject__page);
-                  });
+          //         infiniteCanvas.onceOnAddRepresentedForIcObject(icHtmlObject__page, (icHtmlObject__page) => {
+          //           const rep_free__icHtmlObject__page = infiniteCanvas.getRepresented(icHtmlObject__page.id).r_free();
+          //           rep_free__icComposite.dict_engine["composite"].engine.awoken.addPart(rep_free__icHtmlObject__page);
+          //         });
 
-                  infiniteCanvas.addIcObject(icHtmlObject__page);
+          //         infiniteCanvas.addIcObject(icHtmlObject__page);
                   
-                  return "" + index;
-                });
+          //         return "" + index;
+          //       });
 
-              });
+          //     });
 
-            });
+          //   });
 
-            return acc;
+          //   return acc;
 
-          }, Promise.resolve(-1));
+          // }, Promise.resolve(-1));
 
 
           // const queue = new FunctionCallsQueue(true);
@@ -9337,9 +9356,106 @@
 
           // queue.next();
 
+
+          const queue = [...Array(pdf.numPages).keys()].reduce((acc, index) => {
+          // const queue = [...Array(pdf.numPages).keys()].filter((x,i) => ((0 + infiniteCanvas.debug__offset__pdf_load < i) && (i < 100 + infiniteCanvas.debug__offset__pdf_load))).reduce((acc, index) => {
+
+            acc = acc.add((_)=> {
+
+              function getPage_p(index) {
+                logger.log("logPDF", "getPage_p:", index);
+
+                // return new Promise((resolve) => setTimeout(resolve("lol"), 300)).then((_) => {  //timeout
+
+                return pdf.getPage(index + 1).then(function (page) {
+                  logger.log("logPDF", "pdf.getPage(" + (index + 1) + "):", page);
+
+                  // var scale    = 4.0;
+                  // var scale    = 1.0;
+                  // var scale    = 2.0;
+                  var scale    = 1.5;
+
+                  // var viewport = page.getViewport({scale: scale});
+                  var viewport = page.getViewport({scale: scale});
+                  // logger.log("logPDF", "viewport:", viewport);
+
+                  //
+                  // Prepare canvas using PDF page dimensions
+                  //
+                  var el_canvas    = document.createElement("canvas");
+                  el_canvas.height = viewport.height;
+                  el_canvas.width  = viewport.width;
+
+                  //
+                  // Render PDF page into canvas context
+                  //
+                  // 
+                  var context   = el_canvas.getContext('2d');
+
+                  let renderTask = page.render({
+                    canvasContext: context, 
+                    viewport: viewport,
+                  });
+
+                  // Wait for rendering to finish
+                  return renderTask.promise.then(function() {
+                      //debug
+                      // const dataURL = el_canvas.toDataURL();
+                      // FileIntegration.save_image(dataURL);
+
+                      // return el_canvas;
+
+                      const dict_page = {
+                        page: page,
+                        el_canvas: el_canvas,
+                      };
+
+                      return dict_page;
+                  });
+                
+                });
+
+                // }); //timeout
+              }
+
+              return getPage_p(index).then((dict_page) => {
+                const el_canvas = dict_page.el_canvas;
+                logger.log("logPDF", "el_canvas", el_canvas);
+
+                const x = index * (padding.X + width__el + 2000);
+                const y = 0;
+
+                const icHtmlObject__page = infiniteCanvas.createIcHTMLObject(x, y, el_canvas);
+
+                infiniteCanvas.onceOnAddRepresentedForIcObject(icHtmlObject__page, (icHtmlObject__page) => {
+                  const rep_free__icHtmlObject__page = infiniteCanvas.getRepresented(icHtmlObject__page.id).r_free();
+                  rep_free__icComposite.dict_engine["composite"].engine.awoken.addPart(rep_free__icHtmlObject__page);
+
+                  rep_free__icComposite.compositeConfig[rep_free__icHtmlObject__page.id].isMobile = true;
+                  rep_free__icHtmlObject__page.position = {
+                    x: x,
+                    y: y,
+                  };
+                  rep_free__icComposite.compositeConfig[rep_free__icHtmlObject__page.id].isMobile = false;
+                });
+
+                infiniteCanvas.addIcObject(icHtmlObject__page);
+                
+                return "done";
+              });
+
+            });
+
+            return acc;
+
+          }, new FunctionCallsQueue(false));
+
+          queue.next();
+          infiniteCanvas.debug__offset__pdf_load = infiniteCanvas.debug__offset__pdf_load + 100;
+
         });
 
-        return icComposite;
+        return icPDF;
       }
 
 
@@ -31917,6 +32033,389 @@
 
 
 
+      class IntersectionEngine {
+        constructor() {
+
+          this.initialized = false;
+
+          this.initialize = function (scopeObj) {
+
+            //"wake up":
+            //bind all funcs
+            // function isFunction(functionToCheck) {
+            //   return functionToCheck && {}.toString.call(functionToCheck) === '[object Function]';
+            // }
+            const isFunction = value => value && (Object.prototype.toString.call(value) === "[object Function]" || "function" === typeof value || value instanceof Function);
+
+            this.awoken = {
+              'i_am': "awoken",
+            };
+            console.log("this.virgin", this.virgin);
+            Object.entries(this.virgin)
+              .filter(([propName, prop]) => isFunction(prop))
+              .forEach(([propName, prop], i) => {
+                this.awoken[propName] = prop.bind(this.awoken);
+              });
+
+            // this.scopeObj  = scopeObj;
+            //engineCarrier,
+            //infiniteCanvas,
+            this.awoken.scopeObj = scopeObj;
+
+            this.initialized = true;
+          }
+
+
+
+          this.attemptTouching = function (icObj_slot, icObj_piece) {
+            // logger.log("attemptTouching", icObj_slot, icObj_piece);
+
+            const canTouch = this.checkCanTouch(icObj_slot, icObj_piece);
+
+            const rep_official = icObj_piece;
+            // logger.log("attempting to touch with touchState: " + rep_official.touchStateDict[icObj_slot.id]);
+
+            if (canTouch) {
+              logger.log("logIntersection", "can touch");
+
+              const rep_official = icObj_piece;
+              const represented = icObj_piece.represented;
+              const rep_free     = represented.getRepresentation("free");
+
+              // console.log("rep_free.isHeld", rep_free.isHeld);
+              // if(rep_free.isHeld) {
+              //   presnap(icObj_slot, icObj_piece);
+              // } else {
+              //   presnap(icObj_slot, icObj_piece);
+              //   snap(icObj_slot, icObj_piece);
+              // }
+
+              this.touch(icObj_slot, icObj_piece);
+
+            } else {
+              logger.log("logIntersection", "can't touch");
+            }
+
+          };
+
+          this.checkCanTouch = function (icObj_slot, icObj_piece) {
+            // logger.log("checkCanTouch", icObj_piece);
+            var outBool;
+
+            const isTouching = this.dict_touching[icObj_piece.id];
+            const isFollower = (icObj_piece.id_following == icObj_slot.id);
+
+            if(!isTouching && !isFollower) {
+              // const context = this.scopeObj.engineCarrier.touchSlotConfig.context;
+              const context = null;
+
+              const touch2Singleton = Touch2Singleton.sharedInstance();
+              const canTouchFunc = touch2Singleton.canTouch.bind(touch2Singleton);
+
+              outBool = canTouchFunc(icObj_piece, icObj_slot, context);
+            } else {
+              outBool = false;
+            }
+
+            return outBool;
+          };
+
+
+          this.touch = async function (icObj_slot, icObj_piece) {
+            console.log("touch", icObj_piece);
+
+            this.dict_touching[icObj_piece.id] = true;
+
+            const infiniteCanvas     = this.scopeObj.infiniteCanvas;
+
+            const icObj__carrier     = this.scopeObj.engineCarrier;
+            const rep_free__follower = this.rep_free__follower;
+
+
+
+            const rep_official = icObj_piece;
+            const represented = icObj_piece.represented;
+            const rep_free = represented.getRepresentation("free");
+
+            const trueRect1 = icObj__carrier.getTrueRect();
+            const trueRect2 = icObj_piece.getTrueRect();
+
+            const arr_point__corners = [...Geometry.getArrPoint__corners(trueRect1), ...Geometry.getArrPoint__corners(trueRect2)];
+            const trueRect__enveloppe = Geometry.getEnveloppeRect(arr_point__corners);           
+            
+
+            const icRect__enveloppe = infiniteCanvas.createIcRect(trueRect__enveloppe);
+            icRect__enveloppe.fill = "#ffffff"
+            icRect__enveloppe.id_following = icObj__carrier.id;
+            infiniteCanvas.onceOnAddRepresentedForIcObject(icRect__enveloppe, (icRect__enveloppe) => {
+              const rep_free__enveloppe = infiniteCanvas.getRepresented(icRect__enveloppe.id).r_free();
+              rep_free__follower.dict_engine["composite"].engine.awoken.addNamedPart("enveloppe", rep_free__enveloppe);
+            });
+            infiniteCanvas.addIcObject(icRect__enveloppe); 
+
+
+          };
+
+
+
+
+
+          // this.attemptUntouching = function (icObj_slot, icObj_piece) {
+          //   console.log("attemptUntouching", icObj_slot, icObj_piece);
+
+          //   const canUntouch = this.checkCanUntouch(icObj_slot, icObj_piece);
+          //   console.log("canUntouch", canUntouch);
+
+          //   const rep_official = icObj_piece;
+          //   console.log("attempting to untouch with touchState: " + rep_official.touchStateDict[icObj_slot.id]);
+
+          //   if (canUntouch) {
+          //     // console.log("can untouch");
+          //     this.untouch(icObj_slot, icObj_piece);
+
+          //   } else {
+          //     // console.log("can't untouch");
+          //   }
+
+          // };
+
+          // this.checkCanUntouch = function (icObj_slot, icObj_piece) {
+          //   logger.log("checkCanUntouch", icObj_piece);
+          //   var outBool;
+
+          //   // outBool = Touch.canUntouch(icObj_piece, icObj_slot);
+          //   outBool = Touch2Singleton.sharedInstance().canUntouch(icObj_piece, icObj_slot);
+
+          //   return outBool;
+          // };
+
+          // this.untouch = function (icObj_slot, icObj_piece) {
+          //   console.log("untouch", icObj_piece);
+
+          //   const infiniteCanvas = this.scopeObj.infiniteCanvas;
+
+          //   // const rep_free     = icObj_piece;   //SHU: this is probably false
+          //   const rep_free = infiniteCanvas.getRepresented(icObj_piece.id).r_free();
+
+          //   const represented = icObj_piece.represented;
+          //   const rep_official = represented.getRepresentation("official");
+
+
+          //   const icTouchSlot = this.scopeObj.engineCarrier;
+
+          //   const transformationFunc__untouch = icTouchSlot.touchSlotConfig.transformationFunc__untouch;
+          //   if (transformationFunc__untouch != null) {
+
+          //     const transformationFunc = transformationFunc__untouch;
+
+          //     const icObj__untouched = rep_free;
+          //     logger.log("icObj__untouched", icObj__untouched);
+
+          //     const transformationOutput = transformationFunc(icObj__untouched);
+          //     switch (transformationOutput.type) {
+          //       case "new":   //SHU: this code has to be updated
+          //         {
+          //           const icTouchSlot = this.scopeObj.infiniteCanvas;
+
+          //           const rep_free__supervessel = infiniteCanvas.getSupervessel();
+
+          //           rep_free__supervessel.dict_engine["composite"].engine.awoken.removePart(icObj__untouched);
+
+          //           //remove old
+          //           {
+          //             // infiniteCanvas.removeIcObject(icObj__untouched);
+          //             icObj__untouched.im_dying_now = true;
+          //           }
+
+          //           //add new
+
+          //           function addNew(icObj__new) {
+          //             icObj__new.isTouchable = true;
+          //             icObj__new.touchStateDict[icObj_slot.id] = TouchState.Touched;
+          //             if (icObj__new.type == "composite") {
+          //               icObj__new.parts.forEach((part, i) => {
+          //                 part.touchStateDict[icObj_slot.id] = TouchState.Touched;
+          //               });
+          //             }
+
+          //             infiniteCanvas.addIcObject(icObj__new);
+
+          //             const rep_free__new = infiniteCanvas.getRepresented(icObj__new.id).r_free();
+          //             rep_free__supervessel.dict_engine["composite"].engine.awoken.addPart(rep_free__new);
+
+          //           }
+
+          //           if (transformationOutput.value instanceof IcObject) {
+
+          //             const icObj__new = transformationOutput.value;
+          //             logger.log("icObj__new", icObj__new);
+
+          //             addNew(icObj__new);
+
+          //           } else if (transformationOutput.value instanceof Array) {
+
+          //             transformationOutput.value.forEach((icObj__new, i) => {
+          //               addNew(icObj__new);
+          //             });
+
+          //           } else {
+          //             throw new Error("unsupported transformationOutput.value: " + transformationOutput.value);
+          //           }
+          //         }
+          //         break;
+          //       case "old":
+          //         {
+          //           //do nothing: object has not changed
+          //         }
+          //         break;
+          //       case "mutated":
+          //         {
+          //           logger.log("transformationOutput:", transformationOutput);
+
+          //           const mutationObj = transformationOutput.value;
+          //           // icObj__touched.mathNode = mutationObj.mathNode;
+          //           Object.assign(icObj__untouched, mutationObj);
+          //         }
+          //         break;
+          //       // case "displaced":
+          //       // {
+          //       //
+          //       // }
+          //       // break;
+          //       case "sadness":
+          //         {
+          //           icObj__untouched.mathNode = transformationOutput.value.mathNode;
+          //         }
+          //         break;
+
+          //       // case "mathNode":     //SHU: horror code   il serait bon un jour d'harmoniser: tout le monde doit utiliser TransformationOutput
+          //       // case "composite":    //SHU: horror code
+          //       // // {
+          //       // //   // icObj__touched.mathNode = transformationOutput.mathNode;
+          //       // // }
+          //       // break;
+
+          //       default:
+          //         throw new Error("unsupported transformationOutput type: " + transformationOutput.type);
+          //         break;
+          //     }
+
+          //   }
+
+          //   rep_official.touchStateDict[icObj_slot.id] = TouchState.Untouched;
+          //   // rep_free.touchStateDict[icObj_slot.id] = TouchState.Untouched;
+          // };
+
+
+
+
+
+          // this.r_official_update_handler2 = (rep_official_incoming, outerUpdatesDict) => {
+          this.r_official_update_handler2 = function (rep_official_incoming, outerUpdatesDict) {   //SHU: when using func.bind(myObj), be sure not to use arrow functions
+
+            // logger.log("r_official_update_handler2", rep_official_incoming);
+
+            // console.log("engine::r_official_update_handler2, this", this);
+            // console.log("this.scopeObj", this.scopeObj);
+
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            // console.log("infiniteCanvas", infiniteCanvas);
+            const icTouchSlot = this.scopeObj.engineCarrier;
+
+            const touchSlotConfig = this.scopeObj.engineCarrier.touchSlotConfig;
+            logger.log("touchSlotConfig", touchSlotConfig);
+
+            const represented = infiniteCanvas.getRepresented(icTouchSlot.id);
+            // console.log("represented", represented);
+            const rep_official = represented.r_official();
+
+            const touchSlot    = rep_official;
+            const incomingObj  = rep_official_incoming;
+
+            if (incomingObj != touchSlot) {
+
+              this.attemptTouching(touchSlot, incomingObj);
+
+            } else {
+              // console.log("I won't touch myself");  //SHU: ...
+
+              //get all neighboring objects
+              const arr_icObj = infiniteCanvas.getArr_icObj__intersecting("free", touchSlot);
+              arr_icObj.forEach((incomingObj) => {
+                this.attemptTouching(touchSlot, incomingObj);
+              });
+            }
+
+          };
+
+
+          this.start = function () {
+            const intersectionEngine = this;
+
+            logger.log("IntersectionEngine::start, this", this);
+            // logger.log("touchSlotEngine::start", "this.scopeObj", this.scopeObj);
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const icObj__carrier = this.scopeObj.engineCarrier;
+
+
+
+
+            const trueRect__composite = {
+              x:      icObj__carrier.position.x,
+              y:      icObj__carrier.position.y,
+              width:  icObj__carrier.size.width  / 3.0,
+              height: icObj__carrier.size.height / 3.0,
+            };
+            const parts = {};
+            const compositeConfig = Compositer.defaultCompositeConfig(parts, true);
+            const icComposite = infiniteCanvas.createIcComposite(trueRect__composite, parts, compositeConfig);
+            icComposite.homeScale = Object.assign({}, icObj__carrier.homeScale);
+            icComposite.fill = "lime";
+            icComposite.id_following = icObj__carrier.id;
+            infiniteCanvas.onceOnAddRepresentedForIcObject(icComposite, (icComposite) => {
+              const rep_free__follower = infiniteCanvas.getRepresented(icComposite.id).r_free();
+              // rep_free__follower.opacity = 0.8;
+              intersectionEngine.rep_free__follower = rep_free__follower;
+            });
+            infiniteCanvas.addIcObject(icComposite);
+
+
+            this.dict_touching = {};
+            
+
+            infiniteCanvas.onIcObjUpdate(this.r_official_update_handler2);
+
+            // //for each existing canvas object, add touchState wrt this new touchSlot
+            // infiniteCanvas.onceOnAddRepresentedForIcObject(icTouchSlot, (icTouchSlot) => {
+
+            //   const id_touchSlot = icTouchSlot.id;
+
+            //   const arr_official = Object.values(infiniteCanvas.represented).map(represented => represented.r_official());
+            //   const arr_official_preexisiting = arr_official.filter(rep => (rep.id != id_touchSlot));
+            //   arr_official_preexisiting.forEach((rep, i) => {
+
+            //     rep.touchStateDict[id_touchSlot] = TouchState.Untouched;
+            //     //SHU TODO: check if touches
+
+            //   });
+
+            // });
+
+          };
+
+          this.stop = function () {
+            // delete this.scopeObj;
+          };
+
+
+          this.virgin = Object.assign({}, this);  //virgin == not bound
+
+        }
+
+      }
+
+
+
 
 
 
@@ -44267,6 +44766,21 @@
           return Geometry.createPoint(x, y);
         }
 
+        static getArrPoint__corners(xyRect) {
+          const arr_offset = [
+            {dx: 0, dy: 0},
+            {dx: xyRect.width, dy: 0},
+            {dx: xyRect.width, dy: xyRect.height},
+            {dx: 0, dy: xyRect.height},
+          ];
+          return arr_offset.map((offset) => {
+            return {
+              x: xyRect.x + offset.dx,
+              y: xyRect.y + offset.dy,
+            }
+          });
+        }
+
         static getTranslatedPolygon(arr_point, point__src, point__dst) {
           const v = Geometry.vector_2d(point__src, point__dst);
           const arr_point__translated = arr_point.map((point) => {
@@ -47304,7 +47818,7 @@
               var scale    = 4.0;
               // var viewport = page.getViewport({scale: scale});
               var viewport = page.getViewport({scale: scale});
-              logger.log("logPDF", "viewport:", viewport);
+              // logger.log("logPDF", "viewport:", viewport);
 
               //
               // Prepare canvas using PDF page dimensions
@@ -47435,68 +47949,10 @@
           out_p = loadingTask.promise.then(function (pdf) {
             logger.log("logPDF", "pdf:", pdf);
 
-            function getPage_p(index) {
-
-              return pdf.getPage(index + 1).then(function (page) {
-                logger.log("logPDF", "page:", page);
-
-                var scale    = 4.0;
-                // var viewport = page.getViewport({scale: scale});
-                var viewport = page.getViewport({scale: scale});
-                logger.log("logPDF", "viewport:", viewport);
-
-                //
-                // Prepare canvas using PDF page dimensions
-                //
-                var el_canvas    = document.createElement("canvas");
-                el_canvas.height = viewport.height;
-                el_canvas.width  = viewport.width;
-
-                //
-                // Render PDF page into canvas context
-                //
-                // 
-                var context   = el_canvas.getContext('2d');
-
-                let renderTask = page.render({
-                  canvasContext: context, 
-                  viewport: viewport,
-                });
-
-                // Wait for rendering to finish
-                return renderTask.promise.then(function() {
-                    //debug
-                    // const dataURL = el_canvas.toDataURL();
-                    // FileIntegration.save_image(dataURL);
-
-                    // return el_canvas;
-
-                    const dict_page = {
-                      page: page,
-                      el_canvas: el_canvas,
-                    };
-
-                    return dict_page;
-                });
-              
-              });
-
-            }
-
-            // return Promise.all([...Array(pdf.numPages).keys()].map(getPage_p))
-            //   .then((arr_dict_page) => {
-            //     const dict_pdf = {
-            //       pdf: pdf,
-            //       arr_dict_page: arr_dict_page,
-            //     };
-
-            //     return dict_pdf;
-            //   });
-
-            const arr_dict_page_p = [...Array(pdf.numPages).keys()].map(getPage_p);
+            // const arr_dict_page_p = [...Array(pdf.numPages).keys()].map(getPage_p);
             const dict_pdf = {
               pdf: pdf,
-              arr_dict_page_p: arr_dict_page_p,
+              // arr_dict_page_p: arr_dict_page_p,
             };
 
             return dict_pdf;
@@ -49683,12 +50139,12 @@
               //     });
               // }
               // else {
-                FileIntegration.importImage_multiple_p()
-                  .then(arr_img => {
-                    arr_img.forEach(img => {
-                      infiniteCanvas.manageImport__image(img);
-                    });
-                  });
+                // FileIntegration.importImage_multiple_p()
+                //   .then(arr_img => {
+                //     arr_img.forEach(img => {
+                //       infiniteCanvas.manageImport__image(img);
+                //     });
+                //   });
               // }
 
 
@@ -49721,13 +50177,13 @@
                 //     });
                 //   });
 
-                // FileIntegration.importPDF_multiple_p()
-                // .then(arr_dict_pdf_a => {
-                //   arr_dict_pdf_a.forEach(dict_pdf_a => {
-                //     logger.log("logPDF", "dict_pdf_a", dict_pdf_a);
-                //     infiniteCanvas.addNewPDF_a(dict_pdf_a);
-                //   });
-                // });
+                FileIntegration.importPDF_multiple_p()
+                .then(arr_dict_pdf_a => {
+                  arr_dict_pdf_a.forEach(dict_pdf_a => {
+                    logger.log("logPDF", "dict_pdf_a", dict_pdf_a);
+                    infiniteCanvas.addNewPDF_a(dict_pdf_a);
+                  });
+                });
 
 
 
@@ -76265,7 +76721,7 @@
 
           // this.debug_bigText();
 
-          this.debug_punchHole();
+          // this.debug_intersection();
 
           // this.debug_th();
 
@@ -81288,15 +81744,33 @@
           
         }
 
-        debug_punchHole() {
-          // FileIntegration.importImage_multiple_p()
-          //   .then(arr_img => {
-          //     arr_img.forEach(img => {
-          //       infiniteCanvas.manageImport__image(img);
-          //     });
-          //   });
+        debug_intersection() {
+          logger.log("logAtelier", "debug_intersection");
+
+          const id__icRect__lab = 3;
+          const rep_free__icRect__lab = infiniteCanvas.getRepresented(id__icRect__lab).r_free(); 
+          
+          try {
+
+            const engine = new IntersectionEngine();
+            const eType  = "intersection";
+            const icEngined = infiniteCanvas.installEngineOnIcObj(rep_free__icRect__lab, eType, engine);
+
+            
+            //initialize (==hydrate)
+            const scopeObj = icEngined.getScopeObj(icEngined);
+            scopeObj.infiniteCanvas = infiniteCanvas;
+
+            engine.initialize(scopeObj);
+            logger.log("logAtelier", "engine.awoken.scopeObj.infiniteCanvas:", engine.awoken.scopeObj.infiniteCanvas);
+
+            //start
+            engine.awoken.start();
 
 
+          } catch(e) {
+            logger.log("logAtelier", "error:", e);
+          }
 
         }
 
