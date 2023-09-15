@@ -8493,6 +8493,92 @@
         return icComposite;
       }
 
+      createIcGrid(trueRect, nb_horiz = 15, nb_vert = 15) {
+        // const nb_total = 15;
+
+        // const nb_horiz = nb_total;
+        const index_axis__horiz = (nb_horiz - 1)/2;
+
+        // const nb_vert  = nb_total;
+        const index_axis__vert  = (nb_vert - 1)/2;
+
+        // const trueRect__grid__container = {
+        //   x:      100,
+        //   y:      100,
+        //   width:  500,
+        //   height: 500,
+        // };
+        const trueRect__grid__container = trueRect;
+
+        function createGridSegment__horiz(rect__grid, index, nb_total) {
+          const segment_L = Geometry.segment_L(rect__grid);
+          const segment_R = Geometry.segment_R(rect__grid);
+          return Geometry.createWebSegment__nth(segment_L, segment_R, index, nb_total);
+        }
+
+        function createGridSegment__vert(rect__grid, index, nb_total) {
+          const segment_T = Geometry.segment_T(rect__grid);
+          const segment_B = Geometry.segment_B(rect__grid);
+          return Geometry.createWebSegment__nth(segment_T, segment_B, index, nb_total);
+        }
+
+        const arr_segmentWrapper__horiz = [...Array(nb_horiz).keys()].map((index) => {
+          const segment_horiz      = createGridSegment__horiz(trueRect__grid__container, index, nb_horiz);
+          return {
+            segment: segment_horiz,
+            index: index,
+            isAxis: (index == index_axis__horiz),
+          };
+        });
+        const arr_segmentWrapper__vert = [...Array(nb_vert).keys()].map((index) => {
+          const segment_vert      = createGridSegment__vert(trueRect__grid__container, index, nb_vert);
+          return {
+            segment: segment_vert,
+            index: index,
+            isAxis: (index == index_axis__vert),
+          };
+        });
+
+        const arr_icSegment = [...arr_segmentWrapper__horiz, ...arr_segmentWrapper__vert].map((segmentWrapper) => {
+          const segment = segmentWrapper.segment;
+          const icSegment          = infiniteCanvas.createIcSegment(segment.point1, segment.point2);
+          if(segmentWrapper.isAxis) {
+            icSegment.strokeWidth = 3;
+          } else {
+            icSegment.strokeWidth = 1;
+          }
+          // const icCompositeSegment = infiniteCanvas.createIcCompositeSegment(segment.point1, segment.point2);
+          return icSegment;
+        });
+
+
+
+
+        const trueRect__composite = {
+          x:      trueRect__grid__container.x - 50,
+          y:      trueRect__grid__container.y - 50,
+          width:  50,
+          height: 50,
+        };
+        const icRect = infiniteCanvas.createIcRect(trueRect__composite);
+        icRect.zIndex = -100;
+        icRect.fill   = ColorUtils.randomColor();
+
+
+        const content = icRect;
+
+        const parts           = Utils.dictFromArr(arr_icSegment);
+        const contentAndParts = Object.assign({"content": content}, parts);
+        
+        const compositeConfig = Compositer.defaultCompositeConfig(contentAndParts, false);
+        // compositeConfig__knob[icMathNode__knob.id].isMobile = true;
+        
+        const icComposite = infiniteCanvas.createIcComposite(trueRect__composite, parts, compositeConfig, content);
+        icComposite.cType = "grid";
+
+        return icComposite;
+      }
+
 
       createIcText(left, top, text) {
 
@@ -38725,7 +38811,7 @@
             // y2:   500,
 
             stroke: icObj.stroke,
-            strokeWidth: 5,
+            strokeWidth: icObj.strokeWidth ? icObj.strokeWidth : 5,
             fill: "red",
 
             // stroke:      icObj.stroke,
@@ -44800,6 +44886,14 @@
           return point;
         }
 
+        static createSegment(point1, point2) {
+          const segment = {
+            point1: point1,
+            point2: point2,
+          };
+          return segment;
+        }
+
         static createRect(x, y, w, h) {
           const rect = {
             left: x,
@@ -45172,6 +45266,14 @@
         }
 
 
+
+
+
+
+
+
+
+
         static createLRTBRect(rect) {
           const lrtb = {
             left: rect.left,
@@ -45313,6 +45415,10 @@
           return Geometry.translatedPoint(point1, v);
         }
 
+        static pointOnSegment__nth(point1, point2, index, nb_total) {
+          const progress = 1.0 * index / (nb_total - 1);
+          return Geometry.pointOnSegment__progress(point1, point2, progress);
+        }
 
 
         static pointOnSquare__angleInRadians(pointCenter, radius, angleInRadians) {
@@ -45405,7 +45511,101 @@
         }
 
 
+        static segmentWithPointAndOffset(point1, offset) {
+          const point2 = Geometry.createPointWithOffset(point1, offset);
+          return Geometry.createSegment(point1, point2);
+        }
 
+        static segmentWithPointOriginAndOffset1Offset2(point0, offset1, offset2) {
+          const point1 = Geometry.createPointWithOffset(point0, offset1);
+          const point2 = Geometry.createPointWithOffset(point0, offset2);
+          return Geometry.createSegment(point1, point2);
+        }
+
+        static segment_L(xyRect) {
+          const pointTL = Geometry.createPoint(xyRect.x, xyRect.y);
+
+          const offset1 = {
+            dx: 0,
+            dy: 0,
+          };
+          const offset2 = {
+            dx: 0,
+            dy: xyRect.height,
+          };
+
+          return Geometry.segmentWithPointOriginAndOffset1Offset2(pointTL, offset1, offset2);
+        }
+
+        static segment_R(xyRect) {
+          const pointTL = Geometry.createPoint(xyRect.x, xyRect.y);
+
+          const offset1 = {
+            dx: xyRect.width,
+            dy: 0,
+          };
+          const offset2 = {
+            dx: xyRect.width,
+            dy: xyRect.height,
+          };
+
+          return Geometry.segmentWithPointOriginAndOffset1Offset2(pointTL, offset1, offset2);
+        }
+
+        static segment_T(xyRect) {
+          const pointTL = Geometry.createPoint(xyRect.x, xyRect.y);
+
+          const offset1 = {
+            dx: 0,
+            dy: 0,
+          };
+          const offset2 = {
+            dx: xyRect.width,
+            dy: 0,
+          };
+
+          return Geometry.segmentWithPointOriginAndOffset1Offset2(pointTL, offset1, offset2);
+        }
+
+        static segment_B(xyRect) {
+          const pointTL = Geometry.createPoint(xyRect.x, xyRect.y);
+
+          const offset1 = {
+            dx: 0,
+            dy: xyRect.height,
+          };
+          const offset2 = {
+            dx: xyRect.width,
+            dy: xyRect.height,
+          };
+
+          return Geometry.segmentWithPointOriginAndOffset1Offset2(pointTL, offset1, offset2);
+        }
+
+
+        static createWebSegment__progress(segment1, segment2, progress) {
+          const point1__progress = Geometry.pointOnSegment__progress(segment1.point1, segment1.point2, progress);
+          const point2__progress = Geometry.pointOnSegment__progress(segment2.point1, segment2.point2, progress);
+          return Geometry.createSegment(point1__progress, point2__progress);
+        }
+
+        static createWebSegment__nth(segment1, segment2, index, nb_total) {
+          const progress = 1.0 * index / (nb_total - 1);
+          return Geometry.createWebSegment__progress(segment1, segment2, progress);
+        }
+
+
+        // static createWebPath__progress(path1, path2, progress) {
+        //   const point1 = 
+        //   const point2 = 
+          
+        //   return Geometry.createSegment()
+        // }
+
+        // static createWebPath__nth(segment_1, segment_2, index, nb_total) {
+        //   const progress = 1.0 * index / (nb_total - 1);
+        //   return Geometry.pointOnSegment__progress(point_start, point_end, progress);
+        // }
 
 
 
@@ -79070,6 +79270,12 @@
 
           //this.debug_complexNumbers();
 
+          try {
+            this.debug_coordSystem();
+          } catch(e) {
+            logger.log("logError", e);
+          }
+
           // this.debug_th();
 
           // this.debug_startingScreen();
@@ -84134,7 +84340,20 @@
           
         }
 
+        debug_coordSystem() {
 
+          const trueRect__grid__container = {
+            x:      100,
+            y:      100,
+            width:  500,
+            height: 500,
+          };
+
+          const icGrid = infiniteCanvas.createIcGrid(trueRect__grid__container, 11, 11);
+          
+          infiniteCanvas.addIcObject(icGrid);
+          
+        }
 
 
 
