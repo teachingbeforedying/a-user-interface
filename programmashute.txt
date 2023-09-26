@@ -11272,6 +11272,175 @@ The semantic meaning of ⇝ is literally "leads to".
 	1 bug: cx multre: [[1 + 3i]] * [x 4] yields [[1 + 12i]] instead of [[4 + 12i]]
 		=> func(mathNode_in) -> func(new math.ParenthesisNode(mathNode_in))
 
+21 septembre 2023:
+	0 gm::challenge:python: 
+		0 lib 
+			(0 node-python-bridge
+			(0 https://www.programiz.com/python-programming/online-compiler/
+**			0 pyodide
+***				https://pyodide.org/en/stable/usage/quickstart.html
+			0 pyscript
+**				https://pyscript.net/
+				https://docs.pyscript.net/latest/tutorials/getting-started.html
+
+		0 full offline support: prevent "downloading pyodide" ...
+			0 await import()
+				var RemoteInterpreter = class extends Object {
+					...
+				};
+				pyodide.asm.js
+				0 this.interface = WebAssembly.instantiate(...)
+
+				0 load wasm.js 
+					https://stackoverflow.com/questions/61052684/how-to-load-a-wasm-module-locally
+					You can encode the wasm as base64 and then load it like this (no size limitation as far as I know - definitely works with 5Mb+)
+					Module.wasmBinaryFile="data:application/wasm;base64,AGFzbQEAAAABww...
+
+					0 https://base64.guru/converter/encode/file
+
+					"data:application/wasm"
+
+					const API = Module.API;
+					console.log("RemoteInterpreter.interface", RemoteInterpreter.interface);
+
+async _startInterpreter_main(interpreter_cfg) {
+	logger11.info("Starting the interpreter in the main thread");
+	const remote_interpreter = new RemoteInterpreter(interpreter_cfg.src);
+	this.unwrapped_remote = remote_interpreter;
+	const { port1, port2 } = new FakeMessageChannel();
+	port1.start();
+	port2.start();
+	expose(remote_interpreter, port2);
+	const wrapped_remote_interpreter = wrap(port1);
+	this.logStatus(`Downloading ${interpreter_cfg.name}...`);
+	const interpreterURL = interpreter_cfg.src;
+	await import(interpreterURL);
+	return wrapped_remote_interpreter;
+}
+
+				0 load pyodide.asm.wasm
+					1 wasm2js
+						1 example.js
+					0 instantiate(wasm)
+						0 WASI !
+							0 https://github.com/bjorn3/browser_wasi_shim
+								npm install @bjorn3/browser_wasi_shim --save
+**A shim is some code that takes care of what's asked (by 'interception'), without anyone being any wiser about it.
+							1 beautify
+						0 read/write file in browser
+							0 create object with OpenFile interface 
+											using localStorage
+								write: localStorage.setItem("key", "value");
+								read: 	var number = localStorage.getItem("key");
+								1 https://github.com/jvilk/BrowserFS
+								export class OpenFile extends Fd
+							0 Origin Private File System
+								https://developer.mozilla.org/en-US/docs/Web/API/File_System_API/Origin_private_file_system
+*[
+	OPFS:
+		Because OPFS doesn't involve the user's actual local filesystem, 
+		and because the space is segregated by origin (URI-scheme + hostname + port), 
+		it means that OPFS doesn't present a risk of users' privacy or computer security,
+*]
+								0 horror:
+									Uncaught (in promise) DOMException: 
+										It was determined that certain files are unsafe for access within a Web application, 
+										or that too many calls are being made on file resources.
+									=> 1X slow ride: decorate all calls on file resources with setTimeout()
+							
+								OPFS: sexy sur le papier mais impossible de faire ce que l'on veut
+
+						1 lib/browserwasi.js
+						0? hack: copy .wasm to localStorage then use instantiateStreaming
+						1Xask user for wasm file
+							(0 create fake Response
+							1X WebAssembly.instantiateStreaming(fetch(dataURL))
+								|-> WebAssembly.instantiate(): Import #289 module="GOT.func": module is not an object or function
+
+						0 npm i -D wasmify
+							0 >browserify -p wasmify main.js --standalone Bundle_PYO > pyodide.browserified.bundle.js
+						0 	npm install typescript
+							npm i -D tsify
+							https://github.com/TypeStrong/tsify
+							 >browserify -p [ tsify --noImplicitAny ] main.js --standalone Bundle_PYO > pyodide.browserified.bundle.js
+
+						0 from .js to localStorage and vice-versa
+							0 localStorage --> .js
+								0 download everything when app is working
+							0 .js 		   --> localStorage
+					(0 ? from instance to js ? 
+					0 correct filepath ?
+					(0 preloadWasm
+					(0? use base64 bidouille 
+				0 load std_lib.zip
+
+
+		1X pyodide + hacky fetch
+			0 decorate fetch: 
+				fetch__decorated(x) {
+					dataURL = localStorage.getItem(x) 
+					return fetch(dataURL);	
+				}
+
+***https://brython.info/static_tutorial/fr/index.html
+
+		1X input(): f***ing stupid hanger server
+			_brGetInput
+			var a; prompt(a); return a;
+			
+			_brGetInput(message) {self.postMessage({\\n        type: 'stdin.readline',\\n        value: prompt(message),\\n    });}
+
+			removed: 
+				self.prompt = _brGetInput;
+
+**as python scripts will be iC objects, a workaround for "f***ing stupid hanger server destroys input()" will be assignment of placeholders:
+		example:
+			def myFunc():
+				a = <input>
+				b = a + 10
+				return 3 * b
+
+			[[myFunc()]] * [assign: 333] = [[myFunc() with a = 333]]
+
+		even better:
+			[[myFunc()]] * [eval] ==> a popover spawns near a, waiting for an input
+				when user has set value, [[myFunc()]] * [eval] starts
+
+		1 eval a tiny script
+
+			runPython("\
+			a = 10      \n\
+			b = a + 9   \n\
+			print(b)    \n\
+			");
+
+
+<script type="text/python3">
+     from interpreter import Interpreter
+
+     # Start an interactive interpreter in textarea with id "code"
+     Interpreter("code")
+ </script>
+
+24 septembre 2023:
+0 geogebra in iC
+<script src="https://www.geogebra.org/apps/deployggb.js"></script>
+
+<div id="ggb-element"></div>
+
+    var params = {
+            "appName": "graphing", 
+            "width": 800, 
+            "height": 600, 
+            "showToolBar": true, 
+            "showAlgebraInput": true, 
+            "showMenuBar": true,
+            };
+    var ggbApplet = new GGBApplet(params, true);
+    window.addEventListener("load", function() { 
+        ggbApplet.inject('ggb-element');
+    });
+
 
 
 .
