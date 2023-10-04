@@ -22220,6 +22220,96 @@
 
 
 
+      operateOnSelected__warp() {
+        logger.log("logOOS", "operateOnSelected__warp");
+        const infiniteCanvas = this;
+
+        //get selected icObj
+        const icObj__selected = infiniteCanvas.getSelectedIcObj();
+
+        function trueWarpCoords(icObj) {
+          var outPos = {
+            x: 0,
+            y: 0,
+          };
+
+          if(icObj.type == "mathNode") {
+
+            const mathNode = icObj.mathNode;
+            logger.log("logOOS", "mathNode", mathNode);
+
+            if(mathNode instanceof math.ObjectNode) {
+              outPos = {
+                x: mathNode.properties["x"].value,
+                y: mathNode.properties["y"].value,
+              };
+            } else {
+
+              if(mathNode.value instanceof math.Complex) {
+                outPos = {
+                  x: mathNode.value.re,
+                  y: mathNode.value.im,
+                };
+              } else {
+                outPos = {
+                  x: mathNode.value,
+                  y: 0,
+                };
+              }
+
+            }
+  
+          }
+
+          return outPos;
+        }
+
+        function createTeachingCoords(truePos) {
+          var outPos;
+
+          const factor = 50;
+
+          outPos = {
+            x: truePos.x * (+1) * factor,
+            y: truePos.y * (-1) * factor,
+          };
+
+          return outPos;
+        }
+
+        //SHU: it would be nice if obj.position and screenPov could change "simultaneously"
+
+        const coords__trueWarp = trueWarpCoords(icObj__selected);
+        const coords__teaching = createTeachingCoords(coords__trueWarp);
+        logger.log("logWARP", "coords__teaching", coords__teaching);
+        icObj__selected.position = coords__teaching;
+
+          //change screenPov if necessary
+        if(icObj__selected.isHeld) {
+          const trueRect__screen__100 = infiniteCanvas.getShownRect();
+          logger.log("logWARP", "trueRect__screen__100", trueRect__screen__100);
+          trueRect__screen__100.left = trueRect__screen__100.x; 
+          trueRect__screen__100.top  = trueRect__screen__100.y;
+          const trueRect__screen__90  = Geometry.getCenterScaledRect(trueRect__screen__100, 0.9);
+          const isNewPositionInsideScreenPov90 = Geometry.isPointContainedInRect(coords__teaching, trueRect__screen__90);
+          logger.log("logWARP", "isNewPositionInsideScreenPov90", isNewPositionInsideScreenPov90);
+          if(!isNewPositionInsideScreenPov90) {
+            const cfg_anim__easy = {
+              duration: 10,
+            };
+            const trueRect__screen__100__new = {
+              x: trueRect__screen__100.x + coords__teaching.x - Geometry.getCenterPoint(Geometry.createLTRect(trueRect__screen__100)).x,
+              y: trueRect__screen__100.y + coords__teaching.y - Geometry.getCenterPoint(Geometry.createLTRect(trueRect__screen__100)).y,
+              width:  trueRect__screen__100.width,
+              height: trueRect__screen__100.height,
+            };
+            infiniteCanvas.move_to_rect__animation(trueRect__screen__100__new, cfg_anim__easy);
+          }
+        }
+
+      }
+
+
 
       addNewLabelValue(text, value) {
         const true_cursor = this.getTrueCursor();
@@ -22227,7 +22317,7 @@
         const left = true_cursor.x;
         const top = true_cursor.y;
 
-        const width = 100;   //"information" size
+        const width  = 100;   //"information" size
         const height = 100;
 
         const trueRect = {
@@ -24327,6 +24417,24 @@
             function mathFieldTex_to_mathNode(tex) {
               var outMathNode;
 
+              function parseCoords(tex) {
+                var outMathNode;
+
+                const regex__coords = /(.*);(.*)/;
+                const isCoords = regex__coords.test(tex);
+                logger.log("logNT, parseCoords", "isCoords", isCoords);
+                if(isCoords) {
+                  const arr_match = tex.match(regex__coords);
+                  const str__x = arr_match[1];
+                  const str__y = arr_match[2];
+                  const mathNode__x = math.parse(str__x);
+                  const mathNode__y = math.parse(str__y);
+                  outMathNode = new math.ObjectNode({x: mathNode__x, y: mathNode__y});
+                }
+
+                return outMathNode;
+              }
+
               function parseRational(tex) {
                 logger.log("logNT", "parseRational", tex);
                 var outMathNode;
@@ -24368,6 +24476,20 @@
                 return outMathNode;
               }
 
+              function parseComplex(tex) {
+                var outMathNode;
+                try {
+                  const value__complex = math.complex(tex);
+                  logger.log("logNT", "value__complex:", value__complex);
+
+                  outMathNode = new math.ConstantNode(value__complex);
+                  logger.log("logNT", "outMathNode:", outMathNode);
+                } catch(e) {
+
+                }
+                return outMathNode;
+              }
+
               function parseExpression(tex) {
                 var outMathNode;
                 try {
@@ -24382,8 +24504,10 @@
               }
 
               outMathNode = null;
+              outMathNode = outMathNode ? outMathNode : parseCoords(tex);
               outMathNode = outMathNode ? outMathNode : parseRational(tex);
               outMathNode = outMathNode ? outMathNode : parseFraction(tex);
+              outMathNode = outMathNode ? outMathNode : parseComplex(tex);
               outMathNode = outMathNode ? outMathNode : parseExpression(tex);
 
               return outMathNode;
@@ -51092,7 +51216,9 @@
               //debug
               // keyboardIntegration.infiniteCanvas.addNewGMOperator_editable("x 1");
 
-              keyboardIntegration.infiniteCanvas.operateOnActiveObject__export_asImg();
+              // keyboardIntegration.infiniteCanvas.operateOnActiveObject__export_asImg();
+              
+              keyboardIntegration.infiniteCanvas.operateOnSelected__warp();
             }),
 
             "KeyF": new KeyUpTrigger("KeyF", KeyUpTrigger.defaultKeyUpFunc(["KeyF"]), () => {
@@ -79849,7 +79975,7 @@
             // this.debug_gradient();
             // this.debug_gradient2();
 
-            this.debug_varSlot();
+            // this.debug_varSlot();
 
           } catch(e) {
             logger.log("logError", e);
