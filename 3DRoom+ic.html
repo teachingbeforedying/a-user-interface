@@ -1438,6 +1438,11 @@
 
 
       function handler__edit(mathField) {
+        handler__edit__replace__cdot__with__times(mathField);
+        handler__edit__replace__bar_caret_gt__with__rbararrow(mathField);
+      }
+
+      function handler__edit__replace__cdot__with__times(mathField) {
         const tex = mathField.latex();
 
         //debug
@@ -1612,6 +1617,40 @@
 
       }
 
+      function handler__edit__replace__bar_caret_gt__with__rbararrow(mathField) {
+        const tex = mathField.latex();
+
+        function checkNeedsUpgrade(tex) {
+          var outBool;
+          outBool = tex.includes("\\left|->");
+          return outBool;
+        }
+
+        function upgradedTex(tex) {
+          var outTex;
+          outTex =    tex.replaceAll("\\left|->", "↦");
+          outTex = outTex.replaceAll("\\right|", "");
+          return outTex;
+        }
+
+        const isNeedUpgrade = checkNeedsUpgrade(tex);
+        if(isNeedUpgrade) {
+
+          //disable edit handler
+          const handler__edit__prev = mathField.__options.handlers.fns.edit;
+          mathField.__options.handlers.fns.edit = (mathField) => {};
+
+          const tex__upgraded = upgradedTex(tex);
+
+          mathField.latex("");
+          mathField.write(tex__upgraded);
+
+          //reenable edit handler
+          mathField.__options.handlers.fns.edit = handler__edit__prev;
+        }
+
+      }
+
       const mathField = MQ.MathField(span, {
         handlers: {
           edit: handler__edit,
@@ -1695,6 +1734,56 @@
             return outNode;
           });
         },
+
+
+
+        // myApply: function(mathNode__operand, objectNode__operator) {
+        //   var outMathNode;
+
+        //   switch(objectNode__operator.properties.type.name) {
+        //     case "anonFunction":
+        //       {
+        //         const mathNode__arr_var = objectNode__operator.properties["arr_var"];
+        //         const dict__var         = Object.entries(mathNode__arr_var).reduce((acc, x) => {
+        //           const name = x.name;
+        //           acc[name] = x;
+        //           return acc;
+        //         }, {});
+        //         const mathNode__expr    = objectNode__operator.properties["expr"];
+                
+
+        //         outMathNode = mathNode__expr.transform(function (node, path, parent) {
+        //           var outNode2; 
+      
+        //           var node__subst;
+        //           if (node.isSymbolNode) {
+        //             node__subst = dict__var[node.name];
+        //             if(node__subst != null) {
+        //               outNode2 = node__subst.cloneDeep();
+        //             } else {
+        //               outNode2 = node;
+        //             }
+        //           }
+        //           else {
+        //             outNode2 = node;
+        //           }
+        //           logger.log("logMJS", "myApply", "outNode2", outNode2);
+      
+        //           return outNode2;
+        //         });
+        //       }
+        //       break;
+        //     default:
+        //       {
+        //         throw new Error("Unsupported type for objectNode__operator:", objectNode__operator.properties.type.name);
+        //         outMathNode = mathNode__operand;
+        //       }
+        //       break;
+        //   }
+
+        //   return outMathNode;
+        // }
+
 
       };
 
@@ -2129,6 +2218,15 @@
 
           inverse: "deval",
         },
+
+        // myApply: {
+        //   arity: 2,
+        //   symbol: "*",
+        //   name: "myApply",
+        //   precedence: 1,
+
+        //   inverse: "unMyApply",
+        // },
 
       },
       n: {
@@ -2821,13 +2919,13 @@
 
       const func = createMathNodeTransformationFunc_binary(op.op, op.name, node_b, isShuffled);
 
-      const op__inverse = op.inverse();
-      const func__inverse = createMathNodeTransformationFunc_binary(op__inverse.op, op__inverse.name, node_b, isShuffled);
-
       const funcWrapper = createFuncWrapper(op, node_b, func);
-      const funcWrapper__inverse = createFuncWrapper(op__inverse, node_b, func__inverse);
-      funcWrapper.inverse = funcWrapper__inverse;
-
+      if(op.name != "myApply") {
+        const op__inverse   = op.inverse();
+        const func__inverse = createMathNodeTransformationFunc_binary(op__inverse.op, op__inverse.name, node_b, isShuffled);
+        const funcWrapper__inverse = createFuncWrapper(op__inverse, node_b, func__inverse);
+        funcWrapper.inverse = funcWrapper__inverse;
+      }
       outFuncWrapper = funcWrapper;
 
       return outFuncWrapper;
@@ -3135,8 +3233,6 @@
 
       return outFuncWrapper;
     }
-
-
 
 
 
@@ -15401,8 +15497,6 @@
                 // operatorConfig.name      = "lol";
                 operatorConfig.node__display = mathNode__operator;
 
-                const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_from_operatorNode(mathNode__operator);
-                const transformationFunc__mathNode = operatorNodeFactoryFuncWrapper.func;
                 const transformationFunc__icObj = (icObj) => {
                   logger.log("logOp", "transformationFunc__icObj", icObj);
                   var transformationOutput;
@@ -15428,6 +15522,143 @@
                 operatorConfig.transformationFunc = transformationFunc__icObj;
               }
               break;
+
+            case "from_anonFunctionObjectNode":
+              {
+                const mathNode__anonFunction = cfg.mathNode__anonFunction;
+                
+                operatorConfig.node__display = mathNode__anonFunction;
+
+                function betaReduce(arrayNode__operand, objectNode__anonFunction) {
+                  var outMathNode;
+        
+                  switch(objectNode__anonFunction.properties.type.name) {
+                    case "anonFunction":
+                      {
+                        const mathNode__arr_bound_var = objectNode__anonFunction.properties["arr_bound_var"];
+                        const mathNode__expr          = objectNode__anonFunction.properties["expr"];
+
+                        // logger.log("logAnon", "betaReduce", "mathNode__arr_bound_var:", mathNode__arr_bound_var);
+                        // logger.log("logAnon", "betaReduce", "mathNode__expr:", mathNode__expr);
+
+                        var nb__var_in = arrayNode__operand.items.length;
+
+                        const dict__betaRed = mathNode__arr_bound_var.items.slice(0,nb__var_in).reduce((acc, x, index) => {
+                          const name = x.name;
+                          acc[name]  = arrayNode__operand.items[index];
+                          return acc;
+                        }, {});
+                        logger.log("logAnon", "betaReduce", "dict__betaRed:", dict__betaRed);
+
+
+                        //substitute as many bound vars as possible
+                        outMathNode = mathNode__expr.transform(function (node, path, parent) {
+                          var outNode2; 
+              
+                          var node__subst;
+                          if (node.isSymbolNode && (node.name in dict__betaRed)) {
+                            node__subst = dict__betaRed[node.name];
+                            if(node__subst != null) {
+                              outNode2 = node__subst.cloneDeep();
+                            } else {
+                              outNode2 = node;
+                            }
+                          }
+                          else {
+                            outNode2 = node;
+                          }
+                          logger.log("logAnon", "betaReduce", "outNode2:", outNode2);
+              
+                          return outNode2;
+                        });
+                      }
+                      break;
+                    default:
+                      {
+                        throw new Error("Unsupported type for objectNode__anonFunction:", objectNode__anonFunction.properties.type.name);
+                        outMathNode = arrayNode__operand;
+                      }
+                      break;
+                  }
+        
+                  return outMathNode;
+                }
+  
+  
+                const transformationFunc__icObj = (icObj) => {
+                  logger.log("logOp", "transformationFunc__icObj", icObj);
+                  var transformationOutput;
+
+                  const mathNode__in = icObj.mathNode;
+                  var arrayNode__in;
+                  if(mathNode__in instanceof math.ArrayNode) {
+                    arrayNode__in = mathNode__in;
+                  } else {
+                    arrayNode__in = new math.ArrayNode([mathNode__in]);
+                  }
+                  const mathNode__new = betaReduce(arrayNode__in, mathNode__anonFunction);
+                  logger.log("logAnon", "mathNode__new:", mathNode__new);
+
+                  icObj.mathNode = mathNode__new;
+                  
+                  try {
+                    const value = mathNode__new.evaluate();
+                    const mathNode__new__evaluated = new math.ConstantNode(value);
+
+                    icObj.mathNode = mathNode__new__evaluated;
+                  } catch(e) {
+                    logger.log("logAnon", "mathNode__new.evaluate(), error:", e);
+                  }
+
+                  const autoSimplify = icObj.mathNode.autoSimplify;
+                  if(autoSimplify) {
+                    icObj.mathNode = math.simplify(icObj.mathNode);
+                    icObj.mathNode.autoSimplify = autoSimplify;
+                  }
+
+                  transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+
+                  return transformationOutput;
+                };
+                  
+                operatorConfig.transformationFunc = transformationFunc__icObj;
+              }
+              break;
+
+              // case "from_anonFunctionObj":
+              //   {
+              //     const anonFunctionObj = cfg.anonFunctionObj;
+                  
+              //     // operatorConfig.node__display = mathNode__function;
+  
+              //     const operatorNodeFactoryFuncWrapper = operatorNodeFactoryFuncWrapper_from_anonFunctionObj(anonFunctionObj);
+              //     const transformationFunc__mathNode = operatorNodeFactoryFuncWrapper.func;
+              //     const transformationFunc__icObj = (icObj) => {
+              //       logger.log("logOp", "transformationFunc__icObj", icObj);
+              //       var transformationOutput;
+  
+              //       // const mathNode__in  = icObj.mathNode;
+              //       // const mathNode__new = transformationFunc__mathNode(mathNode__in);
+  
+              //       // const icObj__new    = icObj.deepClone();
+              //       // icObj__new.mathNode = mathNode__new;
+  
+              //       // transformationOutput = new TransformationOutput("new", icObj__new, icObj);
+              //       icObj.mathNode = transformationFunc__mathNode(icObj.mathNode);
+              //       const autoSimplify = icObj.mathNode.autoSimplify;
+              //       if(autoSimplify) {
+              //         icObj.mathNode = math.simplify(icObj.mathNode);
+              //         icObj.mathNode.autoSimplify = autoSimplify;
+              //       }
+  
+              //       transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+  
+              //       return transformationOutput;
+              //     };
+              //     operatorConfig.transformationFunc = transformationFunc__icObj;
+
+              //   }
+              //   break;
 
             case "simplify":
               {
@@ -24566,6 +24797,45 @@
               return outNode;
             }
 
+            function parseAnonymousFunction(tex) {
+              var outMathNode;
+
+              const regex__function = /(.*)↦(.*)/;
+              const isFunction = regex__function.test(tex);
+              logger.log("logNT, parseAnonymousFunction", "isFunction", isFunction);
+              if(isFunction) {
+                const arr_match = tex.match(regex__function);
+                const str__args = arr_match[1];
+                const str__expr = arr_match[2];
+                
+                const arr_bound_var           = str__args.split(",").map(str__var => new math.SymbolNode(str__var));
+                const mathNode__arr_bound_var = new math.ArrayNode(arr_bound_var);
+                
+                const mathNode__expr = math.parse(str__expr);
+
+                const mathNode__anonFunction = new math.ObjectNode({
+                  type: new math.SymbolNode("anonFunction"),
+
+                  arr_bound_var: mathNode__arr_bound_var,
+                  expr:          mathNode__expr,
+                });
+
+                outMathNode = mathNode__anonFunction;
+
+                /*
+                  //META SHU: abandonné pour l'instant ?
+
+                  //SHU la même notation que dans still_shute:
+                  //[[6]] * [+ 5]          = [[11]]
+                  //[[4]] * [anonFunction] = [[anonFunction(4)]]
+                  // const mathNode__operator = new math.OperatorNode("*", "myApply", [MathSingleton.node__empty, mathNode__anonFunction]); 
+                  // outMathNode = mathNode__operator;
+                */
+              }
+
+              return outMathNode;
+            }
+
 
 
 
@@ -24621,27 +24891,17 @@
             
             } else {
 
-              function refinedTex2(tex) {
-                var outTex;
+              //is input an anonymous function definition ?
+              var mathNode__anonFunction;
 
-                outTex = tex;
-                outTex = outTex.replaceAll("[＋]", "+");  //"[" + U+FF0B + "]"
-                outTex = outTex.replaceAll("[－]", "-");  //"[" + U+FF0D + "]"
-
-                return outTex;
-              }
-
-              const tex__refined2 = refinedTex2(tex__refined1);
-
-              var mathNode__operator;
               try {
-                mathNode__operator = parseToOperatorNode2(tex__refined2);
+                mathNode__anonFunction = parseAnonymousFunction(tex__refined1);
+                logger.log("logNT", "anonymousFunction, mathNode__operator:", mathNode__operator);
               } catch(e) {
-                logger.log("logNT", "couldn't parse opString: ", tex, "error: ", e);
+                logger.log("logNT", "couldn't parse anonFuncString: ", tex, "error: ", e);
               }
-              
-              if(mathNode__operator != null) { 
 
+              if(mathNode__anonFunction != null) {
                 //create/add icMathNode
                 const position__icMathNode = this.getTrueCursor();
                 const trueRect__operator = {
@@ -24651,16 +24911,54 @@
                   height: 120,
                 };
 
-                // const icMathNode = this.createIcMathNode(position__icMathNode.x, position__icMathNode.y, mathNode__operator);
-                // this.addNewIcObject(icMathNode);
-
-                const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect__operator, "from_operatorNode", {mathNode__operator: mathNode__operator});
+                const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect__operator, "from_anonFunctionObjectNode", {mathNode__anonFunction: mathNode__anonFunction});
                 infiniteCanvas.addNewIcObject(gmOperator);
-
               } else {
-                
-              } 
 
+                var mathNode__operator;
+  
+                //is input an implicit function definition
+                function refinedTex2(tex) {
+                  var outTex;
+  
+                  outTex = tex;
+                  outTex = outTex.replaceAll("[＋]", "+");  //"[" + U+FF0B + "]"
+                  outTex = outTex.replaceAll("[－]", "-");  //"[" + U+FF0D + "]"
+  
+                  return outTex;
+                }
+  
+                const tex__refined2 = refinedTex2(tex__refined1);
+  
+                try {
+                  mathNode__operator = parseToOperatorNode2(tex__refined2);
+                } catch(e) {
+                  logger.log("logNT", "couldn't parse opString: ", tex, "error: ", e);
+                }
+
+                if(mathNode__operator != null) { 
+
+                  //create/add icMathNode
+                  const position__icMathNode = this.getTrueCursor();
+                  const trueRect__operator = {
+                    x:      position__icMathNode.x,
+                    y:      position__icMathNode.y,
+                    width:  120,
+                    height: 120,
+                  };
+  
+                  // const icMathNode = this.createIcMathNode(position__icMathNode.x, position__icMathNode.y, mathNode__operator);
+                  // this.addNewIcObject(icMathNode);
+  
+                  const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect__operator, "from_operatorNode", {mathNode__operator: mathNode__operator});
+                  infiniteCanvas.addNewIcObject(gmOperator);
+  
+                } else {
+                  //too bad: input couldn't be parsed
+                } 
+
+              }
+                
             }
 
           }
@@ -24689,7 +24987,7 @@
       //microphone recording
 
       enterMicrophoneRecording() {
-        logger.log("logNT", "enterNumberTyping");
+        logger.log("logNT", "enterMicrophoneRecording");
         const infiniteCanvas = this;
 
         // globalsSingleton.isEditing = true;
@@ -50181,7 +50479,22 @@
 
             logger.log("globalsSingleton.isEditing", globalsSingleton.isEditing);
             if (globalsSingleton.isEditing) {
-              if(infiniteCanvas.isNumberTyping) {
+              if(infiniteCanvas.isNumberTypingLockedMode) {
+                switch(e.code) {
+                  case "Enter":
+                  case "NumpadEnter":
+                    {
+                      //continue to process keyup event
+                    }
+                    break;
+                  default:
+                    {
+                      //ignore keyup event
+                      return;
+                    }
+                    break;
+                }
+              } else if(infiniteCanvas.isNumberTyping) {
                 switch(e.code) {
                   case "KeyZ":
                   case "KeyB":
@@ -50571,11 +50884,21 @@
 
             w: new KeyDownToggle("w", KeyDownToggle.defaultKeyDownFunc(["KeyZ"]), (isActive) => {
               
-              if (isActive) {
-                infiniteCanvas.enterNumberTyping();
+              if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+                if (isActive) {
+                  infiniteCanvas.isNumberTypingLockedMode = true;
+                  infiniteCanvas.enterNumberTyping();
+                }
               } else {
-                infiniteCanvas.leaveNumberTyping();
+                if(!infiniteCanvas.isNumberTypingLockedMode) {
+                  if (isActive) {
+                    infiniteCanvas.enterNumberTyping();
+                  } else {
+                    infiniteCanvas.leaveNumberTyping();
+                  }  
+                }
               }
+              
 
             }),
 
@@ -50955,6 +51278,19 @@
             // "XX": new KeyUpTrigger("XX", KeyUpTrigger.defaultKeyUpFunc(["KeyXX"]), () => {
             //
             // }),
+
+            "Enter": new KeyUpTrigger("Enter", KeyUpTrigger.defaultKeyUpFunc(["Enter"]), () => {
+              if(infiniteCanvas.isNumberTypingLockedMode) {
+                infiniteCanvas.leaveNumberTyping();
+                infiniteCanvas.isNumberTypingLockedMode = false;
+              }
+            }),
+            "NumpadEnter": new KeyUpTrigger("NumpadEnter", KeyUpTrigger.defaultKeyUpFunc(["NumpadEnter"]), () => {
+              if(infiniteCanvas.isNumberTypingLockedMode) {
+                infiniteCanvas.leaveNumberTyping();
+                infiniteCanvas.isNumberTypingLockedMode = false;
+              }
+            }),
 
             "KeyQ": new KeyUpTrigger("KeyQ", KeyUpTrigger.defaultKeyUpFunc(["KeyQ"]), () => {
               if (keyboardIntegration.keyDownToggles.ctrlLeft.isActive) {
@@ -79977,6 +80313,8 @@
 
             // this.debug_varSlot();
 
+            this.debug_anonymousFunction();
+
           } catch(e) {
             logger.log("logError", e);
           }
@@ -85309,7 +85647,22 @@
           infiniteCanvas.addIcObject(icGMWell);
         }
 
+        debug_anonymousFunction() {
 
+          // const mathNode__expr  = math.parse("300a+20b+1");
+          // logger.log("logAnon", "mathNode__expr", mathNode__expr);
+
+          // const mathNode__scope = new math.ObjectNode({a: new math.ConstantNode(3), b: new math.ConstantNode(4)});
+          // logger.log("logAnon", "mathNode__scope", mathNode__scope);
+
+
+        }
+
+        debug_functionPlot() {
+
+
+
+        }
 
 
 
