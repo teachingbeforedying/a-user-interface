@@ -13305,6 +13305,160 @@ game:(math) top-down platformer: use offsetWarp to jump from one island to anoth
         if gm is [[3t+2]], then gm value would be [[2]], [[2.000000003]], [[2.000000006]], etc. (evolving really fast)
     edu: discrete lifetime seems promising teaching-wise, continuous would require specific setups
 
+17 octobre 2023:
+**gm:challenge:functions: [[initial]] is already forged in the form "[[f([[pre_initial]])]]" so that player needs to "f^(-1)(initial)" to be able to reach target
+    example: 
+      pre_initial: [[10]]
+      initial: [[sqrt(10)]]
+      ops: [²] [+ 5] [x 10] [- 4]
+      target: [[15]]
+
+***unsure operator: operation result may be overwritten by reapplying unsure operator:
+	[unsure: + 1] may be written: [?+ 1?]
+
+	[[1]] 	    * [unsure] = [[1 ??]]
+	[[1 ??]]    * [+ 5]    = [[1 ?+ 5?]] 
+	[[1 ?+5?]]  * [x 4]    = [[1 ?x 4?]]  (?+ 5? has been overwritten)
+	[[1 ?x 4?]] * [assure] = [[1 x 4]]    (?x 4? has been assured: it is now x 4)
+
+	[[6]] 	    * [?+ 1?] = [[6 ?+ 1?]]
+	[[6 ?+ 1?]] * [?+ 9?] = [[6 ?+ 9?]]	  (?+ 1? has been overwritten)
+	[[6 ?+ 9?]] * [!+ 4!] = [[6 + 9 + 4]]	(?+ 9? has been assured by !+ 4!: it is now + 9)
+	  [!+ 4!] is equivalent to [ [assure] then [+ 4] ]
+
+	remark: [unsure]/[assure] may give a little air to GM
+	
+	edu: random polling: 
+		[[6]] 	    * [?+ random(1,6)?] = [[6 ?+ 2?]]
+		[[6 ?+ 2?]] * [?+ random(1,6)?] = [[6 ?+ 5?]]		(?+ 2? has been overwritten)
+		[[6 ?+ 5?]] * [+ 10] 	        = [[6 + 5 + 10]]	(?+ 5? has been assured: it is now + 5)
+	edu: unsure kick: "weak unsure": only next operator is considered unsure
+
+**apply operator: [*]
+  2 flavors:
+    consume:
+      [[ [[2]] [+ 6] ]] * [*] = [[8]]
+    retain:
+      [[ [[2]] [+ 6] ]] * [*] = [[ [[8]] [+ 6] ]]
+      [[ [[8]] [+ 6] ]] * [*] = [[ [[14]] [+ 6] ]]
+    
+  remark: [[ [[2]] [+ 6] [*] ]]      * [*] = [[ [[8]] [+ 6] ]]       
+          [[ [[2]] [+ 6] [*] [*] ]]  * [*] = [[ [[8]] [+ 6] ]]
+          ...
+
+***gm:challenge:functions: bound vars / free vars : x ↦ x + 2 VS x ↦ a + 5 
+    [[2]] * [x ↦ a + 5]   = [[a + 5]]
+    [[2]] * [x ↦ x + 5]   = [[7]]
+    [[2]] * [x ↦ ax + 5]  = [[2a + 5]]
+
+19 octobre 2023:
+(**?[define] operator: [[f]](symbol) * [: (x ↦ a + 5)] = [[f]](function), and now [[3]] * [[f]] = [[8]] 
+      define operator symbol is ":"
+
+0 create challenges for every complicated word of mathematics
+
+**gm grid: a grid of GMs, others are disabled while one of them is held (or some of them are held)
+    edu: function evaluation: pick the correct function in the gm grid and touch pre_validation [f↦f(5)] operator so that it's the same value as target
+
+**[structure]gm:challenge:propor: put everything on the plate (target area is a platform)
+    a little lame but necessary, the idea is to make the player multiply every component quantity by propor factor
+    it's repetitive but _it's made to be repetitive_
+    layout:
+      label: "<n> human symbol(s): <nb_a> * obj_A, <nb_b> * obj_B, <nb_c> * obj_C, <nb_d> * obj_D"
+      initial: gm grid with [[A]], [[B]], [[C]], [[D]] 
+      ops: [x 2], [x 3], [x 4], [x 5]
+      label__target: "<m> human symbol(s)"
+      target: platform operator
+    harder: proportionnality with m < n
+
+(chercheur en choses simples, reparcoureur    VS      chercheur de pointe
+    visiter la mine et passer du temps sur les galeries, faire en sorte de les élargir pour qu'elles puissent accueillir davantage de monde
+    parce que les galeries "de passage" sont très vides pour l'instant
+
+**icObj.type = "probTree": non-pathmade branched conveyor operator
+         _--->[ ]
+        /p
+    [ ]<
+        \(1-p)
+         ---->[ ]
+    arrows are drawn from left-side ("source") targetTouchSlot 
+
+20 octobre 2023:
+**gm:challenge:lisp: write code using lisp operators 
+    example: 
+      [[(list 1 2 3 4)]] * [rest] = [[(list 2 3 4)]]
+
+**gm:challenge:APL: write code using APL operators (APL keyboard keys)
+
+**gm:challenge:num_expr/lit_expr via str__expr
+    layout:
+      initial: [[3]]
+      ops:  [append "+ 5"] [append "+ 7"] [append "x 2"] [append "x 4"] 
+      pre_validation: [morpher: str to math]
+      target: [[13]]
+
+04 novembre 2023:
+**(**)operator parametrization: how to achieve 2 3 ⍴ 1 2 3 4 in iC: 
+    late function definition:
+      1. ⍵_kick([[5 6 7 8]]) 
+      2. [[5 6 7 8 (⍵_kicked)]] * [⍴] = [ [[5 6 7 8]] [⍴] ]
+      3. [ [[5 6 7 8]] [⍴] ] * [[2 3]] = [[ 5 6 7 ]]        (late function definition: we know a function will be applied to [[5 6 7 8]], but the function ("2 3 ⍴") is only known at the end)
+                                         [[ 8 5 6 ]]
+    remark: we need ⍵_kick because ⍴ can be monadic or dyadic
+    (OR
+    ("reactor" way:  
+    (  ⍺_kick([[2 3]])
+    (  [[2 3 (⍺_kicked)]] * [⍴] = [ [[2 3]] [⍴] ]
+    (  [ [[2 3]] [⍴] ] * [[5 6 7 8]] = [[ 5 6 7 ]]          ("2 3 ⍴" is defined first and then applied to [[5 6 7 8]] the reactor's way)
+    (                                  [[ 8 5 6 ]]
+**(**)monadic version of operator applies _on untouch_ and when can drop [[⍺]] on operator to make it dyadic
+      dropping object on operator is possible because monadic version applies _on untouch_
+      1. drop [[2 3]] on [⍴] ==> [ [[2 3 ]] over [⍴] ]
+      2. [[5 6 7 8]] * [ [[2 3 ]] over [⍴] ] = [[ 5 6 7 ]]
+                                               [[ 8 5 6 ]]
+    operator application could be forced monadic _on touch_ by dropping unconsumable [[None]] object on it 
+
+**half-life, illustrated: create loop with [[particle]] and [random] operators which may lead to particle decay
+
+**ic::autosolver: automatically compute solution path (path-relinking)
+
+***gm:challenge: group theory:
+  [[a]] * [[b]] <=> a <default_operator> b
+  ou alors afficher a et b de couleur noire et l'opérateur de couleur pâle
+  [[a]] * [group.op b] = [[ab]]
+  Group graph is gradually built as operations are made
+  Groupe via présentation G = {S,R}
+**gm:challenge: abelian groups
+**gm:challenge: permutations
+**gm:challenge: involutions
+
+**gm:challenge: convolutions
+**gm:challenge: tft
+
+**gm:challenge: knots
+
+***ic:autograph: any non-marked transformation 'a->b' is automatically marked on side graph
+
+***ic:universal solution: [[universal solution]] * [testX] = [[True]]
+    this object is a valid input for any test
+
+**[structure]gm::challenge:math: dual mental maths:
+    challenge is time-based: the quicker, the better
+    the goal is to find the result of a sequence of operations
+    The challenge is dual: 
+      there is a way of manually applying the operations to the initial object, thus revealing the value which should be built
+        but this value cannot be used to complete the challenge
+        and of course, this is totally optional
+      the true challenge is to create the result using the "build result" operators
+
+*(***)La nouvelle forme: exercices d'imagination
+    Exemples:
+      imagine un carré devant toi et fais le tourner
+      imagine un triangle devant toi, fais en sorte que sa base devienne de plus en plus grande
+      etc.
+    Some of the challenges may be ic-backed: after a time of imagining, a solution may pop on the screen and then vanish after a little time
+    The goal is to make student enhance their ability to mentally visualize situations
+
 
 
 
