@@ -2729,8 +2729,7 @@
             }
           }
 
-          const node_operator = new math.OperatorNode(mathOperatorSymbol, mathOperatorFuncName, arr_child);
-
+          const node_operator     = new math.OperatorNode(mathOperatorSymbol, mathOperatorFuncName, arr_child);
           const node_unsimplified = node_operator;
 
           if (node_in.autoSimplify) {
@@ -2746,17 +2745,22 @@
           return outNode;
         }
 
+        const standardOperation__withArrayNodeSupport = MathUtils.decorate__support__arrayNode(standardOperation);
+
         // logger.log("node_a", node_a);
         if (node_a.isEquation) {
           console.log("node_a", node_a);
-          const node_left = standardOperation(node_a.params[0]);
-          const node_right = standardOperation(node_a.params[1]);
+          // const node_left  = standardOperation(node_a.params[0]);
+          // const node_right = standardOperation(node_a.params[1]);
+          const node_left  = standardOperation__withArrayNodeSupport(node_a.params[0]);
+          const node_right = standardOperation__withArrayNodeSupport(node_a.params[1]);
           const node_equation = new math.RelationalNode(["equal"], [node_left, node_right]);
           node_equation.isEquation = true;
 
           outNode = node_equation;
         } else {
-          outNode = standardOperation(node_a);
+          // outNode = standardOperation(node_a);
+          outNode = standardOperation__withArrayNodeSupport(node_a);
         }
 
         // outNode.autoSimplify = node_a.autoSimplify;
@@ -6307,6 +6311,51 @@
         const string__kanji = Utils.randomKanji(seed);
         const symbolNode__kanji = new math.SymbolNode(string__kanji);
         return symbolNode__kanji;
+      }
+
+      static decorate__support__arrayNode(func__mathNode) {
+        function func__decorated(mathNode_in) {
+          if(mathNode_in.type == "ArrayNode") {
+            // return new math.ArrayNode(mathNode_in.items.map((mathNode__item) => func__decorated(mathNode__item)));
+            return new MyAPLArrayNode(mathNode_in.items.map((mathNode__item) => func__decorated(mathNode__item)));
+          } else {
+            return func__mathNode(mathNode_in);
+          }
+        }
+        return func__decorated;
+      }
+
+
+      static shape__arrayNode(mathNode__arrayNode) {
+        var outNode;
+
+        function createConstantNode(n) {
+          var outNode;
+              
+          const mathNode__n = new math.ConstantNode(n);
+          mathNode__n.autoSimplify = true;
+          
+          outNode = mathNode__n;
+          return outNode;
+        }
+
+        const arr__shape = this.shape__arr(mathNode__arrayNode.items);
+
+        if(arr__shape.length > 1) {
+          outNode = new MyAPLArrayNode(arr__shape.map(n => {
+            return createConstantNode(n);
+          }));
+        } else if(arr__shape.length == 1) {
+          outNode = createConstantNode(arr__shape[0]);
+        } else {
+          outNode = createConstantNode(0);
+        }
+
+        return outNode;
+      }
+
+      static shape__arr(arr) {
+        return math.size(arr);
       }
 
     }
@@ -15603,6 +15652,9 @@
                 // operatorConfig.name      = "lol";
                 operatorConfig.node__display = mathNode__operator;
 
+                const funcWrapper = operatorNodeFactoryFuncWrapper_from_operatorNode(mathNode__operator);
+                const transformationFunc__mathNode = funcWrapper.func;
+
                 const transformationFunc__icObj = (icObj) => {
                   logger.log("logOp", "transformationFunc__icObj", icObj);
                   var transformationOutput;
@@ -15748,7 +15800,15 @@
                     const value = node_a.value.valueOf();
                     if(value > 0) {
                       logger.log("logAPL", "value", value);
-                      const arr_mathNode = [...Array(value).keys()].map((i) => new math.ConstantNode(i));
+                      const arr_mathNode = [...Array(value).keys()].map((i) => {
+                        var outNode;
+                        
+                        const mathNode__i = new math.ConstantNode(i+1);
+                        mathNode__i.autoSimplify = true;
+                        
+                        outNode = mathNode__i;
+                        return outNode;
+                      });
                       logger.log("logAPL", "arr_mathNode", arr_mathNode);
                       outNode = new MyAPLArrayNode(arr_mathNode);
                     } else {
@@ -15778,6 +15838,185 @@
 
               }
               break;
+
+            case "apl::rho":
+              {
+                operatorConfig.node__display = new math.SymbolNode("⍴");
+                const transformationFunc__mathNode = (node_a) => {
+                  var outNode;
+
+                  if(node_a instanceof math.ArrayNode) {
+                    outNode = MathUtils.shape__arrayNode(node_a);
+                  } else {
+                    outNode = new math.ConstantNode(1);
+                    outNode.autoSimplify = true;
+                  }
+
+                  return outNode;
+                };
+                
+                const transformationFunc__icObj = (icObj) => {
+                  var transformationOutput;
+
+                  if(icObj.type == "mathNode") {
+                    const mathNode__old = icObj.mathNode;
+                    const mathNode__new = transformationFunc__mathNode(mathNode__old); 
+                    icObj.mathNode = mathNode__new;
+                  }
+                  
+                  transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+                  
+                  return transformationOutput;
+                };
+                operatorConfig.transformationFunc = transformationFunc__icObj;
+
+              }
+              break;
+
+            case "complex::modulus":
+              {
+                operatorConfig.node__display = new math.SymbolNode("| |");
+                const transformationFunc__mathNode = (node_a) => {
+                  var outNode;
+                  
+                  try {
+                    const value_a = node_a.evaluate();
+                    // const value_norm = math.norm(value_a);
+                    const value__re = math.re(value_a); 
+                    const value__im = math.im(value_a);
+
+                    var mathNode__re = new math.ConstantNode(value__re);
+                    if(value__re < 0) {
+                      mathNode__re = new math.ParenthesisNode(mathNode__re);
+                    }
+
+                    var mathNode__im = new math.ConstantNode(value__im);
+                    if(value__im < 0) {
+                      mathNode__im = new math.ParenthesisNode(mathNode__im);
+                    }
+
+                    var mathNode__inside = new math.OperatorNode("+", "add", [
+                      new math.OperatorNode("^", "pow", [
+                        mathNode__re,
+                        new math.ConstantNode(2),
+                      ]),
+                      new math.OperatorNode("^", "pow", [
+                        mathNode__im,
+                        new math.ConstantNode(2),
+                      ]),
+                    ]);
+
+                    if(cfg.simplify) {
+                      mathNode__inside = Simplifier.simplify_litexp_2(mathNode__inside);
+                    }
+
+                    outNode = new math.FunctionNode(new math.SymbolNode('sqrt'), [
+                      mathNode__inside,
+                    ]);
+
+                    
+
+                    outNode.autoSimplify = true;
+                  } catch(e) {
+                    logger.log("logError", e);
+                    outNode = node_a;
+                  }
+
+                  return outNode;
+                };
+                
+                const transformationFunc__icObj = (icObj) => {
+                  var transformationOutput;
+
+                  if(icObj.type == "mathNode") {
+                    const mathNode__old = icObj.mathNode;
+                    const mathNode__new = transformationFunc__mathNode(mathNode__old); 
+                    icObj.mathNode = mathNode__new;
+                  }
+                  
+                  transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+                  
+                  return transformationOutput;
+                };
+                operatorConfig.transformationFunc = transformationFunc__icObj;
+
+              }
+              break;
+
+            case "complex::argument":
+              {
+                operatorConfig.node__display = new math.SymbolNode("arg");
+                const transformationFunc__mathNode = (node_a) => {
+                  var outNode;
+                  
+                  try {
+                    const value_a = node_a.evaluate();
+                    const value_arg = math.arg(value_a);
+                    outNode = new math.ConstantNode(value_arg);
+                    outNode.autoSimplify = true;
+                  } catch(e) {
+                    logger.log("logError", e);
+                    outNode = node_a;
+                  }
+
+                  return outNode;
+                };
+                
+                const transformationFunc__icObj = (icObj) => {
+                  var transformationOutput;
+
+                  if(icObj.type == "mathNode") {
+                    const mathNode__old = icObj.mathNode;
+                    const mathNode__new = transformationFunc__mathNode(mathNode__old); 
+                    icObj.mathNode = mathNode__new;
+                  }
+                  
+                  transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+                  
+                  return transformationOutput;
+                };
+                operatorConfig.transformationFunc = transformationFunc__icObj;
+
+              }
+              break;
+
+            case "complex::conjugate":
+              {
+                operatorConfig.node__display = new math.SymbolNode("conj");
+                const transformationFunc__mathNode = (node_a) => {
+                  var outNode;
+                  
+                  try {
+                    const value_a = node_a.evaluate();
+                    const value_conj = math.conj(value_a);
+                    outNode = new math.ConstantNode(value_conj);
+                    outNode.autoSimplify = true;
+                  } catch(e) {
+                    logger.log("logError", e);
+                    outNode = node_a;
+                  }
+
+                  return outNode;
+                };
+                
+                const transformationFunc__icObj = (icObj) => {
+                  var transformationOutput;
+
+                  if(icObj.type == "mathNode") {
+                    const mathNode__old = icObj.mathNode;
+                    const mathNode__new = transformationFunc__mathNode(mathNode__old); 
+                    icObj.mathNode = mathNode__new;
+                  }
+                  
+                  transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+                  
+                  return transformationOutput;
+                };
+                operatorConfig.transformationFunc = transformationFunc__icObj;
+
+              }
+              break;
+
 
             case "simplify":
               {
@@ -38481,7 +38720,7 @@
             const mathNode = icObj.mathNode;
 
             const tex = mathNode.toTex();
-            console.log("tex:", tex);
+            logger.log("logTex", "tex:", tex);
 
             const func__upgradeTex_in = icObj.func__upgradeTex;
 
@@ -38492,11 +38731,11 @@
               //"3 * x" -> "3x"
               //"3 * (" -> "3("
               function beautifyLitexp(str_in) {
-                logger.log("beautifyLitexp", str_in);
+                logger.log("logTex", "beautifyLitexp", str_in);
 
                 const re = /([0-9]+)\\cdot (\w+)/;
                 const str = str_in.replace(re, '$1$2');
-                logger.log("beautified", str);
+                logger.log("logTex", "beautified", str);
 
                 return str;
               }
@@ -52760,7 +52999,7 @@
             } 
             
             
-            /*else*/ if (keyboardIntegration.keyDownToggles.r.isActive) {
+            /*else*/ if (keyboardIntegration.keyDownToggles.r.isActive) {   //SHU: pourquoi ça pête ? ???
 
               var factor;
               if (mouseIntegration.leftMouseDown) {
@@ -59332,6 +59571,19 @@
                 const golfCourseConfig  = GolfCourseConfig.template_challenge({layout__op: "waveform", arr_component__additional: ["pre_validation"]});
 
                 const stepGeneratorFunc = (golfCourse) => GolfGameStep__Endless_Practice.randomInstance__funcs__f10_function_creation_via_composition(infiniteCanvas, golfCourse, stepGeneratorFunc);
+
+                outChallenge = {
+                  golfCourseConfig:  golfCourseConfig,
+                  stepGeneratorFunc: stepGeneratorFunc,
+                };
+              }
+              break;
+
+            case "funcs/f20_function_evaluation__gm_grid":
+              {
+                const golfCourseConfig  = GolfCourseConfig.template_challenge_with_placeholders({layout__op: "waveform"});
+
+                const stepGeneratorFunc = (golfCourse) => GolfGameStep__Endless_Practice.randomInstance__funcs__f6_function_evaluation__bound_vs_free_2(infiniteCanvas, golfCourse, stepGeneratorFunc);
 
                 outChallenge = {
                   golfCourseConfig:  golfCourseConfig,
@@ -68554,7 +68806,7 @@
               //"3 * x" -> "3x"
               //"3 * (" -> "3("
               function beautifyLitexp(str_in) {
-                logger.log("beautifyLitexp", str_in);
+                logger.log("logTex", "beautifyLitexp", str_in);
 
                 const re = /([0-9]+)\\cdot (\w+)/;
                 const str = str_in.replace(re, '$1$2');
@@ -68569,7 +68821,7 @@
               outTex = outTex.replaceAll("\\frac{ }", "÷");
 
               outTex = outTex.replace("{ }^", "\\wedge\\,");
-              logger.log("beautif, upgradedTex", outTex);
+              logger.log("logTex", "beautif, upgradedTex", outTex);
 
               return outTex;
             }
@@ -71877,21 +72129,21 @@
             //"3 * x" -> "3x"
             //"3 * (" -> "3("
             function beautifyLitexp(str_in) {
-              logger.log("beautifyLitexp", str_in);
+              logger.log("logTex", "beautifyLitexp", str_in);
 
               const re = /([0-9]+)\\cdot (\w+)/;
               const str = str_in.replace(re, '$1$2');
-              logger.log("beautified", str);
+              logger.log("logTex", "beautified", str);
 
               return str;
             }
 
             function beautifyLitexp_again(str_in) {
-              logger.log("beautifyLitexp_again", str_in);
+              logger.log("logTex", "beautifyLitexp_again", str_in);
 
               const re = /([0-9]+)\\cdot{ (\w+)}/;
               const str = str_in.replace(re, '$1$2');
-              logger.log("beautified_again", str);
+              logger.log("logTex", "beautified_again", str);
 
               return str;
             }
@@ -83516,9 +83768,9 @@
 
           // this.debug_intersection();
 
-          //this.debug_complexNumbers();
-
           try {
+            this.debug_complexNumbers();
+
             // this.debug_coordSystem();
 
             // this.debug_gradient();
@@ -83528,7 +83780,7 @@
 
             // this.debug_anonymousFunction();
 
-            this.debug_apl();
+            // this.debug_apl();
 
           } catch(e) {
             logger.log("logError", e);
@@ -88598,6 +88850,37 @@
 
           const mathNode__sum = new math.OperatorNode("+", "add", [mathNode__complex1, mathNode__complex2]);
           logger.log("logComplex", "mathNode__sum:", mathNode__sum.evaluate({}));
+
+
+          //modulus
+          const trueRect__cx_modulus = {
+            x: 200,
+            y: 600,
+            width:  100,
+            height: 100,
+          };
+          const operator__modulus   = infiniteCanvas.createIcGMOperator_withType(trueRect__cx_modulus, "complex::modulus", {simplify: true});
+          infiniteCanvas.addIcObject(operator__modulus);
+
+          //argument
+          const trueRect__cx_argument = {
+            x: 800,
+            y: 600,
+            width:  100,
+            height: 100,
+          };
+          const operator__argument   = infiniteCanvas.createIcGMOperator_withType(trueRect__cx_argument, "complex::argument");
+          infiniteCanvas.addIcObject(operator__argument);
+
+          //conj
+          const trueRect__cx_conjugate = {
+            x: 800,
+            y: 100,
+            width:  100,
+            height: 100,
+          };
+          const operator__conjugate   = infiniteCanvas.createIcGMOperator_withType(trueRect__cx_conjugate, "complex::conjugate");
+          infiniteCanvas.addIcObject(operator__conjugate);
           
         }
 
@@ -88892,6 +89175,17 @@
           const operator_iota = infiniteCanvas.createIcGMOperator_withType(trueRect__iota, "apl::iota");
 
           infiniteCanvas.addIcObject(operator_iota);
+
+          //rho
+          const trueRect__rho = {
+            x: 500,
+            y: 600,
+            width:  100,
+            height: 100,
+          };
+          const operator_rho = infiniteCanvas.createIcGMOperator_withType(trueRect__rho, "apl::rho");
+
+          infiniteCanvas.addIcObject(operator_rho);
 
         }
 
