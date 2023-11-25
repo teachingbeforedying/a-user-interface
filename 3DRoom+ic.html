@@ -8012,8 +8012,8 @@
         }
       }
 
-      getParentCompositeForContentOrPart(icObj__part) {
-        const icObj__composite = this.getRepresented(icObj__part.compositeId).getRepresentation("official");
+      getParentCompositeForContentOrPart(icObj__part, representation = "official") {
+        const icObj__composite = this.getRepresented(icObj__part.compositeId).getRepresentation(representation);
         return icObj__composite;
       }
 
@@ -8028,7 +8028,7 @@
         var outIcObj;
 
         const fObj = fabricIntegration.getFObjForIcObj(icObj);
-        const arr_icObj__other = this.getArr_icObj().filter(icObj_el => (icObj_el != icObj));
+        const arr_icObj__other = this.getArr_icObj("free").filter(icObj_el => (icObj_el != icObj));
         outIcObj = arr_icObj__other.reduce((acc, x) => {
           const fObj__x = fabricIntegration.getFObjForIcObj(x);
           // const isIntersecting = infiniteCanvas.checkIntersecting([x, icObj]);
@@ -8058,13 +8058,13 @@
         return outIcObj;            
       }
 
-      getCandidateApplySlotForIcObj(icObj) {
+      getApplyCandidateForIcObj(icObj) {
         var outIcObj;
 
         const fObj = fabricIntegration.getFObjForIcObj(icObj);
-        const arr_icObj__other = this.getArr_icObj().filter(icObj_el => (icObj_el != icObj));
-        const arr_appOp        = arr_icObj__other.filter(icObj_el => icObj_el.type == "applySlot");
-        outIcObj = arr_appOp.reduce((acc, x) => {
+        const arr_icObj__other = this.getArr_icObj("free").filter(icObj_el => (icObj_el != icObj));
+        // const arr_appOp        = arr_icObj__other.filter(icObj_el => icObj_el.type == "applySlot");
+        outIcObj = arr_icObj__other.reduce((acc, x) => {
           const fObj__x = fabricIntegration.getFObjForIcObj(x);
           // const isIntersecting = infiniteCanvas.checkIntersecting([x, icObj]);
           const isIntersecting = fObj.intersectsWithObject(fObj__x);
@@ -8072,14 +8072,22 @@
           if(isIntersecting) {
             if(acc == null) {
                 acc = x;
-            } else if( (x.zIndex < icObj.zIndex) && (x.zIndex > acc.zIndex) )  {
-              acc = x;
-            } else {
-              //ignore
-            }
+            } 
+            // else if( (x.zIndex < icObj.zIndex) && (x.zIndex > acc.zIndex) )  {
+            //   acc = x;
+            // } else {
+            //   //ignore
+            // }
           }
           return acc;
         }, null);
+
+        if(outIcObj != null && outIcObj.isCompositeContentOrPart()) {
+          const closestParent = infiniteCanvas.getParentCompositeForContentOrPart(outIcObj, "free");
+          if(closestParent != null) {
+            outIcObj = closestParent;
+          }
+        }
 
         return outIcObj;            
       }
@@ -20790,16 +20798,96 @@
       }
 
 
-      manageApply(icObj, appOp) {
-        logger.log("logApply", "manageApply", icObj, appOp);
+      manageApply(rep_free__over, rep_free__under) {
+        logger.log("logApply", "manageApply", rep_free__over, rep_free__under);
         const infiniteCanvas = this;
 
-        const transformationFunc__icObj = appOp.applySlotConfig.transformationFunc;
-        transformationFunc__icObj(icObj);
+        const str__mainType__over  = infiniteCanvas.getStrMainType(rep_free__over);
+        const str__mainType__under = infiniteCanvas.getStrMainType(rep_free__under);
+        logger.log("logApply", "manageApply", str__mainType__over, str__mainType__under);
+
+        function createStringForSwitch(str__mainType__over, str__mainType__under) {
+          var outString = "";
+          if(str__mainType__under == "gm_operator") {
+            outString = "_ over gm_operator";
+          } else if(str__mainType__under == "gm_applicable_operator") {
+            outString = "_ over gm_applicable_operator";
+          } 
+          else if(str__mainType__over == "gm_operator") {
+            outString = "gm_operator over _";
+          } else if(str__mainType__over == "gm_applicable_operator") {
+            outString = "gm_applicable_operator over _";
+          } 
+          else {
+            outString = "default";
+          }
+          return outString;
+        }
+
+        switch (createStringForSwitch(str__mainType__over, str__mainType__under)) {
+        // switch ([rep_free__over.type, rep_free__under.type]) {
+          case "_ over gm_operator":
+            {
+              const icOperator = rep_free__under;
+              const transformationFunc__icObj = icOperator.parts.touchSlot.touchSlotConfig.transformationFunc;
+
+              transformationFunc__icObj(rep_free__over);
+            }
+            break;
+          case "_ over gm_applicable_operator":
+            {
+              const icApplicableOperator = rep_free__under;
+              const transformationFunc__icObj = icApplicableOperator.parts.applySlot.applySlotConfig.transformationFunc;
+
+              transformationFunc__icObj(rep_free__over);
+            }
+            break;
+
+          case "gm_operator over _":
+            {
+              logger.log("logApply", "manageApply", "gm_operator over _");
+
+              const icOperator = rep_free__over;
+              const transformationFunc__icObj = icOperator.parts.touchSlot.touchSlotConfig.transformationFunc;
+
+              transformationFunc__icObj(rep_free__under);
+            }
+            break;
+          case "gm_applicable_operator over _":
+            {
+              const icApplicableOperator = rep_free__over;
+              const transformationFunc__icObj = icApplicableOperator.parts.applySlot.applySlotConfig.transformationFunc;
+
+              transformationFunc__icObj(rep_free__under);
+            }
+            break;
+          default:
+            break;
+        }
+
+        
       }
 
 
       //convenience
+
+      getStrMainType(icObj) {
+        var outString;
+
+        // outString = ("t__" + icObj.type);
+        outString = icObj.type;
+
+        if(icObj.cType != null) {
+          // outString = ("ct__" + icObj.cType);
+          outString = icObj.cType;
+        }
+
+        if(icObj.cType != null && Utils.isString(icObj.cType) && (icObj.cType.length == 0)) {
+          throw new Error("icObj has .cType: \"\"");
+        }
+
+        return outString;
+      }
 
       addNewIcObject(icObj) {
         // logger.log("addNewIcObject", icObj);
@@ -20809,26 +20897,8 @@
         const inputProperties = this.inputProperties;
 
         const activeColor = inputProperties.getActiveColor();
-
-        function getStrMainType(icObj) {
-          var outString;
-
-          // outString = ("t__" + icObj.type);
-          outString = icObj.type;
-
-          if(icObj.cType != null) {
-            // outString = ("ct__" + icObj.cType);
-            outString = icObj.cType;
-          }
-
-          if(icObj.cType != null && Utils.isString(icObj.cType) && (icObj.cType.length == 0)) {
-            throw new Error("icObj has .cType: \"\"");
-          }
-
-          return outString;
-        }
         
-        const str__mainType = getStrMainType(icObj);
+        const str__mainType = this.getStrMainType(icObj);
         logger.log("addNewIcObject", "str__mainType:", str__mainType);
         switch (str__mainType) {
           case "rect":
@@ -23126,12 +23196,13 @@
         //get selected icObj
         const icObj__selected = infiniteCanvas.getSelectedIcObj();
 
-        //get underlying applySlot
-        const appOp = infiniteCanvas.getCandidateApplySlotForIcObj(icObj__selected);
+        //get underlying icObj
+        const icObj__under = infiniteCanvas.getApplyCandidateForIcObj(icObj__selected);
         
-        if(appOp != null) {
-          infiniteCanvas.manageApply(icObj__selected, appOp);
+        if(icObj__under != null) {
+          infiniteCanvas.manageApply(icObj__selected, icObj__under);
         }
+
       }
 
 
@@ -90675,6 +90746,28 @@
 
         debug_applicableOperator() {
 
+          //[[5]]
+          const trueRect__5 = {
+            x: 100,
+            y: 100,
+            width:  100,
+            height: 100,
+          };
+          const icMathNode__5 = infiniteCanvas.createIcMathNode(trueRect__5.x, trueRect__5.y, new math.ConstantNode(5));
+
+          infiniteCanvas.addIcObject(icMathNode__5);
+
+          //[[5]]
+          const trueRect__6 = {
+            x: 100,
+            y: 300,
+            width:  100,
+            height: 100,
+          };
+          const icMathNode__6 = infiniteCanvas.createIcMathNode(trueRect__6.x, trueRect__6.y, new math.ConstantNode(6));
+
+          infiniteCanvas.addIcObject(icMathNode__6);
+
           //(iota)
           const trueRect__appOp = {
             x: 500,
@@ -90682,9 +90775,22 @@
             width:  100,
             height: 100,
           };
-          const operator_appOp = infiniteCanvas.createIcGMApplicableOperator_withType(trueRect__appOp, "apl::iota");
+          const appOp__iota = infiniteCanvas.createIcGMApplicableOperator_withType(trueRect__appOp, "apl::iota");
 
-          infiniteCanvas.addIcObject(operator_appOp);
+          infiniteCanvas.addIcObject(appOp__iota);
+
+
+          //[iota]
+          const trueRect__op = {
+            x: 700,
+            y: 700,
+            width:  100,
+            height: 100,
+          };
+          const op__iota = infiniteCanvas.createIcGMOperator_withType(trueRect__op, "apl::iota");
+
+          infiniteCanvas.addIcObject(op__iota);
+
         }
 
 
