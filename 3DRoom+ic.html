@@ -1440,6 +1440,7 @@
       function handler__edit(mathField) {
         handler__edit__replace__cdot__with__times(mathField);
         handler__edit__replace__bar_caret_gt__with__rbararrow(mathField);
+        handler__edit__replace__bar_caret_question_caret_gt__with__question_arrow(mathField);
       }
 
       function handler__edit__replace__cdot__with__times(mathField) {
@@ -1623,13 +1624,57 @@
         function checkNeedsUpgrade(tex) {
           var outBool;
           outBool = tex.includes("\\left|->");
+          outBool = outBool || tex.includes("<-");
           return outBool;
         }
 
         function upgradedTex(tex) {
           var outTex;
+          
+          //from |-> to ↦
           outTex =    tex.replaceAll("\\left|->", "↦");
           outTex = outTex.replaceAll("\\right|", "");
+
+          //from <- to ←
+          outTex = outTex.replaceAll("<-", "←");
+
+          return outTex;
+        }
+
+        const isNeedUpgrade = checkNeedsUpgrade(tex);
+        if(isNeedUpgrade) {
+
+          //disable edit handler
+          const handler__edit__prev = mathField.__options.handlers.fns.edit;
+          mathField.__options.handlers.fns.edit = (mathField) => {};
+
+          const tex__upgraded = upgradedTex(tex);
+
+          mathField.latex("");
+          mathField.write(tex__upgraded);
+
+          //reenable edit handler
+          mathField.__options.handlers.fns.edit = handler__edit__prev;
+        }
+
+      }
+
+      function handler__edit__replace__bar_caret_question_caret_gt__with__question_arrow(mathField) {
+        const tex = mathField.latex();
+
+        function checkNeedsUpgrade(tex) {
+          var outBool;
+          outBool = tex.includes("\\left|-?->");
+          return outBool;
+        }
+
+        function upgradedTex(tex) {
+          var outTex;
+          
+          //from |-> to ↦
+          outTex =    tex.replaceAll("\\left|-?->", "⊢?→");
+          outTex = outTex.replaceAll("\\right|", "");
+
           return outTex;
         }
 
@@ -1805,6 +1850,31 @@
       math.import(customFunctions);
     }
 
+    //overridden functions wrt type
+    {
+      //SHU: DOES NOT WORK {
+      // // define a new datatype
+      // math.typed.addType({
+      //   name: 'Anon5050Function',
+      //   test: function (x) {
+      //     const isAnon5050Function =  x && x instanceof MyAnon5050FunctionObjectNode;
+      //     logger.log("logAnon5050", "math.typed", "Anon5050Function.test", "isAnon5050Function:", x);
+      //     return isAnon5050Function;
+      //   },
+      // });
+
+      // // use the type in a new typed function
+      // const evaluate = math.typed('evaluate', {
+      //   'Anon5050Function': function (a) {
+      //     logger.log("logAnon5050", "math.typed", "Anon5050Function.evaluate:", a);
+      //     return MyAnon5050FunctionObjectNode.evaluateInstance(a);
+      //   },
+      // });
+      //
+      // math.import({evaluate: evaluate});
+      //SHU: DOES NOT WORK }
+    }
+
 
     //customization
 
@@ -1924,6 +1994,30 @@
 
     }
 
+    class My5050FunctionAssignmentNode extends math.FunctionAssignmentNode {
+
+      toTex() {
+        var outTex;
+
+        const tex__legacy = super.toTex();
+        logger.log("logAnon5050", "toTex", "tex__legacy:", tex__legacy);
+
+        //remove f() and add "arrow from bar with question mark"  ////ESCAPE!!
+        const re = new RegExp('\\\\mathrm\{f\}\\\\left\\\((.*)\\\\right\\\):=(.*)');
+
+        const arr = re.exec(tex__legacy);
+        // logger.log("log1", "arr", arr);
+        outTex = arr[1] + '⊢?→' + arr[2];
+        // logger.log("log1", "outTex", outTex);
+
+        //2 ✕ x -> 2x
+        outTex = outTex.replaceAll("\\cdot", "");
+
+        return outTex;
+      }
+
+    }
+
     class MyAPLArrayNode extends math.ArrayNode {
 
       toTex() {
@@ -1937,6 +2031,51 @@
         outTex = outTex.replaceAll("\\\\", "&");
 
         return outTex;
+      }
+
+    }
+
+    //class My5050ObjectNode extends math.ObjectNode {
+    //
+    //  evaluate() {
+    //    
+    //  }
+    //
+    //}
+
+    class MyAnonFunctionObjectNode extends math.ObjectNode {
+
+      static createInstance(arr_bound_var, mathNode__expr) {
+        const dict__cfg = {
+          type: new math.SymbolNode("anonFunction"),
+          mathNode__arr_bound_var: new math.ArrayNode(arr_bound_var),
+          expr:                    mathNode__expr,
+        }
+        return new MyAnonFunctionObjectNode(dict__cfg);
+      }
+
+    }
+
+    class MyAnon5050FunctionObjectNode extends math.ObjectNode {
+
+      static createInstance(arr_bound_var, arr_expr) {
+        const dict__cfg = {
+          type: new math.SymbolNode("anon5050Function"),
+          mathNode__arr_bound_var: new math.ArrayNode(arr_bound_var),
+          mathNode__arr_expr:      new math.ArrayNode(arr_expr),
+        }
+        return new MyAnon5050FunctionObjectNode(dict__cfg);
+      }
+
+      static evaluateInstance(mathNode_in) {  //pick a random expression and build an anonFunc with it
+        const arr_bound_var = mathNode_in.properties["mathNode__arr_bound_var"].items;
+
+        const arr_expr      = mathNode_in.properties["mathNode__arr_expr"].items;
+        const mathNode__expr = Utils.randomElementInArray(arr_expr);
+
+        const mathNode__anonFunction = MyAnonFunctionObjectNode.createInstance(arr_bound_var, mathNode__expr);
+
+        return mathNode__anonFunction;
       }
 
     }
@@ -15631,6 +15770,8 @@
         //SHULOLILOL
         facade.zIndex = 100;
 
+        facade.opacity = "0.8";
+
         const parts = {
           "touchSlot": touchSlot,
           "facade":    facade,
@@ -15681,6 +15822,7 @@
         // facade.isMobile    = false;
         facade.isTouchable = false;
 
+        facade.opacity = "0.8";
 
         const parts = {
           "touchSlot": touchSlot,
@@ -15697,6 +15839,10 @@
         facade.zIndex = icComposite.zIndex + 1;
 
         return icComposite;
+      }
+
+      easy__createIcGMOperator_fromString(str__op__easy) {
+
       }
 
       createIcGMApplicableOperator(trueRect, cfg) {
@@ -15723,6 +15869,8 @@
         facade.isTouchable = false;
         //SHULOLILOL
         facade.zIndex = 100;
+
+        facade.opacity = "0.8";
 
         const parts = {
           "applySlot": applySlot,
@@ -15775,6 +15923,8 @@
         // facade.isMobile    = false;
         facade.isTouchable = false;
 
+        facade.opacity = "0.8";
+
 
         const parts = {
           "applySlot": applySlot,
@@ -15795,6 +15945,7 @@
 
 
       createConfig__icGMOperator_withType(gmOperatorType, cfg = {}) {
+        const infiniteCanvas = this;
 
         function operatorConfigForType(gmOperatorType) {
 
@@ -15905,7 +16056,7 @@
               {
                 const mathNode__anonFunction = cfg.mathNode__anonFunction;
 
-                const arr_str__symbol = mathNode__anonFunction.properties["arr_bound_var"].items.map(x => x.name);
+                const arr_str__symbol = mathNode__anonFunction.properties["mathNode__arr_bound_var"].items.map(x => x.name);
                 const mathNode__expr  = mathNode__anonFunction.properties["expr"];
                 const node__display   = new MyFunctionAssignmentNode("f", arr_str__symbol, mathNode__expr);
                 operatorConfig.node__display = node__display;
@@ -15916,7 +16067,7 @@
                   switch(objectNode__anonFunction.properties.type.name) {
                     case "anonFunction":
                       {
-                        const mathNode__arr_bound_var = objectNode__anonFunction.properties["arr_bound_var"];
+                        const mathNode__arr_bound_var = objectNode__anonFunction.properties["mathNode__arr_bound_var"];
                         const mathNode__expr          = objectNode__anonFunction.properties["expr"];
 
                         // logger.log("logAnon", "betaReduce", "mathNode__arr_bound_var:", mathNode__arr_bound_var);
@@ -16006,6 +16157,28 @@
                 };
                   
                 operatorConfig.transformationFunc = transformationFunc__icObj;
+              }
+              break;
+
+            case "from_anon5050FunctionObjectNode":
+              {
+                const mathNode__anon5050Function = cfg.mathNode__anon5050Function;
+                // logger.log("logAnon5050", "mathNode__anon5050Function:", mathNode__anon5050Function);
+
+                const arr_str__symbol     = mathNode__anon5050Function.properties["mathNode__arr_bound_var"].items.map(x => x.name);
+                const mathNode__arr_expr  = mathNode__anon5050Function.properties["mathNode__arr_expr"];
+                const node__display = new My5050FunctionAssignmentNode("f", arr_str__symbol, mathNode__arr_expr);
+                operatorConfig.node__display = node__display;
+
+                operatorConfig.transformationFunc = function(icObj) {
+                  // const mathNode__anonFunction__actual = mathNode__anon5050Function.evaluate();  //SHU: DOES NOT WORK
+                  const mathNode__anonFunction__actual = MyAnon5050FunctionObjectNode.evaluateInstance(mathNode__anon5050Function);
+
+                  const operatorConfig__anonFunction__actual = infiniteCanvas.createConfig__icGMOperator_withType("from_anonFunctionObjectNode", {mathNode__anonFunction: mathNode__anonFunction__actual});
+                  const transformationFunc__actual           = operatorConfig__anonFunction__actual.transformationFunc;
+
+                  return transformationFunc__actual(icObj);
+                };
               }
               break;
 
@@ -25462,10 +25635,92 @@
               return outNode;
             }
 
+            function parseAnon5050Function(tex) {
+              var outMathNode;
+
+              // const regex__function_5050 = /(.*)⊢\?→([^:]*)(:[^:]*)?(:[^:]*)?(:[^:]*)?(:[^:]*)?(:[^:]*)?(:[^:]*)?(:[^:]*)?(:[^:]*)?(:[^:]*)?/;
+              const nb_output = 10;
+              const str__re__function_5050 = "(.*)⊢\\?→([^:]*)".concat("(:[^:]*)?".repeat(nb_output - 1));
+              const regex__function_5050 = new RegExp(str__re__function_5050);
+              const is5050Function = regex__function_5050.test(tex);
+              logger.log("logNT, parseAnon5050Function", "is5050Function:", is5050Function);
+              if(is5050Function) {
+                const arr_match = tex.match(regex__function_5050);
+                logger.log("logNT, parseAnon5050Function", "arr_match:", arr_match);
+
+                const str__args = arr_match[1];
+                                
+                const arr_bound_var           = str__args.split(",").map(str__var => new math.SymbolNode(str__var));
+                // const mathNode__arr_bound_var = new math.ArrayNode(arr_bound_var);
+
+
+                const str__expr0 = arr_match[2];
+                const offset = 2;
+                function func__removeStartingColon(str_in) {
+                  // return str_in.match(/:([^:]*)/)[1];
+                  return str_in.slice(1);
+                }
+                const arr_str__expr1plus = arr_match.slice(1+offset,nb_output+offset).map(func__removeStartingColon);
+                logger.log("logNT, parseAnon5050Function", "arr_str__expr1plus:", arr_str__expr1plus);
+
+                const arr_str__expr = [str__expr0, ...arr_str__expr1plus]; 
+
+                const arr_str__expr__refined = arr_str__expr.map(Algebrite.run);
+                logger.log("logNT, parseAnonymousFunction", "arr_str__expr__refined", arr_str__expr__refined);
+                const arr_mathNode__expr = arr_str__expr__refined.map(math.parse);
+                // const mathNode__arr_expr = new math.ArrayNode(arr_mathNode__expr);
+
+                const mathNode__anon5050Function = MyAnon5050FunctionObjectNode.createInstance(arr_bound_var, arr_mathNode__expr);
+
+                outMathNode = mathNode__anon5050Function;
+              }
+
+              return outMathNode;
+
+            }
+
             function parseAnonymousFunction(tex) {
               var outMathNode;
 
               const regex__function = /(.*)↦(.*)/;
+              const isFunction = regex__function.test(tex);
+              logger.log("logNT, parseAnonymousFunction", "isFunction", isFunction);
+              if(isFunction) {
+                const arr_match = tex.match(regex__function);
+                const str__args = arr_match[1];
+                const str__expr = arr_match[2];
+                
+                const arr_bound_var           = str__args.split(",").map(str__var => new math.SymbolNode(str__var));
+                // const mathNode__arr_bound_var = new math.ArrayNode(arr_bound_var);
+                
+                // const mathNode__expr = math.parse(str__expr);
+                const str__expr__refined = Algebrite.run(str__expr);
+                logger.log("logNT, parseAnonymousFunction", "str__expr__refined", str__expr__refined);
+                const mathNode__expr = math.parse(str__expr__refined);
+
+
+                const mathNode__anonFunction = MyAnonFunctionObjectNode.createInstance(arr_bound_var, mathNode__expr);
+
+                outMathNode = mathNode__anonFunction;
+
+                /*
+                  //META SHU: abandonné pour l'instant ?
+
+                  //SHU la même notation que dans still_shute:
+                  //[[6]] * [+ 5]          = [[11]]
+                  //[[4]] * [anonFunction] = [[anonFunction(4)]]
+                  // const mathNode__operator = new math.OperatorNode("*", "myApply", [MathSingleton.node__empty, mathNode__anonFunction]); 
+                  // outMathNode = mathNode__operator;
+                */
+              }
+
+              return outMathNode;
+            }
+
+            function parseAssignmentExpression(tex) {
+              var outMathNode;
+
+              const regex__assign = /(.*)←(.*)/;
               const isFunction = regex__function.test(tex);
               logger.log("logNT, parseAnonymousFunction", "isFunction", isFunction);
               if(isFunction) {
@@ -25485,7 +25740,7 @@
                 const mathNode__anonFunction = new math.ObjectNode({
                   type: new math.SymbolNode("anonFunction"),
 
-                  arr_bound_var: mathNode__arr_bound_var,
+                  mathNode__arr_bound_var: mathNode__arr_bound_var,
                   expr:          mathNode__expr,
                 });
 
@@ -25505,7 +25760,29 @@
               return outMathNode;
             }
 
+            function refinedTex0(tex) {
+              var outTex;
 
+              // const isPlusOperator = /^\+\\/.test(tex);
+              // logger.log("logNT", "isPlusOperator:", isPlusOperator);
+
+              outTex = tex;
+
+              outTex = outTex.replaceAll("\\left",  "");
+              outTex = outTex.replaceAll("\\right", "");
+
+              // outTex = outTex.replaceAll(":", "/");
+
+              outTex = outTex.replace(/^\+\\/, "[＋]"); //"[" + U+FF0B + "]"
+              outTex = outTex.replace(/^\-\\/, "[－]"); //"[" + U+FF0D + "]"
+
+              outTex = outTex.replaceAll("\\ ", " ");
+
+              // outTex = outTex.replaceAll("\\times", "\\cdot");
+              outTex = outTex.replaceAll("\\times", "*");
+
+              return outTex;
+            }
 
 
             function refinedTex1(tex) {
@@ -25560,19 +25837,21 @@
             
             } else {
 
-              //is input an anonymous function definition ?
-              var mathNode__anonFunction;
+              //is input an anon5050 function definition ?
+              var mathNode__anon5050Function;
+
+              const tex__refined0 = refinedTex0(tex);
 
               try {
-                mathNode__anonFunction = parseAnonymousFunction(tex__refined1);
-                logger.log("logNT", "anonymousFunction, mathNode__anonFunction:", mathNode__anonFunction);
-                // logger.log("logNT", "anonymousFunction, mathNode__anonFunction.toTex():", mathNode__anonFunction.toTex());
-                // logger.log("logNT", "anonymousFunction, mathNode__anonFunction.toString():", mathNode__anonFunction.toString());
+                mathNode__anon5050Function = parseAnon5050Function(tex__refined0);
+                logger.log("logNT", "anon5050Function, mathNode__anon5050Function:", mathNode__anon5050Function);
+                // logger.log("logNT", "anon5050Function, mathNode__anon5050Function.toTex():",    mathNode__anon5050Function.toTex());
+                // logger.log("logNT", "anon5050Function, mathNode__anon5050Function.toString():", mathNode__anon5050Function.toString());
               } catch(e) {
-                logger.log("logNT", "couldn't parse anonFuncString: ", tex, "error: ", e);
+                logger.log("logNT", "couldn't parse anon5050FuncString: ", tex__refined0, "error: ", e);
               }
 
-              if(mathNode__anonFunction != null) {
+              if(mathNode__anon5050Function != null) {
                 //create/add icMathNode
                 const position__icMathNode = this.getTrueCursor();
                 const trueRect__operator = {
@@ -25582,33 +25861,24 @@
                   height: 120,
                 };
 
-                const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect__operator, "from_anonFunctionObjectNode", {mathNode__anonFunction: mathNode__anonFunction});
+                const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect__operator, "from_anon5050FunctionObjectNode", {mathNode__anon5050Function: mathNode__anon5050Function});
                 infiniteCanvas.addNewIcObject(gmOperator);
+
               } else {
 
-                var mathNode__operator;
-  
-                //is input an implicit function definition
-                function refinedTex2(tex) {
-                  var outTex;
-  
-                  outTex = tex;
-                  outTex = outTex.replaceAll("[＋]", "+");  //"[" + U+FF0B + "]"
-                  outTex = outTex.replaceAll("[－]", "-");  //"[" + U+FF0D + "]"
-  
-                  return outTex;
-                }
-  
-                const tex__refined2 = refinedTex2(tex__refined1);
-  
+                //is input an anonymous function definition ?
+                var mathNode__anonFunction;
+
                 try {
-                  mathNode__operator = parseToOperatorNode2(tex__refined2);
+                  mathNode__anonFunction = parseAnonymousFunction(tex__refined1);
+                  logger.log("logNT", "anonymousFunction, mathNode__anonFunction:", mathNode__anonFunction);
+                  // logger.log("logNT", "anonymousFunction, mathNode__anonFunction.toTex():", mathNode__anonFunction.toTex());
+                  // logger.log("logNT", "anonymousFunction, mathNode__anonFunction.toString():", mathNode__anonFunction.toString());
                 } catch(e) {
-                  logger.log("logNT", "couldn't parse opString: ", tex, "error: ", e);
+                  logger.log("logNT", "couldn't parse anonFuncString: ", tex, "error: ", e);
                 }
 
-                if(mathNode__operator != null) { 
-
+                if(mathNode__anonFunction != null) {
                   //create/add icMathNode
                   const position__icMathNode = this.getTrueCursor();
                   const trueRect__operator = {
@@ -25617,16 +25887,62 @@
                     width:  120,
                     height: 120,
                   };
-  
-                  // const icMathNode = this.createIcMathNode(position__icMathNode.x, position__icMathNode.y, mathNode__operator);
-                  // this.addNewIcObject(icMathNode);
-  
-                  const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect__operator, "from_operatorNode", {mathNode__operator: mathNode__operator});
+
+                  const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect__operator, "from_anonFunctionObjectNode", {mathNode__anonFunction: mathNode__anonFunction});
                   infiniteCanvas.addNewIcObject(gmOperator);
-  
                 } else {
-                  //too bad: input couldn't be parsed
-                } 
+
+                  var mathNode__operator;
+    
+                  //is input an implicit function definition
+                  function refinedTex2(tex) {
+                    var outTex;
+    
+                    outTex = tex;
+                    outTex = outTex.replaceAll("[＋]", "+");  //"[" + U+FF0B + "]"
+                    outTex = outTex.replaceAll("[－]", "-");  //"[" + U+FF0D + "]"
+    
+                    return outTex;
+                  }
+    
+                  const tex__refined2 = refinedTex2(tex__refined1);
+    
+                  try {
+                    mathNode__operator = parseToOperatorNode2(tex__refined2);
+                  } catch(e) {
+                    logger.log("logNT", "couldn't parse opString: ", tex, "error: ", e);
+                  }
+
+                  if(mathNode__operator != null) { 
+
+                    //create/add icMathNode
+                    const position__icMathNode = this.getTrueCursor();
+                    const trueRect__operator = {
+                      x:      position__icMathNode.x,
+                      y:      position__icMathNode.y,
+                      width:  120,
+                      height: 120,
+                    };
+    
+                    // const icMathNode = this.createIcMathNode(position__icMathNode.x, position__icMathNode.y, mathNode__operator);
+                    // this.addNewIcObject(icMathNode);
+    
+                    const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect__operator, "from_operatorNode", {mathNode__operator: mathNode__operator});
+                    infiniteCanvas.addNewIcObject(gmOperator);
+    
+                  } else {
+                    
+                    //is input an assignment expression
+                    const miniDict__assignment = parseAssignmentExpression(tex__refined1);
+                    if(miniDict__assignment != null) {
+                      const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect__operator, "assign", {rhs: rhs});
+                      infiniteCanvas.addNewIcObject(gmOperator);
+                    }
+
+                  }
+
+
+                }
 
               }
                 
@@ -60364,6 +60680,23 @@
               }
               break;
 
+              //CS
+            case "cs/cs1_array_index_assignment":
+              {
+                //easy?
+
+                const golfCourseConfig  = GolfCourseConfig.template_challenge();
+
+                const stepGeneratorFunc = (golfCourse) => GolfGameStep__Endless_Practice.randomInstance__cs__cs1_array_index_assignment(infiniteCanvas, golfCourse, stepGeneratorFunc);
+      
+                outChallenge = {
+                  golfCourseConfig:  golfCourseConfig,
+                  stepGeneratorFunc: stepGeneratorFunc,
+                };
+
+              }
+              break;
+
               //funcs
             case "funcs/f1_function_operators":
               {
@@ -63069,6 +63402,17 @@
           this.configure(golfStepConfig);
 
         }
+
+        // static easy_challenge(easy_challengeConfig) {
+        //   const golfCourseConfig  = GolfCourseConfig.template_challenge();
+
+        //   const stepGeneratorFunc = (golfCourse) => GolfGameStep__Endless_Practice.randomInstance__funcs__cs1_array_index_assignment(infiniteCanvas, golfCourse, stepGeneratorFunc);
+
+        //   outChallenge = {
+        //     golfCourseConfig:  golfCourseConfig,
+        //     stepGeneratorFunc: stepGeneratorFunc,
+        //   };
+        // }
 
         static randomInstance1(infiniteCanvas, golfCourse, stepGeneratorFunc) {
           // const game = this;
@@ -77119,8 +77463,232 @@
 
 
 
+        static randomInstance__cs__cs1_array_index_assignment__visual(infiniteCanvas, golfCourse, stepGeneratorFunc) {
+
+          const challengeGMItemConfig = GolfGameStep__Endless_Practice.random_challengeGMItemConfig__cs__cs1_array_index_assignment__visual();
+          const stepConfig = {
+            challengeGMItemConfig: challengeGMItemConfig,
+          };
+
+          const step = new GolfGameStep__Endless_Practice(infiniteCanvas, stepConfig, golfCourse, stepGeneratorFunc);
+
+          return step;
+        }
+
+        static random_challengeGMItemConfig__cs__cs1_array_index_assignment__visual() {
+          logger.log("random_challengeGMItemConfig__cs__cs1_array_index_assignment__visual");
+
+          const nb_operators = 4;
+
+          const nb_operators__add = 2;
+          const arr_gmItem_operator__add = [...new Array(nb_operators__add).keys()].map(index => {
+
+            const operatorParams = {
+              node_b: {
+                types: ["ConstantNode"],
+                range: {
+                  min: +0,
+                  max: +10,
+                },
+              },
+            };
+
+            const op_multiply = Operator.multiply();
+            const op_divide   = Operator.divide();
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
+
+            const arr_op = [
+              // op_multiply,
+              // op_divide,
+
+              op_add,
+              // op_subtract,
+            ];
+
+            const operatorNodeFuncWrapper = random_operatorNodeFactoryFuncWrapper_binary(operatorParams, arr_op);
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+
+            const func = operatorNodeFuncWrapper.func;
+            const func_decorated = function(mathNode_in) {
+              logger.log("func_decorated, mathNode_in", mathNode_in);
+              var outMathNode;
+
+              //legacy
+              outMathNode = func(mathNode_in);
+
+              //decoration
+              // outMathNode = Simplifier.simplify_litexp_2(outMathNode);
+              // logger.log("func_decorated, outMathNode", outMathNode);
+
+              return outMathNode;
+            };
+            // const func_decorated = func;
+
+            const node__symbol = new math.SymbolNode("x");
+            // logger.log("log1", "node__symbol", node__symbol);
+            var node__expr   = func(node__symbol);
+            node__expr = Simplifier.simplify_litexp_2(node__expr);
+            // const node__expr   = new math.OperatorNode(op_add.op, op_add.name, [node__symbol, operatorNodeFuncWrapper.semantics.node_b]);
+            // const displayNode  = new math.FunctionAssignmentNode("f", [node__symbol.name], node__expr);
+            const node__display  = new MyFunctionAssignmentNode("f", [node__symbol.name], node__expr);
+            operatorNodeFuncWrapper.display = {
+              node__display: node__display,
+            };
+
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+              quickFix__smallerFacades : true,
+            };
+
+            const transformationFunc = function(icObj) {
+              var transformationOutput;
+
+              logger.log("transformationFunc", icObj);
+
+              const facade = icObj;
+
+              const mathNode__in  = facade.mathNode;
+              mathNode__in.isEquation = false;
+              const mathNode__new = func_decorated(mathNode__in);
+              mathNode__new.isEquation = false;
+
+              const facade__new = icObj.clone();
+              facade__new.mathNode = mathNode__new;
+              transformationOutput = new TransformationOutput("mutated", facade__new, facade);
+
+              return transformationOutput;
+            };
+
+            const gmItem__operator = GMItem.operator(transformationFunc, name, "", specs);
+            return gmItem__operator;
+          });
 
 
+          const nb_operators__mult = 2;
+          const arr_gmItem_operator__mult = [...new Array(nb_operators__mult).keys()].map(index => {
+
+            const operatorParams = {
+              node_b: {
+                types: ["ConstantNode"],
+                range: {
+                  min: +1,
+                  max: +10,
+                },
+              },
+            };
+
+            const op_multiply = Operator.multiply();
+            const op_divide   = Operator.divide();
+            const op_add      = Operator.fromOpString_binary("+");
+            const op_subtract = Operator.fromOpString_binary("-");
+
+            const arr_op = [
+              op_multiply,
+              // op_divide,
+
+              // op_add,
+              // op_subtract,
+            ];
+
+            const operatorNodeFuncWrapper = random_operatorNodeFactoryFuncWrapper_binary(operatorParams, arr_op);
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+
+            const func = operatorNodeFuncWrapper.func;
+            const func_decorated = function(mathNode_in) {
+              logger.log("func_decorated, mathNode_in", mathNode_in);
+              var outMathNode;
+
+              //legacy
+              outMathNode = func(mathNode_in);
+
+              //decoration
+              // outMathNode = Simplifier.simplify_litexp_2(outMathNode);
+              // logger.log("func_decorated, outMathNode", outMathNode);
+
+              return outMathNode;
+            };
+            // const func_decorated = func;
+
+            const node__symbol = new math.SymbolNode("x");
+            // logger.log("log1", "node__symbol", node__symbol);
+            var node__expr   = func(node__symbol);
+            node__expr = Simplifier.simplify_litexp_2(node__expr);
+            // const node__expr   = new math.OperatorNode(op_add.op, op_add.name, [node__symbol, operatorNodeFuncWrapper.semantics.node_b]);
+            // const displayNode  = new math.FunctionAssignmentNode("f", [node__symbol.name], node__expr);
+            const node__display  = new MyFunctionAssignmentNode("f", [node__symbol.name], node__expr);
+            operatorNodeFuncWrapper.display = {
+              node__display: node__display,
+            };
+
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+              quickFix__smallerFacades : true,
+            };
+
+            const transformationFunc = function(icObj) {
+              var transformationOutput;
+
+              logger.log("transformationFunc", icObj);
+
+              const facade = icObj;
+
+              const mathNode__in  = facade.mathNode;
+              mathNode__in.isEquation = false;
+              const mathNode__new = func_decorated(mathNode__in);
+              mathNode__new.isEquation = false;
+
+              const facade__new = icObj.clone();
+              facade__new.mathNode = mathNode__new;
+              transformationOutput = new TransformationOutput("mutated", facade__new, facade);
+
+              return transformationOutput;
+            };
+
+            const gmItem__operator = GMItem.operator(transformationFunc, name, "", specs);
+            return gmItem__operator;
+          });
+
+
+          const arr_gmItem_operator            = [...arr_gmItem_operator__add, ...arr_gmItem_operator__mult];
+
+          const arr_gmItem_operator_for_target = arr_gmItem_operator;
+
+
+          const arr_mandat = [];
+          logger.log("arr_mandat", arr_mandat);
+          const arr_filler = arr_gmItem_operator_for_target;
+
+          const depth__target = 1;
+          const depth__filler = depth__target - arr_mandat.length;
+          // const depth__target = 10;
+
+          // const mathNode__initial = new math.SymbolNode("x");
+          const mathNode__initial = new math.ConstantNode(10);
+          const gmItem__initial   = GMItem.value(mathNode__initial, "initial", "");
+          // logger.log("gmItem__initial", gmItem__initial);
+
+          const gmItem__target   = GMMaker.createGMItemTarget__x_to_expr2(gmItem__initial, arr_mandat, arr_gmItem_operator_for_target, depth__filler);
+          // logger.log("gmItem__target", gmItem__target);
+          const mathNode__target = gmItem__target.content;
+          //simplify target
+          gmItem__target.content = Simplifier.simplify_litexp_2(mathNode__target);
+
+
+
+
+          const gmItemConfig = {
+            initial:    gmItem__initial,
+            target :    gmItem__target,
+
+            operators:           arr_gmItem_operator,
+            operators__inverse:  [],
+          };
+
+          return gmItemConfig;
+        }
 
 
 
@@ -77404,7 +77972,7 @@
               const mathNode__anonFunction = new math.ObjectNode({
                 type: new math.SymbolNode("anonFunction"),
 
-                arr_bound_var: mathNode__arr_bound_var,
+                mathNode__arr_bound_var: mathNode__arr_bound_var,
                 expr:          mathNode__expr,
               });
 
@@ -77419,7 +77987,7 @@
                 switch(objectNode__anonFunction.properties.type.name) {
                   case "anonFunction":
                     {
-                      const mathNode__arr_bound_var = objectNode__anonFunction.properties["arr_bound_var"];
+                      const mathNode__arr_bound_var = objectNode__anonFunction.properties["mathNode__arr_bound_var"];
                       const mathNode__expr          = objectNode__anonFunction.properties["expr"];
 
                       // logger.log("logAnon", "betaReduce", "mathNode__arr_bound_var:", mathNode__arr_bound_var);
@@ -77507,7 +78075,7 @@
             const mathNode__anonFunction  = createAnonFunctionObjectNode();
             const func                    = createFunc(mathNode__anonFunction);
 
-            const arr_str__symbol = mathNode__anonFunction.properties["arr_bound_var"].items.map(x => x.name);
+            const arr_str__symbol = mathNode__anonFunction.properties["mathNode__arr_bound_var"].items.map(x => x.name);
             const mathNode__expr  = mathNode__anonFunction.properties["expr"];
             const node__display   = new MyFunctionAssignmentNode("f", arr_str__symbol, mathNode__expr);
 
@@ -77639,7 +78207,7 @@
               const mathNode__anonFunction = new math.ObjectNode({
                 type: new math.SymbolNode("anonFunction"),
 
-                arr_bound_var: mathNode__arr_bound_var,
+                mathNode__arr_bound_var: mathNode__arr_bound_var,
                 expr:          mathNode__expr,
               });
 
@@ -77654,7 +78222,7 @@
                 switch(objectNode__anonFunction.properties.type.name) {
                   case "anonFunction":
                     {
-                      const mathNode__arr_bound_var = objectNode__anonFunction.properties["arr_bound_var"];
+                      const mathNode__arr_bound_var = objectNode__anonFunction.properties["mathNode__arr_bound_var"];
                       const mathNode__expr          = objectNode__anonFunction.properties["expr"];
 
                       // logger.log("logAnon", "betaReduce", "mathNode__arr_bound_var:", mathNode__arr_bound_var);
@@ -77742,7 +78310,7 @@
             const mathNode__anonFunction  = createAnonFunctionObjectNode();
             const func                    = createFunc(mathNode__anonFunction);
 
-            const arr_str__symbol = mathNode__anonFunction.properties["arr_bound_var"].items.map(x => x.name);
+            const arr_str__symbol = mathNode__anonFunction.properties["mathNode__arr_bound_var"].items.map(x => x.name);
             const mathNode__expr  = mathNode__anonFunction.properties["expr"];
             const node__display   = new MyFunctionAssignmentNode("f", arr_str__symbol, mathNode__expr);
 
@@ -77867,7 +78435,7 @@
               const mathNode__anonFunction = new math.ObjectNode({
                 type: new math.SymbolNode("anonFunction"),
 
-                arr_bound_var: mathNode__arr_bound_var,
+                mathNode__arr_bound_var: mathNode__arr_bound_var,
                 expr:          mathNode__expr,
               });
 
@@ -77882,7 +78450,7 @@
                 switch(objectNode__anonFunction.properties.type.name) {
                   case "anonFunction":
                     {
-                      const mathNode__arr_bound_var = objectNode__anonFunction.properties["arr_bound_var"];
+                      const mathNode__arr_bound_var = objectNode__anonFunction.properties["mathNode__arr_bound_var"];
                       const mathNode__expr          = objectNode__anonFunction.properties["expr"];
 
                       // logger.log("logAnon", "betaReduce", "mathNode__arr_bound_var:", mathNode__arr_bound_var);
@@ -77970,7 +78538,7 @@
             const mathNode__anonFunction  = createAnonFunctionObjectNode();
             const func                    = createFunc(mathNode__anonFunction);
 
-            const arr_str__symbol = mathNode__anonFunction.properties["arr_bound_var"].items.map(x => x.name);
+            const arr_str__symbol = mathNode__anonFunction.properties["mathNode__arr_bound_var"].items.map(x => x.name);
             const mathNode__expr  = mathNode__anonFunction.properties["expr"];
             const node__display   = new MyFunctionAssignmentNode("f", arr_str__symbol, mathNode__expr);
 
@@ -78045,7 +78613,7 @@
               const mathNode__anonFunction = new math.ObjectNode({
                 type: new math.SymbolNode("anonFunction"),
 
-                arr_bound_var: mathNode__arr_bound_var,
+                mathNode__arr_bound_var: mathNode__arr_bound_var,
                 expr:          mathNode__expr,
               });
 
@@ -78060,7 +78628,7 @@
                 switch(objectNode__anonFunction.properties.type.name) {
                   case "anonFunction":
                     {
-                      const mathNode__arr_bound_var = objectNode__anonFunction.properties["arr_bound_var"];
+                      const mathNode__arr_bound_var = objectNode__anonFunction.properties["mathNode__arr_bound_var"];
                       const mathNode__expr          = objectNode__anonFunction.properties["expr"];
 
                       // logger.log("logAnon", "betaReduce", "mathNode__arr_bound_var:", mathNode__arr_bound_var);
@@ -78148,7 +78716,7 @@
             const mathNode__anonFunction  = createAnonFunctionObjectNode();
             const func                    = createFunc(mathNode__anonFunction);
 
-            const arr_str__symbol = mathNode__anonFunction.properties["arr_bound_var"].items.map(x => x.name);
+            const arr_str__symbol = mathNode__anonFunction.properties["mathNode__arr_bound_var"].items.map(x => x.name);
             const mathNode__expr  = mathNode__anonFunction.properties["expr"];
             const node__display   = new MyFunctionAssignmentNode("f", arr_str__symbol, mathNode__expr);
 
@@ -78290,7 +78858,7 @@
               const mathNode__anonFunction = new math.ObjectNode({
                 type: new math.SymbolNode("anonFunction"),
 
-                arr_bound_var: mathNode__arr_bound_var,
+                mathNode__arr_bound_var: mathNode__arr_bound_var,
                 expr:          mathNode__expr,
               });
 
@@ -78305,7 +78873,7 @@
                 switch(objectNode__anonFunction.properties.type.name) {
                   case "anonFunction":
                     {
-                      const mathNode__arr_bound_var = objectNode__anonFunction.properties["arr_bound_var"];
+                      const mathNode__arr_bound_var = objectNode__anonFunction.properties["mathNode__arr_bound_var"];
                       const mathNode__expr          = objectNode__anonFunction.properties["expr"];
 
                       // logger.log("logAnon", "betaReduce", "mathNode__arr_bound_var:", mathNode__arr_bound_var);
@@ -78393,7 +78961,7 @@
             const mathNode__anonFunction  = createAnonFunctionObjectNode();
             const func                    = createFunc(mathNode__anonFunction);
 
-            const arr_str__symbol = mathNode__anonFunction.properties["arr_bound_var"].items.map(x => x.name);
+            const arr_str__symbol = mathNode__anonFunction.properties["mathNode__arr_bound_var"].items.map(x => x.name);
             const mathNode__expr  = mathNode__anonFunction.properties["expr"];
             const node__display   = new MyFunctionAssignmentNode("f", arr_str__symbol, mathNode__expr);
 
@@ -78526,7 +79094,7 @@
               const mathNode__anonFunction = new math.ObjectNode({
                 type: new math.SymbolNode("anonFunction"),
 
-                arr_bound_var: mathNode__arr_bound_var,
+                mathNode__arr_bound_var: mathNode__arr_bound_var,
                 expr:          mathNode__expr,
               });
 
@@ -78541,7 +79109,7 @@
                 switch(objectNode__anonFunction.properties.type.name) {
                   case "anonFunction":
                     {
-                      const mathNode__arr_bound_var = objectNode__anonFunction.properties["arr_bound_var"];
+                      const mathNode__arr_bound_var = objectNode__anonFunction.properties["mathNode__arr_bound_var"];
                       const mathNode__expr          = objectNode__anonFunction.properties["expr"];
 
                       // logger.log("logAnon", "betaReduce", "mathNode__arr_bound_var:", mathNode__arr_bound_var);
@@ -78629,7 +79197,7 @@
             const mathNode__anonFunction  = createAnonFunctionObjectNode();
             const func                    = createFunc(mathNode__anonFunction);
 
-            const arr_str__symbol = mathNode__anonFunction.properties["arr_bound_var"].items.map(x => x.name);
+            const arr_str__symbol = mathNode__anonFunction.properties["mathNode__arr_bound_var"].items.map(x => x.name);
             const mathNode__expr  = mathNode__anonFunction.properties["expr"];
             const node__display   = new MyFunctionAssignmentNode("f", arr_str__symbol, mathNode__expr);
 
@@ -78762,7 +79330,7 @@
                 const mathNode__anonFunction = new math.ObjectNode({
                   type: new math.SymbolNode("anonFunction"),
   
-                  arr_bound_var: mathNode__arr_bound_var,
+                  mathNode__arr_bound_var: mathNode__arr_bound_var,
                   expr:          mathNode__expr,
                 });
   
@@ -78777,7 +79345,7 @@
                   switch(objectNode__anonFunction.properties.type.name) {
                     case "anonFunction":
                       {
-                        const mathNode__arr_bound_var = objectNode__anonFunction.properties["arr_bound_var"];
+                        const mathNode__arr_bound_var = objectNode__anonFunction.properties["mathNode__arr_bound_var"];
                         const mathNode__expr          = objectNode__anonFunction.properties["expr"];
   
                         // logger.log("logAnon", "betaReduce", "mathNode__arr_bound_var:", mathNode__arr_bound_var);
@@ -78865,7 +79433,7 @@
               const mathNode__anonFunction  = createAnonFunctionObjectNode();
               const func                    = createFunc(mathNode__anonFunction);
   
-              const arr_str__symbol = mathNode__anonFunction.properties["arr_bound_var"].items.map(x => x.name);
+              const arr_str__symbol = mathNode__anonFunction.properties["mathNode__arr_bound_var"].items.map(x => x.name);
               const mathNode__expr  = mathNode__anonFunction.properties["expr"];
               const node__display   = new MyFunctionAssignmentNode("f", arr_str__symbol, mathNode__expr);
   
@@ -79028,7 +79596,7 @@
               const mathNode__anonFunction = new math.ObjectNode({
                 type: new math.SymbolNode("anonFunction"),
 
-                arr_bound_var: mathNode__arr_bound_var,
+                mathNode__arr_bound_var: mathNode__arr_bound_var,
                 expr:          mathNode__expr,
               });
 
@@ -79043,7 +79611,7 @@
                 switch(objectNode__anonFunction.properties.type.name) {
                   case "anonFunction":
                     {
-                      const mathNode__arr_bound_var = objectNode__anonFunction.properties["arr_bound_var"];
+                      const mathNode__arr_bound_var = objectNode__anonFunction.properties["mathNode__arr_bound_var"];
                       const mathNode__expr          = objectNode__anonFunction.properties["expr"];
 
                       // logger.log("logAnon", "betaReduce", "mathNode__arr_bound_var:", mathNode__arr_bound_var);
@@ -79131,7 +79699,7 @@
             const mathNode__anonFunction  = createAnonFunctionObjectNode();
             const func                    = createFunc(mathNode__anonFunction);
 
-            const arr_str__symbol = mathNode__anonFunction.properties["arr_bound_var"].items.map(x => x.name);
+            const arr_str__symbol = mathNode__anonFunction.properties["mathNode__arr_bound_var"].items.map(x => x.name);
             const mathNode__expr  = mathNode__anonFunction.properties["expr"];
             const node__display   = new MyFunctionAssignmentNode("f", arr_str__symbol, mathNode__expr);
 
@@ -79211,7 +79779,7 @@
               const mathNode__anonFunction = new math.ObjectNode({
                 type: new math.SymbolNode("anonFunction"),
 
-                arr_bound_var: mathNode__arr_bound_var,
+                mathNode__arr_bound_var: mathNode__arr_bound_var,
                 expr:          mathNode__expr,
               });
 
@@ -79226,7 +79794,7 @@
                 switch(objectNode__anonFunction.properties.type.name) {
                   case "anonFunction":
                     {
-                      const mathNode__arr_bound_var = objectNode__anonFunction.properties["arr_bound_var"];
+                      const mathNode__arr_bound_var = objectNode__anonFunction.properties["mathNode__arr_bound_var"];
                       const mathNode__expr          = objectNode__anonFunction.properties["expr"];
 
                       // logger.log("logAnon", "betaReduce", "mathNode__arr_bound_var:", mathNode__arr_bound_var);
@@ -79314,7 +79882,7 @@
             const mathNode__anonFunction  = createAnonFunctionObjectNode();
             const func                    = createFunc(mathNode__anonFunction);
 
-            const arr_str__symbol = mathNode__anonFunction.properties["arr_bound_var"].items.map(x => x.name);
+            const arr_str__symbol = mathNode__anonFunction.properties["mathNode__arr_bound_var"].items.map(x => x.name);
             const mathNode__expr  = mathNode__anonFunction.properties["expr"];
             const node__display   = new MyFunctionAssignmentNode("f", arr_str__symbol, mathNode__expr);
 
@@ -79450,7 +80018,7 @@
               const mathNode__anonFunction = new math.ObjectNode({
                 type: new math.SymbolNode("anonFunction"),
 
-                arr_bound_var: mathNode__arr_bound_var,
+                mathNode__arr_bound_var: mathNode__arr_bound_var,
                 expr:          mathNode__expr,
               });
 
@@ -79465,7 +80033,7 @@
                 switch(objectNode__anonFunction.properties.type.name) {
                   case "anonFunction":
                     {
-                      const mathNode__arr_bound_var = objectNode__anonFunction.properties["arr_bound_var"];
+                      const mathNode__arr_bound_var = objectNode__anonFunction.properties["mathNode__arr_bound_var"];
                       const mathNode__expr          = objectNode__anonFunction.properties["expr"];
 
                       // logger.log("logAnon", "betaReduce", "mathNode__arr_bound_var:", mathNode__arr_bound_var);
@@ -79553,7 +80121,7 @@
             const mathNode__anonFunction  = createAnonFunctionObjectNode();
             const func                    = createFunc(mathNode__anonFunction);
 
-            const arr_str__symbol = mathNode__anonFunction.properties["arr_bound_var"].items.map(x => x.name);
+            const arr_str__symbol = mathNode__anonFunction.properties["mathNode__arr_bound_var"].items.map(x => x.name);
             const mathNode__expr  = mathNode__anonFunction.properties["expr"];
             const node__display   = new MyFunctionAssignmentNode("f", arr_str__symbol, mathNode__expr);
 
@@ -79634,7 +80202,7 @@
               const mathNode__anonFunction = new math.ObjectNode({
                 type: new math.SymbolNode("anonFunction"),
 
-                arr_bound_var: mathNode__arr_bound_var,
+                mathNode__arr_bound_var: mathNode__arr_bound_var,
                 expr:          mathNode__expr,
               });
 
@@ -79649,7 +80217,7 @@
                 switch(objectNode__anonFunction.properties.type.name) {
                   case "anonFunction":
                     {
-                      const mathNode__arr_bound_var = objectNode__anonFunction.properties["arr_bound_var"];
+                      const mathNode__arr_bound_var = objectNode__anonFunction.properties["mathNode__arr_bound_var"];
                       const mathNode__expr          = objectNode__anonFunction.properties["expr"];
 
                       // logger.log("logAnon", "betaReduce", "mathNode__arr_bound_var:", mathNode__arr_bound_var);
@@ -79737,7 +80305,7 @@
             const mathNode__anonFunction  = createAnonFunctionObjectNode();
             const func                    = createFunc(mathNode__anonFunction);
 
-            const arr_str__symbol = mathNode__anonFunction.properties["arr_bound_var"].items.map(x => x.name);
+            const arr_str__symbol = mathNode__anonFunction.properties["mathNode__arr_bound_var"].items.map(x => x.name);
             const mathNode__expr  = mathNode__anonFunction.properties["expr"];
             const node__display   = new MyFunctionAssignmentNode("f", arr_str__symbol, mathNode__expr);
 
@@ -79871,7 +80439,7 @@
               const mathNode__anonFunction = new math.ObjectNode({
                 type: new math.SymbolNode("anonFunction"),
 
-                arr_bound_var: mathNode__arr_bound_var,
+                mathNode__arr_bound_var: mathNode__arr_bound_var,
                 expr:          mathNode__expr,
               });
 
@@ -79886,7 +80454,7 @@
                 switch(objectNode__anonFunction.properties.type.name) {
                   case "anonFunction":
                     {
-                      const mathNode__arr_bound_var = objectNode__anonFunction.properties["arr_bound_var"];
+                      const mathNode__arr_bound_var = objectNode__anonFunction.properties["mathNode__arr_bound_var"];
                       const mathNode__expr          = objectNode__anonFunction.properties["expr"];
 
                       // logger.log("logAnon", "betaReduce", "mathNode__arr_bound_var:", mathNode__arr_bound_var);
@@ -79974,7 +80542,7 @@
             const mathNode__anonFunction  = createAnonFunctionObjectNode();
             const func                    = createFunc(mathNode__anonFunction);
 
-            const arr_str__symbol = mathNode__anonFunction.properties["arr_bound_var"].items.map(x => x.name);
+            const arr_str__symbol = mathNode__anonFunction.properties["mathNode__arr_bound_var"].items.map(x => x.name);
             const mathNode__expr  = mathNode__anonFunction.properties["expr"];
             const node__display   = new MyFunctionAssignmentNode("f", arr_str__symbol, mathNode__expr);
 
@@ -80049,7 +80617,7 @@
               const mathNode__anonFunction = new math.ObjectNode({
                 type: new math.SymbolNode("anonFunction"),
 
-                arr_bound_var: mathNode__arr_bound_var,
+                mathNode__arr_bound_var: mathNode__arr_bound_var,
                 expr:          mathNode__expr,
               });
 
@@ -80064,7 +80632,7 @@
                 switch(objectNode__anonFunction.properties.type.name) {
                   case "anonFunction":
                     {
-                      const mathNode__arr_bound_var = objectNode__anonFunction.properties["arr_bound_var"];
+                      const mathNode__arr_bound_var = objectNode__anonFunction.properties["mathNode__arr_bound_var"];
                       const mathNode__expr          = objectNode__anonFunction.properties["expr"];
 
                       // logger.log("logAnon", "betaReduce", "mathNode__arr_bound_var:", mathNode__arr_bound_var);
@@ -80152,7 +80720,7 @@
             const mathNode__anonFunction  = createAnonFunctionObjectNode();
             const func                    = createFunc(mathNode__anonFunction);
 
-            const arr_str__symbol = mathNode__anonFunction.properties["arr_bound_var"].items.map(x => x.name);
+            const arr_str__symbol = mathNode__anonFunction.properties["mathNode__arr_bound_var"].items.map(x => x.name);
             const mathNode__expr  = mathNode__anonFunction.properties["expr"];
             const node__display   = new MyFunctionAssignmentNode("f", arr_str__symbol, mathNode__expr);
 
@@ -85333,7 +85901,9 @@
 
             // this.debug_apl();
 
-            this.debug_applicableOperator();
+            // this.debug_applicableOperator();
+
+            this.debug_anon5050Function();
 
           } catch(e) {
             logger.log("logError", e);
@@ -90768,28 +91338,80 @@
 
           infiniteCanvas.addIcObject(icMathNode__6);
 
-          //(iota)
+
+          const mathNode__anonFunction = new math.ObjectNode({
+            type: new math.SymbolNode("anonFunction"),
+
+            mathNode__arr_bound_var: new math.ArrayNode([new math.SymbolNode("x")]),
+            expr:          math.parse("x + 10"),
+          });
+
+          //(+ 10)
           const trueRect__appOp = {
             x: 500,
             y: 600,
             width:  100,
             height: 100,
           };
-          const appOp__iota = infiniteCanvas.createIcGMApplicableOperator_withType(trueRect__appOp, "apl::iota");
+          const appOp__plus10 = infiniteCanvas.createIcGMApplicableOperator_withType(trueRect__appOp, "from_anonFunctionObjectNode", {mathNode__anonFunction: mathNode__anonFunction});
 
-          infiniteCanvas.addIcObject(appOp__iota);
+          infiniteCanvas.addIcObject(appOp__plus10);
 
 
-          //[iota]
+          //[+ 10]
           const trueRect__op = {
-            x: 700,
-            y: 700,
+            x: 800,
+            y: 800,
             width:  100,
             height: 100,
           };
-          const op__iota = infiniteCanvas.createIcGMOperator_withType(trueRect__op, "apl::iota");
+          const op__plus10 = infiniteCanvas.createIcGMOperator_withType(trueRect__op, "from_anonFunctionObjectNode", {mathNode__anonFunction: mathNode__anonFunction});
 
-          infiniteCanvas.addIcObject(op__iota);
+          infiniteCanvas.addIcObject(op__plus10);
+
+        }
+
+        debug_anon5050Function() {
+
+          //[[a]]
+          const trueRect__symbol = {
+            x: 100,
+            y: 100,
+            width:  100,
+            height: 100,
+          };
+          const icMathNode__symbol = infiniteCanvas.createIcMathNode(trueRect__symbol.x, trueRect__symbol.y, new math.SymbolNode("a"));
+
+          infiniteCanvas.addIcObject(icMathNode__symbol);
+
+          //[[11]]
+          const trueRect__constant = {
+            x: 100,
+            y: 300,
+            width:  100,
+            height: 100,
+          };
+          const icMathNode__constant = infiniteCanvas.createIcMathNode(trueRect__constant.x, trueRect__constant.y, new math.ConstantNode(11));
+
+          infiniteCanvas.addIcObject(icMathNode__constant);
+
+
+          //[?+ 10:+ 20:+ 30]
+          const arr_bound_var = [new math.SymbolNode("x")];
+          const arr_expr      = [math.parse("x + 10"), math.parse("x + 20"), math.parse("x + 30")];
+          const mathNode__anon5050Function = MyAnon5050FunctionObjectNode.createInstance(arr_bound_var, arr_expr);
+
+          logger.log("logAnon5050", "mathNode__anon5050Function:", mathNode__anon5050Function);
+
+          const trueRect__op = {
+            x: 800,
+            y: 800,
+            width:  100,
+            height: 100,
+          };
+          const op__plus10 = infiniteCanvas.createIcGMOperator_withType(trueRect__op, "from_anon5050FunctionObjectNode", {mathNode__anon5050Function: mathNode__anon5050Function});
+
+          infiniteCanvas.addIcObject(op__plus10);
 
         }
 
