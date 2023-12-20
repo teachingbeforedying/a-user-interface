@@ -63,5 +63,5 @@ Ideas rating: from *** (very good idea) to * (nice idea)
 ## Development routine
 3 tabs in VSCode:   
 programmashute: day-to-day low-level technical issues and progresses  
-ic.html:     code  
+3DRoom+ic.html:     code  
 ![still_shute](./still_shute.txt):    "ideas worth coding"  
