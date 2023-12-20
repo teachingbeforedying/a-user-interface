@@ -13750,9 +13750,9 @@
         return icEngined;
       }
 
-      createIcArray(trueRect, arr_icObj) {
+      createIcArray(trueRect, arr_icObj_in) {
 
-        const parts = Utils.dictFromArr(arr_icObj);
+        const parts = Utils.dictFromArr(arr_icObj_in);
         const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
         // compositeConfig__knob[icMathNode__knob.id].isMobile = true;
         const trueRect__composite = {
@@ -13765,7 +13765,7 @@
         icComposite.cType = "array";
 
         const icArray_spec = {
-
+          arr_icObj: arr_icObj_in,
         };
 
         var icArray = Object.assign(icComposite, icArray_spec);
@@ -33023,6 +33023,25 @@
           };
 
 
+          this.getArr_icObj = function() {
+            const handle = this.scopeObj.engineCarrier;
+
+            return handle.arr_icObj;
+          };
+
+          this.getArr_rep_free = function() {
+            const arr_icObj = this.getArr_icObj();
+
+            const arr_rep_free = arr_icObj.map((icObj__elt) => {
+              return infiniteCanvas.getRepresented(icObj__elt.id).r_free();
+            });
+
+            return arr_rep_free;
+          };
+
+
+
+
           this.layout__array = function() {
             logger.log("logArrayEngine", "layout__array");
 
@@ -33034,21 +33053,25 @@
             const handle__rep_free    = handle__represented.r_free();
 
 
-            const content = handle__rep_free.content;
-            const parts   = handle__rep_free.parts;
+            // const content = handle__rep_free.content;
+            // const parts   = handle__rep_free.parts;
 
-            const arr_parts_all             = Object.values(parts);
-            const arr_content_and_parts_all = [content, ...arr_parts_all].filter(icObj => (icObj != null));
+            // const arr_parts_all             = Object.values(parts);
+            // const arr_content_and_parts_all = [content, ...arr_parts_all].filter(icObj => (icObj != null));
+
+            const arr_rep_free = this.getArr_rep_free();
 
             const engine__composite = handle__rep_free.dict_engine["composite"].engine.awoken;
 
-            arr_content_and_parts_all.forEach((part__rep_free, i) => {
+            arr_rep_free.forEach((rep_free__elt, i) => {
+              logger.log("rep_free__elt", rep_free__elt);
 
-              const listener = engine__composite.listeners[part__rep_free.id];
+              const listener = engine__composite.listeners[rep_free__elt.id];
 
-              //listen:off
-              part__rep_free.offInnerUpdate(listener);
+              //listen:off (composite part)
+              rep_free__elt.offInnerUpdate(listener);
 
+              //update position
               const position__origin = {
                 x: handle__rep_free.position.x,
                 y: handle__rep_free.position.y,
@@ -33063,14 +33086,18 @@
                 x: position__origin.x + offset.dx,
                 y: position__origin.y + offset.dy,
               };
-              part__rep_free.position = position_new;
+              rep_free__elt.position = position_new;
 
-              //listen:on
-              part__rep_free.onInnerUpdate(listener);
+              //listen:on (composite part)
+              rep_free__elt.onInnerUpdate(listener);
 
             });
 
           };
+
+
+
+
 
           //horror: disable array layout for a little time, so that compositeEngine does its stuff
           this.offFlag_then_func_then_onFlag = function(func) {
@@ -33082,11 +33109,7 @@
           };
 
 
-          this.getArr_elt = function() {
-            const handle = this.scopeObj.engineCarrier;
-            return Object.values(handle.parts);
-          };
-
+        
 
           this.append = function(rep_free_in) {
             logger.log("logArray", "append", this, rep_free_in);
@@ -33099,7 +33122,11 @@
             const handle__rep_free    = handle__represented.r_free();         
 
             this.offFlag_then_func_then_onFlag(() => {
+              //add to composite
               handle__rep_free.dict_engine["composite"].engine.awoken.addPart(rep_free_in, false);
+
+              //add to arr_icObj
+              handle__rep_free.arr_icObj.push(rep_free_in);
             });
           };
 
@@ -33114,14 +33141,20 @@
             const handle__rep_free    = handle__represented.r_free();
 
             const engine_in    = icArray_in.dict_engine["array"].engine.awoken;
-            const arr_rep_free = engine_in.getArr_elt();
 
             this.offFlag_then_func_then_onFlag(() => {
-              engine_in.offFlag_then_func_then_onFlag(() => {
-                icArray_in.dict_engine["composite"].engine.awoken.removeAllParts();
-              });
-              handle__rep_free.dict_engine["composite"].engine.awoken.addParts(arr_rep_free, false);
+              const arr_rep_free__in = engine_in.getArr_rep_free();
+              
+              engine_in.popAll();
+              icArray_in.im_dying_now = true;
+
+              //add to composite
+              handle__rep_free.dict_engine["composite"].engine.awoken.addParts(arr_rep_free__in, false);
+
+              //add to arr_icObj
+              handle__rep_free.arr_icObj.push(...arr_rep_free__in);
             });
+
           };
 
           this.popFirst = function (n = 1) {
@@ -33135,7 +33168,12 @@
             const handle__rep_free    = handle__represented.r_free();         
 
             this.offFlag_then_func_then_onFlag(() => {
-              // handle__rep_free.dict_engine["composite"].engine.awoken.removePart(rep_free_in, false);
+
+              //get element to remove
+              const rep_free__popped = handle__rep_free.arr_icObj.shift();
+
+              //remove from composite
+              handle__rep_free.dict_engine["composite"].engine.awoken.removePart(rep_free__popped);
             });
           };
 
@@ -33150,7 +33188,12 @@
             const handle__rep_free    = handle__represented.r_free();         
 
             this.offFlag_then_func_then_onFlag(() => {
-              // handle__rep_free.dict_engine["composite"].engine.awoken.removePart(rep_free_in, false);
+
+              //get element to remove
+              const rep_free__popped = handle__rep_free.arr_icObj.pop();
+
+              //remove from composite
+              handle__rep_free.dict_engine["composite"].engine.awoken.removePart(rep_free__popped);
             });
           };
 
@@ -33164,7 +33207,14 @@
             const handle__represented = infiniteCanvas.getRepresented(handle.id);
             const handle__rep_free    = handle__represented.r_free();         
 
-            
+            this.offFlag_then_func_then_onFlag(() => {
+
+              //remove all
+              handle__rep_free.arr_icObj = [];
+
+              //remove all from composite
+              handle__rep_free.dict_engine["composite"].engine.awoken.removeAllParts();
+            });
           };
 
           this.partition = function(n = 2) {
