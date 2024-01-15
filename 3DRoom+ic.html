@@ -8035,10 +8035,11 @@
         switch (type__represented) {
           case "touchSlot":
           case "dropTouchSlot":
+          case "diveSlot":
             {
               //introduce touchslot to existing objects
 
-              const touchSlot = represented.r_official();
+              const touchSlot    = represented.r_official();
               const id_touchSlot = touchSlot.id;
 
               const arr_official = Object.values(infiniteCanvas.represented).map(represented => represented.r_official());
@@ -8065,7 +8066,7 @@
         const arr_official_exisitingType = arr_official.filter(rep => {
           var outBool;
 
-          outBool = (rep.type == "touchSlot") || (rep.type == "dropTouchSlot");
+          outBool = (rep.type == "touchSlot") || (rep.type == "dropTouchSlot") || (rep.type == "diveSlot");
 
           return outBool;
         });
@@ -8413,6 +8414,43 @@
         return icComposite;
       }
 
+
+      createIcPrintPOVRect(trueRect, orientation = 0) {
+
+        const type      = "printPovRect";
+        const position  = Geometry.createPoint(trueRect.x, trueRect.y);
+        const size      = Geometry.createSize(trueRect.width, trueRect.height);
+        const homeScale = Object.assign({}, this.scale);
+        // const homeScale = Object.assign({}, {X: 1.0, Y: 1.0});
+
+        const icObj = this.createIcObject(type, position, size, homeScale);
+
+        const fColor__stroke = new fabric.Color("grey");
+        fColor__stroke.setAlpha(0.777);
+        const color__stroke = fColor__stroke.toRgba();
+
+        const icPOVRect_spec = {
+          // left: left,
+          // top:  top,
+          // width: width,
+          // height: height,
+
+          isSharpRect: true,
+
+          fill:   "transparent",
+
+          stroke_width: 3,
+          stroke: color__stroke,
+        };
+
+        const icPOVRect = Object.assign(icObj, icPOVRect_spec);
+
+        return icPOVRect;
+      }
+
+      createIcPortal(trueRect) {
+
+      }
 
 
 
@@ -9086,6 +9124,39 @@
         const icImage = Object.assign(icObj, icImage_spec);
 
         return icImage;
+      }
+
+      createIcPatternRectImage(trueRect, img_in) {
+        const type     = "patternRectImage";
+
+        const position = Geometry.createPoint(trueRect.x, trueRect.y);
+        const size     = Geometry.createSize(trueRect.width, trueRect.height);
+        // const size = Geometry.createSize(100, 100);
+
+        const homeScale = Object.assign({}, this.scale);
+
+        const icObj = this.createIcObject(type, position, size, homeScale);
+
+        var img;
+        if (img_in != null) {
+          img = img_in;
+        } else {
+          const width__default  = 100;
+          const height__default = 100;
+          img = new Image(width__default, height__default);
+
+          logger.log("log1", "img", img);
+        }
+
+        const icPatternRectImage_spec = {
+          img: img,
+          force_width:  false,
+          force_height: false,
+        };
+
+        const icPatternRectImage = Object.assign(icObj, icPatternRectImage_spec);
+
+        return icPatternRectImage;
       }
 
       createIcVideo(left, top, video_in) {
@@ -13596,6 +13667,40 @@
         return icEngined;
       }
 
+      createIcDiveSlot(trueRect, diveSlotConfig) {
+        console.log("createIcDiveSlot", trueRect, diveSlotConfig);
+
+        const infiniteCanvas = this;
+
+        const type      = "diveSlot";
+        const position  = Geometry.createPoint(trueRect.x, trueRect.y);
+        const size      = Geometry.createSize(trueRect.width, trueRect.height);
+        const homeScale = Object.assign({}, this.scale);
+
+        const icObj = this.createIcObject(type, position, size, homeScale);
+
+        if(!("isEnabled" in diveSlotConfig)) {
+          diveSlotConfig["isEnabled"] = true;
+        }
+
+        const icDiveSlot_spec = {
+          stroke: "yellow",
+          strokeWidth: 4,
+
+          diveSlotConfig: diveSlotConfig,
+        };
+
+        const icDiveSlot = Object.assign(icObj, icDiveSlot_spec);
+
+
+        const engine = new DiveSlotEngine();
+        const eType  = "diveSlot";
+
+        const icEngined = infiniteCanvas.installEngineOnIcObj(icDiveSlot, eType, engine);
+
+        return icEngined;
+      }
+
 
 
       createIcCollection(trueRect, collectionConfig) {
@@ -15971,6 +16076,75 @@
         facade.zIndex = icComposite.zIndex + 1;
 
         return icComposite;
+      }
+
+
+      createIcDiveOperator(trueRect, cfg) {
+        logger.log("logGolf", "createIcDiveOperator", trueRect, cfg);
+        // const operatorNodeFactoryFuncWrapper = cfg.operatorNodeFactoryFuncWrapper;
+        // const isEnabled = cfg.isEnabled;
+        const isEnabled = true;
+
+        const diveSlotConfig = {
+          // transformationFunc: operatorNodeFactoryFuncWrapper.func,
+          //debug
+          transformationFunc: (icObj) => {
+            logger.log("diveOp", "transformationFunc");
+
+            // icObj.fill = ColorUtils.randomColor();
+
+            // const rep_free = infiniteCanvas.getRepresented(icObj.id).r_free();
+            // rep_free.fill = ColorUtils.randomColor();
+
+            const transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+            return transformationOutput;
+          },
+
+          isEnabled: isEnabled,
+        };
+
+        const diveSlot = infiniteCanvas.createIcDiveSlot(trueRect, diveSlotConfig);
+        diveSlot.fill = "";
+        // touchSlot.isMobile = false;
+
+        // const mathNode__facade = operatorNodeFactoryFuncWrapper.semantics.node__operatorNode.cloneDeep();
+        const mathNode__facade = new math.ConstantNode(3);
+        const facade = infiniteCanvas.createIcMathNode(trueRect.x, trueRect.y, mathNode__facade);
+        facade.backgroundColor = "blanchedalmond";
+        if(!isEnabled) {
+          facade.opacity = 0.4;
+        }
+        // facade.isMobile    = false;
+        facade.isTouchable = false;
+        //SHULOLILOL
+        facade.zIndex = 100;
+
+        facade.opacity = "0.8";
+
+        const parts = {
+          "diveSlot": diveSlot,
+          "facade":   facade,
+        };
+
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+
+        const icComposite = this.createIcComposite(trueRect, parts, compositeConfig);
+        icComposite.cType = "dive_operator";
+
+        const operation       = new Operation(diveSlotConfig.transformationFunc);
+        icComposite.operation = operation;
+
+        // icComposite.isTouchable = false;
+
+        return icComposite;        
+      }
+
+      createIcBombOperator() {
+
+      }
+
+      createIcMineOperator() {
+
       }
 
 
@@ -22882,6 +23056,7 @@
         infiniteCanvas.redrawCanvas(RedrawOccasion.scaleChanged);
 
       }
+
 
 
       operateOnActiveObject__join() {
@@ -30591,7 +30766,7 @@
               switch (transformationOutput.type) {
                 case "new":
                   {
-                    const icTouchSlot = this.scopeObj.infiniteCanvas;
+                    const infiniteCanvas = this.scopeObj.infiniteCanvas;
 
                     const rep_free__supervessel = infiniteCanvas.getSupervessel();
 
@@ -31323,6 +31498,605 @@
             //   });
 
             // });
+
+          };
+
+          this.stop = function () {
+            // delete this.scopeObj;
+          };
+
+
+          this.virgin = Object.assign({}, this);  //virgin == not bound
+
+        }
+
+      }
+
+
+
+      class DiveSlotEngine {
+        // constructor(diveSlotConfig) {
+        constructor() {
+
+          this.initialized = false;
+
+          this.initialize = function (scopeObj) {
+
+            //"wake up":
+            //bind all funcs
+            // function isFunction(functionToCheck) {
+            //   return functionToCheck && {}.toString.call(functionToCheck) === '[object Function]';
+            // }
+            const isFunction = value => value && (Object.prototype.toString.call(value) === "[object Function]" || "function" === typeof value || value instanceof Function);
+
+            this.awoken = {
+              'i_am': "awoken",
+            };
+            console.log("this.virgin", this.virgin);
+            Object.entries(this.virgin)
+              .filter(([propName, prop]) => isFunction(prop))
+              .forEach(([propName, prop], i) => {
+                this.awoken[propName] = prop.bind(this.awoken);
+              });
+
+            // this.scopeObj  = scopeObj;
+            //engineCarrier,
+            //infiniteCanvas,
+            this.awoken.scopeObj = scopeObj;
+
+            this.initialized = true;
+          }
+
+
+
+          this.attemptTouching = function (icObj_slot, icObj_piece) {
+            // logger.log("attemptTouching", icObj_slot, icObj_piece);
+
+            const canTouch = this.checkCanTouch(icObj_slot, icObj_piece);
+
+            const rep_official = icObj_piece;
+            // logger.log("attempting to touch with touchState: " + rep_official.touchStateDict[icObj_slot.id]);
+
+            if (canTouch) {
+              console.log("can touch");
+
+              const rep_official = icObj_piece;
+              const represented = icObj_piece.represented;
+              const rep_free = represented.getRepresentation("free");
+
+              // console.log("rep_free.isHeld", rep_free.isHeld);
+              // if(rep_free.isHeld) {
+              //   presnap(icObj_slot, icObj_piece);
+              // } else {
+              //   presnap(icObj_slot, icObj_piece);
+              //   snap(icObj_slot, icObj_piece);
+              // }
+
+              this.touch(icObj_slot, icObj_piece);
+
+            } else {
+              console.log("can't touch");
+            }
+
+          };
+
+          this.checkCanTouch = function (icObj_slot, icObj_piece) {
+            logger.log("DiveSlot", "checkCanTouch", icObj_piece);
+            var outBool;
+
+            var canTouchFunc = this.scopeObj.engineCarrier.diveSlotConfig.canTouchFunc;
+            if (canTouchFunc == null) {
+
+              const diveTouchSingleton = DiveTouchSingleton.sharedInstance();
+              canTouchFunc = diveTouchSingleton.canTouch.bind(diveTouchSingleton);
+
+            }
+
+            const context = this.scopeObj.engineCarrier.diveSlotConfig.context;
+
+            outBool = canTouchFunc(icObj_piece, icObj_slot, context);
+
+            return outBool;
+          };
+
+
+          this.touch = async function (icObj_slot, icObj_piece) {
+            console.log("DiveSlot", "touch", icObj_piece);
+
+            const icDiveSlot = this.scopeObj.engineCarrier;
+
+
+            const rep_official = icObj_piece;
+            const represented = icObj_piece.represented;
+            const rep_free = represented.getRepresentation("free");
+            // const rep_touched  = represented.getRepresentation("snapped");
+
+
+            //rep_official.touchStateDict[icObj_slot.id] = TouchState.Touched;    //SHU: as of now, don't set prop inside dict
+            const touchStateDict__clone = Object.assign({}, rep_official.touchStateDict);
+            touchStateDict__clone[icObj_slot.id] = TouchState.Touched;
+            // rep_official.touchStateDict = touchStateDict__clone;               //SHU: it does not work well with rep_official, I've tried with rep_free and it seems ok...  (I don't care that much anymore)
+            rep_free.touchStateDict = touchStateDict__clone;                  //SHU: as of now, set dict as if it were a depthless prop
+
+
+            //apply mutation
+            console.log("touch: apply mutation");
+
+            var transformationFunc = icDiveSlot.diveSlotConfig.transformationFunc;
+            if (transformationFunc == null) {
+              transformationFunc = icDiveSlot.diveSlotConfig.transformationFunc__touch;
+            }
+
+            if (transformationFunc != null) {
+              console.log("&&&touch");
+              console.log("icDiveSlot", icDiveSlot);
+
+              const icObj__touched = rep_free;
+
+              ////temporary
+              //// {
+              ////   if(icObj__touched.type == "composite" && icObj__touched.parts.contactArea != null) {
+              ////     icObj__touched = icObj__touched.parts.facade;
+              ////   }
+              //// }
+
+              logger.log("icObj__touched", icObj__touched);
+
+
+              const transformationOutput = await transformationFunc(icObj__touched, icObj_slot);
+              switch (transformationOutput.type) {
+                case "new":
+                  {
+                    const infiniteCanvas = this.scopeObj.infiniteCanvas;
+
+                    //get vessel
+                    var rep_free__vessel;
+                    // if(transformationOutput.vessel != null) {
+                    // rep_free__vessel = transformationOutput.vessel;
+                    const id__parentVessel = icObj__touched.compositeId;
+                    if (id__parentVessel != -1) {
+                      logger.log("id__parentVessel != -1", id__parentVessel);
+                      const rep_free__parentVessel = infiniteCanvas.getRepresented(id__parentVessel).r_free();
+                      rep_free__vessel = rep_free__parentVessel;
+                    } else {
+                      logger.log("id__parentVessel == -1");
+                      const rep_free__supervessel = infiniteCanvas.getSupervessel();
+                      rep_free__vessel = rep_free__supervessel;
+                    }
+
+                    rep_free__vessel.dict_engine["composite"].engine.awoken.removePart(icObj__touched);
+
+                    //killOld
+                    function killOld(icObj__old) {
+                      // infiniteCanvas.removeIcObject(icObj__touched);
+                      switch (icObj__old.type) {
+                        case "composite":
+                          {
+                            Object.entries(icObj__old.parts).forEach(([partName, icObj__part], i) => {
+                              icObj__old.dict_engine["composite"].engine.awoken.removePart(icObj__part);
+                              icObj__part.im_dying_now = true;
+                            });
+                          }
+                          break;
+                        default:
+                          break;
+                      }
+
+                      icObj__old.im_dying_now = true;
+                    }
+
+                    function findParentInOld(icObj__old, icObj__new) {
+                      var outFindResult;
+
+                      const findResult__initial = {
+                        isFound: false,
+                        parent: null,
+                      };
+
+                      outFindResult = findResult__initial;
+
+                      switch (icObj__old.type) {
+                        case "composite":
+                          {
+                            const arr_part = Object.values(icObj__old.parts);
+
+                            //breadth-first
+                            outFindResult = Utils.early_break_reduce(arr_part, (acc, x, i, arr) => {
+                              const isFound = (x == icObj__new);
+                              logger.log("isFound", x, icObj__new, isFound);
+                              if (isFound) {
+                                acc.parent = icObj__old;
+                              }
+                              acc.isFound = acc.isFound || isFound;
+                              return acc;
+                            }, outFindResult, (acc, x, i, arr) => {
+                              return (acc.isFound == true);
+                            });
+
+                            if (!outFindResult.isFound) {
+                              outFindResult = Utils.early_break_reduce(arr_part, (acc, x, i, arr) => {
+                                acc = findParentInOld(x, icObj__new);
+                                return acc;
+                              }, outFindResult, (acc, x, i, arr) => {
+                                return (acc.isFound == true);
+                              });
+                            }
+
+                          }
+                          break;
+                        default:
+                          break;
+                      }
+
+                      logger.log("findParentInOld", icObj__old, icObj__new, outFindResult);
+
+                      return outFindResult;
+                    }
+
+
+                    //add new
+                    function addNew(icObj__new, isInCanvas) {
+                      icObj__new.isTouchable = true;
+                      icObj__new.touchStateDict[icObj_slot.id] = TouchState.Touched;
+                      if (icObj__new.type == "composite") {
+                        Object.entries(icObj__new.parts).forEach(([partName, icObj__part], i) => {
+                          icObj__part.touchStateDict[icObj_slot.id] = TouchState.Touched;
+                        });
+                      }
+
+                      if (!isInCanvas) {
+                        infiniteCanvas.addIcObject(icObj__new);
+                      }
+
+                      const isPositionCorrection = true;
+                      if (isPositionCorrection) {
+                        icObj__new.position = {
+                          x: rep_free__vessel.position.x,
+                          y: rep_free__vessel.position.y,
+                        };
+                      }
+
+                      const rep_free__new = infiniteCanvas.getRepresented(icObj__new.id).r_free();
+                      rep_free__vessel.dict_engine["composite"].engine.awoken.addPart(rep_free__new, false);
+                    }
+
+                    const icObj__old = icObj__touched;
+
+                    if (transformationOutput.value instanceof IcObject) {
+
+                      const icObj__new = transformationOutput.value;
+                      logger.log("icObj__new", icObj__new);
+
+                      //if icObj__new belongs to icObj__old hierarchy, remove icObj__new from icObj__old hierarchy
+                      const findParentInOld_ = findParentInOld(icObj__old, icObj__new);
+                      if (findParentInOld_.isFound) {
+                        const composite__parent = findParentInOld_.parent;
+                        composite__parent.dict_engine["composite"].engine.awoken.removePart(icObj__new);
+
+                        logger.log("parent", composite__parent);
+                        logger.log("removed part", icObj__new);
+
+                        killOld(icObj__old);
+                        addNew(icObj__new, true);
+
+                      } else {
+                        killOld(icObj__old);
+                        addNew(icObj__new, false);
+                      }
+
+                    } else if (transformationOutput.value instanceof Array) {
+
+                      logger.log("transformationOutput.value instanceof Array");
+
+                      //SHU: TODO: manage the case "filtering multiple objects in composite"
+
+                      const arr_new = transformationOutput.value;
+
+                      const isOldInArray = arr_new.includes(icObj__old);
+                      if (isOldInArray) {
+
+                        const arr__truly_new = arr_new.filter(icObj => icObj != icObj__old);
+                        addNew(icObj__old, true);
+                        arr__truly_new.forEach((icObj__new, i) => {
+                          addNew(icObj__new, false);
+                        });
+
+                      } else {
+                        killOld(icObj__old);
+
+                        arr_new.forEach((icObj__new, i) => {
+                          addNew(icObj__new, false);
+                        });
+                      }
+
+                    } else {
+                      throw new Error("unsupported transformationOutput.value: " + transformationOutput.value);
+                    }
+                  }
+                  break;
+                case "old":
+                  {
+                    //do nothing: object has not changed
+                  }
+                  break;
+                case "mutated":
+                  {
+                    logger.log("transformationOutput:", transformationOutput);
+
+                    const mutationObj = transformationOutput.value;
+                    // icObj__touched.mathNode = mutationObj.mathNode;
+                    Object.assign(icObj__touched, mutationObj);
+                  }
+                  break;
+                // case "displaced":
+                // {
+                //
+                // }
+                // break;
+                case "sadness":
+                  {
+                    icObj__touched.mathNode = transformationOutput.value.mathNode;
+                  }
+                  break;
+
+                // case "mathNode":     //SHU: horror code   il serait bon un jour d'harmoniser: tout le monde doit utiliser TransformationOutput
+                // case "composite":    //SHU: horror code
+                // // {
+                // //   // icObj__touched.mathNode = transformationOutput.mathNode;
+                // // }
+                // break;
+
+                default:
+                  logger.log("transformationOutput", transformationOutput);
+                  throw new Error("unsupported transformationOutput type: " + transformationOutput.type);
+                  break;
+              }
+
+            } else {
+              throw new Error("touch: transformationFunc == null");
+            }
+
+
+          };
+
+
+
+
+
+          this.attemptUntouching = function (icObj_slot, icObj_piece) {
+            console.log("attemptUntouching", icObj_slot, icObj_piece);
+
+            const canUntouch = this.checkCanUntouch(icObj_slot, icObj_piece);
+            console.log("canUntouch", canUntouch);
+
+            const rep_official = icObj_piece;
+            console.log("attempting to untouch with touchState: " + rep_official.touchStateDict[icObj_slot.id]);
+
+            if (canUntouch) {
+              // console.log("can untouch");
+              this.untouch(icObj_slot, icObj_piece);
+
+            } else {
+              // console.log("can't untouch");
+            }
+
+          };
+
+          this.checkCanUntouch = function (icObj_slot, icObj_piece) {
+            logger.log("DiveSlot", "checkCanUntouch", icObj_piece);
+            var outBool;
+
+            var canUntouchFunc = this.scopeObj.engineCarrier.diveSlotConfig.canUntouchFunc;
+            if (canUntouchFunc == null) {
+
+              const diveTouchSingleton = DiveTouchSingleton.sharedInstance();
+              canUntouchFunc = diveTouchSingleton.canUntouch.bind(diveTouchSingleton);
+            }
+
+            const context = this.scopeObj.engineCarrier.diveSlotConfig.context;
+
+            outBool = canUntouchFunc(icObj_piece, icObj_slot, context);
+
+            return outBool;
+          };
+
+          this.untouch = function (icObj_slot, icObj_piece) {
+            console.log("untouch", icObj_piece);
+
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+
+            // const rep_free     = icObj_piece;   //SHU: this is probably false
+            const rep_free = infiniteCanvas.getRepresented(icObj_piece.id).r_free();
+
+            const represented = icObj_piece.represented;
+            const rep_official = represented.getRepresentation("official");
+
+
+            const icDiveSlot = this.scopeObj.engineCarrier;
+
+            const transformationFunc__untouch = icDiveSlot.diveSlotConfig.transformationFunc__untouch;
+            if (transformationFunc__untouch != null) {
+
+              const transformationFunc = transformationFunc__untouch;
+
+              const icObj__untouched = rep_free;
+              logger.log("icObj__untouched", icObj__untouched);
+
+              const transformationOutput = transformationFunc(icObj__untouched);
+              switch (transformationOutput.type) {
+                case "new":   //SHU: this code has to be updated
+                  {
+                    const infiniteCanvas = this.scopeObj.infiniteCanvas;
+
+                    const rep_free__supervessel = infiniteCanvas.getSupervessel();
+
+                    rep_free__supervessel.dict_engine["composite"].engine.awoken.removePart(icObj__untouched);
+
+                    //remove old
+                    {
+                      // infiniteCanvas.removeIcObject(icObj__untouched);
+                      icObj__untouched.im_dying_now = true;
+                    }
+
+                    //add new
+
+                    function addNew(icObj__new) {
+                      icObj__new.isTouchable = true;
+                      icObj__new.touchStateDict[icObj_slot.id] = TouchState.Touched;
+                      if (icObj__new.type == "composite") {
+                        icObj__new.parts.forEach((part, i) => {
+                          part.touchStateDict[icObj_slot.id] = TouchState.Touched;
+                        });
+                      }
+
+                      infiniteCanvas.addIcObject(icObj__new);
+
+                      const rep_free__new = infiniteCanvas.getRepresented(icObj__new.id).r_free();
+                      rep_free__supervessel.dict_engine["composite"].engine.awoken.addPart(rep_free__new);
+
+                    }
+
+                    if (transformationOutput.value instanceof IcObject) {
+
+                      const icObj__new = transformationOutput.value;
+                      logger.log("icObj__new", icObj__new);
+
+                      addNew(icObj__new);
+
+                    } else if (transformationOutput.value instanceof Array) {
+
+                      transformationOutput.value.forEach((icObj__new, i) => {
+                        addNew(icObj__new);
+                      });
+
+                    } else {
+                      throw new Error("unsupported transformationOutput.value: " + transformationOutput.value);
+                    }
+                  }
+                  break;
+                case "old":
+                  {
+                    //do nothing: object has not changed
+                  }
+                  break;
+                case "mutated":
+                  {
+                    logger.log("transformationOutput:", transformationOutput);
+
+                    const mutationObj = transformationOutput.value;
+                    // icObj__touched.mathNode = mutationObj.mathNode;
+                    Object.assign(icObj__untouched, mutationObj);
+                  }
+                  break;
+                // case "displaced":
+                // {
+                //
+                // }
+                // break;
+                case "sadness":
+                  {
+                    icObj__untouched.mathNode = transformationOutput.value.mathNode;
+                  }
+                  break;
+
+                // case "mathNode":     //SHU: horror code   il serait bon un jour d'harmoniser: tout le monde doit utiliser TransformationOutput
+                // case "composite":    //SHU: horror code
+                // // {
+                // //   // icObj__touched.mathNode = transformationOutput.mathNode;
+                // // }
+                // break;
+
+                default:
+                  throw new Error("unsupported transformationOutput type: " + transformationOutput.type);
+                  break;
+              }
+
+            }
+
+            rep_official.touchStateDict[icObj_slot.id] = TouchState.Untouched;
+            // rep_free.touchStateDict[icObj_slot.id] = TouchState.Untouched;
+          };
+
+
+
+          // this.r_official_update_handler = (icObj_slot, icObj_piece, outerUpdatesDict) => {
+          this.r_official_update_handler = function (icObj_slot, icObj_piece, outerUpdatesDict) {
+            logger.log("logDiveSlot", "r_official_update_handler", icObj_piece);
+
+            const touchState = icObj_piece.touchStateDict[icObj_slot.id];
+            logger.log("logTouch", "touchState", touchState);
+
+            if (touchState == TouchState.Untouched) {
+              this.attemptTouching(icObj_slot, icObj_piece);
+            } else if (touchState == TouchState.Touched) {
+              this.attemptUntouching(icObj_slot, icObj_piece);
+            }
+
+          };
+
+          // this.r_official_update_handler2 = (rep_official_incoming, outerUpdatesDict) => {
+          this.r_official_update_handler2 = function (rep_official_incoming, outerUpdatesDict) {   //SHU: when using func.bind(myObj), be sure not to use arrow functions
+
+            // logger.log("r_official_update_handler2", rep_official_incoming);
+
+            // console.log("engine::r_official_update_handler2, this", this);
+            // console.log("this.scopeObj", this.scopeObj);
+
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            // console.log("infiniteCanvas", infiniteCanvas);
+            const icDiveSlot = this.scopeObj.engineCarrier;
+
+            const diveSlotConfig = this.scopeObj.engineCarrier.diveSlotConfig;
+            // logger.log("diveSlotConfig", diveSlotConfig);
+
+            const represented = infiniteCanvas.getRepresented(icDiveSlot.id);
+            // console.log("represented", represented);
+            const rep_official = represented.r_official();
+
+            const diveSlot    = rep_official;
+            const incomingObj = rep_official_incoming;
+
+            if (incomingObj != diveSlot) { //don't touch oneself
+
+              if (!incomingObj.isTouchable) {
+                //ignore: incomingObj is intangible
+              } else if (!diveSlotConfig.isEnabled) {
+                //ignore: diveSlot is intangible
+              } else {
+                this.r_official_update_handler(diveSlot, incomingObj, outerUpdatesDict);
+              }
+
+            } else {
+              console.log("I won't touch myself");  //SHU: ...
+            }
+
+          };
+
+
+          this.start = function () {
+            console.log("engine::start, this", this);
+            // logger.log("DiveSlotEngine::start", "this.scopeObj", this.scopeObj);
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const icDiveSlot     = this.scopeObj.engineCarrier;
+
+
+            infiniteCanvas.onIcObjUpdate(this.r_official_update_handler2);
+
+            //for each existing canvas object, add touchState wrt this new diveSlot
+            infiniteCanvas.onceOnAddRepresentedForIcObject(icDiveSlot, (icDiveSlot) => {
+
+              const id_diveSlot = icDiveSlot.id;
+
+              const arr_official = Object.values(infiniteCanvas.represented).map(represented => represented.r_official());
+              const arr_official_preexisiting = arr_official.filter(rep => (rep.id != id_diveSlot));
+              arr_official_preexisiting.forEach((rep, i) => {
+
+                rep.touchStateDict[id_diveSlot] = TouchState.Untouched;
+                //SHU TODO: check if touches
+
+              });
+
+            });
 
           };
 
@@ -38258,6 +39032,12 @@
                 fObj_p = Promise.resolve(fObj);
               }
               break;
+            case "printPovRect":
+                {
+                  const fObj = this.createFabricRectWithIcObj(icObj);
+                  fObj_p = Promise.resolve(fObj);
+                }
+                break;
             case "text":
             case "tag":
               {
@@ -38268,6 +39048,12 @@
             case "image":
               {
                 const fObj = this.createFabricImageWithIcObj(icObj);
+                fObj_p = Promise.resolve(fObj);
+              }
+              break;
+            case "patternRectImage":
+              {
+                const fObj = this.createFabricPatternRectImageWithIcObj(icObj);
                 fObj_p = Promise.resolve(fObj);
               }
               break;
@@ -38482,6 +39268,14 @@
                   fObj_p = Promise.resolve(fObj);
                 }
                 break;
+            case "diveSlot":
+              {
+                const fObj = this.createFabricDiveSlotWithIcObj(icObj);
+                fObj_p = Promise.resolve(fObj);
+              }
+              break;
+
+
 
             case "composite":
               {
@@ -38948,6 +39742,93 @@
             flipY: icObj.flip.Y,
 
             angle: icObj.orientation,
+
+            icObj: icObj,
+          });
+
+
+          if (icObj.force_width) {
+            const factor__force_width = icObj.width / icObj.img.width;
+            fObj.set({
+              scaleX: fObj.scaleX * factor__force_width,
+            });
+          }
+          if (icObj.force_height) {
+            const factor__force_height = icObj.height / icObj.img.height;
+            fObj.set({
+              scaleY: fObj.scaleY * factor__force_height,
+            });
+          }
+
+          //event listeners
+          if (icObj.canBeHeld) {
+            this.addInteraction_hold(fObj);
+          }
+          if (icObj.canBeMoved) {
+            this.addInteraction_move(fObj);
+          }
+          if (icObj.canBeResized) {
+            this.addInteraction_resize2(fObj);
+          }
+          if (icObj.canBeRotated) {
+            this.addInteraction_rotate(fObj);
+          }
+
+
+          this.addInteraction_select(fObj);
+          // this.addListeners(fObj);
+
+
+          return fObj;
+        }
+
+        createFabricPatternRectImageWithIcObj(icObj) {
+
+          // const scale  = infiniteCanvas.scale;
+
+          var fObj = new fabric.Rect();
+
+          FileIntegration.dataUrlForImgViaCanvas_p(icObj.img).then(dataURL => {
+
+            fabric.util.loadImage(dataURL, function(img) {
+              const pattern = new fabric.Pattern({
+                source: img,
+                repeat: false,
+              });
+              fObj.set({
+                fill: pattern,
+              });
+            });
+
+          });
+
+
+
+          fObj.set({
+            left: icObj.position.x,
+            top:  icObj.position.y,
+
+            // width:  icObj.img.width,
+            // height: icObj.img.height,
+
+            // width:  icObj.size.width,
+            // height: icObj.size.height,
+
+            width:  icObj.size.width,
+            height: icObj.size.height,
+
+            scaleX: icObj.scale.X,
+            scaleY: icObj.scale.Y,
+
+            flipX: icObj.flip.X,
+            flipY: icObj.flip.Y,
+
+            angle: icObj.orientation,
+
+
+            // fill: pattern,
+            // fill: "blue",
+
 
             icObj: icObj,
           });
@@ -41341,6 +42222,54 @@
 
         createFabricApplySlotWithIcObj(icObj) {
           console.log("createFabricApplySlotWithIcObj", icObj);
+
+          const infiniteCanvas = this.infiniteCanvas;
+
+          var fObj = new fabric.Rect();
+
+          const position_screen = icObj.getScreenPositionWithoutOffset();
+          // console.log("position_screen", position_screen);
+          const homeSize_screen = icObj.getHomeScreenSize();
+          // console.log("homeSize_screen", homeSize_screen);
+
+
+          fObj.set({
+            left: position_screen.x,    
+            top:  position_screen.y,
+
+            width:  homeSize_screen.width,
+            height: homeSize_screen.height,
+
+            scaleX: icObj.scale.X,
+            scaleY: icObj.scale.Y,
+
+            flipX: icObj.flip.X,
+            flipY: icObj.flip.Y,
+
+
+            angle: icObj.orientation,
+
+            //to avoid overlapping when clicking
+            padding: 0,
+            stroke: icObj.stroke,
+            strokeWidth: icObj.strokeWidth,
+            fill: "",
+
+            icObj: icObj,
+          });
+
+
+          if (icObj.canBeHeld) {
+            this.addInteraction_hold(fObj);
+          }
+
+
+          return fObj;
+        }
+
+
+        createFabricDiveSlotWithIcObj(icObj) {
+          console.log("createFabricDiveSlotWithIcObj", icObj);
 
           const infiniteCanvas = this.infiniteCanvas;
 
@@ -49575,7 +50504,7 @@
           sharedInstance: function () {
             if (!instance) {
               // instance = createInstance();
-              throw new Error("Touch2Singleton has not been initialized");
+              throw new Error("Touch2Singleton has not been initialized, call initializeInstance before using singleton");
             }
             return instance;
           }
@@ -49583,6 +50512,67 @@
       })();
 
 
+
+
+      class DiveTouch { //GeometryWise Screen-wise touching
+
+        constructor(fabricIntegration) {
+          this.fabricIntegration = fabricIntegration;
+          this.touch2 = new Touch2(fabricIntegration);
+        }
+
+        isIntersecting(icObj_over, icObj_below) {
+          var isIntersecting;
+
+          const isIntersecting__touch = this.touch2.isIntersecting(icObj_over, icObj_below);
+
+          logger.log("DiveTouch", "{");
+          logger.log("DiveTouch", "icObj_over.homeScale.X",  icObj_over.homeScale.X);
+          logger.log("DiveTouch", "icObj_below.homeScale.X", icObj_below.homeScale.X);
+          logger.log("DiveTouch", "}");
+
+          const isZoom__penetrating = icObj_over.homeScale.X > icObj_below.homeScale.X;
+          logger.log("DiveTouch", "isZoom__penetrating", isZoom__penetrating);
+
+          isIntersecting = isIntersecting__touch && isZoom__penetrating;
+
+          return isIntersecting;
+        }
+
+        canTouch(icObj_over, icObj_below) {
+          return this.isIntersecting(icObj_over, icObj_below);
+        }
+
+        canUntouch(icObj_over, icObj_below) {
+          return !this.canTouch(icObj_over, icObj_below);
+        }
+
+      }
+
+
+
+      const DiveTouchSingleton = (function () {
+        var instance;
+
+        function createInstance(fabricIntegration) {
+          var object = new DiveTouch(fabricIntegration);
+          return object;
+        }
+
+        return {
+          initializeInstance: function (fabricIntegration) {
+            const sharedInstance = createInstance(fabricIntegration);
+            instance = sharedInstance;
+          },
+          sharedInstance: function () {
+            if (!instance) {
+              // instance = createInstance();
+              throw new Error("DiveTouchSingleton has not been initialized, call initializeInstance before using singleton");
+            }
+            return instance;
+          }
+        };
+      })();
 
 
 
@@ -52610,15 +53600,15 @@
             updateKeyUpABToggles(e);
             updateKeyUpTriggers(e);
 
-            // if (keyboardIntegration.keyDownToggles.p.isActive) {
-            //   logger.log("keyboardIntegration.keyDownToggles.p.isActive");
-            //   // if(e.code == "ShiftLeft") {
-            //   //   return;
-            //   // }
-            //   handleKeyUp__pov(e);
-            // } else {
-            //   handleKeyUp__default(e);
-            // }
+            if (keyboardIntegration.keyDownToggles.p.isActive) {
+              logger.log("keyboardIntegration.keyDownToggles.p.isActive");
+              // if(e.code == "ShiftLeft") {
+              //   return;
+              // }
+              handleKeyUp__pov(e);
+            } else {
+              handleKeyUp__default(e);
+            }
 
             function handleKeyUp__pov(e) {
               logger.log("handleKeyUp__pov", e);
@@ -55633,6 +56623,7 @@
         // infiniteCanvas.touch2 = touch2;
 
         Touch2Singleton.initializeInstance(fabricIntegration);
+        DiveTouchSingleton.initializeInstance(fabricIntegration);
 
 
         // const clipboardIntegration = new ClipboardIntegration(fileIntegration, fabricIntegration);
@@ -86414,7 +87405,13 @@
 
             // this.debug_anon5050Function();
 
-            this.debug_icArray();
+            // this.debug_icArray();
+
+            // this.debug_default_content();
+
+            // this.debug_printPovRect();
+
+            this.debug_dive_op();
 
           } catch(e) {
             logger.log("logError", e);
@@ -91997,6 +92994,180 @@
           });
 
         }
+
+
+
+        debug_default_content() {
+
+          //icText
+          {
+            const trueRect__icText = {
+              x: 100,
+              y: 100,
+              width:  100,
+              height: 100,
+            };
+  
+            const str__1 = "Coucou ! ziufhzeiufhizeufhzeieufhze \niuzeziefu hzefizue fhzeif \n uzhfiz eufhzeif uhezifuzefhizeufh \n ziufh iufez";
+            const icText = infiniteCanvas.createIcText(trueRect__icText.x, trueRect__icText.y, str__1);
+            infiniteCanvas.addIcObject(icText);
+          }
+
+          //icMathNode
+          {
+            const trueRect__constant = {
+              x: 800,
+              y: 700,
+              width:  100,
+              height: 100,
+            };
+            const icMathNode__constant = infiniteCanvas.createIcMathNode(trueRect__constant.x, trueRect__constant.y, new math.ConstantNode(123));
+            infiniteCanvas.addIcObject(icMathNode__constant);
+          }
+
+          // //icImage
+          // {
+          //   const trueRect_img = {
+          //     x: 300,
+          //     y: 800,
+          //     width: 100,
+          //     height: 100,
+          //   };
+
+          //   const img__file_p = FileIntegration.imageFromImgSrc_p("img/ic_better_logo_simple_trans_2.png");
+          //   const img_p = img__file_p;
+
+          //   img_p.then(img => {
+          //     const icObj_front = infiniteCanvas.createIcImage(trueRect_img.x, trueRect_img.y, img);
+          //     icObj_front.scale.X = 0.5;
+          //     icObj_front.scale.Y = 0.5;
+          //     // infiniteCanvas.addIcObject(icObj_front);
+
+          //     const icRect = infiniteCanvas.createIcImage(trueRect_img, img);
+          //     infiniteCanvas.addIcObject(icRect);
+          //   });
+          // }
+
+          //icPatternImage
+          {
+            const trueRect_img = {
+              x: 300,
+              y: 800,
+              width: 100,
+              height: 100,
+            };
+
+            const img__file_p = FileIntegration.imageFromImgSrc_p("img/ic_better_logo_simple_trans_2.png");
+            const img_p = img__file_p;
+
+            img_p.then(img => {
+              const icObj_front = infiniteCanvas.createIcImage(trueRect_img.x, trueRect_img.y, img);
+              icObj_front.scale.X = 0.5;
+              icObj_front.scale.Y = 0.5;
+              // infiniteCanvas.addIcObject(icObj_front);
+
+              const icRect = infiniteCanvas.createIcPatternRectImage(trueRect_img, img);
+              infiniteCanvas.addIcObject(icRect);
+            });
+          }
+
+        }
+
+
+        debug_printPovRect() {
+
+          const trueRect_printPovRect = {
+            x: 0,
+            y: 0,
+            width:  1000,
+            height: 1000,
+          };
+
+          const icPrintPovRect = infiniteCanvas.createIcPrintPOVRect(trueRect_printPovRect);
+          infiniteCanvas.addIcObject(icPrintPovRect);
+
+          //create save_as button
+          const trueRect_button = {
+            x: trueRect_printPovRect.x + trueRect_printPovRect.width  * 2./3,
+            y: trueRect_printPovRect.y + trueRect_printPovRect.height * 4./3,
+            width:  100,
+            height: 100,
+          };
+          const config__button = {
+            buttonFunc: (scopeObj) => {
+              const id__printPovRect = scopeObj.engineCarrier.buttonConfig.id__printPovRect;
+              logger.log("logPrintPovRect", "id__printPovRect", id__printPovRect);
+
+              const rep_free__printPovRect = scopeObj.infiniteCanvas.getRepresented(id__printPovRect).r_free();
+
+              // save_as_img(scopeObj.infiniteCanvas, rep_free__printPovRect);
+
+              //remove workbench border
+              const strokeWidth_tmp = rep_free__printPovRect.strokeWidth; 
+              rep_free__printPovRect.strokeWidth = 0;
+
+              //capture area
+              infiniteCanvas.exportCanvasRectContainingObj_asImg(rep_free__printPovRect, "ic_printPOVRect.png");
+
+              //restore workbench border
+              rep_free__printPovRect.strokeWidth = strokeWidth_tmp;
+
+            },
+            id__printPovRect: icPrintPovRect.id,
+          };
+          const icButton = infiniteCanvas.createIcButton(trueRect_button, config__button);
+          infiniteCanvas.addIcObject(icButton);
+
+
+
+          function save_as_img(infiniteCanvas, rep_free__printPovRect) {
+
+            //remove workbench border
+            const strokeWidth_tmp = rep_free__printPovRect.strokeWidth; 
+            rep_free__printPovRect.strokeWidth = 0;
+
+            //capture area
+            infiniteCanvas.exportCanvasRectContainingObj_asImg(rep_free__printPovRect, "ic_printPOVRect.png");
+
+            //restore workbench border
+            rep_free__printPovRect.strokeWidth = strokeWidth_tmp;
+
+          }
+
+          function save_as_txt() {
+
+          }
+
+          function save_as_epub() {
+
+          }
+
+          function save_as_pdf() {
+            
+          }
+
+        }
+
+
+        debug_dive_op() {
+
+          const trueRect_diveOp = {
+            x: 0,
+            y: 0,
+            width:  200,
+            height: 200,
+          };
+
+          const icDiveOp = infiniteCanvas.createIcDiveOperator(trueRect_diveOp);
+          infiniteCanvas.addIcObject(icDiveOp);
+
+
+          
+        }
+
+
+
+
 
 
 
