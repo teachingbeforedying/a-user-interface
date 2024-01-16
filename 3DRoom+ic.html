@@ -8450,6 +8450,28 @@
 
       createIcPortal(trueRect) {
 
+
+        //main composite
+        const parts = {
+          diveSlot_in:        icDiveSlot,
+
+          rect_out:           icRect,
+        };
+
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, true);
+
+        const trueRect_composite = {
+          x: trueRect__center.x - trueRect__center.width  * 0.075,
+          y: trueRect__center.y - trueRect__center.height * 0.075,
+          width:  trueRect__center.width  * 0.05,
+          height: trueRect__center.height * 0.05,
+        };
+
+        const icComposite = this.createIcComposite(trueRect_composite, parts, compositeConfig);
+        icComposite.cType = "povRect_star";
+
+        return icComposite;
+
       }
 
 
@@ -16081,34 +16103,31 @@
 
       createIcDiveOperator(trueRect, cfg) {
         logger.log("logGolf", "createIcDiveOperator", trueRect, cfg);
-        // const operatorNodeFactoryFuncWrapper = cfg.operatorNodeFactoryFuncWrapper;
-        // const isEnabled = cfg.isEnabled;
-        const isEnabled = true;
+        const operatorNodeFactoryFuncWrapper = cfg.operatorNodeFactoryFuncWrapper;
+        const isEnabled = cfg.isEnabled;
 
         const diveSlotConfig = {
-          // transformationFunc: operatorNodeFactoryFuncWrapper.func,
-          //debug
-          transformationFunc: (icObj) => {
-            logger.log("diveOp", "transformationFunc");
-
-            // icObj.fill = ColorUtils.randomColor();
-
-            // const rep_free = infiniteCanvas.getRepresented(icObj.id).r_free();
-            // rep_free.fill = ColorUtils.randomColor();
-
-            const transformationOutput = new TransformationOutput("mutated", icObj, icObj);
-            return transformationOutput;
-          },
-
+          transformationFunc: operatorNodeFactoryFuncWrapper.func,
           isEnabled: isEnabled,
+
+          // //debug
+          // transformationFunc: (icObj) => {
+          //   logger.log("diveOp", "transformationFunc");
+
+          //   icObj.stroke = ColorUtils.randomColor();
+          //   icObj.mathNode = new math.ConstantNode(101);
+
+          //   const transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+          //   return transformationOutput;
+          // },
         };
 
         const diveSlot = infiniteCanvas.createIcDiveSlot(trueRect, diveSlotConfig);
-        diveSlot.fill = "";
-        // touchSlot.isMobile = false;
+        diveSlot.fill = "lime";
+        diveSlot.opacity = 0.5;
+        // diveSlot.isMobile = false;
 
-        // const mathNode__facade = operatorNodeFactoryFuncWrapper.semantics.node__operatorNode.cloneDeep();
-        const mathNode__facade = new math.ConstantNode(3);
+        const mathNode__facade = operatorNodeFactoryFuncWrapper.semantics.node__operatorNode.cloneDeep();
         const facade = infiniteCanvas.createIcMathNode(trueRect.x, trueRect.y, mathNode__facade);
         facade.backgroundColor = "blanchedalmond";
         if(!isEnabled) {
@@ -16128,7 +16147,13 @@
 
         const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
 
-        const icComposite = this.createIcComposite(trueRect, parts, compositeConfig);
+        const trueRect__composite = {
+          x:      trueRect.x,
+          y:      trueRect.y,
+          width:  trueRect.width  / 10.0,
+          height: trueRect.height / 10.0,
+        };
+        const icComposite = this.createIcComposite(trueRect__composite, parts, compositeConfig);
         icComposite.cType = "dive_operator";
 
         const operation       = new Operation(diveSlotConfig.transformationFunc);
@@ -16138,6 +16163,60 @@
 
         return icComposite;        
       }
+
+      createIcDiveOperator_withType(trueRect, gmOperatorType, cfg = {}) {
+        console.log("createIcDiveOperator_withType", trueRect, gmOperatorType);
+
+        const infiniteCanvas = this;
+
+        const operatorConfig = infiniteCanvas.createConfig__icGMOperator_withType(gmOperatorType, cfg);
+
+        const diveSlotConfig = {
+          transformationFunc:   operatorConfig.transformationFunc,
+          isCollectionOperator: cfg.isCollectionOperator,
+        };
+
+        const diveSlot = infiniteCanvas.createIcDiveSlot(trueRect, diveSlotConfig);
+        diveSlot.fill = "lime";
+        diveSlot.opacity = 0.5;
+        // diveSlot.isMobile = false;
+
+
+        var facade;
+
+        const text          = operatorConfig.name;
+        const node__display = operatorConfig.node__display;
+        if(text != null) {
+          facade = infiniteCanvas.createIcText(trueRect.x, trueRect.y, text);
+        } else if(node__display != null) {
+          facade = infiniteCanvas.createIcMathNode(trueRect.x, trueRect.y, node__display);
+        } else {
+          facade = infiniteCanvas.createIcText(trueRect.x, trueRect.y, "facade__default");
+        }
+        facade.backgroundColor = "blanchedalmond";
+        // facade.isMobile    = false;
+        facade.isTouchable = false;
+
+        facade.opacity = "0.8";
+
+        const parts = {
+          "diveSlot":  diveSlot,
+          "facade":    facade,
+        };
+
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+
+        const icComposite = this.createIcComposite(trueRect, parts, compositeConfig);
+        icComposite.cType = "dive_operator";
+        // icComposite.isTouchable = false;
+        icComposite.fill = "transparent";
+
+        facade.zIndex = icComposite.zIndex + 1;
+
+        return icComposite;
+      }
+
+
 
       createIcBombOperator() {
 
@@ -16159,6 +16238,12 @@
           };
 
           switch (gmOperatorType) {
+
+            case "custom":
+              {
+                operatorConfig = cfg;
+              }
+              break;
 
             case "debug:random_color":
               {
@@ -19598,137 +19683,70 @@
           ry: 0,
           strokeWidth: 3,
           stroke: "lime",
+
+          rx_signal__out: new ReplaySubject(1),
         };
 
         const icEye = Object.assign(icObj, icEye_spec);
-        // return icEye;
 
-        class EyeEngine {
-          constructor() {
-
-            this.initialized = false;
-
-            this.initialize = function (scopeObj) {
-
-              //"wake up":
-              //bind all funcs
-              // function isFunction(functionToCheck) {
-              //   return functionToCheck && {}.toString.call(functionToCheck) === '[object Function]';
-              // }
-              const isFunction = value => value && (Object.prototype.toString.call(value) === "[object Function]" || "function" === typeof value || value instanceof Function);
-
-              this.awoken = {
-                'i_am': "awoken",
-              };
-              console.log("this.virgin", this.virgin);
-              Object.entries(this.virgin)
-                .filter(([propName, prop]) => isFunction(prop))
-                .forEach(([propName, prop], i) => {
-                  this.awoken[propName] = prop.bind(this.awoken);
-                });
-
-              // this.scopeObj  = scopeObj;
-              //engineCarrier,
-              //infiniteCanvas,
-              this.awoken.scopeObj = scopeObj;
-
-              this.initialized = true;
-            }
-
-            // this.r_official_update_handler2 = function(rep_official_incoming, outerUpdatesDict) {   //SHU: when using func.bind(myObj), be sure not to use arrow functions
-            //
-            //   // logger.log("r_official_update_handler2", rep_official_incoming);
-            //
-            //   // console.log("engine::r_official_update_handler2, this", this);
-            //   // console.log("this.scopeObj", this.scopeObj);
-            //
-            // };
-
-            this.start = function () {
-              console.log("engine::start, this", this);
-              logger.log("dropTouchSlotEngine::start", "this.scopeObj", this.scopeObj);
-              const infiniteCanvas = this.scopeObj.infiniteCanvas;
-              const icEye = this.scopeObj.engineCarrier;
-
-              // {
-              //   function startRefreshLoop() {
-              //     logger.log("log1", "startRefreshLoop");
-              //
-              //     /// get context from canvas (canvas not shown in example)
-              //     var ctx    = canvas.getContext('2d'),
-              //         toggle = true;                  /// this is used to reduce FPS
-              //
-              //     /// register refresh loop
-              //     function refreshLoop() {
-              //
-              //         const represented  = infiniteCanvas.getRepresented(icVideo.id);
-              //         // console.log("represented", represented);
-              //         const rep_official = represented.r_official();
-              //         const rep_free     = represented.r_free();
-              //
-              //         const video = icVideo.video;
-              //
-              //         /// reduce frame-rate to half
-              //         // toggle = !toggle;
-              //
-              //         // if (toggle) {
-              //           captureNewFrame();
-              //         // }
-              //
-              //         function captureNewFrame() {
-              //           // logger.log("log1", "setNewFrame");
-              //
-              //           ImageUtils.imageFromVideo_p(video).then((img) => {
-              //             rep_free.img__captured = img;
-              //           });
-              //
-              //           if(icObj.isShouldRequestAnimationFrame) {
-              //             requestAnimationFrame(refreshLoop);
-              //           }
-              //
-              //         }
-              //
-              //     }
-              //
-              //     icObj.isShouldRequestAnimationFrame = true;
-              //     icObj.requestAnimationFrame         = requestAnimationFrame(refreshLoop);
-              //
-              //   }
-              //
-              //   startRefreshLoop();
-              //
-              // }
-
-              //debug
-              // setTimeout(function () {
-              //   const img__captured = icEye.img__captured;
-              //   infiniteCanvas.addNewImage(img__captured);
-              // }, 6000);
-
-              //create rx signal
-
-
-
-              //listen to signal
-
-
-            };
-
-            this.stop = function () {
-              // delete this.scopeObj;
-            };
-
-
-            this.virgin = Object.assign({}, this);  //virgin == not bound
-
-          }
-        }
-
-        const engine = new EyeEngine();
-        const eType = "eye";
+        const engine    = new EyeEngine();
+        const eType     = "eye";
         const icEngined = infiniteCanvas.installEngineOnIcObj(icEye, eType, engine);
 
         return icEngined;
+      }
+
+      createIcDisplay(trueRect) {
+        logger.log("createIcDisplay", trueRect);
+        const infiniteCanvas = this;
+
+        const type      = "display";
+        const position  = Geometry.createPoint(trueRect.x, trueRect.y);
+        const size      = Geometry.createSize(trueRect.width, trueRect.height);
+        const homeScale = Object.assign({}, this.scale);
+
+        const icObj = this.createIcObject(type, position, size, homeScale);
+
+        const icDisplay_spec = {
+          // rx: 0,
+          // ry: 0,
+          strokeWidth: 2,
+          stroke: "olive",
+
+          rx_signal__in: null,
+        };
+
+        const icDisplay = Object.assign(icObj, icDisplay_spec);
+
+        const engine    = new DisplayEngine();
+        const eType     = "display";
+        const icEngined = infiniteCanvas.installEngineOnIcObj(icDisplay, eType, engine);
+
+        return icEngined;
+      }
+
+
+      createIcInnerCam(trueRect) {
+
+        // const icEye     = 
+        // const icDisplay = 
+
+        // const facade = infiniteCanvas.createIcMathNode(trueRect.x, trueRect.y, targetMathNode);
+        // // facade.backgroundColor = "orange";
+        // // facade.isTouchable     = false;
+
+        // const curseFacade = infiniteCanvas.createIcText(trueRect.x, trueRect.y, "0");
+
+        // const parts = {
+        //   "eye":     icEye,
+        //   "display": icDisplay,
+        // };
+
+        // const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+
+        // const icComposite = this.createIcComposite(trueRect, parts, compositeConfig);
+        // icComposite.cType = "gm_blobTarget";
+
       }
 
 
@@ -27130,6 +27148,55 @@
         return pov_progress;
       }
 
+      getPovForIcObj(icObj) {
+        const trueRect      = Geometry.createLTRect(icObj.getTrueRect2());
+        const center__icObj = Geometry.getCenterPoint(trueRect);
+
+        const screenCenter = infiniteCanvas.getScreenCenterPoint();
+        const trueOffset   = {
+          dx: screenCenter.x / icObj.homeScale.X, 
+          dy: screenCenter.y / icObj.homeScale.Y,
+        };
+
+        const center__true = {
+          x: center__icObj.x - trueOffset.dx,
+          y: center__icObj.y - trueOffset.dy,
+        };
+
+        const size = {
+          width:  trueRect.width,
+          height: trueRect.height,
+        };
+        return new POV(icObj.homeScale, center__true, size);
+      }
+
+      move_to_pov__autoPov(icObj) {
+        const pov = this.getPovForIcObj(icObj);
+        this.set_pov(pov);
+      }
+
+      getPovForIcObj__TL(icObj) {
+        const trueRect = Geometry.createLTRect(icObj.getTrueRect2());
+
+        const pointTL = Geometry.getPointTL(trueRect);
+
+        const size = {
+          width:  trueRect.width,
+          height: trueRect.height,
+        };
+        return new POV(icObj.homeScale, pointTL, size);
+      }
+
+      move_to_pov__autoPov__TL(icObj) {
+        const pov = this.getPovForIcObj__TL(icObj);
+        this.set_pov(pov);
+      }
+
+
+
+
+
+
       show_rect(rect) {
         //get pov to show and contain rect
         const pov = this.centeredPovForRect(rect);
@@ -28191,7 +28258,7 @@
         return Geometry.createPoint(screenX, screenY);
       }
 
-      getScreenRect() {
+      getScreenRect(/*isPixelRatioFixEnabled = true*/) {
         const screenPointTL = this.getScreenPositionWithoutOffset();
         const screenPointBR = this.getScreenPointBRWithoutOffset();
 
@@ -28199,8 +28266,27 @@
         const top    = screenPointTL.y;
         const width  = screenPointBR.x - screenPointTL.x;
         const height = screenPointBR.y - screenPointTL.y;
-        return Geometry.createRect(left, top, width, height);
+        const rect__screen__raw = Geometry.createRect(left, top, width, height);
+
+        return rect__screen__raw;
+
+        // var factor;
+        // if(isPixelRatioFixEnabled) {
+        //   factor = window.devicePixelRatio;
+        // } else {
+        //   factor = 1.0;
+        // }
+  
+        // const rect__screen__fixed = {
+        //   left:   rect__screen__raw.left   * factor,
+        //   top:    rect__screen__raw.top    * factor,
+        //   width:  rect__screen__raw.width  * factor,
+        //   height: rect__screen__raw.height * factor,
+        // };
+
+        // return rect__screen__fixed;
       }
+
 
 
 
@@ -36425,6 +36511,224 @@
       }
 
 
+      class EyeEngine {
+        constructor() {
+
+          this.initialized = false;
+
+          this.initialize = function (scopeObj) {
+
+            //"wake up":
+            //bind all funcs
+            // function isFunction(functionToCheck) {
+            //   return functionToCheck && {}.toString.call(functionToCheck) === '[object Function]';
+            // }
+            const isFunction = value => value && (Object.prototype.toString.call(value) === "[object Function]" || "function" === typeof value || value instanceof Function);
+
+            this.awoken = {
+              'i_am': "awoken",
+            };
+            console.log("this.virgin", this.virgin);
+            Object.entries(this.virgin)
+              .filter(([propName, prop]) => isFunction(prop))
+              .forEach(([propName, prop], i) => {
+                this.awoken[propName] = prop.bind(this.awoken);
+              });
+
+            // this.scopeObj  = scopeObj;
+            //engineCarrier,
+            //infiniteCanvas,
+            this.awoken.scopeObj = scopeObj;
+
+            this.initialized = true;
+          }
+
+          // this.r_official_update_handler2 = function(rep_official_incoming, outerUpdatesDict) {   //SHU: when using func.bind(myObj), be sure not to use arrow functions
+          //
+          //   // logger.log("r_official_update_handler2", rep_official_incoming);
+          //
+          //   // console.log("engine::r_official_update_handler2, this", this);
+          //   // console.log("this.scopeObj", this.scopeObj);
+          //
+          // };
+
+          this.start = function () {
+            console.log("engine::start, this", this);
+            logger.log("EyeEngine::start", "this.scopeObj", this.scopeObj);
+            
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const icEye          = this.scopeObj.engineCarrier;
+
+            // {
+            //   function startRefreshLoop() {
+            //     logger.log("log1", "startRefreshLoop");
+            //
+            //     /// get context from canvas (canvas not shown in example)
+            //     var ctx    = canvas.getContext('2d'),
+            //         toggle = true;                  /// this is used to reduce FPS
+            //
+            //     /// register refresh loop
+            //     function refreshLoop() {
+            //
+            //         const represented  = infiniteCanvas.getRepresented(icVideo.id);
+            //         // console.log("represented", represented);
+            //         const rep_official = represented.r_official();
+            //         const rep_free     = represented.r_free();
+            //
+            //         const video = icVideo.video;
+            //
+            //         /// reduce frame-rate to half
+            //         // toggle = !toggle;
+            //
+            //         // if (toggle) {
+            //           captureNewFrame();
+            //         // }
+            //
+            //         function captureNewFrame() {
+            //           // logger.log("log1", "setNewFrame");
+            //
+            //           ImageUtils.imageFromVideo_p(video).then((img) => {
+            //             rep_free.img__captured = img;
+            //           });
+            //
+            //           if(icObj.isShouldRequestAnimationFrame) {
+            //             requestAnimationFrame(refreshLoop);
+            //           }
+            //
+            //         }
+            //
+            //     }
+            //
+            //     icObj.isShouldRequestAnimationFrame = true;
+            //     icObj.requestAnimationFrame         = requestAnimationFrame(refreshLoop);
+            //
+            //   }
+            //
+            //   startRefreshLoop();
+            //
+            // }
+
+            //debug
+            // setTimeout(function () {
+            //   const img__captured = icEye.img__captured;
+            //   infiniteCanvas.addNewImage(img__captured);
+            // }, 6000);
+
+            //create rx signal
+
+
+
+            //listen to signal
+
+
+          };
+
+          this.stop = function () {
+            // delete this.scopeObj;
+          };
+
+
+          this.virgin = Object.assign({}, this);  //virgin == not bound
+
+        }
+      }
+
+
+      class DisplayEngine {
+        constructor() {
+
+          this.initialized = false;
+
+          this.initialize = function (scopeObj) {
+
+            //"wake up":
+            //bind all funcs
+            // function isFunction(functionToCheck) {
+            //   return functionToCheck && {}.toString.call(functionToCheck) === '[object Function]';
+            // }
+            const isFunction = value => value && (Object.prototype.toString.call(value) === "[object Function]" || "function" === typeof value || value instanceof Function);
+
+            this.awoken = {
+              'i_am': "awoken",
+            };
+            console.log("this.virgin", this.virgin);
+            Object.entries(this.virgin)
+              .filter(([propName, prop]) => isFunction(prop))
+              .forEach(([propName, prop], i) => {
+                this.awoken[propName] = prop.bind(this.awoken);
+              });
+
+            // this.scopeObj  = scopeObj;
+            //engineCarrier,
+            //infiniteCanvas,
+            this.awoken.scopeObj = scopeObj;
+
+            this.initialized = true;
+          }
+
+          this.manageRxSignal__in = function(rx_signal__in) {
+            logger.log("LogDisplay", "manageRxSignal__in", rx_signal__in);
+
+            //unsubscribe to old signal (if any)
+            rep_free__icDisplay.rxsub?.unsubscribe();
+
+            rep_free__icDisplay.rxsub = rx_signal__in.subscribe({
+              next: (img) => {
+                rep_free__icDisplay.img = img;
+              },
+            });
+
+          };
+
+          this.r_official_update_handler2 = function(rep_official_incoming, outerUpdatesDict) {   //SHU: when using func.bind(myObj), be sure not to use arrow functions
+            logger.log("LogDisplay", "r_official_update_handler2", rep_official_incoming, outerUpdatesDict);
+
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const icDisplay      = this.scopeObj.engineCarrier;
+
+            const incomingObj    = rep_official_incoming;
+
+            const rep_free__icDisplay = infiniteCanvas.getRepresented(icDisplay.id).r_free();
+
+            if(incomingObj == icDisplay) {
+
+              if("rx_signal__in" in outerUpdatesDict) {
+                logger.log("LogDisplay", "r_official_update_handler2", rep_official_incoming, outerUpdatesDict);
+
+                const rx_signal__in = outerUpdatesDict["rx_signal__in"].new;
+
+                this.manageRxSignal__in(rx_signal__in);
+              }
+
+            } else {
+              //ignore
+            }
+          
+          };
+
+          this.start = function () {
+            console.log("engine::start, this", this);
+            logger.log("DisplayEngine::start", "this.scopeObj", this.scopeObj);
+            
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const icDisplay      = this.scopeObj.engineCarrier;
+
+            //listen to rx_signal__in
+            infiniteCanvas.onIcObjUpdate(this.r_official_update_handler2);
+
+
+          };
+
+          this.stop = function () {
+            // delete this.scopeObj;
+          };
+
+
+          this.virgin = Object.assign({}, this);  //virgin == not bound
+
+        }
+      }
+
 
       // class ReplayEngine {
       //   constructor() {
@@ -39356,6 +39660,12 @@
                 fObj_p = Promise.resolve(fObj);
               }
               break;
+            case "display":
+                {
+                  const fObj = this.createFabricDisplayWithIcObj(icObj);
+                  fObj_p = Promise.resolve(fObj);
+                }
+                break;
 
 
 
@@ -41812,23 +42122,43 @@
                 function captureNewFrame() {
                   logger.log("log1", "captureNewFrame");
 
-                  const rect_frame = {
-                    left: fObj.left + fObj.strokeWidth,
-                    top: fObj.top + fObj.strokeWidth,
-                    width: fObj.width - (2 * fObj.strokeWidth),
-                    height: fObj.height - (2 * fObj.strokeWidth),
+                  const pov__current = infiniteCanvas.getCurrentPov();
+
+                  const icObj = fObj.icObj;
+                  infiniteCanvas.move_to_pov__autoPov__TL(icObj);
+
+                  {
+                    const rect_frame = {
+                      left:   (fObj.left   + fObj.strokeWidth)       / fObj.icObj.homeScale.X,
+                      top:    (fObj.top    + fObj.strokeWidth)       / fObj.icObj.homeScale.X,
+                      width:  (fObj.width  - (2 * fObj.strokeWidth)) / fObj.icObj.homeScale.X,
+                      height: (fObj.height - (2 * fObj.strokeWidth)) / fObj.icObj.homeScale.X,
+                    };
+
+                    // const rect_frame = fObj.icObj.getScreenRect();
+                    logger.log("logEye", "rect_frame", rect_frame);
+  
+                    // rect_frame.left   = rect_frame.left   * fObj.icObj.homeScale.X;
+                    // rect_frame.top    = rect_frame.top    * fObj.icObj.homeScale.X;
+                    // rect_frame.width  = rect_frame.width  * fObj.icObj.homeScale.X;
+                    // rect_frame.height = rect_frame.height * fObj.icObj.homeScale.X;
+                    // logger.log("logEye", "rect_frame", rect_frame);
+  
+                    const imageData__captured = ctx.getImageData(rect_frame.left, rect_frame.top, rect_frame.width, rect_frame.height);
+                    // logger.log("imageData__captured", imageData__captured);
+                    logger.log("fObj.icObj", fObj.icObj);
+                    fObj.icObj.imageData__captured = imageData__captured;
+  
+  
+  
+                    const img__captured = ImageUtils.imageFromImageData(imageData__captured);
+                    // logger.log("img__captured", img__captured);
+                    fObj.icObj.img__captured = img__captured;
+  
+                    fObj.icObj.rx_signal__out.next(img__captured);
                   }
 
-                  const imageData__captured = ctx.getImageData(rect_frame.left, rect_frame.top, rect_frame.width, rect_frame.height);
-                  // logger.log("imageData__captured", imageData__captured);
-                  logger.log("fObj.icObj", fObj.icObj);
-                  fObj.icObj.imageData__captured = imageData__captured;
-
-
-
-                  const img__captured = ImageUtils.imageFromImageData(imageData__captured);
-                  // logger.log("img__captured", img__captured);
-                  fObj.icObj.img__captured = img__captured;
+                  infiniteCanvas.set_pov(pov__current);
 
                 }
 
@@ -41845,6 +42175,77 @@
 
 
 
+
+
+          return fObj;
+        }
+
+
+        createFabricDisplayWithIcObj(icObj) {
+          logger.log("log1", "createFabricDisplayWithIcObj", icObj);
+
+          // const scale  = infiniteCanvas.scale;
+
+          var fObj = new fabric.Image();
+
+          const position_screen = icObj.getScreenPositionWithoutOffset();
+          // console.log("position_screen", position_screen);
+          const homeSize_screen = icObj.getHomeScreenSize();
+
+          fObj.set({
+            left: position_screen.x,
+            top: position_screen.y,
+            width: homeSize_screen.width,
+            height: homeSize_screen.height,
+
+            scaleX: icObj.scale.X,
+            scaleY: icObj.scale.Y,
+
+            flipX: icObj.flip.X,
+            flipY: icObj.flip.Y,
+
+            angle: icObj.orientation,
+
+            objectCaching: false,  //??
+
+
+
+
+            strokeWidth: icObj.strokeWidth,
+            stroke:      icObj.stroke,
+
+            //transparent fill
+            fill: "transparent",
+
+            //sharp corners
+            rx: icObj.rx,
+            ry: icObj.ry,
+
+
+            icObj: icObj,
+          });
+          fObj.setCoords();
+
+          logger.log("log1", "fObj", fObj);
+
+
+          //event listeners
+          if (icObj.canBeHeld) {
+            this.addInteraction_hold(fObj);
+          }
+          if (icObj.canBeMoved) {
+            this.addInteraction_move(fObj);
+          }
+          if (icObj.canBeResized) {
+            this.addInteraction_resize2(fObj);
+          }
+          if (icObj.canBeRotated) {
+            this.addInteraction_rotate(fObj);
+          }
+
+
+          this.addInteraction_select(fObj);
+          // this.addListeners(fObj);
 
 
           return fObj;
@@ -55204,6 +55605,12 @@
 
             "Slash": new KeyUpTrigger("Slash", KeyUpTrigger.defaultKeyUpFunc(["Slash"]), () => {
               if(infiniteCanvas.getSelectedIcObj() != null) {
+                if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+                  const icObj__selected = infiniteCanvas.getSelectedIcObj();
+                  fabricIntegration.deselectAll();
+                  infiniteCanvas.move_to_pov__autoPov(icObj__selected);
+                }
+                else 
                 if(infiniteCanvas.isEnabled_supervessel) {
                   keyboardIntegration.infiniteCanvas.operateOnActiveObject__toggleProperty("mathNode.autoSimplify");
                 } else {
@@ -87411,7 +87818,9 @@
 
             // this.debug_printPovRect();
 
-            this.debug_dive_op();
+            // this.debug_dive_op();
+
+            this.debug_innerCam();
 
           } catch(e) {
             logger.log("logError", e);
@@ -93025,30 +93434,7 @@
             infiniteCanvas.addIcObject(icMathNode__constant);
           }
 
-          // //icImage
-          // {
-          //   const trueRect_img = {
-          //     x: 300,
-          //     y: 800,
-          //     width: 100,
-          //     height: 100,
-          //   };
-
-          //   const img__file_p = FileIntegration.imageFromImgSrc_p("img/ic_better_logo_simple_trans_2.png");
-          //   const img_p = img__file_p;
-
-          //   img_p.then(img => {
-          //     const icObj_front = infiniteCanvas.createIcImage(trueRect_img.x, trueRect_img.y, img);
-          //     icObj_front.scale.X = 0.5;
-          //     icObj_front.scale.Y = 0.5;
-          //     // infiniteCanvas.addIcObject(icObj_front);
-
-          //     const icRect = infiniteCanvas.createIcImage(trueRect_img, img);
-          //     infiniteCanvas.addIcObject(icRect);
-          //   });
-          // }
-
-          //icPatternImage
+          //icImage
           {
             const trueRect_img = {
               x: 300,
@@ -93066,10 +93452,33 @@
               icObj_front.scale.Y = 0.5;
               // infiniteCanvas.addIcObject(icObj_front);
 
-              const icRect = infiniteCanvas.createIcPatternRectImage(trueRect_img, img);
+              const icRect = infiniteCanvas.createIcImage(trueRect_img, img);
               infiniteCanvas.addIcObject(icRect);
             });
           }
+
+          // //icPatternImage
+          // {
+          //   const trueRect_img = {
+          //     x: 300,
+          //     y: 800,
+          //     width: 100,
+          //     height: 100,
+          //   };
+
+          //   const img__file_p = FileIntegration.imageFromImgSrc_p("img/ic_better_logo_simple_trans_2.png");
+          //   const img_p = img__file_p;
+
+          //   img_p.then(img => {
+          //     const icObj_front = infiniteCanvas.createIcImage(trueRect_img.x, trueRect_img.y, img);
+          //     icObj_front.scale.X = 0.5;
+          //     icObj_front.scale.Y = 0.5;
+          //     // infiniteCanvas.addIcObject(icObj_front);
+
+          //     const icRect = infiniteCanvas.createIcPatternRectImage(trueRect_img, img);
+          //     infiniteCanvas.addIcObject(icRect);
+          //   });
+          // }
 
         }
 
@@ -93158,14 +93567,81 @@
             height: 200,
           };
 
-          const icDiveOp = infiniteCanvas.createIcDiveOperator(trueRect_diveOp);
+          const icDiveOp = infiniteCanvas.createIcDiveOperator_withType(trueRect_diveOp, "custom", {
+            //horror?
+            name: "+ 1",
+            transformationFunc: (icObj) => {
+              const func = operatorNodeFactoryFuncWrapper_binary(Operator.fromOpString_binary("+"), new math.ConstantNode(1)).func;
+              const mathNode__new = func(icObj.mathNode);
+              
+              icObj.mathNode = mathNode__new;
+              return TransformationOutput("mutated", icObj, icObj);
+            },
+          });
+          // const icDiveOp = infiniteCanvas.createIcDiveOperator_withType(trueRect_diveOp, "from_string", {str__operator:"× 10"});
           infiniteCanvas.addIcObject(icDiveOp);
 
-
-          
         }
 
+        debug_innerCam() {
 
+          //content
+          this.debug_default_content();
+
+
+          //icEye
+          const trueRect_icEye = {
+            x:       50,
+            y:      200,
+            width:  300,
+            height: 300,
+          };
+
+          const icEye  = infiniteCanvas.createIcEye(trueRect_icEye);
+          icEye.zIndex = 100;
+          infiniteCanvas.addIcObject(icEye);
+
+
+          //icDisplay
+          const trueRect_icDisplay = {
+            x:      900,
+            y:      900,
+            width:  200,
+            height: 200,
+          };
+
+          const icDisplay  = infiniteCanvas.createIcDisplay(trueRect_icDisplay);
+          icDisplay.zIndex = 1000;
+
+          infiniteCanvas.onceOnAddRepresentedForIcObject(icDisplay, (icDisplay) => {
+
+            setTimeout(() => {
+
+              const rep_free__icDisplay = infiniteCanvas.getRepresented(icDisplay.id).r_free();
+              const rep_free__icEye     = infiniteCanvas.getRepresented(icEye.id).r_free();
+
+              const rx_signal__in = rep_free__icEye.rx_signal__out;
+              
+              logger.log("LogDisplay", "setting new rx_signal__in");
+              // rep_free__icDisplay.rx_signal__in = rx_signal__in;
+
+              
+
+              //unsubscribe to old signal (if any)
+              rep_free__icDisplay.rxsub?.unsubscribe();
+
+              rep_free__icDisplay.rxsub = rx_signal__in.subscribe({
+                next: (img) => {
+                  rep_free__icDisplay.img = img;
+                },
+              });
+
+            }, 2000);
+
+          });
+
+          infiniteCanvas.addIcObject(icDisplay);
+        }
 
 
 
