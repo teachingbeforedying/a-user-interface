@@ -24747,6 +24747,54 @@
 
 
 
+
+      createPOVWithRect(trueRect) {
+        const center = {
+          x: trueRect.x + (trueRect.width  / 2.0),
+          y: trueRect.y + (trueRect.height / 2.0),
+        };
+        const size = {
+          width:  trueRect.width,
+          height: trueRect.height,
+        };
+        logger.log("logPOV", "size:", size);
+
+        const scale = infiniteCanvas.getNaturalScaleForSize(size);
+
+        return new POV(scale, center, size);
+      }
+
+
+      getCanvasSize() {
+        const size__canvas = {
+          width:  this.canvas.width  / window.devicePixelRatio,
+          height: this.canvas.height / window.devicePixelRatio,
+        };
+        return size__canvas;
+      }
+
+      getNaturalScaleForSize(size_in) {
+
+        //get canvas size
+        const size__canvas = this.getCanvasSize();
+        logger.log("logPOV", "size__canvas:", size__canvas);
+
+        //get fitting dimension
+        const scale__X = size__canvas.width  / size_in.width;
+        const scale__Y = size__canvas.height / size_in.height;
+
+        const scale__min = math.min(scale__X, scale__Y);
+
+        const scale = {
+          X: scale__min,
+          Y: scale__min,
+        };
+
+        return scale;
+      }
+
+
+
       //"entry points"
 
       manageCursorMove_line() {
@@ -27295,7 +27343,20 @@
 
 
       getPov2WrtIcObj2_sameWayAsPov1WrtIcObj1(icObj2, pov1, icObj1) {
-        const pov2 = this.getPovForIcObj(icObj2);
+
+        //compute relative rect for pov1 in icObj__portal_in
+        const trueRect__pov1   =   pov1.getTrueRect();
+        logger.log("logPOV", "trueRect__pov1:", trueRect__pov1);
+
+        const trueRect__icObj1 = icObj1.getTrueRect2();
+        const trueRect__icObj2 = icObj2.getTrueRect2();
+
+        const trueRect__pov2 = Geometry.getRectC_from_rectsAB_and_rectD(trueRect__pov1, trueRect__icObj1, trueRect__icObj2);
+        logger.log("logPOV", "trueRect__pov2:", trueRect__pov2);
+
+        const pov2   = infiniteCanvas.createPOVWithRect(trueRect__pov2);
+        logger.log("logPOV", "pov2:", pov2);
+
         return pov2;
       }
 
@@ -28399,6 +28460,8 @@
         return this.size;
       }
 
+      
+
       // getTrueSize() {
       //   // const homeScreenSize = this.getHomeScreenSize();
       //   const trueSize = {
@@ -28909,12 +28972,12 @@
       //
       // }
 
-      class POV {
+      class POV {   
 
-        constructor(scale, center, size) {
+        constructor(scale, center, size) {    //SHU: horror is my co-pilot
           this.scale  = scale;
           this.center = center;
-          
+
           this.size   = size;
         }
 
@@ -28928,15 +28991,15 @@
           return trueRect;
         }
 
-        getTrueRect2() {
-          const trueRect1 = this.getTrueRect();
-          return {
-            x:      trueRect1.x, 
-            y:      trueRect1.y, 
-            width:  trueRect1.width  / this.scale.X, 
-            height: trueRect1.height / this.scale.Y,
-          };
-        }
+        // getTrueRect2() {
+        //   const trueRect1 = this.getTrueRect();
+        //   return {
+        //     x:      trueRect1.x, 
+        //     y:      trueRect1.y, 
+        //     width:  trueRect1.width  / this.scale.X, 
+        //     height: trueRect1.height / this.scale.Y,
+        //   };
+        // }
 
         static createPOVWithValues(scale_X, scale_Y, center_x, center_y, size_width, size_height) {
           const scale = {
@@ -28950,18 +29013,6 @@
           const size = {
             width:  size_width,
             height: size_height,
-          };
-          return new POV(scale, center, size);
-        }
-
-        static createPOVWithRectAndScale(trueRect, scale) {
-          const center = {
-            x: trueRect.x + (trueRect.width  / 2.0),
-            y: trueRect.y + (trueRect.height / 2.0),
-          };
-          const size = {
-            width:  trueRect.width,
-            height: trueRect.height,
           };
           return new POV(scale, center, size);
         }
@@ -49846,6 +49897,14 @@
             height: (rectRel.b - rectRel.t) * rect_container.height,
           };
 
+          //4 to the floor
+          outRect = {
+            x:      math.floor(outRect.x),
+            y:      math.floor(outRect.y),
+            width:  math.floor(outRect.width),
+            height: math.floor(outRect.height),
+          };
+
           return outRect;
         }
 
@@ -51296,7 +51355,8 @@
 
       class PortalCrossing { //GeometryWise Screen-wise
 
-        constructor(fabricIntegration) {
+        constructor(infiniteCanvas, fabricIntegration) {
+          this.infiniteCanvas    = infiniteCanvas;
           this.fabricIntegration = fabricIntegration;
         }
 
@@ -51311,7 +51371,7 @@
         pov2For_pov1_in_icObj1_and_icObj2(pov1, icObj__portal_in, icObj__portal_out) {
 
           //compute relative rect for pov1 in icObj__portal_in
-          const trueRect__pov1              = pov1.getTrueRect2();
+          const trueRect__pov1              = pov1.getTrueRect();
           const trueRect__icObj__portal_in  = icObj__portal_in.getTrueRect2();
           const trueRect__icObj__portal_out = icObj__portal_out.getTrueRect2();
 
@@ -51321,7 +51381,11 @@
             X: pov1.scale.X * icObj__portal_out.homeScale.X / icObj__portal_in.homeScale.X, 
             Y: pov1.scale.Y * icObj__portal_out.homeScale.Y / icObj__portal_in.homeScale.Y,
           };
-          const pov2   = POV.createPOVWithRectAndScale(trueRect__pov2, scale2);
+
+
+          const infiniteCanvas = this.infiniteCanvas; 
+
+          const pov2 = infiniteCanvas.createPOVWithRect(trueRect__pov2);
 
           return pov2;
         }
@@ -51335,14 +51399,14 @@
       const PortalCrossingSingleton = (function () {
         var instance;
 
-        function createInstance(fabricIntegration) {
-          var object = new PortalCrossing(fabricIntegration);
+        function createInstance(infiniteCanvas, fabricIntegration) {
+          var object = new PortalCrossing(infiniteCanvas, fabricIntegration);
           return object;
         }
 
         return {
-          initializeInstance: function (fabricIntegration) {
-            const sharedInstance = createInstance(fabricIntegration);
+          initializeInstance: function (infiniteCanvas, fabricIntegration) {
+            const sharedInstance = createInstance(infiniteCanvas, fabricIntegration);
             instance = sharedInstance;
           },
           sharedInstance: function () {
@@ -57428,7 +57492,7 @@
 
         Touch2Singleton.initializeInstance(fabricIntegration);
         DiveTouchSingleton.initializeInstance(fabricIntegration);
-        PortalCrossingSingleton.initializeInstance(fabricIntegration);
+        PortalCrossingSingleton.initializeInstance(infiniteCanvas, fabricIntegration);
 
 
         // const clipboardIntegration = new ClipboardIntegration(fileIntegration, fabricIntegration);
