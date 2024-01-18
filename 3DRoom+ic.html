@@ -7703,6 +7703,8 @@
 
         this.isDryScrolling         = false;
 
+        this.isTransportationMode = false;
+
         this.counter__event = 1;  //shu: this starts at 1
 
         // this.isRecording = false;
@@ -8232,6 +8234,17 @@
         return outIcObj;            
       }
 
+
+      getArr_icObj__underCursor(repName = "official") {
+        const true_cursor = infiniteCanvas.getTrueCursor();
+        const arr_icObj = infiniteCanvas.getArr_icObj__containingPoint(repName, true_cursor);
+        return arr_icObj;
+      }
+
+      getIcObj__underCursor(repName = "official") {
+        const icObj = infiniteCanvas.getArr_icObj__underCursor(repName).find(e => true);
+        return icObj;
+      }
 
 
 
@@ -25860,6 +25873,63 @@
 
 
 
+      //transportation
+
+      manageTransportation(screment) {
+
+        //get transportation pod
+        const icObj_tpod = this.getTransportationPod();
+        logger.log("logTransport", "icObj_tpod:", icObj_tpod);
+
+        //get next pod
+        const icObj_tpod__next = this.getTransportationPod_next(icObj_tpod, screment);
+        logger.log("logTransport", "icObj_tpod__next:", icObj_tpod__next);
+
+        //transport to next pod
+        this.transportFromPodToPod(icObj_tpod, icObj_tpod__next);
+      }
+
+      getTransportationPod() {
+        //get object under cursor
+        const icObj__under_cursor = infiniteCanvas.getIcObj__underCursor("free");
+
+        return icObj__under_cursor;
+      }
+
+      getTransportationPod_next(icObj_tpod, screment, func_filter_in = null) {
+        
+        var func_filter;
+        if(func_filter_in == null) {
+          const func_filter__same_type = (icObj) => {
+            return icObj.type == icObj_tpod.type;
+          };
+          func_filter = func_filter__same_type;
+        } else {
+          func_filter = func_filter_in;
+        }
+        
+        //get other objects
+        const arr_icObj = infiniteCanvas.getArr_icObj("free").filter(func_filter);
+
+        const icObj_tpod__next = arr_icObj.find((icObj) => (icObj != icObj_tpod));
+
+        return icObj_tpod__next;
+      }
+
+      transportFromPodToPod(icObj_tpod1, icObj_tpod2) {
+
+        //get screenPov
+        const pov1 = infiniteCanvas.getCurrentPov();
+
+        //get pov2
+        const pov2 = infiniteCanvas.getPov2WrtIcObj2_sameWayAsPov1WrtIcObj1(icObj_tpod2, pov1, icObj_tpod1);
+
+        //set pov
+        this.set_pov(pov2);
+      }
+
+
+
 
 
 
@@ -27224,6 +27294,10 @@
       }
 
 
+      getPov2WrtIcObj2_sameWayAsPov1WrtIcObj1(icObj2, pov1, icObj1) {
+        const pov2 = this.getPovForIcObj(icObj2);
+        return pov2;
+      }
 
 
 
@@ -54640,6 +54714,10 @@
               infiniteCanvas.isImportMode = isActive;
             }),
 
+            e: new KeyDownToggle("e", KeyDownToggle.defaultKeyDownFunc(["KeyE"]), (isActive) => {
+              infiniteCanvas.isTransportationMode = isActive;
+            }),
+
             shiftLeft: new KeyDownToggle("shiftLeft", KeyDownToggle.defaultKeyDownFunc(["ShiftLeft"]), (isActive) => {
               //only side effect is used
             }),
@@ -55338,8 +55416,13 @@
               // keyboardIntegration.infiniteCanvas.addNewGMOperator_editable("x 1");
 
               // keyboardIntegration.infiniteCanvas.operateOnActiveObject__export_asImg();
+
+              if(infiniteCanvas.isTransportationMode) {
+                infiniteCanvas.isTransportationMode = false;
+              } else {
+                keyboardIntegration.infiniteCanvas.operateOnSelected__warp();
+              }
               
-              keyboardIntegration.infiniteCanvas.operateOnSelected__warp();
             }),
 
             "KeyF": new KeyUpTrigger("KeyF", KeyUpTrigger.defaultKeyUpFunc(["KeyF"]), () => {
@@ -56508,6 +56591,11 @@
           function onMouseWheel(event) {
             logger.log("logMI", "onMouseWheel:", event);
 
+            if (keyboardIntegration.keyDownToggles.e.isActive) {
+              transportationScroll(event);
+            } 
+            /**/else/**/ 
+
             if (keyboardIntegration.keyDownToggles.c.isActive && keyboardIntegration.keyDownToggles.v.isActive) {
               lightnessScroll(event);
             } 
@@ -56613,6 +56701,12 @@
                 };
               }
               infiniteCanvas.manageUpdate__selectedObj__value(cfg);
+            }
+
+            function transportationScroll(event) {
+              const deltaY    = event.deltaY;
+              const screment  = deltaY > 0 ? 1 : -1;
+              infiniteCanvas.manageTransportation(screment);
             }
 
             function getShiftAmount(event) {
@@ -88124,8 +88218,9 @@
 
             // this.debug_dive_op();
             // this.debug_innerCam();
-            this.debug_portal();
-
+            this.debug_transportation();
+            // this.debug_portal();
+            
 
           } catch(e) {
             logger.log("logError", e);
@@ -93904,6 +93999,58 @@
           const icInnerCam = infiniteCanvas.createIcInnerCam(trueRect__innerCam);
 
           infiniteCanvas.addIcObject(icInnerCam);
+        }
+
+        debug_transportation() {
+
+          {
+            //rect
+            const trueRect__rect = {
+              x:        600,
+              y:        600,
+              width:    100,
+              height:   100,
+            };
+            const icRect = infiniteCanvas.createIcRect(trueRect__rect);
+            icRect.fill    = "blue";
+            icRect.opacity = 0.2;
+            infiniteCanvas.addIcObject(icRect);
+
+            //icMathNode
+            const trueRect__constant = {
+              x:  trueRect__rect.x + 200,
+              y:  trueRect__rect.y + 50,
+              width:  100,
+              height: 100,
+            };
+            const icMathNode__constant = infiniteCanvas.createIcMathNode(trueRect__constant.x, trueRect__constant.y, new math.ConstantNode(1));
+            infiniteCanvas.addIcObject(icMathNode__constant);
+          }
+
+          {
+            //rect
+            const trueRect__rect = {
+              x:        6600,
+              y:        6600,
+              width:    100,
+              height:   100,
+            };
+            const icRect = infiniteCanvas.createIcRect(trueRect__rect);
+            icRect.fill    = "orange";
+            icRect.opacity = 0.2;
+            infiniteCanvas.addIcObject(icRect);
+
+            //icMathNode
+            const trueRect__constant = {
+              x:  trueRect__rect.x + 200,
+              y:  trueRect__rect.y + 50,
+              width:  100,
+              height: 100,
+            };
+            const icMathNode__constant = infiniteCanvas.createIcMathNode(trueRect__constant.x, trueRect__constant.y, new math.ConstantNode(2));
+            infiniteCanvas.addIcObject(icMathNode__constant);
+          }
+
         }
 
         debug_portal() {
