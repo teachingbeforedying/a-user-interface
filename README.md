@@ -1,3 +1,7 @@
+# A User Interface
+<img src="./img/aui__base.png" width="20%" height="20%">
+
+## Drawing demo
 <img src="./img/ezgif-1-c40d1c86f3.gif" width="50%" height="50%">
 
 ## Try it !
