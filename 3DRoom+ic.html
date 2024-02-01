@@ -801,10 +801,10 @@
   <script src='lib/peerjs@1.4.7.min.js' type='text/javascript'> </script>
 
 
-
-
-
-
+  <!-- pre UI -->
+  <script src='lib/curve/curve.min.js'        type='text/javascript'></script>
+  <!--<script src='lib/curve/curve_func.min.js'   type='text/javascript'></script>-->
+  <script src='lib/curve/curve_calc.min.js'   type='text/javascript'></script>
 
   <!-- UI -->
   <script src='lib/fabric.531.min.js'      type='text/javascript'></script>
@@ -822,6 +822,8 @@
   <script src='lib/fabric+comb.js'         type='text/javascript'></script>
   
   <script src='lib/fabricjs+floodFill.js'  type='text/javascript'></script>
+
+  <script src='lib/fabricjs+curve3.js'  type='text/javascript'></script>
 
 
   <script>
@@ -8709,6 +8711,39 @@
 
       }
 
+
+      createIcCurve3(point1, point2, point3) {
+        logger.log("logCurve3", "createIcCurve3", point1, point2, point3);
+
+        const type = "curve3";
+
+        const arr_point = [point1, point2, point3];
+        const trueRect__enveloppe = Geometry.getEnveloppeRect(arr_point);
+
+        const position = {x: trueRect__enveloppe.x, y: trueRect__enveloppe.y};
+        const size     = {width: trueRect__enveloppe.width, height: trueRect__enveloppe.height};
+
+        const homeScale = Object.assign({}, this.scale);
+
+        const icObj = this.createIcObject(type, position, size, homeScale);
+
+        const icCurve3_spec = {
+          "arr_point": arr_point,
+          
+          "color":     "purple",
+          "fillColor": "black",
+
+          "pointType": "undefined",
+        };
+
+        const icCurve3 = Object.assign(icObj, icCurve3_spec);
+
+        return icCurve3;
+      }
+
+      createIcZCurve3(point1, point2, point3) {
+        
+      }
 
 
       createIcCircle(pointCenter, radius, cfg_in = {}) {
@@ -25221,7 +25256,7 @@
       //   offsetY -= unitsAddTop;
 
       manageUpdate__scale_withScaleAmount(scaleAmount) {
-        logger.log("log1", "manageScaleUpdateWithScaleAmount", scaleAmount);
+        logger.log("log1", "manageUpdate__scale_withScaleAmount", scaleAmount);
 
         const infiniteCanvas = this;
 
@@ -25285,8 +25320,36 @@
           };
         
           fabricIntegration.simulateMouseUpDown__with_freeDrawingBrush(() => {
+
+            // //get cursor: zSegment start 
+            // const true_cursorA = infiniteCanvas.getTrueCursor();
+            // logger.log("logZSegmentFreeDrawing", "true_cursorA:", true_cursorA);
+            
             fabricIntegration.leaveFreeDrawing__atomic();
             func_inBetween__updateScaleAndDOffset();
+
+            // //get cursor: zSegment end
+            // const true_cursorB = infiniteCanvas.getTrueCursor();
+            // logger.log("logZSegmentFreeDrawing", "true_cursorB:", true_cursorB);
+
+            // //create/add zSegment
+            // try {
+
+            //   const r__start = fabricIntegration.freeDrawingBrush.width;
+            //   const r__end   = r_start * factor;
+
+            //   const zSegment = infiniteCanvas.createIcZSegment(true_cursorA, r__start, true_cursorB, r__end);
+            //   zSegment.parts.zPoint_start.fill  = "yellow";
+            //   zSegment.parts.zPoint_end         = "yellow";
+            //   zSegment.parts.zsstroke           = "yellow";
+
+            //   infiniteCanvas.addIcObject(zSegment);
+
+            // } catch(e) {
+            //   logger.log("logZSegmentFreeDrawing", "catch(e):", e);
+            // }
+            
+            
             fabricIntegration.enterFreeDrawing__atomic({isCosmetic: false});
           });
 
@@ -40050,6 +40113,13 @@
               break;
 
 
+            case "curve3":
+              {
+                const fObj = this.createFabricCurve3WithIcObj(icObj);
+                fObj_p = Promise.resolve(fObj);
+              }
+              break;
+
             case "circle":
               {
                 const fObj = this.createFabricCircleWithIcObj(icObj);
@@ -41181,6 +41251,44 @@
           this.addInteraction_select(fObj);
           // this.addListeners(fObj);
 
+
+          return fObj;
+        }
+
+
+
+        createFabricCurve3WithIcObj(icObj) {
+          logger.log("logFabric", "createFabricCurve3WithIcObj", icObj);
+
+          const infiniteCanvas = this.infiniteCanvas;
+
+          const arr_point__icObj = icObj.arr_point;
+          const size__icObj      = icObj.size;
+          
+          //offset all points
+          const offset = {
+            dx: - icObj.position.x - size__icObj.width  / 2.0,
+            dy: - icObj.position.y - size__icObj.height / 2.0,
+          };
+          const arr_point__offsetted = arr_point__icObj.map((point_raw) => {
+            return Geometry.createPointWithOffset(point_raw, offset);
+          });  
+
+          //create square
+          var fObj = new fabric.Curve3(arr_point__offsetted.slice(0,3));
+
+          fObj.set({
+            width:    size__icObj.width,
+            height:   size__icObj.height,
+
+            originX: "left",
+            originY: "top",
+
+            stroke: "magenta",
+            strokeWidth: 3,
+
+            icObj: icObj,
+          });
 
           return fObj;
         }
@@ -88788,7 +88896,10 @@
             // this.debug_dive_op();
             // this.debug_innerCam();
             // this.debug_transportation();
-            this.debug_portal();
+            // this.debug_portal();
+
+            this.debug_curve3();
+            // this.debug_zcurve3();
             
 
           } catch(e) {
@@ -94746,6 +94857,28 @@
             infiniteCanvas.addIcObject(icPortal);
           }
 
+          //portal
+          {
+            const trueRect__rect3 = {
+              x:        605,
+              y:        115,
+              width:    10,
+              height:   10,
+            };
+            const trueRect__rect4 = {
+              x:        800,
+              y:        800,
+              width:    400,
+              height:   400,
+            };
+  
+            const icPortal = infiniteCanvas.createIcPortal(trueRect__rect3, trueRect__rect4);
+            icPortal.parts.rect__in.opacity  = 0.5;
+            icPortal.parts.rect__out.opacity = 0.5;
+  
+            infiniteCanvas.addIcObject(icPortal);
+          }
+
           //innerCamPortal
           {
             const trueRect__rect1 = {
@@ -94768,6 +94901,33 @@
 
 
         }
+
+
+        debug_curve3() {
+
+          const point1 = {x: 100, y: 100};
+          const point2 = {x: 500, y: 200};
+          const point3 = {x: 100, y: 900};
+
+          const arr_point = [point1, point2, point3];
+
+          const icCurve3 = infiniteCanvas.createIcCurve3(...arr_point);
+          infiniteCanvas.addIcObject(icCurve3);
+
+          arr_point.forEach((point) => {
+            const icPoint = infiniteCanvas.createIcPoint(point);
+            icPoint.fill = "yellow";
+            
+            infiniteCanvas.addIcObject(icPoint);
+          });
+
+        }
+
+        debug_zcurve3() {
+          // const icZCurve3 = 
+
+        }
+
 
 
 
