@@ -803,6 +803,7 @@
 
   <!-- pre UI -->
   <script src='lib/curve/curve.min.js'        type='text/javascript'></script>
+  <!--<script src='lib/curve/curve.js'        type='text/javascript'></script>-->
   <!--<script src='lib/curve/curve_func.min.js'   type='text/javascript'></script>-->
   <script src='lib/curve/curve_calc.min.js'   type='text/javascript'></script>
 
@@ -8739,6 +8740,81 @@
         const icCurve3 = Object.assign(icObj, icCurve3_spec);
 
         return icCurve3;
+      }
+
+      createIcCompositeCurve3(point1, point2, point3) {
+        logger.log("logCurve3", "createIcCompositeCurve3", point1, point2, point3);
+
+        const pointCenter = Geometry.getCenterPoint(Geometry.createLTRect(trueRect));
+        const strokeWidth = trueRect.width / 20;
+        const radius = trueRect.width / 2 - strokeWidth / 2;
+
+        const cfg_circle__bg = {
+          strokeWidth: strokeWidth,
+          stroke: "grey",
+          fillColor: "",
+        };
+        const circle__bg = infiniteCanvas.createIcCircle(pointCenter, radius, cfg_circle__bg);
+        const cfg_arc = {
+          strokeWidth: strokeWidth,
+          stroke: "gold",
+          fillColor: "",
+        };
+        const arc = infiniteCanvas.createIcArcOfCircle(pointCenter, radius, 0, progress * 360, cfg_arc);
+
+        var arr_point__crown = [
+          Geometry.createPoint(0, 100),
+          Geometry.createPoint(100, 150),
+          Geometry.createPoint(250, 0),
+          Geometry.createPoint(400, 150),
+          Geometry.createPoint(500, 100),
+          Geometry.createPoint(400, 400),
+          Geometry.createPoint(100, 400),
+        ];
+        arr_point__crown = Geometry.getCenterScaledPolygon(arr_point__crown, 0.10);
+        const point__src = Geometry.getCenterPoint(Geometry.createLTRect(Geometry.getEnveloppeRect(arr_point__crown)));
+        const point__dst = Geometry.pointOnCircle__angleInDegrees(pointCenter, radius, 0);
+        arr_point__crown = Geometry.getTranslatedPolygon(arr_point__crown, point__src, point__dst);
+
+        const cfg__crown = {
+          stroke: "grey",
+          strokeWidth: 5,
+
+          fillColor: "gold",
+        };
+        const crownSymbol = infiniteCanvas.createIcPolygon(arr_point__crown, cfg__crown);
+        const facade = infiniteCanvas.createIcRect(Geometry.getCenterScaledRect(trueRect, 0.5));
+
+        const parts = {
+          "circle_bg": circle__bg,
+          "arc": arc,
+          "crownSymbol": crownSymbol,
+
+          //"facade":      facade,
+        };
+
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+
+        const icComposite = this.createIcComposite(trueRect, parts, compositeConfig);
+        icComposite.cType = "progress_marker";
+
+        //debug
+        // const icObj = icComposite;
+        // setTimeout(() => {
+        //   const represented = infiniteCanvas.getRepresented(icObj.id);
+        //   const rep_free    = represented.r_free();
+        //
+        //   // const progress = 0.9;
+        //   // rep_free.progress = progress;
+        //
+        //   const arcStart = 40;
+        //   const arcEnd   = 160;
+        //   rep_free.parts.arc.arcStart = arcStart;
+        //   rep_free.parts.arc.arcEnd   = arcEnd;
+        //
+        // }, 2000);
+
+        return icComposite;
       }
 
       createIcZCurve3(point1, point2, point3) {
@@ -39729,13 +39805,18 @@
                 logger.log("logZSegment", "innerUpdate", "arr_point", icObj.arr_point);
                 const arr_point = icObj.arr_point;
 
-                fObj.set({
-                  points: arr_point,
-                });
-                fObj._setPositionDimensions({});
-                fObj.setCoords();
-
-                standardRedraw(fObj);
+                if(icObj.type == "compositeSegment") {
+                  fObj.set({
+                    points: arr_point,
+                  });
+                  fObj._setPositionDimensions({});
+                  fObj.setCoords();
+  
+                  standardRedraw(fObj);
+                } else {
+                  //composite curve
+                }
+                
               }
               else if (propName == "img") {
                 // fObj.refreshImg_p()
@@ -88898,8 +88979,8 @@
             // this.debug_transportation();
             // this.debug_portal();
 
-            this.debug_curve3();
-            // this.debug_zcurve3();
+            // this.debug_curve3();
+            this.debug_zcurve3();
             
 
           } catch(e) {
@@ -94914,16 +94995,53 @@
           const icCurve3 = infiniteCanvas.createIcCurve3(...arr_point);
           infiniteCanvas.addIcObject(icCurve3);
 
-          arr_point.forEach((point) => {
-            const icPoint = infiniteCanvas.createIcPoint(point);
-            icPoint.fill = "yellow";
+          // arr_point.forEach((point) => {
+          //   const icPoint = infiniteCanvas.createIcPoint(point);
+          //   icPoint.fill = "yellow";
             
-            infiniteCanvas.addIcObject(icPoint);
-          });
+          //   infiniteCanvas.addIcObject(icPoint);
+          // });
+
+        
+          // const icCompositeCurve3 = infiniteCanvas.createIcCompositeCurve3(...arr_point);
+          // infiniteCanvas.addIcObject(icCompositeCurve3);
 
         }
 
         debug_zcurve3() {
+
+          const point1 = {x: 100, y: 100};
+          const point2 = {x: 500, y: 200};
+          const point3 = {x: 100, y: 900};
+
+          const arr_point  = [point1, point2, point3];
+          const arr_radius = [50,20,80];
+
+          const arr_icCircle = Utils.zip(arr_point, arr_radius).map(([pointCenter, radius]) => {
+
+            const cfg_circle__bg = {
+              strokeWidth: 2,
+              stroke: "grey",
+              fillColor: ColorUtils.randomColor(),
+            };
+
+            const icCircle = infiniteCanvas.createIcCircle(pointCenter, radius, cfg_circle__bg);
+
+            return icCircle;
+          });
+
+          arr_icCircle.forEach((icCircle) => {
+            infiniteCanvas.addIcObject(icCircle);
+          });
+
+          const icCurve3__mid = infiniteCanvas.createIcCurve3(...arr_point);
+          infiniteCanvas.addIcObject(icCurve3__mid);
+
+          const arr_point__curve3_mid = getCurvePoints_easy()
+          const arr_point__curve3_mid = getCurvePoints_easy()
+
+
+
           // const icZCurve3 = 
 
         }
