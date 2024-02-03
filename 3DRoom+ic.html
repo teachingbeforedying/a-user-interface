@@ -8826,7 +8826,10 @@
 
         const type = "circle";
         // const position  = Geometry.createPoint(left, top);
-        const size = Geometry.createSize(radius, radius);
+
+        const diameter = 2 * radius;
+        const size = Geometry.createSize(diameter, diameter);
+        // const size    = Geometry.createSize(radius, radius);
         const homeScale = Object.assign({}, this.scale);
 
         const icObj = this.createIcObject(type, pointCenter, size, homeScale);
@@ -41395,9 +41398,9 @@
 
           fObj.set({
             left: position_screen.x,
-            top: position_screen.y,
+            top:  position_screen.y,
 
-            width: homeSize_screen.width,
+            width:  homeSize_screen.width,
             height: homeSize_screen.height,
 
             scaleX: icObj.scale.X,
@@ -41491,7 +41494,7 @@
             angle: icObj.orientation,
 
             //radius: icObj.radius,
-            rx: homeSize_screen.width / 2.0,
+            rx: homeSize_screen.width  / 2.0,
             ry: homeSize_screen.height / 2.0,
 
             // fill: '#f55',
@@ -50318,8 +50321,10 @@
 
           const d = Geometry.norm_2d(v_in);
           outV = {
-            X: v_in.X / math.sqrt(d),
-            Y: v_in.Y / math.sqrt(d),
+            // X: v_in.X / math.sqrt(d),    //SHU: woups
+            // Y: v_in.Y / math.sqrt(d),    
+            X: v_in.X / d,    
+            Y: v_in.Y / d,
           };
           
           return outV;
@@ -51074,6 +51079,106 @@
           };
           return point;
         }
+
+
+
+        static convert__arrPointToArrXY(arr_point) {
+          return arr_point.reduce((acc,point) => {
+            acc.push(point.x);
+            acc.push(point.y);
+            return acc;
+          }, []);
+        }
+        
+        static convert__arrXYToArrPoint(arr_xy) {
+          return Utils.partition(arr_xy, 2).reduce((acc,[x,y]) => {
+            const point = Geometry.createPoint(x,y);
+            acc.push(point);
+            return acc;
+          }, []);
+        }
+        
+        static getArrPoint_curve_easy(arr_point__checkpoint,tension,numOfSeg,close) {
+            const arr_xy__checkpoint  = Geometry.convert__arrPointToArrXY(arr_point__checkpoint);
+            
+            const arr_xy__curve       = getCurvePoints(arr_xy__checkpoint,tension,numOfSeg,close);  //from lib/curve_calc.min.js
+            
+            const arr_point__curve    = Geometry.convert__arrXYToArrPoint(arr_xy__curve);
+            return arr_point__curve; 
+        }
+
+        /*********--------------------*/
+        //?arr_point__curve must be pairwise equidistant?
+        static getArrVect2d_curveTangentVects(arr_point__curve) {
+          const arr_zip = Utils.zip(arr_point__curve.slice(0,-1), arr_point__curve.slice(1));  
+          return arr_zip.reduce((acc, [point__n, point__nPlus1]) => {
+            const vect__tangent = Geometry.vector_2d(point__n, point__nPlus1);
+            acc.push(vect__tangent);
+            return acc;
+          }, []);
+        }
+
+        static getArrVect2d_curveNormalVects(arr_point__curve) {
+          const arr_vect__tangent = Geometry.getArrVect2d_curveTangentVects(arr_point__curve);
+          return arr_vect__tangent.map((vect2d__tangent) => {
+            const vect2d__normal = {
+              X: +vect2d__tangent.Y,
+              Y: -vect2d__tangent.X,
+            };
+            return vect2d__normal;
+          });
+        }
+        
+        static getArrVect2d_curveTangentUnitVects(arr_point__curve) {
+          return Geometry.getArrVect2d_curveTangentVects(arr_point__curve).map((vect2d) => {
+            return Geometry.vector_2d__normalized(vect2d);
+          });
+        }
+        
+        static getArrVect2d_curveNormalUnitVects(arr_point__curve) {
+          return Geometry.getArrVect2d_curveNormalVects(arr_point__curve).map((vect2d) => {
+            return Geometry.vector_2d__normalized(vect2d);
+          });
+        }
+        /*-------------------*********/
+
+        static createArrPoint_carriedFunc(arr_point__curve, func_amplitude) {
+            const arr_vect__unitNormal__length_nMinus1 = Geometry.getArrVect2d_curveNormalUnitVects(arr_point__curve);
+            // logger.log("logCurve3", "arr_vect__unitNormal__length_nMinus1:", arr_vect__unitNormal__length_nMinus1);
+
+            const arr_vect__unitNormal__length_n = [
+              arr_vect__unitNormal__length_nMinus1[0],
+              ...Utils.zip(arr_vect__unitNormal__length_nMinus1.slice(0,-1), arr_vect__unitNormal__length_nMinus1.slice(1)).map(([v1,v2]) => {
+                const v__mean = {
+                  X: (v1.X + v2.X) / 2.0,
+                  Y: (v1.Y + v2.Y) / 2.0,
+                };
+                return v__mean;
+              }),
+              arr_vect__unitNormal__length_nMinus1.slice(-1)[0],
+            ].map((vect2d) => {
+              return Geometry.vector_2d__normalized(vect2d);
+            });
+            // logger.log("logCurve3", "arr_vect__unitNormal__length_n:", arr_vect__unitNormal__length_n);
+
+            const nb_points = arr_point__curve.length;
+            const arr_point__carried = Utils.zip(arr_point__curve, arr_vect__unitNormal__length_n).map(([point__curve, vect__unitNormal], index) => {
+              const progress  = index / (nb_points - 1);
+              const amplitude = func_amplitude(progress);
+              const vect_offset = {
+                X: vect__unitNormal.X * amplitude,
+                Y: vect__unitNormal.Y * amplitude,
+              };
+              logger.log("logCurve", "vect_offset", vect_offset);
+              const point__carried = {
+                x: point__curve.x + vect_offset.X,
+                y: point__curve.y + vect_offset.Y,
+              };
+              return point__carried;
+            });
+            return arr_point__carried;
+        }
+
 
       }
 
@@ -95015,7 +95120,17 @@
           const point3 = {x: 100, y: 900};
 
           const arr_point  = [point1, point2, point3];
-          const arr_radius = [50,20,80];
+          const arr_radius = [50,20,180];
+
+          // //debug
+          // Utils.zip(arr_point, arr_radius).forEach(([pointCenter, radius]) => {
+          //   const point__up = {
+          //     x: pointCenter.x,
+          //     y: pointCenter.y - radius,
+          //   };
+          //   const icPoint = infiniteCanvas.createIcPoint(point__up);
+          //   infiniteCanvas.addIcObject(icPoint);
+          // });
 
           const arr_icCircle = Utils.zip(arr_point, arr_radius).map(([pointCenter, radius]) => {
 
@@ -95037,9 +95152,50 @@
           const icCurve3__mid = infiniteCanvas.createIcCurve3(...arr_point);
           infiniteCanvas.addIcObject(icCurve3__mid);
 
-          const arr_point__curve3_mid = getCurvePoints_easy()
-          const arr_point__curve3_mid = getCurvePoints_easy()
+          // function func_amplitude__up(progress) {
+          //   return 50*progress*progress + 5;
+          // }
 
+          function func_amplitude__up(progress) {
+            var amp__raw;
+            if(progress<0.5) {
+              amp__raw = (arr_radius[1] - arr_radius[0]) * (2 * (progress - 0.0)) + arr_radius[0]; 
+            } else {
+              amp__raw = (arr_radius[2] - arr_radius[1]) * (2 * (progress - 0.5)) + arr_radius[1]; 
+            }
+            logger.log("logCurve", "amp__raw:", amp__raw);
+            return amp__raw;
+          }
+
+          // function func_amplitude__up(progress) {
+          //   return 50;
+          // }
+
+          function func_amplitude__down(progress) {
+            return -func_amplitude__up(progress);
+          }
+
+          const arr_point__curve_mid   = Geometry.getArrPoint_curve_easy(arr_point);
+
+          const arr_point__curve3_up   = Geometry.createArrPoint_carriedFunc(arr_point__curve_mid, func_amplitude__up);
+          // logger.log("logCurve3", "arr_point__curve3_up:", arr_point__curve3_up);
+          const arr_point__curve3_down = Geometry.createArrPoint_carriedFunc(arr_point__curve_mid, func_amplitude__down);
+
+          arr_point__curve3_up.forEach((point) => {
+            const icPoint = infiniteCanvas.createIcPoint(point);
+            icPoint.fill = "blue";
+            
+            infiniteCanvas.addIcObject(icPoint);
+          });
+
+          arr_point__curve3_down.forEach((point) => {
+            const icPoint = infiniteCanvas.createIcPoint(point);
+            icPoint.fill = "orange";
+            
+            infiniteCanvas.addIcObject(icPoint);
+          });
+
+          // const icPath = infiniteCanvas.createIcPath(arr_point);
 
 
           // const icZCurve3 = 
