@@ -12850,16 +12850,188 @@
         return outFunc;
       }
 
-      transformationFunc_ssConveyorWithArrPoint(arr_point) {
+      transformationFunc_pForSSConveyorWithArrPoint(arr_point) {
         var outFunc;
 
+        // outFunc = function (icObj) {
+
+        //   icObj.position = arr_point.slice(-1)[0];
+
+        //   var transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+
+        //   return transformationOutput;
+        // };
+
+        function func_length(point_A, point_B) {
+          return Geometry.norm_2d(Geometry.vector_2d(point_A, point_B));
+        }
+
+        const point__start  = arr_point[0];
+        const point__end    = arr_point.slice(-1)[0];
+
+        const arr_dict_segment__raw = Utils.zip(arr_point.slice(0,-1), arr_point.slice(1)).map(([point_A, point_B]) => {
+          const length__AB = func_length(point_A, point_B);
+          const miniDict__segment = {
+            length: length__AB,
+            point_A: point_A,
+            point_B: point_B,
+          }; 
+          return miniDict__segment;
+        });
+
+        const length__total = arr_dict_segment__raw.reduce((acc, dict__segment) => {
+          return acc + dict__segment.length;
+        }, 0);
+
+        const arr_dict_segment__refined = arr_dict_segment__raw.reduce((acc, dict__segment) => {
+          
+          dict__segment.absc_A = acc.absc__current;
+          dict__segment.absc_B = dict__segment.absc_A + dict__segment.length;
+          
+          dict__segment.progress_A = 1.0 * dict__segment.absc_A / length__total;
+          dict__segment.progress_B = 1.0 * dict__segment.absc_B / length__total;
+          
+          acc.arr_segment.push(dict__segment);
+          acc.absc__current = dict__segment.absc_B;
+
+          return acc;
+        }, {
+          arr_segment: [],
+          absc__current: 0,
+        }).arr_segment;
+        logger.log("logSSPathmade", "arr_dict_segment__refined:", arr_dict_segment__refined);
+
+        const duration__total = 2000;
+        const nb_step         = 100;
+        const duration__step  = 1.0 * duration__total / nb_step;
+
+        const progress__step  = 1.0 / (nb_step-1);
+
+        const arr_progress = [...Array(nb_step).keys()].map((index) => {
+          const progress = index * progress__step;
+          return progress;
+        });
+
+        function pointForProgress(progress, arr_dict_segment) {
+          var outPoint;
+
+          if(progress == 1.0) {
+            outPoint = arr_dict_segment.slice(-1)[0].point_B;
+          } else {
+            const dict__segment = arr_dict_segment.find((dict__segment) => (dict__segment.progress_A <= progress) && (progress < dict__segment.progress_B) );
+            logger.log("logSSPathmade", "dict__segment:", dict__segment);
+            
+            const progress__inner = (progress - dict__segment.progress_A) / (dict__segment.progress_B - dict__segment.progress_A);
+            const point__progress__inner = {
+              x: dict__segment.point_A.x + progress__inner * (dict__segment.point_B.x - dict__segment.point_A.x),  
+              y: dict__segment.point_A.y + progress__inner * (dict__segment.point_B.y - dict__segment.point_A.y),
+            };
+            outPoint = point__progress__inner;
+          }
+
+          return outPoint;
+        }
+
+        //create artifical array of points with constant progress step
+        const arr_point__step = arr_progress.map((progress) => {
+          const point__progress = pointForProgress(progress, arr_dict_segment__refined);
+          return point__progress;
+        });
+
+        function createMoveEventForPoint(point) {
+          var outMoveEvent;
+
+          outMoveEvent = {};
+
+          outMoveEvent.data    = {};
+          outMoveEvent.data.offset = {
+            dx: point.x - point__start.x,
+            dy: point.y - point__start.y,
+          };
+
+          return outMoveEvent;
+        }
+
+        const arr_moveEvent = arr_point__step.reduce((acc, point) => {
+
+          const moveEvent = createMoveEventForPoint(point);
+          
+          // moveEvent.data.time = acc.time;
+          moveEvent.timeout = acc.time;
+
+          acc.arr_event.push(moveEvent);
+
+          acc.time += duration__step;
+
+          return acc;
+        }, {
+          arr_event: [],
+          time: 0,
+        }).arr_event;
+
         outFunc = function (icObj) {
+          var out_p;
 
-          icObj.position = arr_point.slice(-1)[0];
+          //follow a new path
+          icObj.counter__path += 1;
+          const index__path = icObj.counter__path;
 
-          var transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+          const arr_event__move = arr_moveEvent;
 
-          return transformationOutput;
+          //get initial position
+          const position__start = Object.assign({}, icObj.position);
+
+          if (arr_event__move.length > 0) {
+            function createPromiseForMoveEvent(moveEvent) {
+              return new Promise((resolve, reject) => {
+
+                setTimeout(() => {
+
+                  if (icObj.counter__path == index__path) {
+
+                    const rep_free = icObj;
+
+                    //"apply" event
+                    const position__new = {
+                      // x: rep_free.position.x + moveEvent.data.offset.dx,
+                      // y: rep_free.position.y + moveEvent.data.offset.dy,
+                      x: position__start.x + moveEvent.data.offset.dx,
+                      y: position__start.y + moveEvent.data.offset.dy,
+                    };
+                    rep_free.position = position__new;
+
+                    resolve(rep_free);
+
+                  } else {
+                    // const err = new Error("icObj.id__replayObj != replayObj.id");
+                    // reject(err);
+                    resolve(icObj);
+                  }
+
+                }, moveEvent.timeout);
+              });
+            }
+
+            const arr_promise = arr_event__move.map(createPromiseForMoveEvent);
+
+            var transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+
+            out_p = bluebird.reduce(arr_promise, (acc, x) => {
+              // logger.log("x", x);
+              return acc;
+            }, transformationOutput);
+
+            //debug
+            // out_p = out_p.then(transformationOutput => {
+            //   logger.log("transformationOutput", transformationOutput);
+            //   return transformationOutput;
+            // });
+
+          } else {
+            out_p = Promise.reject(new Error("arr_event__replay.length == 0"));
+          }
+
+          return out_p;
         };
 
         return outFunc;
@@ -13400,7 +13572,16 @@
 
         const text_in = "ssPathmade:conveyor";
 
-        const transformationFunc = infiniteCanvas.transformationFunc_ssConveyorWithArrPoint(arr_point);
+        // const transformationFunc = infiniteCanvas.transformationFunc_pForSSConveyorWithArrPoint(arr_point);
+
+        const transformationFunc = async function (icObj, icTouchSlot) {
+          const transformationFunc_p = infiniteCanvas.transformationFunc_pForSSConveyorWithArrPoint(arr_point);
+          const transformationOutput = await transformationFunc_p(icObj)
+            .then(transformationOutput => {
+              return transformationOutput;
+            });
+          return transformationOutput;
+        };
 
         const operatorConfig = new OperatorConfig(text_in, transformationFunc);
 
@@ -49439,6 +49620,11 @@
           //enter drawing mode
           fabricCanvas.isDrawingMode = true;
 
+          const size__start = {
+            width:  70,
+            height: 70,
+          };
+
 
           function startDrawing(e) {
             // logger.log("startDrawing", e);
@@ -49497,23 +49683,23 @@
 
 
 
-            //create dummy
-            const true_cursor = infiniteCanvas.getTrueCursor();
-            const trueRect = {
-              x: true_cursor.x,
-              y: true_cursor.y,
-              width: 100,
-              height: 100,
-            };
-            const icDummy = infiniteCanvas.createIcDummy(trueRect);
-            icDummy.originX = "center";
-            icDummy.originY = "center";
+            // //create dummy
+            // const true_cursor = infiniteCanvas.getTrueCursor();
+            // const trueRect = {
+            //   x: true_cursor.x,
+            //   y: true_cursor.y,
+            //   width: 100,
+            //   height: 100,
+            // };
+            // const icDummy = infiniteCanvas.createIcDummy(trueRect);
+            // icDummy.originX = "center";
+            // icDummy.originY = "center";
 
-            infiniteCanvas.onceOnAddRepresentedForIcObject(icDummy, (icDummy) => {
-              const rep_free__dummy = infiniteCanvas.getRepresented(icDummy.id).r_free();
-              fabricIntegration.ssPathmadeOperatorDrawing_dummy = rep_free__dummy;
-            });
-            infiniteCanvas.addIcObject(icDummy);
+            // infiniteCanvas.onceOnAddRepresentedForIcObject(icDummy, (icDummy) => {
+            //   const rep_free__dummy = infiniteCanvas.getRepresented(icDummy.id).r_free();
+            //   fabricIntegration.ssPathmadeOperatorDrawing_dummy = rep_free__dummy;
+            // });
+            // infiniteCanvas.addIcObject(icDummy);
 
 
             //start pathmadeOperator creation
@@ -49525,8 +49711,8 @@
             fabricCanvas.off('mouse:up', stopDrawing);
 
             //store dummy size
-            const icDummy = fabricIntegration.ssPathmadeOperatorDrawing_dummy;
-            const size__start = Object.assign({}, icDummy.size);
+            // const icDummy = fabricIntegration.ssPathmadeOperatorDrawing_dummy;
+            // const size__start = Object.assign({}, icDummy.size);
 
 
             
