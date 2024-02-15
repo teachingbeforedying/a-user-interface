@@ -12813,6 +12813,12 @@
                     const position__new = moveEvent.data.position;
                     rep_free.position = position__new;
 
+                      //debug
+                    // if("homeScale" in moveEvent.data) {
+                    //   const homeScale__new = moveEvent.data.homeScale;
+                    //   rep_free.homeScale = homeScale__new;
+                    // }
+
                     resolve(rep_free);
 
                   } else {
@@ -16648,7 +16654,7 @@
 
 
       createIcGMOperator(trueRect, cfg) {
-        logger.log("logGolf", "createIcGMOperator", trueRect, cfg);
+        logger.log("logGMOp", "createIcGMOperator", trueRect, cfg);
         const operatorNodeFactoryFuncWrapper = cfg.operatorNodeFactoryFuncWrapper;
         const isEnabled = cfg.isEnabled;
         
@@ -16693,7 +16699,7 @@
       }
 
       createIcGMOperator_withType(trueRect, gmOperatorType, cfg = {}) {
-        console.log("createIcGMOperator_withType", trueRect, gmOperatorType);
+        console.log("logGMOp", "createIcGMOperator_withType", trueRect, gmOperatorType);
 
         const infiniteCanvas = this;
 
@@ -16705,7 +16711,7 @@
       }
 
       createIcGMOperator_withConfig(trueRect, operatorConfig, cfg = {}) {
-        console.log("createIcGMOperator_withConfig", trueRect, operatorConfig);
+        console.log("logGMOp", "createIcGMOperator_withConfig", trueRect, operatorConfig);
 
         const infiniteCanvas = this;
 
@@ -21476,7 +21482,7 @@
 
         const infiniteCanvas = this;
 
-        if (outerUpdatesDict.position) {
+        if (outerUpdatesDict.position && outerUpdatesDict.homeScale) {
 
           var time = performance.now();
           logger.log("time", time);
@@ -21485,7 +21491,9 @@
           // logger.log("timestamp", timestamp);
 
           const icObj__id = icObj.id;
-          const position__new = Object.assign({}, outerUpdatesDict.position.new);
+          const position__new  = Object.assign({}, outerUpdatesDict.position.new);
+          const homeScale__new = Object.assign({}, outerUpdatesDict.homeScale.new);
+
 
           const revision = infiniteCanvas.generateIcEventIndex();
 
@@ -21493,7 +21501,52 @@
             // type: "move",
             data: {
               id: icObj__id,
-              position: position__new,
+              position:  position__new,
+              homeScale: homeScale__new,
+              time: time,
+            },
+
+            //SHU: wolken-related
+            context: {
+              name: 'ux',
+            },
+            aggregate: {
+              name: 'icObject',
+              id: uuid__unknown,
+            },
+            name: 'icObjZMoved',
+
+            metadata: {
+              correlationId: uuid__unknown,
+              causationId: uuid__unknown,
+
+              revision: revision,
+              timestamp: time,
+            },
+
+          };
+
+          outIcEvent = icEvent__move;
+        }
+
+        else if (outerUpdatesDict.position) {
+
+          var time = performance.now();
+          logger.log("time", time);
+
+          // var timestamp = Date.now();
+          // logger.log("timestamp", timestamp);
+
+          const icObj__id = icObj.id;
+          const position__new  = Object.assign({}, outerUpdatesDict.position.new);
+
+          const revision = infiniteCanvas.generateIcEventIndex();
+
+          const icEvent__move = {
+            // type: "move",
+            data: {
+              id: icObj__id,
+              position:  position__new,
               time: time,
             },
 
@@ -21518,7 +21571,7 @@
           };
 
           outIcEvent = icEvent__move;
-        }
+        } 
 
         //for hexmap
         else if (outerUpdatesDict.isHeld) {
@@ -24598,6 +24651,16 @@
 
       }
 
+      operateOnSelected__crown() {
+        const infiniteCanvas = this;
+
+        //get selected icObj
+        const icObj__selected = infiniteCanvas.getSelectedIcObj();
+
+        //crown object i.e. store id
+        infiniteCanvas.id__crown = icObj__selected.id;
+      }
+
 
 
       addNewLabelValue(text, value) {
@@ -26831,669 +26894,32 @@
 
       }
 
+      numberTyping_getInputTex() {
+        
+        const mathField = this.mathField_numberTyping;
+
+        const tex = mathField.latex();
+        logger.log("logNT", "tex:", tex);
+        return tex;
+      }
+
       leaveNumberTyping() {
         logger.log("logNT", "leaveNumberTyping");
         const infiniteCanvas = this;
-
-        const mathField = this.mathField_numberTyping;
 
         //mathQuill
         {
 
           //transfer tex
           {
-            const tex = mathField.latex();
-            logger.log("logNT", "tex:", tex);
+            const tex = infiniteCanvas.numberTyping_getInputTex();
 
-            //this is where fun starts
-            function mathFieldTex_to_mathNode(tex) {
-              var outMathNode;
+            const dict_parsed = infiniteCanvas.numberTyping_parseTex(tex);
 
-              function parseCoords(tex) {
-                var outMathNode;
-
-                const regex__coords = /(.*);(.*)/;
-                const isCoords = regex__coords.test(tex);
-                logger.log("logNT, parseCoords", "isCoords", isCoords);
-                if(isCoords) {
-                  const arr_match = tex.match(regex__coords);
-                  const str__x = arr_match[1];
-                  const str__y = arr_match[2];
-                  const mathNode__x = math.parse(str__x);
-                  const mathNode__y = math.parse(str__y);
-                  outMathNode = new math.ObjectNode({x: mathNode__x, y: mathNode__y});
-                }
-
-                return outMathNode;
-              }
-
-              function parseRational(tex) {
-                logger.log("logNT", "parseRational", tex);
-                var outMathNode;
-                try {
-                  const regex__rational__explicit = /(^[+-]?[0-9]+\.[0-9]*\'[0-9]+\'$)/;
-                  const isRational__explicit = regex__rational__explicit.test(tex);
-                  
-                  if(isRational__explicit) {
-                    outMathNode = Parser.parse__rational__explicit(tex);
-                  } else {
-                    const regex__rational__implicit = /(^[+-]?[0-9]+\.[0-9]+\.\.\.$)/;
-                    const isRational__implicit = regex__rational__implicit.test(tex);
-
-                    if(isRational__implicit) {
-                      outMathNode = Parser.parse__rational__implicit(tex);
-                    } else {
-                      outMathNode = null;
-                    }
-                  }
-                
-                } catch(e) {
-                  throw e;
-                }
-                return outMathNode;
-              }
-
-              function parseFraction(tex) {
-                var outMathNode;
-                try {
-                  // const value__fraction = new Fraction(tex);
-                  const value__fraction = math.fraction(tex);
-                  logger.log("logNT", "value__fraction:", value__fraction);
-
-                  outMathNode = new math.ConstantNode(value__fraction);
-                  logger.log("logNT", "outMathNode:", outMathNode);
-                } catch(e) {
-
-                }
-                return outMathNode;
-              }
-
-              function parseComplex(tex) {
-                var outMathNode;
-                try {
-                  const value__complex = math.complex(tex);
-                  logger.log("logNT", "value__complex:", value__complex);
-
-                  outMathNode = new math.ConstantNode(value__complex);
-                  logger.log("logNT", "outMathNode:", outMathNode);
-                } catch(e) {
-
-                }
-                return outMathNode;
-              }
-
-              function parseExpression(tex) {
-                var outMathNode;
-                try {
-                  const mathExpression = MathExpression.fromLatex(tex);
-                    const text = mathExpression.toString();
-                    logger.log("logNT", "text:", text);
-                    outMathNode = math.parse(text);
-                } catch(e) {
-
-                }
-                return outMathNode;
-              }
-
-              outMathNode = null;
-              outMathNode = outMathNode ? outMathNode : parseCoords(tex);
-              outMathNode = outMathNode ? outMathNode : parseRational(tex);
-              outMathNode = outMathNode ? outMathNode : parseFraction(tex);
-              outMathNode = outMathNode ? outMathNode : parseComplex(tex);
-              outMathNode = outMathNode ? outMathNode : parseExpression(tex);
-
-              return outMathNode;
-            }
-
-            // function parseToOperatorNode(tex) {
-            //   var outNode;
-
-            //   const [str__comp1, ...arr__comp__rest] = tex.split("\\ ");
-            //   logger.log("logNumberTyping", "str__comp1:", str__comp1);
-            //   logger.log("logNumberTyping", "arr__comp__rest:", arr__comp__rest);
-              
-            //   const str__mathOperatorSymbol = str__comp1;
-            //   const mathOperatorFuncName = Operator.funcNameForSymbolString(str__mathOperatorSymbol);
-            //   if(mathOperatorFuncName != null) {
-            //     const node_a = MathSingleton.node__empty;
-
-            //     const str__b = arr__comp__rest[0];
-            //     const node_b = math.parse(str__b);
-
-            //     const node__operator = new math.OperatorNode(str__mathOperatorSymbol, mathOperatorFuncName, [node_a, node_b]);
-            //     outNode = node__operator;
-            //   } else {
-            //     throw new Error("couldn't find a funcName match for str__mathOperatorSymbol: " + str__mathOperatorSymbol);
-            //   } 
-              
-            //   return outNode;
-            // }
-
-            function parseToOperatorNode__unary_pre__explicit(tex) {
-              var outNode;
-
-              //add symbol at start of tex and check if parsed as operatorNode
-              const str__symbol_pre      = "Ä";
-              const tex__with_symbol_pre = str__symbol_pre + " " + tex;
-
-              logger.log("logNT", "tex__with_symbol_pre:", tex__with_symbol_pre);
-
-
-              const mathNode__parsed = math.parse(tex__with_symbol_pre);
-              if(mathNode__parsed instanceof math.OperatorNode) {
-                logger.log("logNT", "mathNode__parsed:", mathNode__parsed);
-
-                //replace mathNode__symbol__pre with node__empty
-                outNode = Rewriter.substitute(mathNode__parsed, (mathNode) => {
-                  const isFound = ((mathNode instanceof math.SymbolNode) && (mathNode.name == str__symbol_pre));
-                  return isFound;
-                }, (_) => {
-                  return MathSingleton.node__empty;
-                });
-
-              } else {
-                throw new Error("couldn't find a funcName match for str__mathOperatorSymbol: " + str__mathOperatorSymbol);
-              } 
-              
-              return outNode;
-            }
-
-            function parseToOperatorNode__unary_post__explicit(tex) {
-              var outNode;
-
-              //add symbol at end of tex and check if parsed as operatorNode
-              const str__symbol_post      = "Ö";
-              const tex__with_symbol_post = tex + " " + str__symbol_post;
-
-              logger.log("logNT", "tex__with_symbol_post:", tex__with_symbol_post);
-
-
-              const mathNode__parsed = math.parse(tex__with_symbol_post);
-              if(mathNode__parsed instanceof math.OperatorNode) {
-                logger.log("logNT", "mathNode__parsed:", mathNode__parsed);
-
-                //replace mathNode__symbol__pre with node__empty
-                outNode = Rewriter.substitute(mathNode__parsed, (mathNode) => {
-                  const isFound = ((mathNode instanceof math.SymbolNode) && (mathNode.name == str__symbol_post));
-                  return isFound;
-                }, (_) => {
-                  return MathSingleton.node__empty;
-                });
-
-              } else {
-                throw new Error("couldn't find a funcName match for str__mathOperatorSymbol: " + str__mathOperatorSymbol);
-              } 
-              
-              return outNode;
-            }
-
-            function parseToOperatorNode__binary__explicit(tex) {
-              var outNode;
-
-              //add symbol at start, and symbol at end of tex and check if parsed as operatorNode
-              const str__symbol_pre      = "Ä";
-              const str__symbol_post     = "Ö";
-              const tex__with_symbols_pre_post = str__symbol_pre + " " + tex + " " + str__symbol_post;
-
-              logger.log("logNT", "tex__with_symbols_pre_post:", tex__with_symbols_pre_post);
-
-              const mathNode__parsed = math.parse(tex__with_symbols_pre_post);
-              if(mathNode__parsed instanceof math.OperatorNode) {
-                logger.log("logNT", "mathNode__parsed:", mathNode__parsed);
-
-                //replace mathNode__symbol__pre  with node__empty
-                //replace mathNode__symbol__post with node__empty
-                outNode = mathNode__parsed;
-                outNode = Rewriter.substitute(outNode, (mathNode) => {
-                  const isFound = ((mathNode instanceof math.SymbolNode) && (mathNode.name == str__symbol_pre));
-                  return isFound;
-                }, (_) => {
-                  return MathSingleton.node__empty;
-                });
-                outNode = Rewriter.substitute(outNode, (mathNode) => {
-                  const isFound = ((mathNode instanceof math.SymbolNode) && (mathNode.name == str__symbol_post));
-                  return isFound;
-                }, (_) => {
-                  return MathSingleton.node__empty;
-                });
-
-              } else {
-                throw new Error("couldn't find a funcName match for str__mathOperatorSymbol: " + str__mathOperatorSymbol);
-              } 
-              
-              return outNode;
-            }
-
-            
-
-            function parseToOperatorNode__unary_pre__implicit(tex) {
-              var outNode;
-
-              //add symbol at start of tex and check if parsed as operatorNode
-              const str__symbol_pre      = "Ä";
-              const tex__with_symbol_pre = str__symbol_pre + " " + tex;
-
-              logger.log("logNT", "tex__with_symbol_pre:", tex__with_symbol_pre);
-
-
-              const mathNode__parsed = math.parse(tex__with_symbol_pre);
-              if(mathNode__parsed instanceof math.OperatorNode) {
-                logger.log("logNT", "mathNode__parsed:", mathNode__parsed);
-
-                //replace mathNode__symbol__pre with node__empty
-                outNode = Rewriter.substitute(mathNode__parsed, (mathNode) => {
-                  const isFound = ((mathNode instanceof math.SymbolNode) && (mathNode.name == str__symbol_pre));
-                  return isFound;
-                }, (_) => {
-                  return MathSingleton.node__empty;
-                });
-
-              } else {
-                throw new Error("couldn't find a funcName match for str__mathOperatorSymbol: " + str__mathOperatorSymbol);
-              } 
-              
-              return outNode;
-            }
-
-            function parseToOperatorNode__unary_post__implicit(tex) {
-              var outNode;
-
-              //add symbol at end of tex and check if parsed as operatorNode
-              const str__symbol_post      = "Ö";
-              const tex__with_symbol_post = tex + " " + str__symbol_post;
-
-              logger.log("logNT", "tex__with_symbol_post:", tex__with_symbol_post);
-
-
-              const mathNode__parsed = math.parse(tex__with_symbol_post);
-              if(mathNode__parsed instanceof math.OperatorNode) {
-                logger.log("logNT", "mathNode__parsed:", mathNode__parsed);
-
-                //replace mathNode__symbol__pre with node__empty
-                outNode = Rewriter.substitute(mathNode__parsed, (mathNode) => {
-                  const isFound = ((mathNode instanceof math.SymbolNode) && (mathNode.name == str__symbol_post));
-                  return isFound;
-                }, (_) => {
-                  return MathSingleton.node__empty;
-                });
-
-              } else {
-                throw new Error("couldn't find a funcName match for str__mathOperatorSymbol: " + str__mathOperatorSymbol);
-              } 
-              
-              return outNode;
-            }
-
-            function parseToOperatorNode__binary__implicit(tex) {
-              var outNode;
-
-              //add symbol at start, and symbol at end of tex and check if parsed as operatorNode
-              const str__symbol_pre      = "Ä";
-              const str__symbol_post     = "Ö";
-              const tex__with_symbols_pre_post = str__symbol_pre + " " + tex + " " + str__symbol_post;
-
-              logger.log("logNT", "tex__with_symbols_pre_post:", tex__with_symbols_pre_post);
-
-              const mathNode__parsed = math.parse(tex__with_symbols_pre_post);
-              if(mathNode__parsed instanceof math.OperatorNode) {
-                logger.log("logNT", "mathNode__parsed:", mathNode__parsed);
-
-                //replace mathNode__symbol__pre  with node__empty
-                //replace mathNode__symbol__post with node__empty
-                outNode = mathNode__parsed;
-                outNode = Rewriter.substitute(outNode, (mathNode) => {
-                  const isFound = ((mathNode instanceof math.SymbolNode) && (mathNode.name == str__symbol_pre));
-                  return isFound;
-                }, (_) => {
-                  return MathSingleton.node__empty;
-                });
-                outNode = Rewriter.substitute(outNode, (mathNode) => {
-                  const isFound = ((mathNode instanceof math.SymbolNode) && (mathNode.name == str__symbol_post));
-                  return isFound;
-                }, (_) => {
-                  return MathSingleton.node__empty;
-                });
-
-              } else {
-                throw new Error("couldn't find a funcName match for str__mathOperatorSymbol: " + str__mathOperatorSymbol);
-              } 
-              
-              return outNode;
-            }
-
-            function parseAnon5050Function(tex) {
-              var outMathNode;
-
-              // const regex__function_5050 = /(.*)⊢\?→([^:]*)(:[^:]*)?(:[^:]*)?(:[^:]*)?(:[^:]*)?(:[^:]*)?(:[^:]*)?(:[^:]*)?(:[^:]*)?(:[^:]*)?/;
-              const nb_output = 10;
-              const str__re__function_5050 = "(.*)⊢\\?→([^:]*)".concat("(:[^:]*)?".repeat(nb_output - 1));
-              const regex__function_5050 = new RegExp(str__re__function_5050);
-              const is5050Function = regex__function_5050.test(tex);
-              logger.log("logNT, parseAnon5050Function", "is5050Function:", is5050Function);
-              if(is5050Function) {
-                const arr_match = tex.match(regex__function_5050);
-                logger.log("logNT, parseAnon5050Function", "arr_match:", arr_match);
-
-                const str__args = arr_match[1];
-                                
-                const arr_bound_var           = str__args.split(",").map(str__var => new math.SymbolNode(str__var));
-                // const mathNode__arr_bound_var = new math.ArrayNode(arr_bound_var);
-
-
-                const str__expr0 = arr_match[2];
-                const offset = 2;
-                function func__removeStartingColon(str_in) {
-                  // return str_in.match(/:([^:]*)/)[1];
-                  return str_in.slice(1);
-                }
-                const arr_str__expr1plus = arr_match.slice(1+offset,nb_output+offset).filter((x) => x != null).map(func__removeStartingColon);
-                logger.log("logNT, parseAnon5050Function", "arr_str__expr1plus:", arr_str__expr1plus);
-
-                const arr_str__expr = [str__expr0, ...arr_str__expr1plus];
-                logger.log("logNT, parseAnon5050Function", "arr_str__expr:", arr_str__expr);
-
-                const arr_str__expr__refined = arr_str__expr.map((str__elt) => Algebrite.run(str__elt));
-                logger.log("logNT, parseAnonymousFunction", "arr_str__expr__refined:", arr_str__expr__refined);
-
-                const arr_mathNode__expr = arr_str__expr__refined.map((str__elt) => math.parse(str__elt));
-                logger.log("logNT, parseAnonymousFunction", "arr_mathNode__expr:", arr_mathNode__expr);
-
-                const mathNode__anon5050Function = MyAnon5050FunctionObjectNode.createInstance(arr_bound_var, arr_mathNode__expr);
-
-                outMathNode = mathNode__anon5050Function;
-              }
-
-              return outMathNode;
-
-            }
-
-            function parseAnonymousFunction(tex) {
-              var outMathNode;
-
-              const regex__function = /(.*)↦(.*)/;
-              const isFunction = regex__function.test(tex);
-              logger.log("logNT, parseAnonymousFunction", "isFunction", isFunction);
-              if(isFunction) {
-                const arr_match = tex.match(regex__function);
-                const str__args = arr_match[1];
-                const str__expr = arr_match[2];
-                
-                const arr_bound_var           = str__args.split(",").map(str__var => new math.SymbolNode(str__var));
-                // const mathNode__arr_bound_var = new math.ArrayNode(arr_bound_var);
-                
-                // const mathNode__expr = math.parse(str__expr);
-                const str__expr__refined = Algebrite.run(str__expr);
-                logger.log("logNT, parseAnonymousFunction", "str__expr__refined", str__expr__refined);
-                const mathNode__expr = math.parse(str__expr__refined);
-
-
-                const mathNode__anonFunction = MyAnonFunctionObjectNode.createInstance(arr_bound_var, mathNode__expr);
-
-                outMathNode = mathNode__anonFunction;
-
-                /*
-                  //META SHU: abandonné pour l'instant ?
-
-                  //SHU la même notation que dans still_shute:
-                  //[[6]] * [+ 5]          = [[11]]
-                  //[[4]] * [anonFunction] = [[anonFunction(4)]]
-                  // const mathNode__operator = new math.OperatorNode("*", "myApply", [MathSingleton.node__empty, mathNode__anonFunction]); 
-                  // outMathNode = mathNode__operator;
-                */
-              }
-
-              return outMathNode;
-            }
-
-            function parseAssignmentExpression(tex) {
-              var outMathNode;
-
-              const regex__assign = /(.*)←(.*)/;
-              const isFunction = regex__function.test(tex);
-              logger.log("logNT, parseAnonymousFunction", "isFunction", isFunction);
-              if(isFunction) {
-                const arr_match = tex.match(regex__function);
-                const str__args = arr_match[1];
-                const str__expr = arr_match[2];
-                
-                const arr_bound_var           = str__args.split(",").map(str__var => new math.SymbolNode(str__var));
-                const mathNode__arr_bound_var = new math.ArrayNode(arr_bound_var);
-                
-                // const mathNode__expr = math.parse(str__expr);
-                const str__expr__refined = Algebrite.run(str__expr);
-                logger.log("logNT, parseAnonymousFunction", "str__expr__refined", str__expr__refined);
-                const mathNode__expr = math.parse(str__expr__refined);
-
-
-                const mathNode__anonFunction = new math.ObjectNode({
-                  type: new math.SymbolNode("anonFunction"),
-
-                  mathNode__arr_bound_var: mathNode__arr_bound_var,
-                  expr:          mathNode__expr,
-                });
-
-                outMathNode = mathNode__anonFunction;
-
-                /*
-                  //META SHU: abandonné pour l'instant ?
-
-                  //SHU la même notation que dans still_shute:
-                  //[[6]] * [+ 5]          = [[11]]
-                  //[[4]] * [anonFunction] = [[anonFunction(4)]]
-                  // const mathNode__operator = new math.OperatorNode("*", "myApply", [MathSingleton.node__empty, mathNode__anonFunction]); 
-                  // outMathNode = mathNode__operator;
-                */
-              }
-
-              return outMathNode;
-            }
-
-            function refinedTex0(tex) {
-              var outTex;
-
-              // const isPlusOperator = /^\+\\/.test(tex);
-              // logger.log("logNT", "isPlusOperator:", isPlusOperator);
-
-              outTex = tex;
-
-              outTex = outTex.replaceAll("\\left",  "");
-              outTex = outTex.replaceAll("\\right", "");
-
-              // outTex = outTex.replaceAll(":", "/");
-
-              outTex = outTex.replace(/^\+\\/, "[＋]"); //"[" + U+FF0B + "]"
-              outTex = outTex.replace(/^\-\\/, "[－]"); //"[" + U+FF0D + "]"
-
-              outTex = outTex.replaceAll("\\ ", " ");
-
-              // outTex = outTex.replaceAll("\\times", "\\cdot");
-              outTex = outTex.replaceAll("\\times", "*");
-
-              return outTex;
-            }
-
-
-            function refinedTex1(tex) {
-              var outTex;
-
-              // const isPlusOperator = /^\+\\/.test(tex);
-              // logger.log("logNT", "isPlusOperator:", isPlusOperator);
-
-              outTex = tex;
-
-              outTex = outTex.replaceAll("\\left",  "");
-              outTex = outTex.replaceAll("\\right", "");
-
-              outTex = outTex.replaceAll(":", "/");
-
-              outTex = outTex.replace(/^\+\\/, "[＋]"); //"[" + U+FF0B + "]"
-              outTex = outTex.replace(/^\-\\/, "[－]"); //"[" + U+FF0D + "]"
-
-              outTex = outTex.replaceAll("\\ ", " ");
-
-              // outTex = outTex.replaceAll("\\times", "\\cdot");
-              outTex = outTex.replaceAll("\\times", "*");
-
-              return outTex;
-            }
-
-            const tex__refined1 = refinedTex1(tex);
-            logger.log("logNT", "tex__refined1:", tex__refined1);
-
-            const mathNode__new      = mathFieldTex_to_mathNode(tex__refined1);
-            // mathNode__new.autoSimplify = true;
-
-            //debug
-            // const mathNode__new = null;
-
-            if(mathNode__new != null) {
-
-              if(fabricIntegration.fabricCanvas.isDrawingMode) {
-                //create/add divided segment
-                // const position__icMathNode = this.getTrueCursor();
-                // const mathNode   = this.mathNode_numberTyping.cloneDeep();
-                // const dividedSegment = this.createIcMathNode(position__icMathNode.x, position__icMathNode.y, mathNode);
-                // this.addNewIcObject(icMathNode);
-
-              } else {
-
-                //create/add icMathNode
-                const position__icMathNode = this.getTrueCursor();
-                const mathNode   = mathNode__new.cloneDeep();
-                mathNode.autoSimplify = true;
-                const icMathNode = this.createIcMathNode(position__icMathNode.x, position__icMathNode.y, mathNode);
-                icMathNode.isTouchable = true;
-                this.addNewIcObject(icMathNode);
-              }
-            
-            } else {
-
-              //is input an anon5050 function definition ?
-              var mathNode__anon5050Function;
-
-              const tex__refined0 = refinedTex0(tex);
-
-              try {
-                mathNode__anon5050Function = parseAnon5050Function(tex__refined0);
-                logger.log("logNT", "anon5050Function, mathNode__anon5050Function:", mathNode__anon5050Function);
-                // logger.log("logNT", "anon5050Function, mathNode__anon5050Function.toTex():",    mathNode__anon5050Function.toTex());
-                // logger.log("logNT", "anon5050Function, mathNode__anon5050Function.toString():", mathNode__anon5050Function.toString());
-              } catch(e) {
-                logger.log("logNT", "couldn't parse anon5050FuncString: ", tex__refined0, "error: ", e);
-              }
-
-              if(mathNode__anon5050Function != null) {
-                //create/add icMathNode
-                const position__icMathNode = this.getTrueCursor();
-                const trueRect__operator = {
-                  x:      position__icMathNode.x,
-                  y:      position__icMathNode.y,
-                  width:  120,
-                  height: 120,
-                };
-
-                const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect__operator, "from_anon5050FunctionObjectNode", {mathNode__anon5050Function: mathNode__anon5050Function});
-                infiniteCanvas.addNewIcObject(gmOperator);
-
-              } else {
-
-                //is input an anonymous function definition ?
-                var mathNode__anonFunction;
-
-                try {
-                  mathNode__anonFunction = parseAnonymousFunction(tex__refined1);
-                  logger.log("logNT", "anonymousFunction, mathNode__anonFunction:", mathNode__anonFunction);
-                  // logger.log("logNT", "anonymousFunction, mathNode__anonFunction.toTex():", mathNode__anonFunction.toTex());
-                  // logger.log("logNT", "anonymousFunction, mathNode__anonFunction.toString():", mathNode__anonFunction.toString());
-                } catch(e) {
-                  logger.log("logNT", "couldn't parse anonFuncString: ", tex, "error: ", e);
-                }
-
-                if(mathNode__anonFunction != null) {
-                  //create/add icMathNode
-                  const position__icMathNode = this.getTrueCursor();
-                  const trueRect__operator = {
-                    x:      position__icMathNode.x,
-                    y:      position__icMathNode.y,
-                    width:  120,
-                    height: 120,
-                  };
-
-                  const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect__operator, "from_anonFunctionObjectNode", {mathNode__anonFunction: mathNode__anonFunction});
-                  infiniteCanvas.addNewIcObject(gmOperator);
-                } else {
-
-                  var mathNode__operator;
-    
-                  //is input an implicit function definition
-                  function refinedTex2(tex) {
-                    var outTex;
-    
-                    outTex = tex;
-                    outTex = outTex.replaceAll("[＋]", "+");  //"[" + U+FF0B + "]"
-                    outTex = outTex.replaceAll("[－]", "-");  //"[" + U+FF0D + "]"
-    
-                    return outTex;
-                  }
-    
-                  const tex__refined2 = refinedTex2(tex__refined1);
-    
-                  try {
-                    mathNode__operator = parseToOperatorNode__unary_pre__implicit(tex__refined2);
-                  } catch(e) {
-                    logger.log("logNT", "couldn't parse opString: ", tex, "error: ", e);
-
-                    try {
-                      mathNode__operator = parseToOperatorNode__unary_post__implicit(tex__refined2);
-                    } catch(e) {
-                      logger.log("logNT", "couldn't parse opString: ", tex, "error: ", e);
-
-                      try {
-                        mathNode__operator = parseToOperatorNode__binary__implicit(tex__refined2);
-                      } catch(e) {
-                        logger.log("logNT", "couldn't parse opString: ", tex, "error: ", e);
-                      }
-
-                    }
-
-                  }
-
-                  if(mathNode__operator != null) { 
-
-                    //create/add icMathNode
-                    const position__icMathNode = this.getTrueCursor();
-                    const trueRect__operator = {
-                      x:      position__icMathNode.x,
-                      y:      position__icMathNode.y,
-                      width:  120,
-                      height: 120,
-                    };
-    
-                    // const icMathNode = this.createIcMathNode(position__icMathNode.x, position__icMathNode.y, mathNode__operator);
-                    // this.addNewIcObject(icMathNode);
-    
-                    const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect__operator, "from_operatorNode", {mathNode__operator: mathNode__operator});
-                    infiniteCanvas.addNewIcObject(gmOperator);
-    
-                  } else {
-                    
-                    //is input an assignment expression
-                    const miniDict__assignment = parseAssignmentExpression(tex__refined1);
-                    if(miniDict__assignment != null) {
-                      const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect__operator, "assign", {rhs: rhs});
-                      infiniteCanvas.addNewIcObject(gmOperator);
-                    }
-
-                  }
-
-
-                }
-
-              }
-                
-            }
-
+            infiniteCanvas.numberTyping_manageDictParsed(dict_parsed);
           }
+
+          const mathField = infiniteCanvas.mathField_numberTyping;
 
           //remove all listeners
           // mathField.el().removeEventListener("focusout", eventListener);
@@ -27504,6 +26930,7 @@
 
           //destroy mathField
           mathField.revert();
+
         }
 
         this.mathNode_numberTyping  = null;
@@ -27511,6 +26938,716 @@
 
         this.isNumberTyping         = false;
         globalsSingleton.isEditing  = false;
+      }
+
+      numberTyping_parseTex(tex) {
+        const dict_parsed = this.numberTyping_lol(tex);
+
+        return dict_parsed;
+      }
+
+      numberTyping_parseTex_toMathNode(tex) {
+        var outMathNode;
+
+        function parseCoords(tex) {
+          var outMathNode;
+
+          const regex__coords = /(.*);(.*)/;
+          const isCoords = regex__coords.test(tex);
+          logger.log("logNT, parseCoords", "isCoords", isCoords);
+          if(isCoords) {
+            const arr_match = tex.match(regex__coords);
+            const str__x = arr_match[1];
+            const str__y = arr_match[2];
+            const mathNode__x = math.parse(str__x);
+            const mathNode__y = math.parse(str__y);
+            outMathNode = new math.ObjectNode({x: mathNode__x, y: mathNode__y});
+          }
+
+          return outMathNode;
+        }
+
+        function parseRational(tex) {
+          logger.log("logNT", "parseRational", tex);
+          var outMathNode;
+          try {
+            const regex__rational__explicit = /(^[+-]?[0-9]+\.[0-9]*\'[0-9]+\'$)/;
+            const isRational__explicit = regex__rational__explicit.test(tex);
+            
+            if(isRational__explicit) {
+              outMathNode = Parser.parse__rational__explicit(tex);
+            } else {
+              const regex__rational__implicit = /(^[+-]?[0-9]+\.[0-9]+\.\.\.$)/;
+              const isRational__implicit = regex__rational__implicit.test(tex);
+
+              if(isRational__implicit) {
+                outMathNode = Parser.parse__rational__implicit(tex);
+              } else {
+                outMathNode = null;
+              }
+            }
+          
+          } catch(e) {
+            throw e;
+          }
+          return outMathNode;
+        }
+
+        function parseFraction(tex) {
+          var outMathNode;
+          try {
+            // const value__fraction = new Fraction(tex);
+            const value__fraction = math.fraction(tex);
+            logger.log("logNT", "value__fraction:", value__fraction);
+
+            outMathNode = new math.ConstantNode(value__fraction);
+            logger.log("logNT", "outMathNode:", outMathNode);
+          } catch(e) {
+
+          }
+          return outMathNode;
+        }
+
+        function parseComplex(tex) {
+          var outMathNode;
+          try {
+            const value__complex = math.complex(tex);
+            logger.log("logNT", "value__complex:", value__complex);
+
+            outMathNode = new math.ConstantNode(value__complex);
+            logger.log("logNT", "outMathNode:", outMathNode);
+          } catch(e) {
+
+          }
+          return outMathNode;
+        }
+
+        function parseExpression(tex) {
+          var outMathNode;
+          try {
+            const mathExpression = MathExpression.fromLatex(tex);
+              const text = mathExpression.toString();
+              logger.log("logNT", "text:", text);
+              outMathNode = math.parse(text);
+          } catch(e) {
+
+          }
+          return outMathNode;
+        }
+
+        outMathNode = null;
+        outMathNode = outMathNode ? outMathNode : parseCoords(tex);
+        outMathNode = outMathNode ? outMathNode : parseRational(tex);
+        outMathNode = outMathNode ? outMathNode : parseFraction(tex);
+        outMathNode = outMathNode ? outMathNode : parseComplex(tex);
+        outMathNode = outMathNode ? outMathNode : parseExpression(tex);
+
+        return outMathNode;
+      }
+
+      numberTyping_parseTex_toOperatorNode(tex) {
+        logger.log("logNT", "numberTyping_parseTex_toOperatorNode", tex);
+        var outMathNode;
+
+        // function parseToOperatorNode(tex) {
+        //   var outNode;
+
+        //   const [str__comp1, ...arr__comp__rest] = tex.split("\\ ");
+        //   logger.log("logNumberTyping", "str__comp1:", str__comp1);
+        //   logger.log("logNumberTyping", "arr__comp__rest:", arr__comp__rest);
+          
+        //   const str__mathOperatorSymbol = str__comp1;
+        //   const mathOperatorFuncName = Operator.funcNameForSymbolString(str__mathOperatorSymbol);
+        //   if(mathOperatorFuncName != null) {
+        //     const node_a = MathSingleton.node__empty;
+
+        //     const str__b = arr__comp__rest[0];
+        //     const node_b = math.parse(str__b);
+
+        //     const node__operator = new math.OperatorNode(str__mathOperatorSymbol, mathOperatorFuncName, [node_a, node_b]);
+        //     outNode = node__operator;
+        //   } else {
+        //     throw new Error("couldn't find a funcName match for str__mathOperatorSymbol: " + str__mathOperatorSymbol);
+        //   } 
+          
+        //   return outNode;
+        // }
+
+        function parseToOperatorNode__unary_pre__explicit(tex) {
+          var outNode;
+
+          //add symbol at start of tex and check if parsed as operatorNode
+          const str__symbol_pre      = "Ä";
+          const tex__with_symbol_pre = str__symbol_pre + " " + tex;
+
+          logger.log("logNT", "tex__with_symbol_pre:", tex__with_symbol_pre);
+
+
+          const mathNode__parsed = math.parse(tex__with_symbol_pre);
+          if(mathNode__parsed instanceof math.OperatorNode) {
+            logger.log("logNT", "mathNode__parsed:", mathNode__parsed);
+
+            //replace mathNode__symbol__pre with node__empty
+            outNode = Rewriter.substitute(mathNode__parsed, (mathNode) => {
+              const isFound = ((mathNode instanceof math.SymbolNode) && (mathNode.name == str__symbol_pre));
+              return isFound;
+            }, (_) => {
+              return MathSingleton.node__empty;
+            });
+
+          } else {
+            throw new Error("couldn't find a funcName match for str__mathOperatorSymbol: " + str__mathOperatorSymbol);
+          } 
+          
+          return outNode;
+        }
+
+        function parseToOperatorNode__unary_post__explicit(tex) {
+          var outNode;
+
+          //add symbol at end of tex and check if parsed as operatorNode
+          const str__symbol_post      = "Ö";
+          const tex__with_symbol_post = tex + " " + str__symbol_post;
+
+          logger.log("logNT", "tex__with_symbol_post:", tex__with_symbol_post);
+
+
+          const mathNode__parsed = math.parse(tex__with_symbol_post);
+          if(mathNode__parsed instanceof math.OperatorNode) {
+            logger.log("logNT", "mathNode__parsed:", mathNode__parsed);
+
+            //replace mathNode__symbol__pre with node__empty
+            outNode = Rewriter.substitute(mathNode__parsed, (mathNode) => {
+              const isFound = ((mathNode instanceof math.SymbolNode) && (mathNode.name == str__symbol_post));
+              return isFound;
+            }, (_) => {
+              return MathSingleton.node__empty;
+            });
+
+          } else {
+            throw new Error("couldn't find a funcName match for str__mathOperatorSymbol: " + str__mathOperatorSymbol);
+          } 
+          
+          return outNode;
+        }
+
+        function parseToOperatorNode__binary__explicit(tex) {
+          var outNode;
+
+          //add symbol at start, and symbol at end of tex and check if parsed as operatorNode
+          const str__symbol_pre      = "Ä";
+          const str__symbol_post     = "Ö";
+          const tex__with_symbols_pre_post = str__symbol_pre + " " + tex + " " + str__symbol_post;
+
+          logger.log("logNT", "tex__with_symbols_pre_post:", tex__with_symbols_pre_post);
+
+          const mathNode__parsed = math.parse(tex__with_symbols_pre_post);
+          if(mathNode__parsed instanceof math.OperatorNode) {
+            logger.log("logNT", "mathNode__parsed:", mathNode__parsed);
+
+            //replace mathNode__symbol__pre  with node__empty
+            //replace mathNode__symbol__post with node__empty
+            outNode = mathNode__parsed;
+            outNode = Rewriter.substitute(outNode, (mathNode) => {
+              const isFound = ((mathNode instanceof math.SymbolNode) && (mathNode.name == str__symbol_pre));
+              return isFound;
+            }, (_) => {
+              return MathSingleton.node__empty;
+            });
+            outNode = Rewriter.substitute(outNode, (mathNode) => {
+              const isFound = ((mathNode instanceof math.SymbolNode) && (mathNode.name == str__symbol_post));
+              return isFound;
+            }, (_) => {
+              return MathSingleton.node__empty;
+            });
+
+          } else {
+            throw new Error("couldn't find a funcName match for str__mathOperatorSymbol: " + str__mathOperatorSymbol);
+          } 
+          
+          return outNode;
+        }
+
+        
+
+        function parseToOperatorNode__unary_pre__implicit(tex) {
+          var outNode;
+
+          //add symbol at start of tex and check if parsed as operatorNode
+          const str__symbol_pre      = "Ä";
+          const tex__with_symbol_pre = str__symbol_pre + " " + tex;
+
+          logger.log("logNT", "tex__with_symbol_pre:", tex__with_symbol_pre);
+
+
+          const mathNode__parsed = math.parse(tex__with_symbol_pre);
+          if(mathNode__parsed instanceof math.OperatorNode) {
+            logger.log("logNT", "mathNode__parsed:", mathNode__parsed);
+
+            //replace mathNode__symbol__pre with node__empty
+            outNode = Rewriter.substitute(mathNode__parsed, (mathNode) => {
+              const isFound = ((mathNode instanceof math.SymbolNode) && (mathNode.name == str__symbol_pre));
+              return isFound;
+            }, (_) => {
+              return MathSingleton.node__empty;
+            });
+
+          } else {
+            throw new Error("couldn't find a funcName match for str__mathOperatorSymbol: " + str__mathOperatorSymbol);
+          } 
+          
+          return outNode;
+        }
+
+        function parseToOperatorNode__unary_post__implicit(tex) {
+          var outNode;
+
+          //add symbol at end of tex and check if parsed as operatorNode
+          const str__symbol_post      = "Ö";
+          const tex__with_symbol_post = tex + " " + str__symbol_post;
+
+          logger.log("logNT", "tex__with_symbol_post:", tex__with_symbol_post);
+
+
+          const mathNode__parsed = math.parse(tex__with_symbol_post);
+          if(mathNode__parsed instanceof math.OperatorNode) {
+            logger.log("logNT", "mathNode__parsed:", mathNode__parsed);
+
+            //replace mathNode__symbol__pre with node__empty
+            outNode = Rewriter.substitute(mathNode__parsed, (mathNode) => {
+              const isFound = ((mathNode instanceof math.SymbolNode) && (mathNode.name == str__symbol_post));
+              return isFound;
+            }, (_) => {
+              return MathSingleton.node__empty;
+            });
+
+          } else {
+            throw new Error("couldn't find a funcName match for str__mathOperatorSymbol: " + str__mathOperatorSymbol);
+          } 
+          
+          return outNode;
+        }
+
+        function parseToOperatorNode__binary__implicit(tex) {
+          var outNode;
+
+          //add symbol at start, and symbol at end of tex and check if parsed as operatorNode
+          const str__symbol_pre      = "Ä";
+          const str__symbol_post     = "Ö";
+          const tex__with_symbols_pre_post = str__symbol_pre + " " + tex + " " + str__symbol_post;
+
+          logger.log("logNT", "tex__with_symbols_pre_post:", tex__with_symbols_pre_post);
+
+          const mathNode__parsed = math.parse(tex__with_symbols_pre_post);
+          if(mathNode__parsed instanceof math.OperatorNode) {
+            logger.log("logNT", "mathNode__parsed:", mathNode__parsed);
+
+            //replace mathNode__symbol__pre  with node__empty
+            //replace mathNode__symbol__post with node__empty
+            outNode = mathNode__parsed;
+            outNode = Rewriter.substitute(outNode, (mathNode) => {
+              const isFound = ((mathNode instanceof math.SymbolNode) && (mathNode.name == str__symbol_pre));
+              return isFound;
+            }, (_) => {
+              return MathSingleton.node__empty;
+            });
+            outNode = Rewriter.substitute(outNode, (mathNode) => {
+              const isFound = ((mathNode instanceof math.SymbolNode) && (mathNode.name == str__symbol_post));
+              return isFound;
+            }, (_) => {
+              return MathSingleton.node__empty;
+            });
+
+          } else {
+            throw new Error("couldn't find a funcName match for str__mathOperatorSymbol: " + str__mathOperatorSymbol);
+          } 
+          
+          return outNode;
+        }
+
+        function parseAnon5050Function(tex) {
+          var outMathNode;
+
+          // const regex__function_5050 = /(.*)⊢\?→([^:]*)(:[^:]*)?(:[^:]*)?(:[^:]*)?(:[^:]*)?(:[^:]*)?(:[^:]*)?(:[^:]*)?(:[^:]*)?(:[^:]*)?/;
+          const nb_output = 10;
+          const str__re__function_5050 = "(.*)⊢\\?→([^:]*)".concat("(:[^:]*)?".repeat(nb_output - 1));
+          const regex__function_5050 = new RegExp(str__re__function_5050);
+          const is5050Function = regex__function_5050.test(tex);
+          logger.log("logNT, parseAnon5050Function", "is5050Function:", is5050Function);
+          if(is5050Function) {
+            const arr_match = tex.match(regex__function_5050);
+            logger.log("logNT, parseAnon5050Function", "arr_match:", arr_match);
+
+            const str__args = arr_match[1];
+                            
+            const arr_bound_var           = str__args.split(",").map(str__var => new math.SymbolNode(str__var));
+            // const mathNode__arr_bound_var = new math.ArrayNode(arr_bound_var);
+
+
+            const str__expr0 = arr_match[2];
+            const offset = 2;
+            function func__removeStartingColon(str_in) {
+              // return str_in.match(/:([^:]*)/)[1];
+              return str_in.slice(1);
+            }
+            const arr_str__expr1plus = arr_match.slice(1+offset,nb_output+offset).filter((x) => x != null).map(func__removeStartingColon);
+            logger.log("logNT, parseAnon5050Function", "arr_str__expr1plus:", arr_str__expr1plus);
+
+            const arr_str__expr = [str__expr0, ...arr_str__expr1plus];
+            logger.log("logNT, parseAnon5050Function", "arr_str__expr:", arr_str__expr);
+
+            const arr_str__expr__refined = arr_str__expr.map((str__elt) => Algebrite.run(str__elt));
+            logger.log("logNT, parseAnonymousFunction", "arr_str__expr__refined:", arr_str__expr__refined);
+
+            const arr_mathNode__expr = arr_str__expr__refined.map((str__elt) => math.parse(str__elt));
+            logger.log("logNT, parseAnonymousFunction", "arr_mathNode__expr:", arr_mathNode__expr);
+
+            const mathNode__anon5050Function = MyAnon5050FunctionObjectNode.createInstance(arr_bound_var, arr_mathNode__expr);
+
+            outMathNode = mathNode__anon5050Function;
+          }
+
+          return outMathNode;
+
+        }
+
+        function parseAnonymousFunction(tex) {
+          var outMathNode;
+
+          const regex__function = /(.*)↦(.*)/;
+          const isFunction = regex__function.test(tex);
+          logger.log("logNT, parseAnonymousFunction", "isFunction", isFunction);
+          if(isFunction) {
+            const arr_match = tex.match(regex__function);
+            const str__args = arr_match[1];
+            const str__expr = arr_match[2];
+            
+            const arr_bound_var           = str__args.split(",").map(str__var => new math.SymbolNode(str__var));
+            // const mathNode__arr_bound_var = new math.ArrayNode(arr_bound_var);
+            
+            // const mathNode__expr = math.parse(str__expr);
+            const str__expr__refined = Algebrite.run(str__expr);
+            logger.log("logNT, parseAnonymousFunction", "str__expr__refined", str__expr__refined);
+            const mathNode__expr = math.parse(str__expr__refined);
+
+
+            const mathNode__anonFunction = MyAnonFunctionObjectNode.createInstance(arr_bound_var, mathNode__expr);
+
+            outMathNode = mathNode__anonFunction;
+
+            /*
+              //META SHU: abandonné pour l'instant ?
+
+              //SHU la même notation que dans still_shute:
+              //[[6]] * [+ 5]          = [[11]]
+              //[[4]] * [anonFunction] = [[anonFunction(4)]]
+              // const mathNode__operator = new math.OperatorNode("*", "myApply", [MathSingleton.node__empty, mathNode__anonFunction]); 
+              // outMathNode = mathNode__operator;
+            */
+          }
+
+          return outMathNode;
+        }
+
+        function parseAssignmentExpression(tex) {
+          var outMathNode;
+
+          const regex__assign = /(.*)←(.*)/;
+          const isFunction = regex__function.test(tex);
+          logger.log("logNT, parseAnonymousFunction", "isFunction", isFunction);
+          if(isFunction) {
+            const arr_match = tex.match(regex__function);
+            const str__args = arr_match[1];
+            const str__expr = arr_match[2];
+            
+            const arr_bound_var           = str__args.split(",").map(str__var => new math.SymbolNode(str__var));
+            const mathNode__arr_bound_var = new math.ArrayNode(arr_bound_var);
+            
+            // const mathNode__expr = math.parse(str__expr);
+            const str__expr__refined = Algebrite.run(str__expr);
+            logger.log("logNT, parseAnonymousFunction", "str__expr__refined", str__expr__refined);
+            const mathNode__expr = math.parse(str__expr__refined);
+
+
+            const mathNode__anonFunction = new math.ObjectNode({
+              type: new math.SymbolNode("anonFunction"),
+
+              mathNode__arr_bound_var: mathNode__arr_bound_var,
+              expr:          mathNode__expr,
+            });
+
+            outMathNode = mathNode__anonFunction;
+
+            /*
+              //META SHU: abandonné pour l'instant ?
+
+              //SHU la même notation que dans still_shute:
+              //[[6]] * [+ 5]          = [[11]]
+              //[[4]] * [anonFunction] = [[anonFunction(4)]]
+              // const mathNode__operator = new math.OperatorNode("*", "myApply", [MathSingleton.node__empty, mathNode__anonFunction]); 
+              // outMathNode = mathNode__operator;
+            */
+          }
+
+          return outMathNode;
+        }
+
+
+        //is input an anon5050 function definition ?
+        // var mathNode__anon5050Function;
+
+        outMathNode = null;
+        // outMathNode = outMathNode ? outMathNode : parseAnon5050Function(tex);
+        outMathNode = outMathNode ? outMathNode : parseToOperatorNode__unary_pre__implicit(tex);
+        // outMathNode = outMathNode ? outMathNode : parseFraction(tex);
+        // outMathNode = outMathNode ? outMathNode : parseComplex(tex);
+        // outMathNode = outMathNode ? outMathNode : parseExpression(tex);
+
+        logger.log("logNT", "outMathNode:", outMathNode);
+
+        return outMathNode;
+      }
+
+      numberTyping_lol(tex) {
+        var outDict;
+
+        outDict = {};
+
+        function refinedTex0(tex) {
+          var outTex;
+
+          // const isPlusOperator = /^\+\\/.test(tex);
+          // logger.log("logNT", "isPlusOperator:", isPlusOperator);
+
+          outTex = tex;
+
+          outTex = outTex.replaceAll("\\left",  "");
+          outTex = outTex.replaceAll("\\right", "");
+
+          // outTex = outTex.replaceAll(":", "/");
+
+          outTex = outTex.replace(/^\+\\/, "[＋]"); //"[" + U+FF0B + "]"
+          outTex = outTex.replace(/^\-\\/, "[－]"); //"[" + U+FF0D + "]"
+
+          outTex = outTex.replaceAll("\\ ", " ");
+
+          // outTex = outTex.replaceAll("\\times", "\\cdot");
+          outTex = outTex.replaceAll("\\times", "*");
+
+          return outTex;
+        }
+
+        function refinedTex1(tex) {
+          var outTex;
+
+          // const isPlusOperator = /^\+\\/.test(tex);
+          // logger.log("logNT", "isPlusOperator:", isPlusOperator);
+
+          outTex = tex;
+
+          outTex = outTex.replaceAll("\\left",  "");
+          outTex = outTex.replaceAll("\\right", "");
+
+          outTex = outTex.replaceAll(":", "/");
+
+          outTex = outTex.replace(/^\+\\/, "[＋]"); //"[" + U+FF0B + "]"
+          outTex = outTex.replace(/^\-\\/, "[－]"); //"[" + U+FF0D + "]"
+
+          outTex = outTex.replaceAll("\\ ", " ");
+
+          // outTex = outTex.replaceAll("\\times", "\\cdot");
+          outTex = outTex.replaceAll("\\times", "*");
+
+          return outTex;
+        }
+
+        function refinedTex2(tex) {
+          var outTex;
+
+          outTex = tex;
+          outTex = outTex.replaceAll("[＋]", "+");  //"[" + U+FF0B + "]"
+          outTex = outTex.replaceAll("[－]", "-");  //"[" + U+FF0D + "]"
+
+          return outTex;
+        }
+
+        const tex__refined0 = refinedTex0(tex);
+        logger.log("logNT", "tex__refined0:", tex__refined0);
+
+        const tex__refined1 = refinedTex1(tex);
+        logger.log("logNT", "tex__refined1:", tex__refined1);
+
+        const tex__refined2 = refinedTex2(tex__refined1);
+        logger.log("logNT", "tex__refined2:", tex__refined2);
+
+
+        const mathNode__new      = infiniteCanvas.numberTyping_parseTex_toMathNode(tex__refined1);
+        // mathNode__new.autoSimplify = true;
+
+        if(mathNode__new != null) {
+          outDict.type     = "mathNode";
+          outDict.mathNode = mathNode__new;
+        } else {
+          outDict.type     = "operatorNode";
+
+          const mathNode__op = infiniteCanvas.numberTyping_parseTex_toOperatorNode(tex__refined2);
+          // logger.log("logNT", "mathNode__op:", mathNode__op);
+
+          outDict.mathNode   = mathNode__op;
+        }
+
+        return outDict;
+      }
+
+      numberTyping_manageDictParsed(dict_parsed) {
+
+        switch(dict_parsed.type) {
+          case "operatorNode":
+            {
+              const mathNode__operator = dict_parsed.mathNode;
+
+              //create/add icMathNode
+              const position__icMathNode = this.getTrueCursor();
+              const trueRect__operator = {
+                x:      position__icMathNode.x,
+                y:      position__icMathNode.y,
+                width:  120,
+                height: 120,
+              };
+
+              // const icMathNode = this.createIcMathNode(position__icMathNode.x, position__icMathNode.y, mathNode__operator);
+              // this.addNewIcObject(icMathNode);
+
+              const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect__operator, "from_operatorNode", {mathNode__operator: mathNode__operator});
+              infiniteCanvas.addNewIcObject(gmOperator);
+            }
+            break;
+          case "mathNode":
+            {
+              const mathNode__new = dict_parsed.mathNode;
+
+              if(fabricIntegration.fabricCanvas.isDrawingMode) {
+                //create/add divided segment
+                // const position__icMathNode = this.getTrueCursor();
+                // const mathNode   = this.mathNode_numberTyping.cloneDeep();
+                // const dividedSegment = this.createIcMathNode(position__icMathNode.x, position__icMathNode.y, mathNode);
+                // this.addNewIcObject(icMathNode);
+    
+              } else {
+    
+                //create/add icMathNode
+                const position__icMathNode = this.getTrueCursor();
+                const mathNode   = mathNode__new.cloneDeep();
+                mathNode.autoSimplify = true;
+                const icMathNode = this.createIcMathNode(position__icMathNode.x, position__icMathNode.y, mathNode);
+                icMathNode.isTouchable = true;
+                this.addNewIcObject(icMathNode);
+              }
+            }
+            break;
+          default:
+            {
+
+            }
+            break;
+        }
+
+      }
+
+      numberTyping_manageDictParsed__operatorNode(dict_parsed) {
+
+        try {
+          mathNode__anon5050Function = parseAnon5050Function(tex__refined0);
+          logger.log("logNT", "anon5050Function, mathNode__anon5050Function:", mathNode__anon5050Function);
+          // logger.log("logNT", "anon5050Function, mathNode__anon5050Function.toTex():",    mathNode__anon5050Function.toTex());
+          // logger.log("logNT", "anon5050Function, mathNode__anon5050Function.toString():", mathNode__anon5050Function.toString());
+        } catch(e) {
+          logger.log("logNT", "couldn't parse anon5050FuncString: ", tex__refined0, "error: ", e);
+        }
+
+        if(mathNode__anon5050Function != null) {
+          //create/add icMathNode
+          const position__icMathNode = this.getTrueCursor();
+          const trueRect__operator = {
+            x:      position__icMathNode.x,
+            y:      position__icMathNode.y,
+            width:  120,
+            height: 120,
+          };
+
+          const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect__operator, "from_anon5050FunctionObjectNode", {mathNode__anon5050Function: mathNode__anon5050Function});
+          infiniteCanvas.addNewIcObject(gmOperator);
+
+        } else {
+
+          //is input an anonymous function definition ?
+          var mathNode__anonFunction;
+
+          try {
+            mathNode__anonFunction = parseAnonymousFunction(tex__refined1);
+            logger.log("logNT", "anonymousFunction, mathNode__anonFunction:", mathNode__anonFunction);
+            // logger.log("logNT", "anonymousFunction, mathNode__anonFunction.toTex():", mathNode__anonFunction.toTex());
+            // logger.log("logNT", "anonymousFunction, mathNode__anonFunction.toString():", mathNode__anonFunction.toString());
+          } catch(e) {
+            logger.log("logNT", "couldn't parse anonFuncString: ", tex, "error: ", e);
+          }
+
+          if(mathNode__anonFunction != null) {
+            //create/add icMathNode
+            const position__icMathNode = this.getTrueCursor();
+            const trueRect__operator = {
+              x:      position__icMathNode.x,
+              y:      position__icMathNode.y,
+              width:  120,
+              height: 120,
+            };
+
+            const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect__operator, "from_anonFunctionObjectNode", {mathNode__anonFunction: mathNode__anonFunction});
+            infiniteCanvas.addNewIcObject(gmOperator);
+          } else {
+
+            var mathNode__operator;
+
+
+
+            try {
+              mathNode__operator = parseToOperatorNode__unary_pre__implicit(tex__refined2);
+            } catch(e) {
+              logger.log("logNT", "couldn't parse opString: ", tex, "error: ", e);
+
+              try {
+                mathNode__operator = parseToOperatorNode__unary_post__implicit(tex__refined2);
+              } catch(e) {
+                logger.log("logNT", "couldn't parse opString: ", tex, "error: ", e);
+
+                try {
+                  mathNode__operator = parseToOperatorNode__binary__implicit(tex__refined2);
+                } catch(e) {
+                  logger.log("logNT", "couldn't parse opString: ", tex, "error: ", e);
+                }
+
+              }
+
+            }
+
+            if(mathNode__operator != null) { 
+
+
+
+            } else {
+              
+              //is input an assignment expression
+              const miniDict__assignment = parseAssignmentExpression(tex__refined1);
+              if(miniDict__assignment != null) {
+                const gmOperator = infiniteCanvas.createIcGMOperator_withType(trueRect__operator, "assign", {rhs: rhs});
+                infiniteCanvas.addNewIcObject(gmOperator);
+              }
+
+            }
+
+          }
+        }
+
       }
 
 
@@ -56163,7 +56300,7 @@
           console.log("updateValue", updateValue);
           if (updateValue) {
             console.log("KeyUpTrigger::update", this.name);
-            this.triggeredFunc();
+            this.triggeredFunc(e);
           }
         }
 
@@ -56431,6 +56568,7 @@
                   break;
 
                 case "Back":
+                case "F1":
                   {
                     e.preventDefault();
                   }
@@ -56472,6 +56610,12 @@
               //     return;
               //   }
               //   break;
+
+              case "F1":
+                {
+                  e.preventDefault();
+                }
+                break;
 
               default:
                 break;
@@ -57626,6 +57770,13 @@
 
               keyboardIntegration.infiniteCanvas.manageReplay_debug();
               // keyboardIntegration.infiniteCanvas.manageReplay_debug__machineGun();
+            }),
+
+            "F1": new KeyUpTrigger("F1", KeyUpTrigger.defaultKeyUpFunc(["F1"]), (e) => {
+              
+              e.preventDefault();
+
+              keyboardIntegration.infiniteCanvas.operateOnSelected__crown();
             }),
 
 
@@ -90799,7 +90950,8 @@
 
             // this.debug_awaiting_operator();
             // this.debug_sleepingArgs_operator();
-            
+
+            this.debug_numberTyping(); 
 
           } catch(e) {
             logger.log("logError", e);
@@ -97097,6 +97249,14 @@
             const icMathNode = infiniteCanvas.createIcMathNode(position.x, position.y, mathNode);
             infiniteCanvas.addIcObject(icMathNode);
           });
+
+        }
+
+
+        debug_numberTyping() {
+
+          // const icNumberTypingOp = infiniteCanvas.createIcGMOperator_withConfig(trueRect, config__op);
+          // infiniteCanvas.addIcObject(icSleepingArgsOp);
 
         }
 
