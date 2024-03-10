@@ -1,5 +1,5 @@
 # A User Interface
-<img src="./img/aui__AUI__base.png" width="20%" height="20%">
+<img src="./img/aui__AUI__base.png"       height="200px"> <img src="./img/man_aui__nice_yellow.png" height="200px">
 
 ## Drawing demo
 <img src="./img/ezgif-1-c40d1c86f3.gif" width="50%" height="50%">
