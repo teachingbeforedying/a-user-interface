@@ -383,6 +383,22 @@
 
     }
 
+    class StringUtils {
+      static count(string, word) {
+        return string.split(word).length - 1;
+     }
+    }
+
+    class FuncUtils {
+      static tryCatch_wrapper(func, fallback_output = null) {
+        try {
+          return func();
+        } catch(e) {
+          return fallback_output;
+        }
+      }
+    }
+
 
     class ColorUtils {
 
@@ -1804,6 +1820,13 @@
 
   <script src='lib/math.js' type='text/javascript'></script>
   <script>
+    //discovery
+    {
+      // const mathNode__fraction = math.parse("math.fraction(2,3)");
+      // logger.log("logMathJS", "mathNode__fraction:", mathNode__fraction);
+    }
+  </script>
+  <script>
 
     //custom functions
     {
@@ -2878,6 +2901,39 @@
       return funcWrapper;
     }
 
+    function createFuncWrapper__with_order(op, arr_arg_in, func) {  //work horse
+
+      // const simpleName = op.op + " " + node_b.toString();
+      const simpleName = arr_arg_in[0] + " " + op.op + " " + arr_arg_in[1];
+
+      const node_b  = arr_arg_in.find((mathNode) => mathNode != MathSingleton.node__empty);
+      const arr_arg = arr_arg_in.map((mathNode) => {
+        var outNode;
+        if(mathNode == node_b) {
+          outNode = mathNode.cloneDeep();
+        } else {
+          outNode = mathNode;
+        }
+        return outNode;
+      })
+
+      const funcWrapper = {
+        semantics: {
+          operator: op,
+          node_b: node_b.cloneDeep(),
+          node__operatorNode: new math.OperatorNode(op.op, op.name, arr_arg),
+          name: simpleName,
+        },
+        display: {
+          node__display: null,
+        },
+        func: func,
+        inverse: null,  //set later
+      };
+
+      return funcWrapper;
+    }
+
 
     function random_operatorNodeFactoryFunc_binary(arr_type) {
       var outFunc;
@@ -2945,6 +3001,70 @@
 
           return outNode;
         }
+
+        const standardOperation__withArrayNodeSupport = MathUtils.decorate__support__arrayNode(standardOperation);
+
+        // logger.log("node_a", node_a);
+        if (node_a.isEquation) {
+          console.log("node_a", node_a);
+          // const node_left  = standardOperation(node_a.params[0]);
+          // const node_right = standardOperation(node_a.params[1]);
+          const node_left  = standardOperation__withArrayNodeSupport(node_a.params[0]);
+          const node_right = standardOperation__withArrayNodeSupport(node_a.params[1]);
+          const node_equation = new math.RelationalNode(["equal"], [node_left, node_right]);
+          node_equation.isEquation = true;
+
+          outNode = node_equation;
+        } else {
+          // outNode = standardOperation(node_a);
+          outNode = standardOperation__withArrayNodeSupport(node_a);
+        }
+
+        // outNode.autoSimplify = node_a.autoSimplify;
+
+        return outNode;
+      };
+    }
+
+    function createMathNodeTransformationFunc_binary__with_order(mathOperatorSymbol_in, mathOperatorFuncName_in, arr_arg_in) {
+      return (node_a) => {
+        var outNode;
+
+        const mathOperatorSymbol   = mathOperatorSymbol_in;
+        const mathOperatorFuncName = mathOperatorFuncName_in;
+
+        // const node_b = arr_arg_in.filter((mathNode) => mathNode != MathSingleton.node__empty);
+
+        function standardOperation(node_in) {
+          var outNode;
+
+          const arr_child__substituted = arr_arg_in.map((mathNode) => {
+            var outNode;
+            if(mathNode == MathSingleton.node__empty) {
+              outNode = node_in;
+            } else {
+              outNode = mathNode;
+            }
+            return outNode;
+          });
+
+          const node_operator     = new math.OperatorNode(mathOperatorSymbol, mathOperatorFuncName, arr_child__substituted);
+          const node_unsimplified = node_operator;
+
+          if (node_in.autoSimplify) {
+            // const node_simplified = math.simplify(node_unsimplified);
+            const node_simplified = Simplifier.simplify_top_layer(node_unsimplified);
+            outNode = node_simplified;
+          } else {
+            outNode = node_unsimplified;
+          }
+
+          outNode.autoSimplify = node_in.autoSimplify;
+
+          return outNode;
+        }
+
+        // outNode = standardOperation(node_a);
 
         const standardOperation__withArrayNodeSupport = MathUtils.decorate__support__arrayNode(standardOperation);
 
@@ -3148,6 +3268,23 @@
         const funcWrapper__inverse = createFuncWrapper(op__inverse, node_b, func__inverse);
         funcWrapper.inverse = funcWrapper__inverse;
       }
+      outFuncWrapper = funcWrapper;
+
+      return outFuncWrapper;
+    }
+
+    function operatorNodeFactoryFuncWrapper_binary__with_order(op, arr_arg) {
+      var outFuncWrapper;
+
+      const func = createMathNodeTransformationFunc_binary__with_order(op.op, op.name, arr_arg);
+
+      const funcWrapper = createFuncWrapper__with_order(op, arr_arg, func);
+      // if(op.name != "myApply") {
+      //   const op__inverse   = op.inverse();
+      //   const func__inverse = createMathNodeTransformationFunc_binary(op__inverse.op, op__inverse.name, node_b);
+      //   const funcWrapper__inverse = createFuncWrapper__with_order(op__inverse, arr_arg, func__inverse);
+      //   funcWrapper.inverse = funcWrapper__inverse;
+      // }
       outFuncWrapper = funcWrapper;
 
       return outFuncWrapper;
@@ -3443,9 +3580,20 @@
         case 2:
           {
             const op     = Operator.fromOpString_binary(mathNode__operator.op);
-            const node_b = mathNode__operator.args.find((mathNode) => (mathNode != MathSingleton.node__empty));
+            // const node_b = mathNode__operator.args.find((mathNode) => (mathNode != MathSingleton.node__empty));
 
-            outFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b, isShuffled);
+            const arr_arg = mathNode__operator.args.map((mathNode) => {
+              var outNode;
+              if(mathNode == MathSingleton.node__empty) {
+                outNode = mathNode;
+              } else {
+                outNode = mathNode;
+              }
+              return outNode;
+            });
+
+            // outFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op, node_b, isShuffled);
+            outFuncWrapper = operatorNodeFactoryFuncWrapper_binary__with_order(op, arr_arg, isShuffled);
           }
           break;
         default:
@@ -27076,14 +27224,29 @@
         function parseToOperatorNode__unary_pre__explicit(tex) {
           var outNode;
 
+          //count how many ".." are found
+          const nb_explArgSlot = StringUtils.count(tex, "..");
+          if(nb_explArgSlot != 1) {
+            throw new Error("parseToOperatorNode__binary__explicit: wrong number of explArgSlots (\"..\") in input tex: " + tex);
+          }
+
           //add symbol at start of tex and check if parsed as operatorNode
           const str__symbol_pre      = "Ä";
-          const tex__with_symbol_pre = str__symbol_pre + " " + tex;
+          const tex__with_symbol_pre = tex.replace("..", str__symbol_pre);
 
           logger.log("logNT", "tex__with_symbol_pre:", tex__with_symbol_pre);
 
-
           const mathNode__parsed = math.parse(tex__with_symbol_pre);
+          logger.log("logNT", "mathNode__parsed:", mathNode__parsed);
+
+
+          const regex__frac = /\\frac{(.*)}{(.*)}/;
+          const tex__with_symbol_pre__frac = tex__with_symbol_pre.replace(regex__frac, "math.fraction($1,$2)");
+          // const tex__with_symbol_pre__frac = tex__with_symbol_pre.replace(regex__frac, "($1) / ($2)");
+          const mathNode__parsed__frac = math.parse(tex__with_symbol_pre__frac);
+          logger.log("logNT", "mathNode__parsed__frac:", mathNode__parsed__frac);
+
+
           if(mathNode__parsed instanceof math.OperatorNode) {
             logger.log("logNT", "mathNode__parsed:", mathNode__parsed);
 
@@ -27095,6 +27258,72 @@
               return MathSingleton.node__empty;
             });
 
+          } else if(mathNode__parsed__frac instanceof math.FunctionNode) {
+
+            //replace mathNode__symbol__pre with node__empty
+            outNode = Rewriter.substitute(mathNode__parsed__frac, (mathNode) => {
+              const isFound = ((mathNode instanceof math.SymbolNode) && (mathNode.name == str__symbol_pre));
+              return isFound;
+            }, (_) => {
+              return MathSingleton.node__empty;
+            });
+            
+          } else {
+            throw new Error("couldn't find a funcName match for str__mathOperatorSymbol: " + str__mathOperatorSymbol);
+          } 
+
+
+          
+          return outNode;
+        }
+
+        function parseToOperatorNode__unary_pre__explicit__frac(tex) {
+          var outNode;
+
+          //count how many ".." are found
+          const nb_explArgSlot = StringUtils.count(tex, "..");
+          if(nb_explArgSlot != 1) {
+            throw new Error("parseToOperatorNode__binary__explicit: wrong number of explArgSlots (\"..\") in input tex: " + tex);
+          }
+
+          //add symbol at start of tex and check if parsed as operatorNode
+          const str__symbol_pre      = "Ä";
+          const tex__with_symbol_pre = tex.replace("..", str__symbol_pre);
+
+          const regex__frac = /\\frac{(.*)}{(.*)}/;
+          const tex__with_symbol_pre__frac = tex__with_symbol_pre.replace(regex__frac, "math.fraction($1,$2)");
+          // const tex__with_symbol_pre__frac = tex__with_symbol_pre.replace(regex__frac, "($1) / ($2)");
+          const mathNode__parsed__frac = math.parse(tex__with_symbol_pre__frac);
+          logger.log("logNT", "mathNode__parsed__frac:", mathNode__parsed__frac);
+
+
+          // if(mathNode__parsed instanceof math.OperatorNode) {
+          //   logger.log("logNT", "mathNode__parsed:", mathNode__parsed);
+
+          //   //replace mathNode__symbol__pre with node__empty
+          //   outNode = Rewriter.substitute(mathNode__parsed, (mathNode) => {
+          //     const isFound = ((mathNode instanceof math.SymbolNode) && (mathNode.name == str__symbol_pre));
+          //     return isFound;
+          //   }, (_) => {
+          //     return MathSingleton.node__empty;
+          //   });
+
+          // } 
+          // else
+          if(mathNode__parsed__frac instanceof math.FunctionNode) {
+
+            //replace mathNode__symbol__pre with node__empty
+            outNode = Rewriter.substitute(mathNode__parsed__frac, (mathNode) => {
+              const isFound = ((mathNode instanceof math.SymbolNode) && (mathNode.name == str__symbol_pre));
+              return isFound;
+            }, (_) => {
+              return MathSingleton.node__empty;
+            });
+
+            //rewrite as OperatorNode
+            // outNode = new math.OperatorNode("f/", "fracop", outNode.args); 
+            outNode = new math.OperatorNode("/", "divide", outNode.args);
+            
           } else {
             throw new Error("couldn't find a funcName match for str__mathOperatorSymbol: " + str__mathOperatorSymbol);
           } 
@@ -27105,9 +27334,15 @@
         function parseToOperatorNode__unary_post__explicit(tex) {
           var outNode;
 
+          //count how many ".." are found
+          const nb_explArgSlot = StringUtils.count(tex, "..");
+          if(nb_explArgSlot != 1) {
+            throw new Error("parseToOperatorNode__binary__explicit: wrong number of explArgSlots (\"..\") in input tex: " + tex);
+          }
+
           //add symbol at end of tex and check if parsed as operatorNode
-          const str__symbol_post      = "Ö";
-          const tex__with_symbol_post = tex + " " + str__symbol_post;
+          const str__symbol_post     = "Ö";
+          const tex__with_symbol_pre = tex.replace("..", str__symbol_post);
 
           logger.log("logNT", "tex__with_symbol_post:", tex__with_symbol_post);
 
@@ -27133,6 +27368,12 @@
 
         function parseToOperatorNode__binary__explicit(tex) {
           var outNode;
+
+          //count how many ".." are found
+          const nb_explArgSlot = StringUtils.count(tex, "..");
+          if(nb_explArgSlot != 2) {
+            throw new Error("parseToOperatorNode__binary__explicit: wrong number of explArgSlots (\"..\") in input tex: " + tex);
+          }
 
           //add symbol at start, and symbol at end of tex and check if parsed as operatorNode
           const str__symbol_pre      = "Ä";
@@ -27396,9 +27637,24 @@
         //is input an anon5050 function definition ?
         // var mathNode__anon5050Function;
 
+
+
         outMathNode = null;
         // outMathNode = outMathNode ? outMathNode : parseAnon5050Function(tex);
-        outMathNode = outMathNode ? outMathNode : parseToOperatorNode__unary_pre__implicit(tex);
+
+        //explicit
+        outMathNode = outMathNode ? outMathNode : FuncUtils.tryCatch_wrapper(() => parseToOperatorNode__unary_pre__explicit(tex), null);
+        outMathNode = outMathNode ? outMathNode : FuncUtils.tryCatch_wrapper(() => parseToOperatorNode__unary_pre__explicit__frac(tex), null);
+
+        outMathNode = outMathNode ? outMathNode : FuncUtils.tryCatch_wrapper(() => parseToOperatorNode__unary_pre__explicit(tex), null);
+        outMathNode = outMathNode ? outMathNode : FuncUtils.tryCatch_wrapper(() => parseToOperatorNode__binary__explicit(tex),    null);
+
+
+        //implicit
+        outMathNode = outMathNode ? outMathNode : FuncUtils.tryCatch_wrapper(() => parseToOperatorNode__unary_pre__implicit(tex),   null);
+        outMathNode = outMathNode ? outMathNode : FuncUtils.tryCatch_wrapper(() => parseToOperatorNode__unary_post__implicit(tex),  null);
+        outMathNode = outMathNode ? outMathNode : FuncUtils.tryCatch_wrapper(() => parseToOperatorNode__binary__implicit(tex),      null);
+        
         // outMathNode = outMathNode ? outMathNode : parseFraction(tex);
         // outMathNode = outMathNode ? outMathNode : parseComplex(tex);
         // outMathNode = outMathNode ? outMathNode : parseExpression(tex);
@@ -27408,10 +27664,25 @@
         return outMathNode;
       }
 
+        //debug/horror
+      numberTyping_parseTex_toOperatorNode__zZz(tex) {
+      
+        if(tex == "+") {
+          const tex__forced = ".. + ..";
+          return infiniteCanvas.numberTyping_parseTex_toOperatorNode(tex__forced);
+        }
+
+      }
+
       numberTyping_lol(tex) {
         var outDict;
 
         outDict = {};
+
+        //debug/horror
+        if(tex == "+") {
+          return infiniteCanvas.numberTyping_parseTex_toOperatorNode__zZz(tex);
+        }
 
         function refinedTex0(tex) {
           var outTex;
