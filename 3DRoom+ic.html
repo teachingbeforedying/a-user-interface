@@ -1989,6 +1989,21 @@
 
     }
 
+    class EmptySymbolNode extends math.SymbolNode {
+
+      constructor() {
+        super("");
+        this.isNodeEmpty = true;
+      }
+
+      cloneDeep() {
+        const mathNode__clone = super.cloneDeep();
+        mathNode__clone.isNodeEmpty = this.isNodeEmpty;
+        return mathNode__clone;
+      }
+
+    }
+
 
     class FixedDecimalConstantNode extends math.ConstantNode {
 
@@ -6717,7 +6732,7 @@
     }
 
     const MathSingleton = {
-      node__empty: new math.SymbolNode(""),
+      node__empty: new EmptySymbolNode(),
     };
 
 
@@ -17221,32 +17236,102 @@
                 // operatorConfig.name      = "lol";
                 operatorConfig.node__display = mathNode__operator;
 
-                const funcWrapper = operatorNodeFactoryFuncWrapper_from_operatorNode(mathNode__operator);
-                const transformationFunc__mathNode = funcWrapper.func;
+                const arr_zerone__node_empty = mathNode__operator.args.map((arg) => {
+                  logger.log("logNT", "arg:", arg);
+                  const zeroneNodeEmpty = arg.isNodeEmpty ? 1 : 0;
+                  return zeroneNodeEmpty;
+                });
+                logger.log("logNT", "arr_zerone__node_empty:", arr_zerone__node_empty);
 
-                const transformationFunc__icObj = (icObj) => {
-                  logger.log("logOp", "transformationFunc__icObj", icObj);
-                  var transformationOutput;
+                const arity = arr_zerone__node_empty.reduce((acc,x) => acc + x,0);
+                logger.log("logNT", "arity:", arity);
+                if(arity > 1) {
 
-                  // const mathNode__in  = icObj.mathNode;
-                  // const mathNode__new = transformationFunc__mathNode(mathNode__in);
+                  // const funcWrapper = operatorNodeFactoryFuncWrapper_from_operatorNode(mathNode__operator);
+                  // const transformationFunc__mathNode = funcWrapper.func;
+  
+                  function transformationFunc__icObj(icObj) {
+                    var transformationOutput;
+        
+                    const arr_arg__sleeping      = infiniteCanvas.getArr_icObj("free").filter((icObj) => icObj.isSleeping);
+        
+                    if(arr_arg__sleeping.length == 0) {
+                    // if(arr_arg__sleeping.length < 2) {
+        
+                      icObj.isSleeping = true;
+        
+                    } else {
+        
+                      const arr_mathNode__sleeping = arr_arg__sleeping.map((icMathNode) => icMathNode.mathNode);
+        
+                      function createMathNode__result_func(arr_mathNode) {
 
-                  // const icObj__new    = icObj.deepClone();
-                  // icObj__new.mathNode = mathNode__new;
+                        // const arr_mathNode__reversed = arr_mathNode.reverse();
+                        const arr_mathNode__reversed = arr_mathNode;
+          
+                        //shu: c'est un peu risqué
+                        const mathNode__new = mathNode__operator.transform(function (node, path, parent) {
+                          if (node.isSymbolNode && node.isNodeEmpty) {
+                            const node_bx = arr_mathNode__reversed.pop();
+                            return node_bx;
+                          }
+                          else {
+                            return node;
+                          }
+                        });
+          
+                        return mathNode__new;
+                      }            
+          
+                      icObj.mathNode = createMathNode__result_func([icObj.mathNode, ...arr_mathNode__sleeping]);
 
-                  // transformationOutput = new TransformationOutput("new", icObj__new, icObj);
-                  icObj.mathNode = transformationFunc__mathNode(icObj.mathNode);
-                  const autoSimplify = icObj.mathNode.autoSimplify;
-                  if(autoSimplify) {
-                    icObj.mathNode = math.simplify(icObj.mathNode);
-                    icObj.mathNode.autoSimplify = autoSimplify;
+                      icObj.mathNode = Simplifier.simplify_litexp_2(icObj.mathNode);
+                      icObj.mathNode.autoSimplify = true;
+        
+                      //consume all sleeping args 
+                      arr_arg__sleeping.forEach((icObj__sleeping) => {
+                        icObj__sleeping.im_dying_now = true;
+                      });
+        
+                    }
+        
+                    transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+        
+                    return transformationOutput;
                   }
+                  operatorConfig.transformationFunc = transformationFunc__icObj;
 
-                  transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+                } else {
 
-                  return transformationOutput;
-                };
-                operatorConfig.transformationFunc = transformationFunc__icObj;
+                  const funcWrapper = operatorNodeFactoryFuncWrapper_from_operatorNode(mathNode__operator);
+                  const transformationFunc__mathNode = funcWrapper.func;
+  
+                  const transformationFunc__icObj = (icObj) => {
+                    logger.log("logOp", "transformationFunc__icObj", icObj);
+                    var transformationOutput;
+  
+                    // const mathNode__in  = icObj.mathNode;
+                    // const mathNode__new = transformationFunc__mathNode(mathNode__in);
+  
+                    // const icObj__new    = icObj.deepClone();
+                    // icObj__new.mathNode = mathNode__new;
+  
+                    // transformationOutput = new TransformationOutput("new", icObj__new, icObj);
+                    icObj.mathNode = transformationFunc__mathNode(icObj.mathNode);
+                    const autoSimplify = icObj.mathNode.autoSimplify;
+                    if(autoSimplify) {
+                      icObj.mathNode = math.simplify(icObj.mathNode);
+                      icObj.mathNode.autoSimplify = autoSimplify;
+                    }
+  
+                    transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+  
+                    return transformationOutput;
+                  };
+                  operatorConfig.transformationFunc = transformationFunc__icObj;
+
+                }
+
               }
               break;
 
@@ -27197,6 +27282,8 @@
         logger.log("logNT", "numberTyping_parseTex_toOperatorNode", tex);
         var outMathNode;
 
+        const infiniteCanvas = this;
+
         // function parseToOperatorNode(tex) {
         //   var outNode;
 
@@ -27221,13 +27308,32 @@
         //   return outNode;
         // }
 
+        const nb_explArgSlot = StringUtils.count(tex, "..");
+        logger.log("logNT", "nb_explArgSlot:", nb_explArgSlot);
+
+        if(nb_explArgSlot != 0) {
+          outMathNode = FuncUtils.tryCatch_wrapper(() => infiniteCanvas.numberTyping_parseTex_toOperatorNode__explicit(tex),   null);
+        } else {
+          outMathNode = FuncUtils.tryCatch_wrapper(() => infiniteCanvas.numberTyping_parseTex_toOperatorNode__implicit(tex),   null);
+          outMathNode = outMathNode ? outMathNode : FuncUtils.tryCatch_wrapper(() => infiniteCanvas.numberTyping_parseTex_toOperatorNode__function(tex),   null);
+          outMathNode = outMathNode ? outMathNode : FuncUtils.tryCatch_wrapper(() => infiniteCanvas.numberTyping_parseTex_toOperatorNode__assignment(tex),   null);
+        }
+
+        logger.log("logNT", "outMathNode:", outMathNode);
+
+        return outMathNode;
+      }
+
+      numberTyping_parseTex_toOperatorNode__explicit(tex) {
+        var outMathNode;
+
         function parseToOperatorNode__unary_pre__explicit(tex) {
           var outNode;
 
           //count how many ".." are found
-          const nb_explArgSlot = StringUtils.count(tex, "..");
+          // const nb_explArgSlot = StringUtils.count(tex, "..");
           if(nb_explArgSlot != 1) {
-            throw new Error("parseToOperatorNode__binary__explicit: wrong number of explArgSlots (\"..\") in input tex: " + tex);
+            throw new Error("parseToOperatorNode__unary_pre__explicit: wrong number of explArgSlots (\"..\") in input tex: " + tex);
           }
 
           //add symbol at start of tex and check if parsed as operatorNode
@@ -27283,7 +27389,7 @@
           //count how many ".." are found
           const nb_explArgSlot = StringUtils.count(tex, "..");
           if(nb_explArgSlot != 1) {
-            throw new Error("parseToOperatorNode__binary__explicit: wrong number of explArgSlots (\"..\") in input tex: " + tex);
+            throw new Error("parseToOperatorNode__unary_pre__explicit__frac: wrong number of explArgSlots (\"..\") in input tex: " + tex);
           }
 
           //add symbol at start of tex and check if parsed as operatorNode
@@ -27337,12 +27443,12 @@
           //count how many ".." are found
           const nb_explArgSlot = StringUtils.count(tex, "..");
           if(nb_explArgSlot != 1) {
-            throw new Error("parseToOperatorNode__binary__explicit: wrong number of explArgSlots (\"..\") in input tex: " + tex);
+            throw new Error("parseToOperatorNode__unary_post__explicit: wrong number of explArgSlots (\"..\") in input tex: " + tex);
           }
 
           //add symbol at end of tex and check if parsed as operatorNode
-          const str__symbol_post     = "Ö";
-          const tex__with_symbol_pre = tex.replace("..", str__symbol_post);
+          const str__symbol_post      = "Ö";
+          const tex__with_symbol_post = tex.replace("..", str__symbol_post);
 
           logger.log("logNT", "tex__with_symbol_post:", tex__with_symbol_post);
 
@@ -27378,7 +27484,11 @@
           //add symbol at start, and symbol at end of tex and check if parsed as operatorNode
           const str__symbol_pre      = "Ä";
           const str__symbol_post     = "Ö";
-          const tex__with_symbols_pre_post = str__symbol_pre + " " + tex + " " + str__symbol_post;
+          var tex__with_symbols = tex;
+          tex__with_symbols = tex__with_symbols.replace("..", str__symbol_pre);
+          tex__with_symbols = tex__with_symbols.replace("..", str__symbol_post);
+
+          const tex__with_symbols_pre_post = tex__with_symbols;
 
           logger.log("logNT", "tex__with_symbols_pre_post:", tex__with_symbols_pre_post);
 
@@ -27386,20 +27496,36 @@
           if(mathNode__parsed instanceof math.OperatorNode) {
             logger.log("logNT", "mathNode__parsed:", mathNode__parsed);
 
-            //replace mathNode__symbol__pre  with node__empty
-            //replace mathNode__symbol__post with node__empty
             outNode = mathNode__parsed;
+            //SHU: this is real strange: (but I don't care, I need to move on)
+
+              //replace mathNode__symbol__pre  with node__empty
+            // outNode = Rewriter.substitute(outNode, (mathNode) => {
+            //   const isFound = ((mathNode instanceof math.SymbolNode) && (mathNode.name == str__symbol_pre));
+            //   return isFound;
+            // }, (_) => {
+            //   return MathSingleton.node__empty;
+            //   // return MathSingleton.node__empty.cloneDeep();
+            // });
+              //replace mathNode__symbol__post with node__empty
+            // outNode = Rewriter.substitute(outNode, (mathNode) => {
+            //   const isFound = ((mathNode instanceof math.SymbolNode) && (mathNode.name == str__symbol_post));
+            //   return isFound;
+            // }, (_) => {
+            //   return MathSingleton.node__empty;
+            //   // return MathSingleton.node__empty.cloneDeep();
+            // });
+
             outNode = Rewriter.substitute(outNode, (mathNode) => {
-              const isFound = ((mathNode instanceof math.SymbolNode) && (mathNode.name == str__symbol_pre));
+              const isFound__pre  = ((mathNode instanceof math.SymbolNode) && (mathNode.name == str__symbol_pre));
+              const isFound__post = ((mathNode instanceof math.SymbolNode) && (mathNode.name == str__symbol_post));
+
+              const isFound = isFound__pre || isFound__post;
+
               return isFound;
             }, (_) => {
               return MathSingleton.node__empty;
-            });
-            outNode = Rewriter.substitute(outNode, (mathNode) => {
-              const isFound = ((mathNode instanceof math.SymbolNode) && (mathNode.name == str__symbol_post));
-              return isFound;
-            }, (_) => {
-              return MathSingleton.node__empty;
+              // return MathSingleton.node__empty.cloneDeep();
             });
 
           } else {
@@ -27409,7 +27535,17 @@
           return outNode;
         }
 
-        
+        outMathNode = outMathNode ? outMathNode : FuncUtils.tryCatch_wrapper(() => parseToOperatorNode__unary_pre__explicit(tex), null);
+        outMathNode = outMathNode ? outMathNode : FuncUtils.tryCatch_wrapper(() => parseToOperatorNode__unary_pre__explicit__frac(tex), null);
+
+        outMathNode = outMathNode ? outMathNode : FuncUtils.tryCatch_wrapper(() => parseToOperatorNode__unary_pre__explicit(tex), null);
+        outMathNode = outMathNode ? outMathNode : FuncUtils.tryCatch_wrapper(() => parseToOperatorNode__binary__explicit(tex),    null);
+
+        return outMathNode;
+      }
+
+      numberTyping_parseTex_toOperatorNode__implicit(tex) {
+        var outMathNode;
 
         function parseToOperatorNode__unary_pre__implicit(tex) {
           var outNode;
@@ -27506,6 +27642,16 @@
           return outNode;
         }
 
+        outMathNode = outMathNode ? outMathNode : FuncUtils.tryCatch_wrapper(() => parseToOperatorNode__unary_pre__implicit(tex),   null);
+        outMathNode = outMathNode ? outMathNode : FuncUtils.tryCatch_wrapper(() => parseToOperatorNode__unary_post__implicit(tex),  null);
+        outMathNode = outMathNode ? outMathNode : FuncUtils.tryCatch_wrapper(() => parseToOperatorNode__binary__implicit(tex),      null);
+
+        return outMathNode;
+      }
+
+      numberTyping_parseTex_toOperatorNode__function(tex) {
+        var outMathNode;
+
         function parseAnon5050Function(tex) {
           var outMathNode;
 
@@ -27590,6 +27736,15 @@
           return outMathNode;
         }
 
+        outMathNode = outMathNode ? outMathNode : FuncUtils.tryCatch_wrapper(() => parseAnon5050Function(tex), null);
+        outMathNode = outMathNode ? outMathNode : FuncUtils.tryCatch_wrapper(() => parseAnonymousFunction(tex),    null);
+
+        return outMathNode;
+      }
+
+      numberTyping_parseTex_toOperatorNode__assignment(tex) {
+        var outMathNode;
+
         function parseAssignmentExpression(tex) {
           var outMathNode;
 
@@ -27633,44 +27788,32 @@
           return outMathNode;
         }
 
-
-        //is input an anon5050 function definition ?
-        // var mathNode__anon5050Function;
-
-
-
-        outMathNode = null;
-        // outMathNode = outMathNode ? outMathNode : parseAnon5050Function(tex);
-
-        //explicit
-        outMathNode = outMathNode ? outMathNode : FuncUtils.tryCatch_wrapper(() => parseToOperatorNode__unary_pre__explicit(tex), null);
-        outMathNode = outMathNode ? outMathNode : FuncUtils.tryCatch_wrapper(() => parseToOperatorNode__unary_pre__explicit__frac(tex), null);
-
-        outMathNode = outMathNode ? outMathNode : FuncUtils.tryCatch_wrapper(() => parseToOperatorNode__unary_pre__explicit(tex), null);
-        outMathNode = outMathNode ? outMathNode : FuncUtils.tryCatch_wrapper(() => parseToOperatorNode__binary__explicit(tex),    null);
-
-
-        //implicit
-        outMathNode = outMathNode ? outMathNode : FuncUtils.tryCatch_wrapper(() => parseToOperatorNode__unary_pre__implicit(tex),   null);
-        outMathNode = outMathNode ? outMathNode : FuncUtils.tryCatch_wrapper(() => parseToOperatorNode__unary_post__implicit(tex),  null);
-        outMathNode = outMathNode ? outMathNode : FuncUtils.tryCatch_wrapper(() => parseToOperatorNode__binary__implicit(tex),      null);
-        
-        // outMathNode = outMathNode ? outMathNode : parseFraction(tex);
-        // outMathNode = outMathNode ? outMathNode : parseComplex(tex);
-        // outMathNode = outMathNode ? outMathNode : parseExpression(tex);
-
-        logger.log("logNT", "outMathNode:", outMathNode);
+        outMathNode = outMathNode ? outMathNode : FuncUtils.tryCatch_wrapper(() => parseAssignmentExpression(tex), null);
 
         return outMathNode;
       }
 
+
         //debug/horror
-      numberTyping_parseTex_toOperatorNode__zZz(tex) {
-      
-        if(tex == "+") {
-          const tex__forced = ".. + ..";
-          return infiniteCanvas.numberTyping_parseTex_toOperatorNode(tex__forced);
+      numberTyping_parseTex_toOperatorNode__zZz(tex_in) {
+
+        var tex = tex_in;
+
+        if(tex == "\\times") {
+          tex = "*";
+        } 
+        else if(tex == "\\frac{ }{ }") {
+          tex = "/";
         }
+      
+        // if(tex == "+" 
+        // || tex == "-"
+        // || tex == "×"
+        // || tex == "/") {
+          const tex__forced = ".. " + tex + "..";
+          const mathNode__op = infiniteCanvas.numberTyping_parseTex_toOperatorNode(tex__forced);
+          return mathNode__op;
+        // }
 
       }
 
@@ -27680,8 +27823,17 @@
         outDict = {};
 
         //debug/horror
-        if(tex == "+") {
-          return infiniteCanvas.numberTyping_parseTex_toOperatorNode__zZz(tex);
+        if(tex == "+" 
+        || tex == "-"
+        || tex == "\\times"
+        || tex == "\\frac{ }{ }") {
+          const mathNode__op = infiniteCanvas.numberTyping_parseTex_toOperatorNode__zZz(tex);
+
+          outDict.type     = "operatorNode";
+          // outDict.subType  = "zZz";
+          outDict.mathNode = mathNode__op;
+
+          return outDict;
         }
 
         function refinedTex0(tex) {
