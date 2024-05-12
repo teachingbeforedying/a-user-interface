@@ -2070,6 +2070,65 @@
 
     }
 
+
+    class SignedFixedDecimalConstantNode extends math.ConstantNode {
+
+      constructor(value, isColored = false) {
+        super(value);
+        this.isColored = isColored;
+      }
+
+      toTex() {
+        var outTex;
+
+        const tex__legacy = this.toTex__fixed_decimal();
+
+        //sign
+        if(this.value > 0) {
+          outTex = "+" + " " + tex__legacy;
+        } else {
+          outTex = tex__legacy;
+        }
+
+
+        //color
+        const color__pos  = "#FF0000";
+        const color__zero = "#000000";
+        const color__neg  = "#FFFFFF";
+
+        var color;
+        if(this.value > 0) {
+          color = color__pos;
+        } else if(this.value == 0) {
+          color = color__zero;
+        } else {
+          color = color__neg;
+        }
+
+        outTex = TexEnricher.color(outTex, color);
+
+
+        return outTex;
+      }
+
+      toTex__fixed_decimal() {
+        var outTex;
+        outTex = this.toString__fixed_decimal();
+        return outTex;
+      }
+
+      toString__fixed_decimal() {
+        var outString;
+        outString = math.format(this.value, {notation: 'fixed', precision: this.precision});
+        return outString;
+      }
+
+    }
+
+
+
+    
+
     class HorizSquaresBarIntegerConstantNode extends math.ConstantNode {
 
       constructor(value, isColored = false) {
@@ -8384,6 +8443,8 @@
           case "touchSlot":
           case "dropTouchSlot":
           case "diveSlot":
+
+          case "pokeSlot":
             {
               //introduce touchslot to existing objects
 
@@ -8414,7 +8475,11 @@
         const arr_official_exisitingType = arr_official.filter(rep => {
           var outBool;
 
-          outBool = (rep.type == "touchSlot") || (rep.type == "dropTouchSlot") || (rep.type == "diveSlot");
+          outBool = (rep.type == "touchSlot") 
+                 || (rep.type == "dropTouchSlot") 
+                 || (rep.type == "diveSlot")
+                 
+                 || (rep.type == "pokeSlot");
 
           return outBool;
         });
@@ -14687,6 +14752,61 @@
       }
 
 
+      createIcPokeSlot(trueRect, pokeSlotConfig) {
+        console.log("createIcPokeSlot", trueRect, pokeSlotConfig);
+
+        const infiniteCanvas = this;
+
+        const type      = "pokeSlot";
+        const position  = Geometry.createPoint(trueRect.x, trueRect.y);
+        const size      = Geometry.createSize(trueRect.width, trueRect.height);
+        const homeScale = Object.assign({}, this.scale);
+
+        const icObj = this.createIcObject(type, position, size, homeScale);
+
+        if(!("isEnabled" in pokeSlotConfig)) {
+          pokeSlotConfig["isEnabled"] = true;
+        }
+
+        const icPokeSlot_spec = {
+          // isSnappable: false,
+          isTouchable: false,
+
+          stroke: "yellow",
+          strokeWidth: 2,
+
+          fill: "rgba(33,66,200,0.5)",
+
+          pokeSlotConfig: pokeSlotConfig,
+        };
+
+        const icPokeSlot = Object.assign(icObj, icPokeSlot_spec);
+
+        // return icPokeSlot;
+
+        const engine = new PokeSlotEngine();
+        const eType  = "pokeSlot";
+
+        const icEngined = infiniteCanvas.installEngineOnIcObj(icPokeSlot, eType, engine);
+
+        //debug: hot-mutating touchSlotConfig
+        // setTimeout(() => {
+        //
+        //   const represented = infiniteCanvas.getRepresented(icEngined.id);
+        //   const rep_free    = represented.r_free();
+        //
+        //   rep_free.touchSlotConfig = {
+        //     transformationFunc: (icObj) => {
+        //       icObj.fill = "orange";
+        //     },
+        //   };
+        //
+        // }, 10000);
+
+        return icEngined;
+      }
+
+
       createIcApplySlot(trueRect, applySlotConfig) {
         console.log("createIcApplySlot", trueRect, applySlotConfig);
 
@@ -16933,6 +17053,21 @@
         icGMSafetyZone.parts.dropTouchSlot.fill = "#FFFFFF";
 
         return icGMSafetyZone;
+      }
+
+      createIcTouchHook(trueRect) {
+
+        const touchSlotConfig = {
+          transformationFunc: (icObj) => {
+
+          },
+          isEnabled: true,
+        };
+
+        const touchSlot = infiniteCanvas.createIcTouchSlot(trueRect, touchSlotConfig);
+        touchSlot.fill = "";
+
+        return touchSlot;
       }
 
 
@@ -32997,6 +33132,655 @@
       }
 
 
+      class PokeSlotEngine {
+        // constructor(pokeSlotConfig) {
+        constructor() {
+
+          this.initialized = false;
+
+          this.initialize = function (scopeObj) {
+
+            //"wake up":
+            //bind all funcs
+            // function isFunction(functionToCheck) {
+            //   return functionToCheck && {}.toString.call(functionToCheck) === '[object Function]';
+            // }
+            const isFunction = value => value && (Object.prototype.toString.call(value) === "[object Function]" || "function" === typeof value || value instanceof Function);
+
+            this.awoken = {
+              'i_am': "awoken",
+            };
+            console.log("this.virgin", this.virgin);
+            Object.entries(this.virgin)
+              .filter(([propName, prop]) => isFunction(prop))
+              .forEach(([propName, prop], i) => {
+                this.awoken[propName] = prop.bind(this.awoken);
+              });
+
+            // this.scopeObj  = scopeObj;
+            //engineCarrier,
+            //infiniteCanvas,
+            this.awoken.scopeObj = scopeObj;
+
+            this.initialized = true;
+          }
+
+
+
+          this.attemptPoking = function (icObj_slot, icObj_piece) {
+            // logger.log("logPoke", "attemptPoking", icObj_slot, icObj_piece);
+
+            const canPoke = this.checkCanPoke(icObj_slot, icObj_piece);
+
+            const rep_official = icObj_piece;
+            // logger.log("attempting to poke with touchState: " + rep_official.touchStateDict[icObj_slot.id]);
+
+            if (canPoke) {
+              console.log("can poke");
+
+              const rep_official = icObj_piece;
+              const represented  = icObj_piece.represented;
+              const rep_free     = represented.getRepresentation("free");
+
+              // console.log("rep_free.isHeld", rep_free.isHeld);
+              // if(rep_free.isHeld) {
+              //   presnap(icObj_slot, icObj_piece);
+              // } else {
+              //   presnap(icObj_slot, icObj_piece);
+              //   snap(icObj_slot, icObj_piece);
+              // }
+
+              this.poke(icObj_slot, icObj_piece);
+
+            } else {
+              console.log("can't poke");
+            }
+
+          };
+
+          this.checkCanPoke = function (icObj_slot, icObj_piece) {
+            // logger.log("checkCanPoke", icObj_piece);
+            var outBool;
+
+            // outBool = Touch.canTouch(icObj_piece, icObj_slot);
+
+            var canPokeFunc = this.scopeObj.engineCarrier.pokeSlotConfig.canPokeFunc;
+            if (canPokeFunc == null) {
+
+              // canTouchFunc = Touch.canTouch;
+
+              // const infiniteCanvas = this.scopeObj.infiniteCanvas;
+              // canTouchFunc = infiniteCanvas.touch2.canTouch;
+
+              const touch2Singleton = Touch2Singleton.sharedInstance();
+              canPokeFunc = touch2Singleton.canTouch.bind(touch2Singleton);
+
+              //debug:
+              // const infiniteCanvas = this.scopeObj.infiniteCanvas;
+              // canTouchFunc = function(icObj__1, icObj__2, context) {
+              //   return infiniteCanvas.checkIntersecting([icObj__1, icObj__2]);
+              // };
+            }
+
+            const context = this.scopeObj.engineCarrier.pokeSlotConfig.context;
+
+            outBool = canPokeFunc(icObj_piece, icObj_slot, context);
+
+            return outBool;
+          };
+
+
+          this.poke = async function (icObj_slot, icObj_piece) {
+            // logger.log("logPoke", "poke", icObj_piece);
+
+            const icPokeSlot = this.scopeObj.engineCarrier;
+
+
+            const rep_official = icObj_piece;
+            const represented = icObj_piece.represented;
+            const rep_free = represented.getRepresentation("free");
+            // const rep_touched  = represented.getRepresentation("snapped");
+
+
+            //rep_official.touchStateDict[icObj_slot.id] = TouchState.Touched;    //SHU: as of now, don't set prop inside dict
+            const touchStateDict__clone = Object.assign({}, rep_official.touchStateDict);
+            touchStateDict__clone[icObj_slot.id] = TouchState.Touched;
+            // rep_official.touchStateDict = touchStateDict__clone;               //SHU: it does not work well with rep_official, I've tried with rep_free and it seems ok...  (I don't care that much anymore)
+            rep_free.touchStateDict = touchStateDict__clone;                  //SHU: as of now, set dict as if it were a depthless prop
+
+
+            //apply mutation
+            console.log("touch: apply mutation");
+            // console.log("rep_official.text", rep_official.text);
+
+            // if(rep_official.text != null) {
+            //
+            //   /*
+            //   const number_in   = parseInt(rep_official.text,10);
+            //   const number_out  = number_in + 1;
+            //
+            //   rep_free.text     = "" + number_out;
+            //   */
+            //
+            //   const number_in   = parseInt(rep_official.text,10);
+            //   const transformationFunc = icTouchSlot.touchSlotConfig.transformationFunc;
+            //   const number_out  = transformationFunc(number_in);
+            //
+            //   rep_free.text     = "" + number_out;
+            // }
+            // else
+
+            // if(rep_official.mathNode != null) {
+            //
+            //   // const tex_in    = rep_official.tex;
+            //   // const expr_in   = algebra.fromTex(tex_in);
+            //   const mathNode_in = rep_official.mathNode;
+            //
+            //   const transformationFunc = icTouchSlot.touchSlotConfig.transformationFunc;
+            //   const mathNode_out  = transformationFunc(mathNode_in);
+            //
+            //   rep_free.mathNode = mathNode_out;
+            //
+            //   // const tex_out = expr_out.toTex();
+            //   // rep_free.tex  = tex_out;
+            // }
+            // else
+
+            var transformationFunc = icPokeSlot.pokeSlotConfig.transformationFunc;
+            if (transformationFunc == null) {
+              transformationFunc = icPokeSlot.pokeSlotConfig.transformationFunc__poke;
+            }
+
+            if (transformationFunc != null) {
+              console.log("&&&poke");
+              console.log("icPokeSlot", icPokeSlot);
+
+              const icObj__touched = rep_free;
+
+              ////temporary
+              //// {
+              ////   if(icObj__touched.type == "composite" && icObj__touched.parts.contactArea != null) {
+              ////     icObj__touched = icObj__touched.parts.facade;
+              ////   }
+              //// }
+
+              // logger.log("icObj__touched", icObj__touched);
+
+
+              const transformationOutput = await transformationFunc(icObj__touched, icObj_slot);
+              switch (transformationOutput.type) {
+                case "new":
+                  {
+                    const infiniteCanvas = this.scopeObj.infiniteCanvas;
+
+                    //get vessel
+                    var rep_free__vessel;
+                    // if(transformationOutput.vessel != null) {
+                    // rep_free__vessel = transformationOutput.vessel;
+                    const id__parentVessel = icObj__touched.compositeId;
+                    if (id__parentVessel != -1) {
+                      logger.log("id__parentVessel != -1", id__parentVessel);
+                      const rep_free__parentVessel = infiniteCanvas.getRepresented(id__parentVessel).r_free();
+                      rep_free__vessel = rep_free__parentVessel;
+                    } else {
+                      logger.log("id__parentVessel == -1");
+                      const rep_free__supervessel = infiniteCanvas.getSupervessel();
+                      rep_free__vessel = rep_free__supervessel;
+                    }
+
+                    rep_free__vessel.dict_engine["composite"].engine.awoken.removePart(icObj__touched);
+
+                    //killOld
+                    function killOld(icObj__old) {
+                      // infiniteCanvas.removeIcObject(icObj__touched);
+                      switch (icObj__old.type) {
+                        case "composite":
+                          {
+                            Object.entries(icObj__old.parts).forEach(([partName, icObj__part], i) => {
+                              icObj__old.dict_engine["composite"].engine.awoken.removePart(icObj__part);
+                              icObj__part.im_dying_now = true;
+                            });
+                          }
+                          break;
+                        default:
+                          break;
+                      }
+
+                      icObj__old.im_dying_now = true;
+                    }
+
+                    function findParentInOld(icObj__old, icObj__new) {
+                      var outFindResult;
+
+                      const findResult__initial = {
+                        isFound: false,
+                        parent: null,
+                      };
+
+                      outFindResult = findResult__initial;
+
+                      switch (icObj__old.type) {
+                        case "composite":
+                          {
+                            const arr_part = Object.values(icObj__old.parts);
+
+                            //breadth-first
+                            outFindResult = Utils.early_break_reduce(arr_part, (acc, x, i, arr) => {
+                              const isFound = (x == icObj__new);
+                              logger.log("isFound", x, icObj__new, isFound);
+                              if (isFound) {
+                                acc.parent = icObj__old;
+                              }
+                              acc.isFound = acc.isFound || isFound;
+                              return acc;
+                            }, outFindResult, (acc, x, i, arr) => {
+                              return (acc.isFound == true);
+                            });
+
+                            if (!outFindResult.isFound) {
+                              outFindResult = Utils.early_break_reduce(arr_part, (acc, x, i, arr) => {
+                                acc = findParentInOld(x, icObj__new);
+                                return acc;
+                              }, outFindResult, (acc, x, i, arr) => {
+                                return (acc.isFound == true);
+                              });
+                            }
+
+                          }
+                          break;
+                        default:
+                          break;
+                      }
+
+                      logger.log("findParentInOld", icObj__old, icObj__new, outFindResult);
+
+                      return outFindResult;
+                    }
+
+
+                    //add new
+                    function addNew(icObj__new, isInCanvas) {
+                      icObj__new.isTouchable = true;
+                      icObj__new.touchStateDict[icObj_slot.id] = TouchState.Touched;
+                      if (icObj__new.type == "composite") {
+                        Object.entries(icObj__new.parts).forEach(([partName, icObj__part], i) => {
+                          icObj__part.touchStateDict[icObj_slot.id] = TouchState.Touched;
+                        });
+                      }
+
+                      if (!isInCanvas) {
+                        infiniteCanvas.addIcObject(icObj__new);
+                      }
+
+                      const isPositionCorrection = true;
+                      if (isPositionCorrection) {
+                        icObj__new.position = {
+                          x: rep_free__vessel.position.x,
+                          y: rep_free__vessel.position.y,
+                        };
+                      }
+
+                      const rep_free__new = infiniteCanvas.getRepresented(icObj__new.id).r_free();
+                      rep_free__vessel.dict_engine["composite"].engine.awoken.addPart(rep_free__new, false);
+                    }
+
+                    const icObj__old = icObj__touched;
+
+                    if (transformationOutput.value instanceof IcObject) {
+
+                      const icObj__new = transformationOutput.value;
+                      logger.log("icObj__new", icObj__new);
+
+                      //if icObj__new belongs to icObj__old hierarchy, remove icObj__new from icObj__old hierarchy
+                      const findParentInOld_ = findParentInOld(icObj__old, icObj__new);
+                      if (findParentInOld_.isFound) {
+                        const composite__parent = findParentInOld_.parent;
+                        composite__parent.dict_engine["composite"].engine.awoken.removePart(icObj__new);
+
+                        logger.log("parent", composite__parent);
+                        logger.log("removed part", icObj__new);
+
+                        killOld(icObj__old);
+                        addNew(icObj__new, true);
+
+                      } else {
+                        killOld(icObj__old);
+                        addNew(icObj__new, false);
+                      }
+
+                    } else if (transformationOutput.value instanceof Array) {
+
+                      logger.log("transformationOutput.value instanceof Array");
+
+                      //SHU: TODO: manage the case "filtering multiple objects in composite"
+
+                      const arr_new = transformationOutput.value;
+
+                      const isOldInArray = arr_new.includes(icObj__old);
+                      if (isOldInArray) {
+
+                        const arr__truly_new = arr_new.filter(icObj => icObj != icObj__old);
+                        addNew(icObj__old, true);
+                        arr__truly_new.forEach((icObj__new, i) => {
+                          addNew(icObj__new, false);
+                        });
+
+                      } else {
+                        killOld(icObj__old);
+
+                        arr_new.forEach((icObj__new, i) => {
+                          addNew(icObj__new, false);
+                        });
+                      }
+
+                    } else {
+                      throw new Error("unsupported transformationOutput.value: " + transformationOutput.value);
+                    }
+                  }
+                  break;
+                case "old":
+                  {
+                    //do nothing: object has not changed
+                  }
+                  break;
+                case "mutated":
+                  {
+                    logger.log("transformationOutput:", transformationOutput);
+
+                    const mutationObj = transformationOutput.value;
+                    // icObj__touched.mathNode = mutationObj.mathNode;
+                    Object.assign(icObj__touched, mutationObj);
+                  }
+                  break;
+                // case "displaced":
+                // {
+                //
+                // }
+                // break;
+                case "sadness":
+                  {
+                    icObj__touched.mathNode = transformationOutput.value.mathNode;
+                  }
+                  break;
+
+                // case "mathNode":     //SHU: horror code   il serait bon un jour d'harmoniser: tout le monde doit utiliser TransformationOutput
+                // case "composite":    //SHU: horror code
+                // // {
+                // //   // icObj__touched.mathNode = transformationOutput.mathNode;
+                // // }
+                // break;
+
+                default:
+                  logger.log("transformationOutput", transformationOutput);
+                  throw new Error("unsupported transformationOutput type: " + transformationOutput.type);
+                  break;
+              }
+
+            } else {
+              throw new Error("touch: transformationFunc == null");
+            }
+
+
+          };
+
+
+
+
+
+          this.attemptUnpoking = function (icObj_slot, icObj_piece) {
+            // logger.log("logPoke", "attemptUnpoking", icObj_slot, icObj_piece);
+
+            const canUnpoke = this.checkCanUnpoke(icObj_slot, icObj_piece);
+            console.log("canUnpoke", canUnpoke);
+
+            const rep_official = icObj_piece;
+            console.log("attempting to unpoke with touchState: " + rep_official.touchStateDict[icObj_slot.id]);
+
+            if (canUnpoke) {
+              // console.log("can unpoke");
+              this.unpoke(icObj_slot, icObj_piece);
+
+            } else {
+              // console.log("can't unpoke");
+            }
+
+          };
+
+          this.checkCanUnpoke = function (icObj_slot, icObj_piece) {
+            // logger.log("logPoke", "checkCanUnpoke", icObj_piece);
+            var outBool;
+
+            // outBool = Touch.canUntouch(icObj_piece, icObj_slot);
+            outBool = Touch2Singleton.sharedInstance().canUntouch(icObj_piece, icObj_slot);
+
+            return outBool;
+          };
+
+          this.unpoke = function (icObj_slot, icObj_piece) {
+            // logger.log("logPoke", "unpoke", icObj_piece);
+
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+
+            // const rep_free     = icObj_piece;   //SHU: this is probably false
+            const rep_free = infiniteCanvas.getRepresented(icObj_piece.id).r_free();
+
+            const represented = icObj_piece.represented;
+            const rep_official = represented.getRepresentation("official");
+
+
+            const icPokeSlot = this.scopeObj.engineCarrier;
+
+            const transformationFunc__unpoke = icPokeSlot.pokeSlotConfig.transformationFunc__unpoke;
+            if (transformationFunc__unpoke != null) {
+
+              const transformationFunc = transformationFunc__unpoke;
+
+              const icObj__untouched = rep_free;
+              logger.log("icObj__untouched", icObj__untouched);
+
+              const transformationOutput = transformationFunc(icObj__untouched);
+              switch (transformationOutput.type) {
+                case "new":   //SHU: this code has to be updated
+                  {
+                    const icTouchSlot = this.scopeObj.infiniteCanvas;
+
+                    const rep_free__supervessel = infiniteCanvas.getSupervessel();
+
+                    rep_free__supervessel.dict_engine["composite"].engine.awoken.removePart(icObj__untouched);
+
+                    //remove old
+                    {
+                      // infiniteCanvas.removeIcObject(icObj__untouched);
+                      icObj__untouched.im_dying_now = true;
+                    }
+
+                    //add new
+
+                    function addNew(icObj__new) {
+                      icObj__new.isTouchable = true;
+                      icObj__new.touchStateDict[icObj_slot.id] = TouchState.Touched;
+                      if (icObj__new.type == "composite") {
+                        icObj__new.parts.forEach((part, i) => {
+                          part.touchStateDict[icObj_slot.id] = TouchState.Touched;
+                        });
+                      }
+
+                      infiniteCanvas.addIcObject(icObj__new);
+
+                      const rep_free__new = infiniteCanvas.getRepresented(icObj__new.id).r_free();
+                      rep_free__supervessel.dict_engine["composite"].engine.awoken.addPart(rep_free__new);
+
+                    }
+
+                    if (transformationOutput.value instanceof IcObject) {
+
+                      const icObj__new = transformationOutput.value;
+                      logger.log("icObj__new", icObj__new);
+
+                      addNew(icObj__new);
+
+                    } else if (transformationOutput.value instanceof Array) {
+
+                      transformationOutput.value.forEach((icObj__new, i) => {
+                        addNew(icObj__new);
+                      });
+
+                    } else {
+                      throw new Error("unsupported transformationOutput.value: " + transformationOutput.value);
+                    }
+                  }
+                  break;
+                case "old":
+                  {
+                    //do nothing: object has not changed
+                  }
+                  break;
+                case "mutated":
+                  {
+                    logger.log("transformationOutput:", transformationOutput);
+
+                    const mutationObj = transformationOutput.value;
+                    // icObj__touched.mathNode = mutationObj.mathNode;
+                    Object.assign(icObj__untouched, mutationObj);
+                  }
+                  break;
+                // case "displaced":
+                // {
+                //
+                // }
+                // break;
+                case "sadness":
+                  {
+                    icObj__untouched.mathNode = transformationOutput.value.mathNode;
+                  }
+                  break;
+
+                // case "mathNode":     //SHU: horror code   il serait bon un jour d'harmoniser: tout le monde doit utiliser TransformationOutput
+                // case "composite":    //SHU: horror code
+                // // {
+                // //   // icObj__touched.mathNode = transformationOutput.mathNode;
+                // // }
+                // break;
+
+                default:
+                  throw new Error("unsupported transformationOutput type: " + transformationOutput.type);
+                  break;
+              }
+
+            }
+
+            rep_official.touchStateDict[icObj_slot.id] = TouchState.Untouched;
+            // rep_free.touchStateDict[icObj_slot.id] = TouchState.Untouched;
+          };
+
+
+
+          // this.r_official_update_handler = (icObj_slot, icObj_piece, outerUpdatesDict) => {
+          this.r_official_update_handler = function (icObj_slot, icObj_piece, outerUpdatesDict) {
+            // logger.log("logPoke", "r_official_update_handler", icObj_piece);
+
+            const touchState = icObj_piece.touchStateDict[icObj_slot.id];
+            logger.log("logTouch", "touchState", touchState);
+
+            if (touchState == TouchState.Untouched) {
+              this.attemptPoking(icObj_slot, icObj_piece);
+            } else if (touchState == TouchState.Touched) {
+              this.attemptUnpoking(icObj_slot, icObj_piece);
+            }
+
+          };
+
+          // this.r_official_update_handler2 = (rep_official_incoming, outerUpdatesDict) => {
+          this.r_official_update_handler2 = function (rep_official_incoming, outerUpdatesDict) {   //SHU: when using func.bind(myObj), be sure not to use arrow functions
+            // logger.log("logPoke", "r_official_update_handler2", rep_official_incoming);
+
+            // console.log("engine::r_official_update_handler2, this", this);
+            // console.log("this.scopeObj", this.scopeObj);
+
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            // console.log("infiniteCanvas", infiniteCanvas);
+            const icPokeSlot = this.scopeObj.engineCarrier;
+
+            const pokeSlotConfig = this.scopeObj.engineCarrier.pokeSlotConfig;
+            logger.log("pokeSlotConfig", pokeSlotConfig);
+
+            const represented = infiniteCanvas.getRepresented(icPokeSlot.id);
+            // console.log("represented", represented);
+            const rep_official = represented.r_official();
+
+            const pokeSlot    = rep_official;
+            const incomingObj = rep_official_incoming;
+
+            if (incomingObj.id == pokeSlot.id) { //only follow pokeSlot's updates
+              logger.log("logPoke", "track oneself");
+
+              // if (!incomingObj.isTouchable) {
+              //   //ignore: pokeSlot is intangible
+              //   logger.log("logPoke", "pokeSlot is intangible");
+              // } else 
+              if (!pokeSlotConfig.isEnabled) {
+                //ignore: pokeSlot is intangible
+              } else {
+
+                //get poked objects
+                const arr__poked = infiniteCanvas.getArr_icObj__intersecting("free", icPokeSlot);
+                logger.log("logPoke", "arr__poked", arr__poked);
+
+                arr__poked.forEach((icObj__poked) => {
+                  this.r_official_update_handler(pokeSlot, icObj__poked, outerUpdatesDict);
+                });
+
+              }
+
+            } else {
+              //don't care about other objects' updates
+            }
+
+          };
+
+
+          this.start = function () {
+            console.log("engine::start, this", this);
+            // logger.log("pokeSlotEngine::start", "this.scopeObj", this.scopeObj);
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const icPokeSlot     = this.scopeObj.engineCarrier;
+
+            infiniteCanvas.onIcObjUpdate(this.r_official_update_handler2);
+
+            //for each existing canvas object, add touchState wrt this new touchSlot
+            infiniteCanvas.onceOnAddRepresentedForIcObject(icPokeSlot, (icPokeSlot) => {
+
+              const id_pokeSlot = icPokeSlot.id;
+
+              const arr_official = Object.values(infiniteCanvas.represented).map(represented => represented.r_official());
+              const arr_official_preexisiting = arr_official.filter(rep => (rep.id != id_pokeSlot));
+              arr_official_preexisiting.forEach((rep, i) => {
+
+                rep.touchStateDict[id_pokeSlot] = TouchState.Untouched;
+                //SHU TODO: check if touches
+
+              });
+
+            });
+
+          };
+
+          this.stop = function () {
+            // delete this.scopeObj;
+          };
+
+
+          this.virgin = Object.assign({}, this);  //virgin == not bound
+
+        }
+
+      }
+
+      class DropPokeSlotEngine { 
+        //TODO 
+      }
+
+
       class ApplySlotEngine {
         constructor() {
 
@@ -41711,6 +42495,13 @@
               }
               break;
 
+            case "pokeSlot":
+              {
+                const fObj = this.createFabricPokeSlotWithIcObj(icObj);
+                fObj_p = Promise.resolve(fObj);
+              }
+              break;
+
 
 
             case "composite":
@@ -44902,6 +45693,67 @@
 
           if (icObj.canBeHeld) {
             this.addInteraction_hold(fObj);
+          }
+
+
+          return fObj;
+        }
+
+        createFabricPokeSlotWithIcObj(icObj) {
+          console.log("createFabricPokeSlotWithIcObj", icObj);
+
+          const infiniteCanvas = this.infiniteCanvas;
+
+          var fObj = new fabric.Rect();
+
+          const position_screen = icObj.getScreenPositionWithoutOffset();
+          // console.log("position_screen", position_screen);
+          const homeSize_screen = icObj.getHomeScreenSize();
+          // console.log("homeSize_screen", homeSize_screen);
+
+          const rgbaColorString__fill = "rgba(33,66,200,0.5)";
+          const fColor__fill = new fabric.Color(rgbaColorString__fill);
+
+          fObj.set({
+            left: position_screen.x,    //SHU: ??? where is infiniteCanvas.offset taking part ???
+            top: position_screen.y,
+
+            width: homeSize_screen.width,
+            height: homeSize_screen.height,
+
+            scaleX: icObj.scale.X,
+            scaleY: icObj.scale.Y,
+
+            flipX: icObj.flip.X,
+            flipY: icObj.flip.Y,
+
+
+            angle: icObj.orientation,
+
+            //to avoid overlapping when clicking
+            padding: 0,
+            stroke: icObj.stroke,
+            strokeWidth: icObj.strokeWidth,
+            
+            fill: fColor__fill,
+
+            icObj: icObj,
+          });
+
+
+          if (icObj.canBeHeld) {
+            this.addInteraction_hold(fObj);
+          }
+
+
+          if (icObj.canBeMoved) {
+            this.addInteraction_move(fObj);
+          }
+          if (icObj.canBeResized) {
+            this.addInteraction_resize2(fObj);
+          }
+          if (icObj.canBeRotated) {
+            this.addInteraction_rotate(fObj);
           }
 
 
@@ -57527,36 +58379,36 @@
 
             }),
 
-            ssPathmadeOperator__conveyor: new KeyDownToggle("Digit3", KeyDownToggle.defaultKeyDownFunc(["Digit3"]), (isActive) => {
+            // ssPathmadeOperator__conveyor: new KeyDownToggle("Digit3", KeyDownToggle.defaultKeyDownFunc(["Digit3"]), (isActive) => {
 
-              //friendly toggle: shiftLeft
-              keyboardIntegration.keyDownToggles.shiftLeft.isActive = isActive;
+            //   //friendly toggle: shiftLeft
+            //   keyboardIntegration.keyDownToggles.shiftLeft.isActive = isActive;
 
-              if (keyboardIntegration.keyDownToggles.p.isActive) {
-                return;
-              }
+            //   if (keyboardIntegration.keyDownToggles.p.isActive) {
+            //     return;
+            //   }
 
-              if (!globalsSingleton.isEditing) {
-                if (isActive) {
-                  var type;
-                  // if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
-                    // type = "vesseler";
-                  // } else {
-                    type = "conveyor";
-                  // }
+            //   if (!globalsSingleton.isEditing) {
+            //     if (isActive) {
+            //       var type;
+            //       // if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+            //         // type = "vesseler";
+            //       // } else {
+            //         type = "conveyor";
+            //       // }
 
-                  const cfg = {
-                    isCosmetic: false,
-                    isAdhesive: inputProperties.brushIsAdhesive,
-                  };
+            //       const cfg = {
+            //         isCosmetic: false,
+            //         isAdhesive: inputProperties.brushIsAdhesive,
+            //       };
 
-                  fabricIntegration.enterSSPathmadeOperatorDrawing__grains(type, cfg);
-                } else {
-                  fabricIntegration.leaveSSPathmadeOperatorDrawing__grains();
-                }
-              }
+            //       fabricIntegration.enterSSPathmadeOperatorDrawing__grains(type, cfg);
+            //     } else {
+            //       fabricIntegration.leaveSSPathmadeOperatorDrawing__grains();
+            //     }
+            //   }
 
-            }),
+            // }),
 
 
             // pathmadeOperatorDrawing__shadePossessor: new KeyDownToggle("Digit4", KeyDownToggle.defaultKeyDownFunc(["Digit4"]), (isActive) => {
@@ -61923,6 +62775,14 @@
         //
         // }
 
+        static get_size__challenge_area() {
+          const size__challenge_area = {
+            width:  1600 * (2.0/1.6),
+            height: 1000 * (2.0/1.6),
+          };
+          return size__challenge_area;
+        }
+
         static template_begin() {
           var outConfig;
 
@@ -61980,8 +62840,8 @@
             rect: {
               x: 0,
               y: 0,
-              width: 1600,
-              height: 1000,
+              width:  GolfCourseConfig.get_size__challenge_area().width,
+              height: GolfCourseConfig.get_size__challenge_area().height,
             },
             components: components,
           };
@@ -62081,8 +62941,8 @@
             rect: {
               x: 0,
               y: 0,
-              width: 1600,
-              height: 1000,
+              width:  GolfCourseConfig.get_size__challenge_area().width,
+              height: GolfCourseConfig.get_size__challenge_area().height,
             },
             components: components,
           };
@@ -62114,12 +62974,24 @@
                 // fill: "orange",
                 fill: "lightyellow",
               },
+              // rect_rel: {
+              //   l: 0.0,
+              //   r: 1.0,
+              //   t: 0.0,
+              //   b: 1.0,
+              // },
               rect_rel: {
-                l: 0.0,
-                r: 1.0,
-                t: 0.0,
-                b: 1.0,
+                l: 0.0 - 0.2,
+                r: 1.0 + 0.2,
+                t: 0.0 - 0.2,
+                b: 1.0 + 0.2,
               },
+              // rect_rel: {
+              //   l: 0.0 - 0.5,
+              //   r: 1.0 + 0.5,
+              //   t: 0.0 - 0.5,
+              //   b: 1.0 + 0.5,
+              // },
             },
 
             "tee": {
@@ -62321,8 +63193,8 @@
             rect: {
               x: 0,
               y: 0,
-              width: 1600,
-              height: 1000,
+              width:  GolfCourseConfig.get_size__challenge_area().width,
+              height: GolfCourseConfig.get_size__challenge_area().height,
             },
             components: components,
           };
@@ -62354,11 +63226,17 @@
                 // fill: "orange",
                 fill: "lightyellow",
               },
+              // rect_rel: {
+              //   l: 0.0,
+              //   r: 1.0,
+              //   t: 0.0,
+              //   b: 1.0,
+              // },
               rect_rel: {
-                l: 0.0,
-                r: 1.0,
-                t: 0.0,
-                b: 1.0,
+                l: 0.0 - 0.2,
+                r: 1.0 + 0.2,
+                t: 0.0 - 0.2,
+                b: 1.0 + 0.2,
               },
             },
 
@@ -62582,8 +63460,8 @@
             rect: {
               x: 0,
               y: 0,
-              width: 1600,
-              height: 1000,
+              width:  GolfCourseConfig.get_size__challenge_area().width,
+              height: GolfCourseConfig.get_size__challenge_area().height,
             },
             components: components,
           };
@@ -62615,11 +63493,17 @@
                 // fill: "orange",
                 fill: "lightyellow",
               },
+              // rect_rel: {
+              //   l: 0.0,
+              //   r: 1.0,
+              //   t: 0.0,
+              //   b: 1.0,
+              // },
               rect_rel: {
-                l: 0.0,
-                r: 1.0,
-                t: 0.0,
-                b: 1.0,
+                l: 0.0 - 0.2,
+                r: 1.0 + 0.2,
+                t: 0.0 - 0.2,
+                b: 1.0 + 0.2,
               },
             },
 
@@ -62810,8 +63694,8 @@
             rect: {
               x: 0,
               y: 0,
-              width: 1600,
-              height: 1000,
+              width:  GolfCourseConfig.get_size__challenge_area().width,
+              height: GolfCourseConfig.get_size__challenge_area().height,
             },
             components: components,
           };
@@ -62844,11 +63728,17 @@
                 // fill: "orange",
                 fill: "lightyellow",
               },
+              // rect_rel: {
+              //   l: 0.0,
+              //   r: 1.0,
+              //   t: 0.0,
+              //   b: 1.0,
+              // },
               rect_rel: {
-                l: 0.0,
-                r: 1.0,
-                t: 0.0,
-                b: 1.0,
+                l: 0.0 - 0.2,
+                r: 1.0 + 0.2,
+                t: 0.0 - 0.2,
+                b: 1.0 + 0.2,
               },
             },
 
@@ -62936,8 +63826,8 @@
             rect: {
               x:           0,
               y:           0,
-              width:    1600,
-              height:   1000,
+              width:  GolfCourseConfig.get_size__challenge_area().width,
+              height: GolfCourseConfig.get_size__challenge_area().height,
             },
             components: components,
           };
@@ -62960,11 +63850,17 @@
                 // fill: "orange",
                 fill: "lightyellow",
               },
+              // rect_rel: {
+              //   l: 0.0,
+              //   r: 1.0,
+              //   t: 0.0,
+              //   b: 1.0,
+              // },
               rect_rel: {
-                l: 0.0,
-                r: 1.0,
-                t: 0.0,
-                b: 1.0,
+                l: 0.0 - 0.2,
+                r: 1.0 + 0.2,
+                t: 0.0 - 0.2,
+                b: 1.0 + 0.2,
               },
             },
 
@@ -63046,8 +63942,8 @@
             rect: {
               x:           0,
               y:           0,
-              width:    1600,
-              height:   1000,
+              width:  GolfCourseConfig.get_size__challenge_area().width,
+              height: GolfCourseConfig.get_size__challenge_area().height,
             },
             components: components,
           };
@@ -63086,11 +63982,17 @@
               config: {
                 fill: color__bg,
               },
+              // rect_rel: {
+              //   l: 0.0,
+              //   r: 1.0,
+              //   t: 0.0,
+              //   b: 1.0,
+              // },
               rect_rel: {
-                l: 0.0,
-                r: 1.0,
-                t: 0.0,
-                b: 1.0,
+                l: 0.0 - 0.2,
+                r: 1.0 + 0.2,
+                t: 0.0 - 0.2,
+                b: 1.0 + 0.2,
               },
             },
 
@@ -63188,8 +64090,8 @@
             rect: {
               x: 0,
               y: 0,
-              width: 1600,
-              height: 1000,
+              width:  GolfCourseConfig.get_size__challenge_area().width,
+              height: GolfCourseConfig.get_size__challenge_area().height,
             },
             components: components,
           };
@@ -63210,11 +64112,17 @@
               config: {
                 fill: color__bg,
               },
+              // rect_rel: {
+              //   l: 0.0,
+              //   r: 1.0,
+              //   t: 0.0,
+              //   b: 1.0,
+              // },
               rect_rel: {
-                l: 0.0,
-                r: 1.0,
-                t: 0.0,
-                b: 1.0,
+                l: 0.0 - 0.2,
+                r: 1.0 + 0.2,
+                t: 0.0 - 0.2,
+                b: 1.0 + 0.2,
               },
             },
 
@@ -63368,8 +64276,8 @@
             rect: {
               x: 0,
               y: 0,
-              width: 1600,
-              height: 1000,
+              width:  GolfCourseConfig.get_size__challenge_area().width,
+              height: GolfCourseConfig.get_size__challenge_area().height,
             },
             components: components,
           };
@@ -63396,11 +64304,17 @@
                 // fill: "orange",
                 fill: "lightyellow",
               },
+              // rect_rel: {
+              //   l: 0.0,
+              //   r: 1.0,
+              //   t: 0.0,
+              //   b: 1.0,
+              // },
               rect_rel: {
-                l: 0.0,
-                r: 1.0,
-                t: 0.0,
-                b: 1.0,
+                l: 0.0 - 0.2,
+                r: 1.0 + 0.2,
+                t: 0.0 - 0.2,
+                b: 1.0 + 0.2,
               },
             },
 
@@ -63575,8 +64489,8 @@
             rect: {
               x: 0,
               y: 0,
-              width: 1600,
-              height: 1000,
+              width:  GolfCourseConfig.get_size__challenge_area().width,
+              height: GolfCourseConfig.get_size__challenge_area().height,
             },
             components: components,
           };
@@ -65152,6 +66066,97 @@
                 };
               }
               break;
+
+            case "negat/n54_below0_minus9":
+              {
+                const color__negat     = "rgb(150,150,150)";
+                const golfCourseConfig  = GolfCourseConfig.template_challenge();
+                golfCourseConfig.components.bg.config.fill = color__negat;
+
+                const stepGeneratorFunc = (golfCourse) => GolfGameStep__Endless_Practice.randomInstance__negat__n54_below0_minus9(infiniteCanvas, golfCourse, stepGeneratorFunc);
+
+                outChallenge = {
+                  golfCourseConfig:  golfCourseConfig,
+                  stepGeneratorFunc: stepGeneratorFunc,
+                };
+              }
+              break;
+
+            case "negat/n55_below0_minus10":
+              {
+                const color__negat     = "rgb(150,150,150)";
+                const golfCourseConfig  = GolfCourseConfig.template_challenge();
+                golfCourseConfig.components.bg.config.fill = color__negat;
+
+                const stepGeneratorFunc = (golfCourse) => GolfGameStep__Endless_Practice.randomInstance__negat__n55_below0_minus10(infiniteCanvas, golfCourse, stepGeneratorFunc);
+
+                outChallenge = {
+                  golfCourseConfig:  golfCourseConfig,
+                  stepGeneratorFunc: stepGeneratorFunc,
+                };
+              }
+              break;
+
+            case "negat/n56_below0_minus100":
+              {
+                const color__negat     = "rgb(150,150,150)";
+                const golfCourseConfig  = GolfCourseConfig.template_challenge();
+                golfCourseConfig.components.bg.config.fill = color__negat;
+
+                const stepGeneratorFunc = (golfCourse) => GolfGameStep__Endless_Practice.randomInstance__negat__n56_below0_minus100(infiniteCanvas, golfCourse, stepGeneratorFunc);
+
+                outChallenge = {
+                  golfCourseConfig:  golfCourseConfig,
+                  stepGeneratorFunc: stepGeneratorFunc,
+                };
+              }
+              break;
+
+            // case "negat/n57_below0_minus1000":
+            //   {
+            //     const color__negat     = "rgb(150,150,150)";
+            //     const golfCourseConfig  = GolfCourseConfig.template_challenge();
+            //     golfCourseConfig.components.bg.config.fill = color__negat;
+
+            //     const stepGeneratorFunc = (golfCourse) => GolfGameStep__Endless_Practice.randomInstance__negat__n57_below0_minus1000(infiniteCanvas, golfCourse, stepGeneratorFunc);
+
+            //     outChallenge = {
+            //       golfCourseConfig:  golfCourseConfig,
+            //       stepGeneratorFunc: stepGeneratorFunc,
+            //     };
+            //   }
+            //   break;
+
+            case "negat/n58_below0_minus01":
+              {
+                const color__negat     = "rgb(150,150,150)";
+                const golfCourseConfig  = GolfCourseConfig.template_challenge();
+                golfCourseConfig.components.bg.config.fill = color__negat;
+
+                const stepGeneratorFunc = (golfCourse) => GolfGameStep__Endless_Practice.randomInstance__negat__n58_below0_minus01(infiniteCanvas, golfCourse, stepGeneratorFunc);
+
+                outChallenge = {
+                  golfCourseConfig:  golfCourseConfig,
+                  stepGeneratorFunc: stepGeneratorFunc,
+                };
+              }
+              break;
+
+            case "negat/n59_below0_minus001":
+              {
+                const color__negat     = "rgb(150,150,150)";
+                const golfCourseConfig  = GolfCourseConfig.template_challenge();
+                golfCourseConfig.components.bg.config.fill = color__negat;
+
+                const stepGeneratorFunc = (golfCourse) => GolfGameStep__Endless_Practice.randomInstance__negat__n59_below0_minus001(infiniteCanvas, golfCourse, stepGeneratorFunc);
+
+                outChallenge = {
+                  golfCourseConfig:  golfCourseConfig,
+                  stepGeneratorFunc: stepGeneratorFunc,
+                };
+              }
+              break;
+
             case "negat/n6_addB_subT_neg":
               {
                 const color__negat     = "rgb(150,150,150)";
@@ -72931,6 +73936,833 @@
 
           return gmItemConfig;
         }
+
+
+
+        static randomInstance__negat__n54_below0_minus9(infiniteCanvas, golfCourse, stepGeneratorFunc) {
+
+          const challengeGMItemConfig = GolfGameStep__Endless_Practice.random_challengeGMItemConfig__negat__n54_below0_minus9();
+          const stepConfig = {
+            challengeGMItemConfig: challengeGMItemConfig,
+          };
+
+          const step = new GolfGameStep__Endless_Practice(infiniteCanvas, stepConfig, golfCourse, stepGeneratorFunc);
+
+          return step;
+        }
+
+
+        static random_challengeGMItemConfig__negat__n54_below0_minus9() {
+          logger.log("random_challengeGMItemConfig__negat__n54_below0_minus9");
+
+          const nb_operators = 4;
+
+          const nb_operators__constant = 4;
+
+          const arr_value__source = [...Array(9).keys()].map(index => -index);
+          logger.log("arr_value__source", arr_value__source);
+          const arr_value_b = MathUtils.randomCartArrFromArr(arr_value__source, 4,4);
+          logger.log("arr_value_b", arr_value_b);
+
+
+          const arr_operatorNodeFuncWrapper = arr_value_b.map(number => {
+            const op_sub = Operator.fromOpString_binary("+");
+            var node_b;
+            if(number < 0) {
+              node_b = new math.ParenthesisNode(new SignedConstantNode(number, true));
+            } else {
+              node_b = new SignedConstantNode(number, true);
+            }
+            const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_sub, node_b);
+            return operatorNodeFuncWrapper;
+          });
+
+          const arr_gmItem_operator__constant = arr_operatorNodeFuncWrapper.map(operatorNodeFuncWrapper => {
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+
+            const func = operatorNodeFuncWrapper.func;
+            const func_decorated = function (mathNode_in) {
+              logger.log("func_decorated, mathNode_in", mathNode_in);
+              var outMathNode;
+
+              //legacy
+              outMathNode = func(mathNode_in);
+
+              //decoration
+              outMathNode = Simplifier.simplify_litexp_2(outMathNode);
+              // logger.log("func_decorated, outMathNode", outMathNode);
+
+              outMathNode = new SignedConstantNode(outMathNode.evaluate({}), true);
+
+              return outMathNode;
+            };
+            // const func_decorated = func;
+
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+            };
+
+            const transformationFunc = function (icObj) {
+              var transformationOutput;
+
+              logger.log("transformationFunc", icObj);
+
+              const facade = icObj;
+
+              const mathNode__in = facade.mathNode;
+              mathNode__in.isEquation = false;
+              const mathNode__new = func_decorated(mathNode__in);
+              mathNode__new.isEquation = false;
+
+              const facade__new = icObj.clone();
+              // facade__new.mathNode = mathNode__new;
+              facade__new.mathNode = new SignedConstantNode(mathNode__new, true);
+
+              transformationOutput = new TransformationOutput("mutated", facade__new, facade);
+
+              return transformationOutput;
+            };
+
+            const gmItem__operator = GMItem.operator(transformationFunc, name, "", specs);
+            return gmItem__operator;
+          });
+
+          const arr_gmItem_operator__symbol = [];
+
+
+          const arr_gmItem_operator = [...arr_gmItem_operator__symbol, ...arr_gmItem_operator__constant];
+
+
+
+
+
+          const arr_gmItem_operator__inverse = arr_gmItem_operator.map((gmItem__operator) => {
+
+            const operatorNodeFuncWrapper = gmItem__operator.specs.funcWrapper.inverse;
+            // logger.log("operatorNodeFuncWrapper", operatorNodeFuncWrapper);
+
+            const operator__inverse = operatorNodeFuncWrapper.semantics.operator;
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+            const func = operatorNodeFuncWrapper.func;
+            const func_decorated = function (mathNode_in) {
+              logger.log("func_decorated, mathNode_in", mathNode_in);
+              var outMathNode;
+
+              //legacy
+              outMathNode = func(mathNode_in);
+
+              //decoration
+              outMathNode = Simplifier.simplify_litexp_2(outMathNode);
+              // logger.log("func_decorated, outMathNode", outMathNode);
+
+              outMathNode = new SignedConstantNode(outMathNode.evaluate({}), true);
+
+              return outMathNode;
+            };
+
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+            };
+
+            const transformationFunc = function (icObj) {
+              var transformationOutput;
+
+              logger.log("transformationFunc", icObj);
+
+              const facade = icObj;
+
+              const mathNode__in = facade.mathNode;
+              mathNode__in.isEquation = false;
+              const mathNode__new = func_decorated(mathNode__in);
+              mathNode__new.isEquation = false;
+
+              const facade__new = icObj.clone();
+              // facade__new.mathNode = mathNode__new;
+              facade__new.mathNode = new SignedConstantNode(mathNode__new, true);
+              transformationOutput = new TransformationOutput("mutated", facade__new, facade);
+
+              return transformationOutput;
+            };
+
+            const gmItem__operator__inverse = GMItem.operator(transformationFunc, name, "", specs);
+
+            return gmItem__operator__inverse;
+          });
+
+
+
+          const depth__target = math.randomInt(2, 5);
+
+
+          const mathNode__zero = new math.ConstantNode(0);
+          const gmItem__zero = GMItem.value(mathNode__zero, "zero", "");
+
+
+          const gmItem__target = GMMaker.createGMItemTarget__x_to_expr(gmItem__zero, arr_gmItem_operator, depth__target);
+          // logger.log("gmItem__target", gmItem__target);
+          const mathNode__target = gmItem__target.content;
+          //simplify target
+          // gmItem__target.content = Simplifier.simplify_litexp_2(mathNode__target);
+          gmItem__target.content = new SignedConstantNode(gmItem__target.content, true);
+
+
+          const gmItem__initial = GMMaker.createGMItemTarget__x_to_expr(gmItem__zero, arr_gmItem_operator__inverse, depth__target);
+          // logger.log("gmItem__target", gmItem__target);
+          const mathNode__initial = gmItem__initial.content;
+          //simplify target
+          // gmItem__initial.content = Simplifier.simplify_litexp_2(mathNode__initial);
+          gmItem__initial.content = new SignedConstantNode(gmItem__initial.content, true);
+
+
+          const gmItemConfig = {
+            initial: gmItem__initial,
+            target: gmItem__target,
+
+            operators:          arr_gmItem_operator,
+            operators__inverse: arr_gmItem_operator__inverse,
+          };
+
+          return gmItemConfig;
+        }
+
+
+
+
+        static randomInstance__negat__n55_below0_minus10(infiniteCanvas, golfCourse, stepGeneratorFunc) {
+
+          const challengeGMItemConfig = GolfGameStep__Endless_Practice.random_challengeGMItemConfig__negat__n55_below0_minus10();
+          const stepConfig = {
+            challengeGMItemConfig: challengeGMItemConfig,
+          };
+
+          const step = new GolfGameStep__Endless_Practice(infiniteCanvas, stepConfig, golfCourse, stepGeneratorFunc);
+
+          return step;
+        }
+
+
+        static random_challengeGMItemConfig__negat__n55_below0_minus10() {
+          logger.log("random_challengeGMItemConfig__negat__n55_below0_minus10");
+
+          const nb_operators = 4;
+
+          const nb_operators__constant = 4;
+
+          const arr_value__source = [...Array(9).keys()].map(index => -index);
+          logger.log("arr_value__source", arr_value__source);
+          const arr_value_b = [-10, ...MathUtils.randomCartArrFromArr(arr_value__source, 3,3)];
+          logger.log("arr_value_b", arr_value_b);
+
+
+          const arr_operatorNodeFuncWrapper = arr_value_b.map(number => {
+            const op_sub = Operator.fromOpString_binary("+");
+            var node_b;
+            if(number < 0) {
+              node_b = new math.ParenthesisNode(new SignedConstantNode(number, true));
+            } else {
+              node_b = new SignedConstantNode(number, true);
+            }
+            const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_sub, node_b);
+            return operatorNodeFuncWrapper;
+          });
+
+          const arr_gmItem_operator__constant = arr_operatorNodeFuncWrapper.map(operatorNodeFuncWrapper => {
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+
+            const func = operatorNodeFuncWrapper.func;
+            const func_decorated = function (mathNode_in) {
+              logger.log("func_decorated, mathNode_in", mathNode_in);
+              var outMathNode;
+
+              //legacy
+              outMathNode = func(mathNode_in);
+
+              //decoration
+              outMathNode = Simplifier.simplify_litexp_2(outMathNode);
+              // logger.log("func_decorated, outMathNode", outMathNode);
+
+              outMathNode = new SignedConstantNode(outMathNode.evaluate({}), true);
+
+              return outMathNode;
+            };
+            // const func_decorated = func;
+
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+            };
+
+            const transformationFunc = function (icObj) {
+              var transformationOutput;
+
+              logger.log("transformationFunc", icObj);
+
+              const facade = icObj;
+
+              const mathNode__in = facade.mathNode;
+              mathNode__in.isEquation = false;
+              const mathNode__new = func_decorated(mathNode__in);
+              mathNode__new.isEquation = false;
+
+              const facade__new = icObj.clone();
+              // facade__new.mathNode = mathNode__new;
+              facade__new.mathNode = new SignedConstantNode(mathNode__new, true);
+
+              transformationOutput = new TransformationOutput("mutated", facade__new, facade);
+
+              return transformationOutput;
+            };
+
+            const gmItem__operator = GMItem.operator(transformationFunc, name, "", specs);
+            return gmItem__operator;
+          });
+
+          const arr_gmItem_operator__symbol = [];
+
+
+          const arr_gmItem_operator = [...arr_gmItem_operator__symbol, ...arr_gmItem_operator__constant];
+
+          const arr_gmItem_operator__10X   = [arr_gmItem_operator__constant[0]];
+          const arr_gmItem_operator__other = arr_gmItem_operator__constant.slice(1,3+1);
+
+
+
+          const arr_gmItem_operator__inverse = arr_gmItem_operator.map((gmItem__operator) => {
+
+            const operatorNodeFuncWrapper = gmItem__operator.specs.funcWrapper.inverse;
+            // logger.log("operatorNodeFuncWrapper", operatorNodeFuncWrapper);
+
+            const operator__inverse = operatorNodeFuncWrapper.semantics.operator;
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+            const func = operatorNodeFuncWrapper.func;
+            const func_decorated = function (mathNode_in) {
+              logger.log("func_decorated, mathNode_in", mathNode_in);
+              var outMathNode;
+
+              //legacy
+              outMathNode = func(mathNode_in);
+
+              //decoration
+              outMathNode = Simplifier.simplify_litexp_2(outMathNode);
+              // logger.log("func_decorated, outMathNode", outMathNode);
+
+              outMathNode = new SignedConstantNode(outMathNode.evaluate({}), true);
+
+              return outMathNode;
+            };
+
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+            };
+
+            const transformationFunc = function (icObj) {
+              var transformationOutput;
+
+              logger.log("transformationFunc", icObj);
+
+              const facade = icObj;
+
+              const mathNode__in = facade.mathNode;
+              mathNode__in.isEquation = false;
+              const mathNode__new = func_decorated(mathNode__in);
+              mathNode__new.isEquation = false;
+
+              const facade__new = icObj.clone();
+              // facade__new.mathNode = mathNode__new;
+              facade__new.mathNode = new SignedConstantNode(mathNode__new, true);
+              transformationOutput = new TransformationOutput("mutated", facade__new, facade);
+
+              return transformationOutput;
+            };
+
+            const gmItem__operator__inverse = GMItem.operator(transformationFunc, name, "", specs);
+
+            return gmItem__operator__inverse;
+          });
+
+
+
+
+
+          const mathNode__zero = new math.ConstantNode(0);
+          const gmItem__zero = GMItem.value(mathNode__zero, "zero", "");
+
+
+          // const gmItem__target = GMMaker.createGMItemTarget__x_to_expr(gmItem__zero, arr_gmItem_operator, depth__target);
+          // // logger.log("gmItem__target", gmItem__target);
+          // const mathNode__target = gmItem__target.content;
+
+          //***HORROR {
+
+          const depth__target__10X   = math.randomInt(2, 7);
+          const depth__target__other = math.randomInt(1, 3);
+          const depth__target = depth__target__10X + depth__target__other;
+
+          var gmItem__target;
+          var mathNode__target;
+
+          //use [- 10], [-100], [-1000], etc.
+          gmItem__target   = GMMaker.createGMItemTarget__x_to_expr(gmItem__zero, arr_gmItem_operator__10X, depth__target__10X);
+          mathNode__target = gmItem__target.content;
+
+          //use other operators
+          gmItem__target   = GMMaker.createGMItemTarget__x_to_expr(gmItem__target, arr_gmItem_operator__other, depth__target__other);
+          mathNode__target = gmItem__target.content;
+
+          //***HORROR }
+
+
+          //simplify target
+          // gmItem__target.content = Simplifier.simplify_litexp_2(mathNode__target);
+          gmItem__target.content = new SignedConstantNode(gmItem__target.content, true);
+
+
+          const gmItem__initial = GMMaker.createGMItemTarget__x_to_expr(gmItem__zero, arr_gmItem_operator__inverse, depth__target);
+          // logger.log("gmItem__target", gmItem__target);
+          const mathNode__initial = gmItem__initial.content;
+          //simplify target
+          // gmItem__initial.content = Simplifier.simplify_litexp_2(mathNode__initial);
+          gmItem__initial.content = new SignedConstantNode(gmItem__initial.content, true);
+
+
+          const gmItemConfig = {
+            initial: gmItem__initial,
+            target:  gmItem__target,
+
+            operators:          arr_gmItem_operator,
+            operators__inverse: arr_gmItem_operator__inverse,
+          };
+
+          return gmItemConfig;
+        }
+
+
+        static randomInstance__negat__n56_below0_minus100(infiniteCanvas, golfCourse, stepGeneratorFunc) {
+
+          const challengeGMItemConfig = GolfGameStep__Endless_Practice.random_challengeGMItemConfig__negat__n56_below0_minus100();
+          const stepConfig = {
+            challengeGMItemConfig: challengeGMItemConfig,
+          };
+
+          const step = new GolfGameStep__Endless_Practice(infiniteCanvas, stepConfig, golfCourse, stepGeneratorFunc);
+
+          return step;
+        }
+
+
+        static random_challengeGMItemConfig__negat__n56_below0_minus100() {
+          logger.log("random_challengeGMItemConfig__negat__n56_below0_minus100");
+
+          const nb_operators = 4;
+
+          const nb_operators__constant = 4;
+
+          const arr_value__source = [...Array(9).keys()].map(index => -index);
+          logger.log("arr_value__source", arr_value__source);
+          const arr_value_b = [-100,-10, ...MathUtils.randomCartArrFromArr(arr_value__source, 2,2)];
+          logger.log("arr_value_b", arr_value_b);
+
+
+          const arr_operatorNodeFuncWrapper = arr_value_b.map(number => {
+            const op_sub = Operator.fromOpString_binary("+");
+            var node_b;
+            if(number < 0) {
+              node_b = new math.ParenthesisNode(new SignedConstantNode(number, true));
+            } else {
+              node_b = new SignedConstantNode(number, true);
+            }
+            const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_sub, node_b);
+            return operatorNodeFuncWrapper;
+          });
+
+          const arr_gmItem_operator__constant = arr_operatorNodeFuncWrapper.map(operatorNodeFuncWrapper => {
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+
+            const func = operatorNodeFuncWrapper.func;
+            const func_decorated = function (mathNode_in) {
+              logger.log("func_decorated, mathNode_in", mathNode_in);
+              var outMathNode;
+
+              //legacy
+              outMathNode = func(mathNode_in);
+
+              //decoration
+              outMathNode = Simplifier.simplify_litexp_2(outMathNode);
+              // logger.log("func_decorated, outMathNode", outMathNode);
+
+              outMathNode = new SignedConstantNode(outMathNode.evaluate({}), true);
+
+              return outMathNode;
+            };
+            // const func_decorated = func;
+
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+            };
+
+            const transformationFunc = function (icObj) {
+              var transformationOutput;
+
+              logger.log("transformationFunc", icObj);
+
+              const facade = icObj;
+
+              const mathNode__in = facade.mathNode;
+              mathNode__in.isEquation = false;
+              const mathNode__new = func_decorated(mathNode__in);
+              mathNode__new.isEquation = false;
+
+              const facade__new = icObj.clone();
+              // facade__new.mathNode = mathNode__new;
+              facade__new.mathNode = new SignedConstantNode(mathNode__new, true);
+
+              transformationOutput = new TransformationOutput("mutated", facade__new, facade);
+
+              return transformationOutput;
+            };
+
+            const gmItem__operator = GMItem.operator(transformationFunc, name, "", specs);
+            return gmItem__operator;
+          });
+
+          const arr_gmItem_operator__symbol = [];
+
+
+          const arr_gmItem_operator = [...arr_gmItem_operator__symbol, ...arr_gmItem_operator__constant];
+
+          const arr_gmItem_operator__10X   = arr_gmItem_operator__constant.slice(0,1+1);
+          const arr_gmItem_operator__other = arr_gmItem_operator__constant.slice(1,3+1);
+
+
+
+          const arr_gmItem_operator__inverse = arr_gmItem_operator.map((gmItem__operator) => {
+
+            const operatorNodeFuncWrapper = gmItem__operator.specs.funcWrapper.inverse;
+            // logger.log("operatorNodeFuncWrapper", operatorNodeFuncWrapper);
+
+            const operator__inverse = operatorNodeFuncWrapper.semantics.operator;
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+            const func = operatorNodeFuncWrapper.func;
+            const func_decorated = function (mathNode_in) {
+              logger.log("func_decorated, mathNode_in", mathNode_in);
+              var outMathNode;
+
+              //legacy
+              outMathNode = func(mathNode_in);
+
+              //decoration
+              outMathNode = Simplifier.simplify_litexp_2(outMathNode);
+              // logger.log("func_decorated, outMathNode", outMathNode);
+
+              outMathNode = new SignedConstantNode(outMathNode.evaluate({}), true);
+
+              return outMathNode;
+            };
+
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+            };
+
+            const transformationFunc = function (icObj) {
+              var transformationOutput;
+
+              logger.log("transformationFunc", icObj);
+
+              const facade = icObj;
+
+              const mathNode__in = facade.mathNode;
+              mathNode__in.isEquation = false;
+              const mathNode__new = func_decorated(mathNode__in);
+              mathNode__new.isEquation = false;
+
+              const facade__new = icObj.clone();
+              // facade__new.mathNode = mathNode__new;
+              facade__new.mathNode = new SignedConstantNode(mathNode__new, true);
+              transformationOutput = new TransformationOutput("mutated", facade__new, facade);
+
+              return transformationOutput;
+            };
+
+            const gmItem__operator__inverse = GMItem.operator(transformationFunc, name, "", specs);
+
+            return gmItem__operator__inverse;
+          });
+
+
+
+
+
+          const mathNode__zero = new math.ConstantNode(0);
+          const gmItem__zero = GMItem.value(mathNode__zero, "zero", "");
+
+
+          // const gmItem__target = GMMaker.createGMItemTarget__x_to_expr(gmItem__zero, arr_gmItem_operator, depth__target);
+          // // logger.log("gmItem__target", gmItem__target);
+          // const mathNode__target = gmItem__target.content;
+
+          //***HORROR {
+
+          const depth__target__10X   = math.randomInt(2, 7);
+          const depth__target__other = math.randomInt(1, 3);
+          const depth__target = depth__target__10X + depth__target__other;
+
+          var gmItem__target;
+          var mathNode__target;
+
+          //use [- 10], [-100], [-1000], etc.
+          gmItem__target   = GMMaker.createGMItemTarget__x_to_expr(gmItem__zero, arr_gmItem_operator__10X, depth__target__10X);
+          mathNode__target = gmItem__target.content;
+
+          //use other operators
+          gmItem__target   = GMMaker.createGMItemTarget__x_to_expr(gmItem__target, arr_gmItem_operator__other, depth__target__other);
+          mathNode__target = gmItem__target.content;
+
+          //***HORROR }
+
+
+          //simplify target
+          // gmItem__target.content = Simplifier.simplify_litexp_2(mathNode__target);
+          gmItem__target.content = new SignedConstantNode(gmItem__target.content, true);
+
+
+          const gmItem__initial = GMMaker.createGMItemTarget__x_to_expr(gmItem__zero, arr_gmItem_operator__inverse, depth__target);
+          // logger.log("gmItem__target", gmItem__target);
+          const mathNode__initial = gmItem__initial.content;
+          //simplify target
+          // gmItem__initial.content = Simplifier.simplify_litexp_2(mathNode__initial);
+          gmItem__initial.content = new SignedConstantNode(gmItem__initial.content, true);
+
+
+          const gmItemConfig = {
+            initial: gmItem__initial,
+            target:  gmItem__target,
+
+            operators:          arr_gmItem_operator,
+            operators__inverse: arr_gmItem_operator__inverse,
+          };
+
+          return gmItemConfig;
+        }
+
+
+
+
+        static randomInstance__negat__n58_below0_minus01(infiniteCanvas, golfCourse, stepGeneratorFunc) {
+
+          const challengeGMItemConfig = GolfGameStep__Endless_Practice.random_challengeGMItemConfig__negat__n58_below0_minus01();
+          const stepConfig = {
+            challengeGMItemConfig: challengeGMItemConfig,
+          };
+
+          const step = new GolfGameStep__Endless_Practice(infiniteCanvas, stepConfig, golfCourse, stepGeneratorFunc);
+
+          return step;
+        }
+
+
+        static random_challengeGMItemConfig__negat__n58_below0_minus01() {
+          logger.log("random_challengeGMItemConfig__negat__n58_below0_minus01");
+
+          const nb_operators = 4;
+
+          const nb_operators__constant = 4;
+
+          const arr_value__source = [...Array(9).keys()].map(index => -index);
+          logger.log("arr_value__source", arr_value__source);
+          const arr_value_b = [-0.1, ...MathUtils.randomCartArrFromArr(arr_value__source, 3,3)];
+          logger.log("arr_value_b", arr_value_b);
+
+
+          const arr_operatorNodeFuncWrapper = arr_value_b.map(number => {
+            const op_sub = Operator.fromOpString_binary("+");
+            var node_b;
+            if(number < 0) {
+              node_b = new math.ParenthesisNode(new SignedFixedDecimalConstantNode(number, true));
+            } else {
+              node_b = new SignedFixedDecimalConstantNode(number, true);
+            }
+            const operatorNodeFuncWrapper = operatorNodeFactoryFuncWrapper_binary(op_sub, node_b);
+            return operatorNodeFuncWrapper;
+          });
+
+          const arr_gmItem_operator__constant = arr_operatorNodeFuncWrapper.map(operatorNodeFuncWrapper => {
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+
+            const func = operatorNodeFuncWrapper.func;
+            const func_decorated = function (mathNode_in) {
+              logger.log("func_decorated, mathNode_in", mathNode_in);
+              var outMathNode;
+
+              //legacy
+              outMathNode = func(mathNode_in);
+
+              //decoration
+              outMathNode = Simplifier.simplify_litexp_3(outMathNode);
+              // logger.log("func_decorated, outMathNode", outMathNode);
+
+              // outMathNode = new SignedConstantNode(outMathNode.evaluate({}), true);
+              outMathNode = new SignedFixedDecimalConstantNode(outMathNode.evaluate({}));
+
+              return outMathNode;
+            };
+            // const func_decorated = func;
+
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+            };
+
+            const transformationFunc = function (icObj) {
+              var transformationOutput;
+
+              logger.log("transformationFunc", icObj);
+
+              const facade = icObj;
+
+              const mathNode__in = facade.mathNode;
+              mathNode__in.isEquation = false;
+              const mathNode__new = func_decorated(mathNode__in);
+              mathNode__new.isEquation = false;
+
+              const facade__new = icObj.clone();
+              // facade__new.mathNode = mathNode__new;
+              facade__new.mathNode = new SignedFixedDecimalConstantNode(mathNode__new, true);
+
+              transformationOutput = new TransformationOutput("mutated", facade__new, facade);
+
+              return transformationOutput;
+            };
+
+            const gmItem__operator = GMItem.operator(transformationFunc, name, "", specs);
+            return gmItem__operator;
+          });
+
+          const arr_gmItem_operator__symbol = [];
+
+
+          const arr_gmItem_operator = [...arr_gmItem_operator__symbol, ...arr_gmItem_operator__constant];
+
+          const arr_gmItem_operator__10X   = arr_gmItem_operator__constant.slice(0,0+1);
+          const arr_gmItem_operator__other = arr_gmItem_operator__constant.slice(0,3+1);
+
+
+
+          const arr_gmItem_operator__inverse = arr_gmItem_operator.map((gmItem__operator) => {
+
+            const operatorNodeFuncWrapper = gmItem__operator.specs.funcWrapper.inverse;
+            // logger.log("operatorNodeFuncWrapper", operatorNodeFuncWrapper);
+
+            const operator__inverse = operatorNodeFuncWrapper.semantics.operator;
+
+            const name = operatorNodeFuncWrapper.semantics.name;
+            const func = operatorNodeFuncWrapper.func;
+            const func_decorated = function (mathNode_in) {
+              logger.log("func_decorated, mathNode_in", mathNode_in);
+              var outMathNode;
+
+              //legacy
+              outMathNode = func(mathNode_in);
+
+              //decoration
+              outMathNode = Simplifier.simplify_litexp_3(outMathNode);
+              // logger.log("func_decorated, outMathNode", outMathNode);
+
+              outMathNode = new SignedFixedDecimalConstantNode(outMathNode.evaluate({}), true);
+
+              return outMathNode;
+            };
+
+            const specs = {
+              funcWrapper: operatorNodeFuncWrapper,
+            };
+
+            const transformationFunc = function (icObj) {
+              var transformationOutput;
+
+              logger.log("transformationFunc", icObj);
+
+              const facade = icObj;
+
+              const mathNode__in = facade.mathNode;
+              mathNode__in.isEquation = false;
+              const mathNode__new = func_decorated(mathNode__in);
+              mathNode__new.isEquation = false;
+
+              const facade__new = icObj.clone();
+              // facade__new.mathNode = mathNode__new;
+              facade__new.mathNode = new SignedFixedDecimalConstantNode(mathNode__new, true);
+              transformationOutput = new TransformationOutput("mutated", facade__new, facade);
+
+              return transformationOutput;
+            };
+
+            const gmItem__operator__inverse = GMItem.operator(transformationFunc, name, "", specs);
+
+            return gmItem__operator__inverse;
+          });
+
+
+
+
+
+          const mathNode__zero = new math.ConstantNode(0);
+          const gmItem__zero = GMItem.value(mathNode__zero, "zero", "");
+
+
+          // const gmItem__target = GMMaker.createGMItemTarget__x_to_expr(gmItem__zero, arr_gmItem_operator, depth__target);
+          // // logger.log("gmItem__target", gmItem__target);
+          // const mathNode__target = gmItem__target.content;
+
+          //***HORROR {
+
+          const depth__target__10X   = math.randomInt(2, 7);
+          const depth__target__other = math.randomInt(1, 3);
+          const depth__target = depth__target__10X + depth__target__other;
+
+          var gmItem__target;
+          var mathNode__target;
+
+          //use [- 10], [-100], [-1000], etc.
+          gmItem__target   = GMMaker.createGMItemTarget__x_to_expr(gmItem__zero, arr_gmItem_operator__10X, depth__target__10X);
+          mathNode__target = gmItem__target.content;
+
+          //use other operators
+          gmItem__target   = GMMaker.createGMItemTarget__x_to_expr(gmItem__target, arr_gmItem_operator__other, depth__target__other);
+          mathNode__target = gmItem__target.content;
+
+          //***HORROR }
+
+
+          //simplify target
+          // gmItem__target.content = Simplifier.simplify_litexp_2(mathNode__target);
+          gmItem__target.content = new SignedFixedDecimalConstantNode(gmItem__target.content.evaluate({}), true);
+
+
+          const gmItem__initial = GMMaker.createGMItemTarget__x_to_expr(gmItem__zero, arr_gmItem_operator__inverse, depth__target);
+          // logger.log("gmItem__target", gmItem__target);
+          const mathNode__initial = gmItem__initial.content;
+          //simplify target
+          // gmItem__initial.content = Simplifier.simplify_litexp_2(mathNode__initial);
+          gmItem__initial.content = new SignedFixedDecimalConstantNode(gmItem__initial.content.evaluate({}), true);
+
+
+          const gmItemConfig = {
+            initial: gmItem__initial,
+            target:  gmItem__target,
+
+            operators:          arr_gmItem_operator,
+            operators__inverse: arr_gmItem_operator__inverse,
+          };
+
+          return gmItemConfig;
+        }
+
+
 
 
         static randomInstance__negat__n6_addB_subT_neg(infiniteCanvas, golfCourse, stepGeneratorFunc) {
@@ -91529,7 +93361,9 @@
             // this.debug_awaiting_operator();
             // this.debug_sleepingArgs_operator();
 
-            this.debug_numberTyping(); 
+            // this.debug_numberTyping(); 
+
+            // this.debug_touchHook();
 
           } catch(e) {
             logger.log("logError", e);
@@ -97839,7 +99673,66 @@
         }
 
 
+        debug_touchHook() {
 
+          // const mathNode__anonFunction = new math.ObjectNode({
+          //   type: new math.SymbolNode("anonFunction"),
+
+          //   mathNode__arr_bound_var: new math.ArrayNode([new math.SymbolNode("x")]),
+          //   expr:          math.parse("x + 10"),
+          // });
+
+          //[+ 10]
+          // const trueRect__op = {
+          //   x: 200,
+          //   y: 200,
+          //   width:  100,
+          //   height: 100,
+          // };
+          // const op__plus10 = infiniteCanvas.createIcGMOperator_withType(trueRect__op, "from_anonFunctionObjectNode", {mathNode__anonFunction: mathNode__anonFunction});
+
+          // infiniteCanvas.addIcObject(op__plus10);
+
+
+          // const trueRect__hook = {
+          //   x: 500,
+          //   y: 500,
+          //   width:  100,
+          //   height: 100,
+          // };
+          // const op__hook = infiniteCanvas.createIcTouchHook(trueRect__op);
+          // infiniteCanvas.addIcObject(op__hook);
+
+
+          //icMathNode
+          const trueRect__constant = {
+            x:  900,
+            y:  50,
+            width:  100,
+            height: 100,
+          };
+          const icMathNode__constant = infiniteCanvas.createIcMathNode(trueRect__constant.x, trueRect__constant.y, new math.ConstantNode(1));
+          infiniteCanvas.addIcObject(icMathNode__constant);
+
+
+          const trueRect__pokeSlot = {
+            x:  900,
+            y:  400,
+            width:  100,
+            height: 100,
+          };
+          const pokeSlotConfig = {
+            transformationFunc: (icObj) => {
+              icObj.stroke = ColorUtils.randomColor();
+              // icObj.fill = ColorUtils.randomColor();
+              return new TransformationOutput("mutated", icObj, icObj);
+            },
+            isEnabled: true,
+          }; 
+          const icPokeSlot = infiniteCanvas.createIcPokeSlot(trueRect__pokeSlot, pokeSlotConfig);
+          infiniteCanvas.addIcObject(icPokeSlot);
+
+        }
 
 
 
