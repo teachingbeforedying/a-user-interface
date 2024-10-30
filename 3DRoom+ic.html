@@ -778,6 +778,15 @@
 
       }
 
+      static getAllContained(icObjComposite) {
+        var outArray = [];
+        CompositeUtils.traverseComposite(icObjComposite, (icObj) => {
+          outArray.push(icObj);
+        });
+        return outArray;
+      }
+
+
     }
 
 
@@ -843,7 +852,7 @@
       constructor() {
         this.initialize();
 
-        this.hush(this);
+        //this.hush(this);
       }
 
       initialize() {
@@ -22771,48 +22780,100 @@
         logger.log("logApply", "manageApply", rep_free__over, rep_free__under);
         const infiniteCanvas = this;
 
+        const rootObject = rep_free__over.getRootObject(infiniteCanvas);
 
-          switch (str__switch) {
-            // switch ([rep_free__over.type, rep_free__under.type]) {
-              case "_ over gm_operator":
-                {
-                  const icOperator = rep_free__under;
-                  const transformationFunc__icObj = icOperator.parts.touchSlot.touchSlotConfig.transformationFunc;
-    
-                  transformationFunc__icObj(rep_free__over);
-                }
-                break;
-              case "_ over gm_applicable_operator":
-                {
-                  const icApplicableOperator = rep_free__under;
-                  const transformationFunc__icObj = icApplicableOperator.parts.applySlot.applySlotConfig.transformationFunc;
-    
-                  transformationFunc__icObj(rep_free__over);
-                }
-                break;
-    
-              case "gm_operator over _":
-                {
-                  logger.log("logApply", "manageApply", "gm_operator over _");
-    
-                  const icOperator = rep_free__over;
-                  const transformationFunc__icObj = icOperator.parts.touchSlot.touchSlotConfig.transformationFunc;
-    
-                  transformationFunc__icObj(rep_free__under);
-                }
-                break;
-              case "gm_applicable_operator over _":
-                {
-                  const icApplicableOperator = rep_free__over;
-                  const transformationFunc__icObj = icApplicableOperator.parts.applySlot.applySlotConfig.transformationFunc;
-    
-                  transformationFunc__icObj(rep_free__under);
-                }
-                break;
-              default:
-                break;
-            }
+        //find all valid targets for !apply!
+        var arr_valid;
+        if(rootObject.cType == "gm_applicable_operator") {
+          arr_valid = [rootObject];
+        } else if(rootObject.type == "composite") {
+          const arr__contained = CompositeUtils.getAllContained(rootObject);
+          logger.log("logApply", "manageApply", "arr__contained:", arr__contained);
+          arr_valid = arr__contained.filter((icObj) => (icObj.cType == "gm_applicable_operator"));
+        } else {
+          arr_valid = [];
+        }
+
+        arr_valid.forEach((icObj__over) => {
+          infiniteCanvas.manageApply__onOperator(icObj__over, rep_free__under);
+        });
         
+      }
+
+      manageApply__onOperator(rep_free__over, rep_free__under) {
+
+        function createStringForSwitch(str__mainType__over, str__mainType__under) {
+          var outString = "";
+
+          if(str__mainType__under == "gm_operator") {
+            outString = "_ over gm_operator";
+          } else if(str__mainType__over == "gm_operator") {
+            outString = "gm_operator over _";
+          }
+          
+          else if(str__mainType__under == "gm_applicable_operator") {
+            outString = "_ over gm_applicable_operator";
+          } else if(str__mainType__over == "gm_applicable_operator") {
+            outString = "gm_applicable_operator over _";
+          }
+ 
+          else if(str__mainType__under == "array") {
+            outString = "_ over array";
+          } else if(str__mainType__over == "array") {
+            outString = "array over _";
+          }
+
+          else {
+            outString = "default";
+          }
+          return outString;
+        }
+
+        const str__mainType__over  = infiniteCanvas.getStrMainType(rep_free__over);
+        const str__mainType__under = infiniteCanvas.getStrMainType(rep_free__under);
+        const str__switch = createStringForSwitch(str__mainType__over, str__mainType__under);
+
+        switch (str__switch) {
+          // switch ([rep_free__over.type, rep_free__under.type]) {
+            case "_ over gm_operator":
+              {
+                const icOperator = rep_free__under;
+                const transformationFunc__icObj = icOperator.parts.touchSlot.touchSlotConfig.transformationFunc;
+  
+                transformationFunc__icObj(rep_free__over);
+              }
+              break;
+            case "_ over gm_applicable_operator":
+              {
+                const icApplicableOperator = rep_free__under;
+                const transformationFunc__icObj = icApplicableOperator.parts.applySlot.applySlotConfig.transformationFunc;
+  
+                transformationFunc__icObj(rep_free__over);
+              }
+              break;
+  
+            case "gm_operator over _":
+              {
+                logger.log("logApply", "manageApply", "gm_operator over _");
+  
+                const icOperator = rep_free__over;
+                const transformationFunc__icObj = icOperator.parts.touchSlot.touchSlotConfig.transformationFunc;
+  
+                transformationFunc__icObj(rep_free__under);
+              }
+              break;
+            case "gm_applicable_operator over _":
+              {
+                const icApplicableOperator = rep_free__over;
+                const transformationFunc__icObj = icApplicableOperator.parts.applySlot.applySlotConfig.transformationFunc;
+  
+                transformationFunc__icObj(rep_free__under);
+              }
+              break;
+            default:
+              break;
+          }
+
       }
 
       manageEnroll(miniDict_operation) {
@@ -25347,13 +25408,13 @@
 
 
 
-        if(miniDict_operation.type == "enroll") {
-          infiniteCanvas.manageEnroll(miniDict_operation);
-        } else if(miniDict_operation.type == "deroll") {
-          infiniteCanvas.manageDeroll(miniDict_operation);
-        } else {
+        // if(miniDict_operation.type == "enroll") {
+        //   infiniteCanvas.manageEnroll(miniDict_operation);
+        // } else if(miniDict_operation.type == "deroll") {
+        //   infiniteCanvas.manageDeroll(miniDict_operation);
+        // } else {
           infiniteCanvas.manageApply(icObj__selected, icObj__under);
-        }
+        // }
 
 
       }
@@ -25946,7 +26007,7 @@
         const left = true_cursor.x;
         const top = true_cursor.y;
 
-        const width = 100;   //"information" size
+        const width  = 100;   //"information" size
         const height = 100;
 
         const trueRect = {
@@ -30919,11 +30980,7 @@
         }
       }
 
-      isCompositeContentOrPart() {
-        return this.compositeId != -1;
-      }
 
-      
       registerFunc(key, func) {
         //store virgin
         const key__virgin = key + "__" + "virgin";
@@ -30932,6 +30989,26 @@
         //set func and bind
         this[key] = func.bind(this);
       }
+
+
+
+
+
+
+      isCompositeContentOrPart() {
+        return this.compositeId != -1;
+      }
+
+      getRootObject(infiniteCanvas) {
+        // logger.log("getRootObject", "this.compositeId:", this.compositeId);
+        if(this.isCompositeContentOrPart()) {
+          const icObj__parentComposite = infiniteCanvas.getRepresented(this.compositeId).r_free();
+          return icObj__parentComposite.getRootObject(infiniteCanvas);
+        } else { 
+          return this;
+        }
+      }
+
 
 
     }
@@ -60358,9 +60435,31 @@
 
                 });
 
-              } else {
-                //ungroup
-                fabricIntegration.ungroupSelectedObject();
+              } 
+              // else {
+              //   //ungroup
+              //   fabricIntegration.ungroupSelectedObject();
+              // }
+              else {
+
+                const true_cursor = infiniteCanvas.getTrueCursor();
+
+                const left = true_cursor.x;
+                const top = true_cursor.y;
+
+                const width  = 400;   //"information" size
+                const height = 200;
+
+                const trueRect__platform = {
+                  x: left,
+                  y: top,
+                  width: width,
+                  height: height,
+                };
+
+                const icPlatform = infiniteCanvas.createIcPlatform(trueRect__platform);
+                infiniteCanvas.addIcObject(icPlatform);
+
               }
             }),
 
@@ -66173,6 +66272,8 @@
 
             step.offCompleted(step.listener_onCompleted);
             step.end();
+
+            // step.animate__showOrFade(false);
 
             step.segue.play(golfStep);
           };
@@ -96363,6 +96464,98 @@
 
         }
 
+        animate__showOrFade(isShow) {
+
+          const step = this;
+          const golfCourse = this.golfCourse;
+
+          //get all components
+          // const arr_icObj__golfCourse = Object.values(golfCourse.components).map(component => component.icObj);
+          // const arr_icObj__step       = [
+          //   step.rep_free__ball,
+          //   step.rep_free__hole,
+
+          // ];
+          // const arr_icObj = [...arr_icObj__golfCourse, ...arr_icObj__step];
+          const arr_icObj             = Object.values(golfCourse.components).map(component => component.icObj);
+          logger.log("logStep", "animate__showOrFade", "arr_icObj", arr_icObj);
+
+          var function__showOrFade__all; 
+          if(isShow) {
+            
+            function animate__show__icObj(icObj) {
+              const animation = anime({
+                targets: icObj,
+      
+                /*animated props*/
+                opacity: 1.0,
+                // opacity: icObj.opacity__isShow, 
+                /*--------------*/
+      
+                direction: 'normal',
+                easing: 'easeInOutSine',
+                duration: 100,
+      
+                autoplay: true,
+      
+                update: (anim) => {
+                  // logger.log("animate_step__show", "update");
+      
+                  // infiniteCanvas.redrawCanvasObject(rep_free);
+                  infiniteCanvas.redrawCanvas(RedrawOccasion.animation_bounce);
+                  // infiniteCanvas.redrawCanvas(RedrawOccasion.forceRedraw); //does not work
+      
+                },
+      
+              });
+            }
+
+            const function__show__all = function() {
+              arr_icObj.forEach(icObj => {
+                animate__show__icObj(icObj);
+              });
+            }
+            function__showOrFade__all = function__show__all;
+          } else {
+
+            function animate__fade__icObj(icObj) {
+              const animation = anime({
+                targets: icObj,
+      
+                /*animated props*/
+                opacity: 0.26,
+                // opacity: icObj.opacity__isFade, 
+                /*--------------*/
+      
+                direction: 'normal',
+                easing: 'easeInOutSine',
+                duration: 100,
+      
+                autoplay: true,
+      
+                update: (anim) => {
+                  // logger.log("animate_step__show", "update");
+      
+                  // infiniteCanvas.redrawCanvasObject(rep_free);
+                  infiniteCanvas.redrawCanvas(RedrawOccasion.animation_bounce);
+                  // infiniteCanvas.redrawCanvas(RedrawOccasion.forceRedraw); //does not work
+      
+                },
+      
+              });
+            }
+
+            const function__fade__all = function() {
+              arr_icObj.forEach(icObj => {
+                animate__fade__icObj(icObj);
+              });
+            }
+            function__showOrFade__all = function__fade__all;
+          }
+
+          function__showOrFade__all();
+        }
+
         addNewBall() {
           const step = this;
           const infiniteCanvas = this.infiniteCanvas;
@@ -96549,7 +96742,10 @@
                     step.offCompleted(step.listener_onCompleted);
                     step.end();
 
-                    step.segue.play(step.step_to);
+                    step.animate__showOrFade(false);
+
+                    step.segue.play(step);
+                    // step.step_to.animate__showOrFade(true);
                   }
 
                 },
@@ -97116,6 +97312,8 @@
             step.offCompleted(step.listener_onCompleted);
             step.end();
 
+            step.animate__showOrFade(false);
+
             step.segue.play(golfStep);
           };
 
@@ -97188,6 +97386,8 @@
               this.step_to = step;
             }
             this.step_to.start();
+
+            this.step_to.animate__showOrFade(true);
 
           }, 500);
 
@@ -97707,6 +97907,8 @@
             step.offCompleted(step.listener_onCompleted);
             step.end();
 
+            step.animate__showOrFade(false);
+
             step.segue.play(golfStep);
           };
 
@@ -97946,6 +98148,8 @@
             // this.debug_touchHook();
 
             //this.debug_buttonConfig();
+
+            this.debug_pyramidOfOperators();
 
           } catch(e) {
             logger.log("logError", e);
