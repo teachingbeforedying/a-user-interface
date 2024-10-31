@@ -786,6 +786,24 @@
         return outArray;
       }
 
+      static isContainerOf(icObjComposite, icObj) {
+        //hard no brainer
+        var outBool;
+
+        const arr_contained = CompositeUtils.getAllContained(icObjComposite);
+        const isFound = arr_contained.find((icObjContained) => (icObjContained.id == icObj.id));
+        outBool = isFound;
+
+        return outBool;
+      }
+
+      static isHavingCommonContainer(icObj1, icObj2, infiniteCanvas) {
+        const rootObject1 = icObj1.getRootObject(infiniteCanvas);
+        const rootObject2 = icObj2.getRootObject(infiniteCanvas);
+        const isHavingCommonCont = CompositeUtils.isContainerOf(rootObject1, rootObject2) ||  CompositeUtils.isContainerOf(rootObject2, rootObject1);
+        return isHavingCommonCont;
+      }
+
 
     }
 
@@ -15739,8 +15757,12 @@
         dropTouchSlotEngine__platformEdition.isObjectIgnored = function (incomingObj) {
           logger.log("dropTouchSlotEngine__platformEdition.isObjectIgnored", incomingObj);
           // return false;
-          const isTerrace = (incomingObj.id != icComposite__terrace.id);
-          return !isTerrace;
+          const isMyTerrace  = (incomingObj.id == icComposite__terrace.id);
+          const isMyPlatform = false;
+          const isIgnored = isMyTerrace || isMyPlatform;
+
+          logger.log("dropTouchSlotEngine__platformEdition.isObjectIgnored", "isIgnored:", isIgnored);
+          return isIgnored;
         };
         dropTouchSlotEngine__platformEdition.virgin = Object.assign({}, dropTouchSlotEngine__platformEdition);  //virgin == not bound
 
@@ -15748,8 +15770,8 @@
 
 
         const parts = {
-          dropTouchSlot: icDropTouchSlot,       //landing
-          terrace: icComposite__terrace,  //sitting
+          dropTouchSlot: icDropTouchSlot,         //landing
+          terrace:       icComposite__terrace,    //sitting
         };
 
         const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
@@ -15804,6 +15826,22 @@
 
 
         });
+
+        //bugfix: 'double move' (== avoid "composition ouroboros")
+        dropTouchSlotEngine__platformEdition.isObjectIgnored = function (incomingObj) {
+          logger.log("dropTouchSlotEngine__platformEdition.isObjectIgnored", incomingObj);
+          // return false;
+          const isMyTerrace  = (incomingObj.id == icComposite__terrace.id);
+          const isMyPlatform = (incomingObj.id == icPlatform.id);
+          const isMyParent   = (incomingObj.type == "composite") && CompositeUtils.isContainerOf(incomingObj, icPlatform); //SHU /!\ serialization?
+          const isPartOfMyParent = CompositeUtils.isHavingCommonContainer(incomingObj, icPlatform, infiniteCanvas);
+          
+          const isIgnored = isMyTerrace || isMyPlatform || isMyParent || isPartOfMyParent;
+          logger.log("dropTouchSlotEngine__platformEdition.isObjectIgnored", "isIgnored:", isIgnored);
+          
+          return isIgnored;
+        };
+        icDropTouchSlot.dict_engine["dropTouchSlot"].engine.virgin = Object.assign({}, dropTouchSlotEngine__platformEdition);  //virgin == not bound
 
         return icPlatform;
       }
@@ -98149,7 +98187,7 @@
 
             //this.debug_buttonConfig();
 
-            this.debug_pyramidOfOperators();
+            // this.debug_pyramidOfOperators();
 
           } catch(e) {
             logger.log("logError", e);
