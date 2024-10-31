@@ -786,13 +786,17 @@
         return outArray;
       }
 
-      static isContainerOf(icObjComposite, icObj) {
+      static isContainerOf(icObjCandidate, icObj) {
         //hard no brainer
         var outBool;
 
-        const arr_contained = CompositeUtils.getAllContained(icObjComposite);
-        const isFound = arr_contained.find((icObjContained) => (icObjContained.id == icObj.id));
-        outBool = isFound;
+        if(icObjCandidate.type == "composite") {
+          const arr_contained = CompositeUtils.getAllContained(icObjCandidate);
+          const isFound = (arr_contained.find((icObjContained) => (icObjContained.id == icObj.id)) != null);
+          outBool = isFound;
+        } else {
+          outBool = false;
+        }
 
         return outBool;
       }
@@ -804,6 +808,20 @@
         return isHavingCommonCont;
       }
 
+      static getHighestRootObjectBefore(icObj, icCompositeCeiling) {
+        var outIcObj;
+        
+        //find part of compositeCeiling which contains icObj
+        const arr_part = Object.values(icCompositeCeiling.parts);
+        const icObj_composite__highestRoot = arr_part.find((icObj_composite) => CompositeUtils.isContainerOf(icObj_composite, icObj));
+        if(icObj_composite__highestRoot != null) {
+          outIcObj = icObj_composite__highestRoot;
+        } else {
+          outIcObj = icObj;
+        }
+
+        return outIcObj;
+      }
 
     }
 
@@ -8188,6 +8206,7 @@
         this.isBatchPasting         = false;
 
         this.isAltering             = false;
+        this.isDeepAltering         = false;
 
         this.lock_homeScale_isActive = false;
 
@@ -8679,6 +8698,16 @@
       getParentCompositeForContentOrPart(icObj__part, representation = "official") {
         const icObj__composite = this.getRepresented(icObj__part.compositeId).getRepresentation(representation);
         return icObj__composite;
+      }
+
+      getClosestCompositeForContentOrPart(icObj__part, representation = "official") { //can return icObj__part itself
+        var outIcObj;
+        if(icObj__part.type == "composite") {
+          outIcObj = icObj__part;
+        } else {
+          outIcObj = this.getParentCompositeForContentOrPart(icObj__part, representation);
+        }
+        return outIcObj;
       }
 
       getId__max() {
@@ -15744,39 +15773,45 @@
       }
 
       createIcPlatform(trueRect) {
-        console.log("createIcPlatform", trueRect);
+        logger.log("createIcPlatform", trueRect);
 
         const infiniteCanvas = this;
 
+          //terrace
         const parts__terrace = {};
         const compositeConfig__terrace = Compositer.defaultCompositeConfig(parts__terrace, false);
         const icComposite__terrace = infiniteCanvas.createIcComposite(trueRect, parts__terrace, compositeConfig__terrace);
+        icComposite__terrace.cType = "terrace";
 
+        icComposite__terrace.fill = "lime";
+        icComposite__terrace.opacity = 0.7;
 
+          //dropTouchSlot
         const dropTouchSlotEngine__platformEdition = new DropTouchSlotEngine();
         dropTouchSlotEngine__platformEdition.isObjectIgnored = function (incomingObj) {
-          logger.log("dropTouchSlotEngine__platformEdition.isObjectIgnored", incomingObj);
-          // return false;
-          const isMyTerrace  = (incomingObj.id == icComposite__terrace.id);
-          const isMyPlatform = false;
-          const isIgnored = isMyTerrace || isMyPlatform;
-
-          logger.log("dropTouchSlotEngine__platformEdition.isObjectIgnored", "isIgnored:", isIgnored);
-          return isIgnored;
+          //REDEFINED LATER
+          return true;
         };
         dropTouchSlotEngine__platformEdition.virgin = Object.assign({}, dropTouchSlotEngine__platformEdition);  //virgin == not bound
 
         const icDropTouchSlot = infiniteCanvas.createIcDropTouchSlot(trueRect, null, dropTouchSlotEngine__platformEdition);
 
-
+          //platform
         const parts = {
           dropTouchSlot: icDropTouchSlot,         //landing
           terrace:       icComposite__terrace,    //sitting
         };
 
-        const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, false, false); //unmovable, unalterable parts
 
-        const icComposite = this.createIcComposite(trueRect, parts, compositeConfig);
+        const trueRect__platform = {
+          x:      trueRect.x,
+          y:      trueRect.y,
+          width:  trueRect.width  / 5,
+          height: trueRect.height / 5,
+        };
+
+        const icComposite = this.createIcComposite(trueRect__platform, parts, compositeConfig);
         icComposite.cType = "platform";
         // icComposite.isTouchable = false;
 
@@ -15804,10 +15839,12 @@
 
           const transformationFunc__touch = (icObj) => {
             // const icObj__sadness = icObjToIcObjFunc(icObj);
+            logger.log("logPlatform", "transformationFunc__touch", icObj);
 
-            logger.log("transformationFunc__touch", icObj);
-
-            rep_free__platform.parts.terrace.dict_engine["composite"].engine.awoken.addPart(icObj, false);
+            // rep_free__platform.parts.terrace.dict_engine["composite"].engine.awoken.addPart(icObj, false);
+            const rootObject = icObj.getRootObject(infiniteCanvas);
+              //root object is added just below terrace (remember it later when thinking about removal)
+            rep_free__platform.parts.terrace.dict_engine["composite"].engine.awoken.addPart(rootObject, false);
 
             const transformationOutput = new TransformationOutput("displaced", icObj, icObj);
             return transformationOutput;
@@ -15815,9 +15852,13 @@
           rep_free__platform.parts.dropTouchSlot.touchSlotConfig.transformationFunc__touch = transformationFunc__touch;
 
           const transformationFunc__untouch = (icObj) => {
-            // const icObj__sadness = icObjToIcObjFunc(icObj);
+            logger.log("logPlatform", "transformationFunc__untouch", icObj);
 
-            rep_free__platform.parts.terrace.dict_engine["composite"].engine.awoken.removePart(icObj);
+            // rep_free__platform.parts.terrace.dict_engine["composite"].engine.awoken.removePart(icObj);
+            // const rootObject = icObj.getRootObject(infiniteCanvas);
+            const highestRootBeforeTerrace = CompositeUtils.getHighestRootObjectBefore(icObj, rep_free__platform.parts.terrace);
+
+            rep_free__platform.parts.terrace.dict_engine["composite"].engine.awoken.removePart(highestRootBeforeTerrace);
 
             const transformationOutput = new TransformationOutput("displaced", icObj, icObj);
             return transformationOutput;
@@ -15831,17 +15872,27 @@
         dropTouchSlotEngine__platformEdition.isObjectIgnored = function (incomingObj) {
           logger.log("dropTouchSlotEngine__platformEdition.isObjectIgnored", incomingObj);
           // return false;
-          const isMyTerrace  = (incomingObj.id == icComposite__terrace.id);
           const isMyPlatform = (incomingObj.id == icPlatform.id);
-          const isMyParent   = (incomingObj.type == "composite") && CompositeUtils.isContainerOf(incomingObj, icPlatform); //SHU /!\ serialization?
-          const isPartOfMyParent = CompositeUtils.isHavingCommonContainer(incomingObj, icPlatform, infiniteCanvas);
+          const isMyTerrace  = (incomingObj.id == icComposite__terrace.id);
+          const isMyParent   = CompositeUtils.isContainerOf(incomingObj, icPlatform); //SHU /!\ serialization issues ?
+
+          const isPartOfMyPlatform = CompositeUtils.isHavingCommonContainer(incomingObj, icPlatform, infiniteCanvas);
+          const isPartOfMyTerrace  = CompositeUtils.isHavingCommonContainer(incomingObj, icComposite__terrace, infiniteCanvas);
+          const isPartOfMyParentButNotOnMyTerrace = isPartOfMyPlatform && !isPartOfMyTerrace;
           
-          const isIgnored = isMyTerrace || isMyPlatform || isMyParent || isPartOfMyParent;
+          // const isIgnored = isMyTerrace || isMyPlatform || isMyParent || isPartOfMyParent;
+          const isIgnored = isMyTerrace || isMyPlatform || isMyParent || isPartOfMyParentButNotOnMyTerrace;
           logger.log("dropTouchSlotEngine__platformEdition.isObjectIgnored", "isIgnored:", isIgnored);
-          
+
           return isIgnored;
         };
         icDropTouchSlot.dict_engine["dropTouchSlot"].engine.virgin = Object.assign({}, dropTouchSlotEngine__platformEdition);  //virgin == not bound
+
+        logger.log("logPlatform", "createIcPlatform", {
+          id__platform: icPlatform.id,
+          id__terrace: icComposite__terrace.id,
+          // id__dropTouchSlot: icDropTouchSlot.id,
+        });
 
         return icPlatform;
       }
@@ -27435,7 +27486,7 @@
 
         //hold zPoint__end
         fabricIntegration.fabricCanvas.selection = false;
-        infiniteCanvas.isAltering = true;
+        infiniteCanvas.isDeepAltering = true;
 
         const rep_free__zPoint__end = infiniteCanvas.getRepresented(icZSegment.parts.zPoint_end.id).r_free();
         infiniteCanvas.setActiveObject(rep_free__zPoint__end);
@@ -31047,6 +31098,10 @@
         }
       }
 
+      isRootObject(infiniteCanvas) {
+        return (this.getRootObject(infiniteCanvas) == this);
+      }
+
 
 
     }
@@ -33456,6 +33511,7 @@
             if (incomingObj != touchSlot) { //don't touch oneself
 
               const isObjectIgnored_ = this.isObjectIgnored(incomingObj);
+              logger.log("logPlatform", "isObjectIgnored_:", isObjectIgnored_);
               if (!isObjectIgnored_) {
                 this.r_official_update_handler(touchSlot, incomingObj, outerUpdatesDict);
               }
@@ -36936,96 +36992,164 @@
             const id__compositePart = icObj_compositePart.id;
             logger.log("logComposite", "id__compositePart", id__compositePart);
 
+            const isMobile    = compositeConfig[id__compositePart].isMobile;
+            const isAlterable = compositeConfig[id__compositePart].isAlterable;
+
+            if (isMobile) {
+              //ignore
+            } else {
+
+              logger.log("logComposite", "managePartUpdate__position", ".isAltering:", infiniteCanvas.isAltering);
+
+              if(infiniteCanvas.isDeepAltering) {
+                //only move selected part: do nothing with other parts
+              } 
+              else if(infiniteCanvas.isAltering) {
+
+                if(isAlterable) {
+                  //only bulkMove closest composite of selected part (SHU: bulkMove "most meaningful" closest composite would be a better achievement)
+
+                } else {
+                  logger.log("logPlatform", ".isAlterable:false");
+
+
+                  //find closest alterable composite
+
+                  const closestAlterableComposite__rep_free = infiniteCanvas.getParentCompositeForContentOrPart(icObj_compositePart, "free");
+                  logger.log("logComposite", "managePartUpdate__position", "isAltering", "closestAlterableComposite__rep_free:", closestAlterableComposite__rep_free);
+                  
+                  // closestAlterableComposite__rep_free.dict_engine["composite"].engine.awoken.manageHandleUpdate__position__bulkMove(icObj_compositePart, outerUpdatesDict);
+                  
+                  const listener = this.listeners[closestAlterableComposite__rep_free.id];
+
+                  const isRootObject = closestAlterableComposite__rep_free.isRootObject(infiniteCanvas);
+
+                  if(!isRootObject) {
+                    //listen:off
+                    closestAlterableComposite__rep_free.offInnerUpdate(listener);
+                  }
+                  
+                  closestAlterableComposite__rep_free.dict_engine["composite"].engine.awoken.managePartUpdate__position__bulkMove(icObj_compositePart, outerUpdatesDict);
+                  
+                  if(!isRootObject) {
+                    //listen:on
+                    closestAlterableComposite__rep_free.onInnerUpdate(listener);
+                  }
+
+                }
+
+              }
+              else {
+                //bulkMove everything accordingly
+                this.managePartUpdate__position__bulkMove(icObj_compositePart, outerUpdatesDict);
+
+              }
+
+            }
+          
+          };
+
+
+
+          this.managePartUpdate__position__bulkMove = function (icObj_compositePart, outerUpdatesDict) {
+            logger.log("logComposite", "managePartUpdate__position__bulkMove", icObj_compositePart);
+
+            //SHU FLUID
+
+            logger.log("managePartUpdate__position__bulkMove", icObj_compositePart);
+
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const handle = this.scopeObj.engineCarrier;
+
+            const compositeConfig = handle.compositeConfig;
+            console.log("compositeConfig", compositeConfig);
+            const id__compositePart = icObj_compositePart.id;
+            logger.log("logComposite", "id__compositePart", id__compositePart);
+
             const isMobile = compositeConfig[id__compositePart].isMobile;
 
             if (isMobile) {
               //ignore
             } else {
 
-              if(infiniteCanvas.isAltering) {
-                //only move selected part: do nothing with other parts
-              } else {
-                //move everything accordingly
+              //move everything accordingly
 
-                //get free_rep
-                const handle__represented = infiniteCanvas.getRepresented(handle.id);
-                const handle__rep_free = handle__represented.r_free();
+              //get free_rep
+              const handle__represented = infiniteCanvas.getRepresented(handle.id);
+              const handle__rep_free = handle__represented.r_free();
 
-                // const part__represented   = infiniteCanvas.getRepresented(icObj_compositePart.id);
+              if ((outerUpdatesDict.position != null) || (outerUpdatesDict.point_start != null)) {
 
-                // rep_free__composite.composite.managePartUpdate(rep_free__compositePart, outerUpdatesDict);
-                if ((outerUpdatesDict.position != null) || (outerUpdatesDict.point_start != null)) {
-
-                  var offset;
-                  if (outerUpdatesDict.position != null) {
-                    offset = {
-                      dx: outerUpdatesDict.position.new.x - outerUpdatesDict.position.old.x,
-                      dy: outerUpdatesDict.position.new.y - outerUpdatesDict.position.old.y,
-                    };
-                  } else {
-                    //moved part was segment
-                    offset = {
-                      dx: outerUpdatesDict.point_start.new.x - outerUpdatesDict.point_start.old.x,
-                      dy: outerUpdatesDict.point_start.new.y - outerUpdatesDict.point_start.old.y,
-                    };
-                  }
-
-                  const content = handle__rep_free.content;
-                  const parts   = handle__rep_free.parts;
-
-                  const arr_parts_all             = Object.values(parts);
-                  const arr_content_and_parts_all = [content, ...arr_parts_all].filter(icObj => (icObj != null));
-
-                  const arr_parts_other = arr_content_and_parts_all.filter(part => part.id != icObj_compositePart.id);
-
-                  const arr_handle_and_other = [handle__rep_free, ...arr_parts_other];
-
-                  // arr_parts_other.forEach((rep_free, i) => {
-                  arr_handle_and_other.forEach((rep_free, i) => {
-
-                    const listener = this.listeners[rep_free.id];
-                    // console.log("°°°listener", listener);
-
-                    //listen:off
-                    rep_free.offInnerUpdate(listener);
-
-                    //mutate
-                    // logger.log("mutating part:", rep_free.id);
-                    {
-                      if (rep_free.position != null) {
-                        const position_new = {
-                          x: rep_free.position.x + offset.dx,
-                          y: rep_free.position.y + offset.dy,
-                        };
-
-                        rep_free.position = position_new;
-                      } else if (rep_free.point_start != null) {
-                        //move other segment parts
-                        const point_start_new = {
-                          x: rep_free.point_start.x + offset.dx,
-                          y: rep_free.point_start.y + offset.dy,
-                        };
-                        rep_free.point_start = point_start_new;
-                        const point_end_new = {
-                          x: rep_free.point_end.x + offset.dx,
-                          y: rep_free.point_end.y + offset.dy,
-                        };
-                        rep_free.point_end = point_end_new;
-                      }
-                    }
-
-                    //listen:on
-                    rep_free.onInnerUpdate(listener);
-
-                  });
-
+                var offset;
+                if (outerUpdatesDict.position != null) {
+                  offset = {
+                    dx: outerUpdatesDict.position.new.x - outerUpdatesDict.position.old.x,
+                    dy: outerUpdatesDict.position.new.y - outerUpdatesDict.position.old.y,
+                  };
+                } else {
+                  //moved part was segment
+                  offset = {
+                    dx: outerUpdatesDict.point_start.new.x - outerUpdatesDict.point_start.old.x,
+                    dy: outerUpdatesDict.point_start.new.y - outerUpdatesDict.point_start.old.y,
+                  };
                 }
 
-             }
+                const content = handle__rep_free.content;
+                const parts   = handle__rep_free.parts;
+
+                const arr_parts_all             = Object.values(parts);
+                const arr_content_and_parts_all = [content, ...arr_parts_all].filter(icObj => (icObj != null));
+
+                const arr_parts_other = arr_content_and_parts_all.filter(part => part.id != icObj_compositePart.id);
+
+                const arr_handle_and_other = [handle__rep_free, ...arr_parts_other];
+
+                // arr_parts_other.forEach((rep_free, i) => {
+                arr_handle_and_other.forEach((rep_free, i) => {
+
+                  const listener = this.listeners[rep_free.id];
+                  // console.log("°°°listener", listener);
+
+                  //listen:off
+                  rep_free.offInnerUpdate(listener);
+
+                  //mutate
+                  // logger.log("mutating part:", rep_free.id);
+                  {
+                    if (rep_free.position != null) {
+                      const position_new = {
+                        x: rep_free.position.x + offset.dx,
+                        y: rep_free.position.y + offset.dy,
+                      };
+
+                      rep_free.position = position_new;
+                    } else if (rep_free.point_start != null) {
+                      //move other segment parts
+                      const point_start_new = {
+                        x: rep_free.point_start.x + offset.dx,
+                        y: rep_free.point_start.y + offset.dy,
+                      };
+                      rep_free.point_start = point_start_new;
+                      const point_end_new = {
+                        x: rep_free.point_end.x + offset.dx,
+                        y: rep_free.point_end.y + offset.dy,
+                      };
+                      rep_free.point_end = point_end_new;
+                    }
+                  }
+
+                  //listen:on
+                  rep_free.onInnerUpdate(listener);
+
+                });
+
+              }
 
            }
           
           };
+
+
 
 
           this.managePartUpdate__homeScale = function (icObj_compositePart, outerUpdatesDict) {
@@ -37181,13 +37305,15 @@
           this.manageHandleUpdate__position = function (icObj_composite, outerUpdatesDict) {
             logger.log("logComposite", "manageHandleUpdate__position", icObj_composite);
 
-            //get free_rep
-            const handle__represented = infiniteCanvas.getRepresented(icObj_composite.id);
-            const handle__rep_free = handle__represented.r_free();
-
-            if(infiniteCanvas.isAltering) {
+            if(infiniteCanvas.isDeepAltering) {
                 //only move selected handle: do nothing with parts
-            } else {
+            } 
+            // else if(infiniteCanvas.isAltering) {}
+            else {
+
+              //get free_rep
+              const handle__represented = infiniteCanvas.getRepresented(icObj_composite.id);
+              const handle__rep_free = handle__represented.r_free();
 
               if (outerUpdatesDict.position != null) {
 
@@ -37277,6 +37403,107 @@
           };
 
 
+          // this.manageHandleUpdate__position__bulkMove = function (icObj_composite, outerUpdatesDict) {
+          //   logger.log("logComposite", "manageHandleUpdate__position", icObj_composite);
+
+          //   if(infiniteCanvas.isDeepAltering) {
+          //       //only move selected handle: do nothing with parts
+          //   } 
+          //   // else if(infiniteCanvas.isAltering) {}
+          //   else {
+
+          //     //get free_rep
+          //     const handle__represented = infiniteCanvas.getRepresented(icObj_composite.id);
+          //     const handle__rep_free = handle__represented.r_free();
+
+          //     if (outerUpdatesDict.position != null) {
+
+          //       const offset = {
+          //         dx: outerUpdatesDict.position.new.x - outerUpdatesDict.position.old.x,
+          //         dy: outerUpdatesDict.position.new.y - outerUpdatesDict.position.old.y,
+          //       };
+
+          //       const content = handle__rep_free.content;
+          //       const parts   = handle__rep_free.parts;
+
+          //       const arr_parts_all             = Object.values(parts);
+          //       const arr_content_and_parts_all = [content, ...arr_parts_all].filter(icObj => (icObj != null));
+
+          //       arr_content_and_parts_all.forEach((part__rep_free, i) => {
+
+          //         const listener = this.listeners[part__rep_free.id];
+
+          //         //listen:off
+          //         // if(typeof part__rep_free.offInnerUpdate === "function") { //SHU HORROR
+          //         part__rep_free.offInnerUpdate(listener);
+          //         // }
+
+
+
+          //         //mutate
+          //         // logger.log("mutating part:", part__rep_free.id);
+          //         {
+          //           if (part__rep_free.position != null) {
+          //             const position_new = {
+          //               x: part__rep_free.position.x + offset.dx,
+          //               y: part__rep_free.position.y + offset.dy,
+          //             };
+
+          //             part__rep_free.position = position_new;
+          //           } else if (part__rep_free.point_start != null) {
+          //             //move segment parts
+          //             const point_start_new = {
+          //               x: part__rep_free.point_start.x + offset.dx,
+          //               y: part__rep_free.point_start.y + offset.dy,
+          //             };
+          //             part__rep_free.point_start = point_start_new;
+          //             const point_end_new = {
+          //               x: part__rep_free.point_end.x + offset.dx,
+          //               y: part__rep_free.point_end.y + offset.dy,
+          //             };
+          //             part__rep_free.point_end = point_end_new;
+          //           }
+          //         }
+
+          //         //listen:on
+          //         // if(typeof part__rep_free.onInnerUpdate === "function") { //SHU HORROR
+          //         part__rep_free.onInnerUpdate(listener);
+          //         // }
+
+          //       });
+
+          //     }
+          //     // else if(outerUpdatesDict.parts != null) {
+          //     //   logger.log("outerUpdatesDict.parts", outerUpdatesDict.parts);
+          //     //
+          //     //   // const arr_parts__old = [];
+          //     //   // const arr_parts__new = [];
+          //     //
+          //     //   Object.values(outerUpdatesDict.parts.new).forEach((part__rep_free, i) => {
+          //     //     const part__listener = this.createPartListener();
+          //     //     this.listeners[part__rep_free.id] = part__listener;
+          //     //
+          //     //     if(handle__rep_free.compositeConfig[part__rep_free.id] == null) {
+          //     //       const config__part = {
+          //     //         // isMobile: true,
+          //     //         isMobile: false,
+          //     //       };
+          //     //       handle__rep_free.compositeConfig[part__rep_free.id] = config__part;
+          //     //     }
+          //     //
+          //     //     //'activate' listener
+          //     //     // const part__listener = this.listeners[part__rep_free.id];
+          //     //     part__rep_free.onInnerUpdate(part__listener);
+          //     //
+          //     //   });
+          //     //
+          //     // }
+
+          //   }
+
+          // };
+
+
           this.manageHandleUpdate__homeScale = function (icObj_composite, outerUpdatesDict) {
             logger.log("logCompZscroll", "manageHandleUpdate__homeScale", icObj_composite, outerUpdatesDict);
 
@@ -37284,8 +37511,10 @@
             const handle__represented = infiniteCanvas.getRepresented(icObj_composite.id);
             const handle__rep_free    = handle__represented.r_free();
 
-            if(infiniteCanvas.isAltering) {
+            if(infiniteCanvas.isDeepAltering) {
                 //only move selected handle: do nothing with parts
+            } else if(infiniteCanvas.isAltering) {
+              //only move closest parent of selected handle
             } else {
 
               if (outerUpdatesDict.homeScale != null) {
@@ -37483,7 +37712,7 @@
           };
 
 
-          this.addPart = function (part__rep_free, isMobile = true) {
+          this.addPart = function (part__rep_free, isMobile = true, isAlterable = true) {
             // this.addPart = function(part, config__part) {
             logger.log("logComposite", "addPart", this, part__rep_free, isMobile);
 
@@ -37506,7 +37735,8 @@
             //add partConfig
             const config__part = {
               // isMobile: true,
-              isMobile: isMobile,
+              isMobile:    isMobile,
+              isAlterable: isAlterable,
             };
             handle__rep_free.compositeConfig[part__rep_free.id] = config__part;
 
@@ -37523,7 +37753,7 @@
 
           };
 
-          this.addNamedPart = function (partName, part__rep_free, isMobile = true) {
+          this.addNamedPart = function (partName, part__rep_free, isMobile = true, isAlterable = true) {
             // this.addPart = function(part, config__part) {
             logger.log("logComposite", "addPart", this, part__rep_free, isMobile);
 
@@ -37547,6 +37777,7 @@
             // const config__part = {
             //   // isMobile: true,
             //   isMobile: isMobile,
+            //   isAlterable: isAlterable,
             // };
             // handle__rep_free.compositeConfig[part__rep_free.id] = config__part;
 
@@ -37796,7 +38027,7 @@
         //   return outPart;
         // }
 
-        static defaultCompositeConfig(parts, isMobile = false) {
+        static defaultCompositeConfig(parts, isMobile = false, isAlterable = true) {
           var outConfig;
 
           outConfig = Object.entries(parts).reduce((acc, [partName, part], index) => {
@@ -37804,7 +38035,8 @@
 
             // acc[partName] = {
             acc[part.id] = {
-              isMobile: isMobile,
+              isMobile:    isMobile,
+              isAlterable: isAlterable,
             };
 
             return acc;
@@ -49775,7 +50007,7 @@
           } else {
             fabric_objects.forEach((fObj, i) => {
 
-              if(!infiniteCanvas.isAltering && (activeObject != null) && (fObj == activeObject) && (fObj.icObj.isCompositeContentOrPart() || fObj.icObj.type == "composite")) {
+              if(!infiniteCanvas.isAltering && !infiniteCanvas.isDeepAltering && (activeObject != null) && (fObj == activeObject) && (fObj.icObj.isCompositeContentOrPart() || fObj.icObj.type == "composite")) {
                 //activeObject object is part of composite: affect all objects in composite  
                 
                 if(fObj.icObj.isCompositeContentOrPart()) {
@@ -59232,7 +59464,11 @@
               //only side effect is used
             }),
             altLeft: new KeyDownToggle("altLeft", KeyDownToggle.defaultKeyDownFunc(["AltLeft"]), (isActive) => {
-              infiniteCanvas.isAltering = isActive;
+              if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+                infiniteCanvas.isDeepAltering = isActive;
+              } else {
+                infiniteCanvas.isAltering     = isActive;
+              }
             }),
             ctrlLeft: new KeyDownToggle("ctrlLeft", KeyDownToggle.defaultKeyDownFunc(["ControlLeft"]), (isActive) => {
               //only side effect is used
@@ -60567,9 +60803,6 @@
 
               } else if (keyboardIntegration.keyDownToggles.altLeft.isActive) {
 
-                //coreify active object
-                // keyboardIntegration.infiniteCanvas.operateOnActiveObject__coreify();
-
                 //.isAltering-copy
                 const event = null;
                 fabricIntegration.copySelection(event);
@@ -60577,6 +60810,9 @@
 
                 keyboardIntegration.infiniteCanvas.addNewIcCanvas();
 
+              } else {
+                //coreify active object
+                // keyboardIntegration.infiniteCanvas.operateOnActiveObject__coreify();
               }
             }),
 
