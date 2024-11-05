@@ -8710,10 +8710,26 @@
         return outIcObj;
       }
 
+      getEntity(icObj, representation = "official") {
+        logger.log("logEntity", "getEntity", icObj);
+        var outIcObj;
+        if(icObj.isEntity) {
+          return icObj;
+        } else {
+          const icObj__composite = this.getParentCompositeForContentOrPart(icObj);
+          return this.getEntity(icObj__composite, representation);
+        }
+        return outIcObj;
+      }
+
       getId__max() {
         return this.getArr_icObj().map((icObj) => icObj.id).reduce((acc, x) => {
           return math.max(acc, x);
         }, -1);
+      }
+
+      getId__fresh() {
+        return this.getId__max() + 1;
       }
 
 
@@ -17335,7 +17351,8 @@
         const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
 
         const icComposite = this.createIcComposite(trueRect, parts, compositeConfig);
-        icComposite.cType = "gm_operator";
+        icComposite.isEntity = true;
+        icComposite.cType    = "gm_operator";
 
         const operation       = new Operation(touchSlotConfig.transformationFunc);
         // const operation       = new Operation(touchSlotConfig__decorated.transformationFunc);
@@ -17359,7 +17376,7 @@
       }
 
       createIcGMOperator_withConfig(trueRect, operatorConfig, cfg = {}) {
-        console.log("logGMOp", "createIcGMOperator_withConfig", trueRect, operatorConfig);
+        logger.log("logGMOp", "createIcGMOperator_withConfig", trueRect, operatorConfig);
 
         const infiniteCanvas = this;
 
@@ -17380,10 +17397,15 @@
           // setTimeout(() => {
             const icObj__result = transformationOutput.value;
 
-            const icObj__facade    = icObj__result.parts.facade;
-            const rep_free__facade = infiniteCanvas.getRepresented(icObj__facade.id).r_free();
+            if(icObj__result.type == "composite") {
+              const icObj__facade    = icObj__result.parts.facade;
+              const rep_free__facade = infiniteCanvas.getRepresented(icObj__facade.id).r_free();
+  
+              infiniteCanvas.animate_bounce(rep_free__facade);
+            } else {
+              infiniteCanvas.animate_bounce(icObj__result);
+            }
 
-            infiniteCanvas.animate_bounce(rep_free__facade);
           // }, 1); 
 
           return transformationOutput;
@@ -17421,6 +17443,7 @@
         const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
 
         const icComposite = this.createIcComposite(trueRect, parts, compositeConfig);
+        icComposite.isEntity = true;
         icComposite.cType = "gm_operator";
         // icComposite.isTouchable = false;
         icComposite.fill = "transparent";
@@ -17722,6 +17745,7 @@
               }
               break;
 
+            case "debug":
             case "debug:random_color":
               {
                 operatorConfig.name = "debug:random_color";
@@ -17776,10 +17800,25 @@
 
             case "from_string":
               {
-                const str__operator = cfg.str__operator;
-                operatorConfig.name = str__operator;
-                const transformationFunc = (new GMOperatorTextChangeEngine()).transformationFuncForText(str__operator);
-                operatorConfig.transformationFunc = transformationFunc; 
+                // throw new Error("do not use " + "gmOperatorType::'from_string'" + " until fixed");
+
+                // const str__operator = cfg.str__operator;
+                // operatorConfig.name = str__operator;
+                // const transformationFunc = (new GMOperatorTextChangeEngine()).transformationFuncForText(str__operator);
+                // operatorConfig.transformationFunc = transformationFunc; 
+
+                const str__operator      = cfg.str__operator;
+                operatorConfig.name = "from_string:(" + str__operator + ")";
+
+                const mathNode__operator = infiniteCanvas.numberTyping_parseTex_toOperatorNode(str__operator);
+                logger.log("logIcGMOperator", "from_string", "mathNode__operator:", mathNode__operator);
+
+                const operatorConfig__from_operatorNode = infiniteCanvas.createConfig__icGMOperator_withType("from_operatorNode", {
+                  mathNode__operator: mathNode__operator,
+                });
+
+                operatorConfig.transformationFunc = operatorConfig__from_operatorNode.transformationFunc;
+                
               }
               break;
             
@@ -19905,6 +19944,63 @@
                 operatorConfig.transformationFunc = icObjTransformationFunc;
               }
               break;
+
+
+
+              case "spawner":
+                {
+                  const nb_spawn = 1;
+  
+                  const string__easy  = "spawn" + "(" + cfg.str__spawned + ")";
+                  operatorConfig.name = string__easy;
+
+                  operatorConfig.icObj_sample = cfg.icObj_sample;
+
+                  function create_clone(icObj_sample) {
+                    const icObj_clone = icObj_sample.deepClone();
+                    const id__clone   = infiniteCanvas.generateIcObjectId();
+                    icObj_clone.id    = id__clone;
+
+                    // icObj_clone.fill = "yellow";
+                    icObj_clone.fill = ColorUtils.randomColor();
+
+                    // const width__icObj = icObj_sample.size.width;
+                    // const width__spacing = icObj_sample.size.width / 2;
+                    // const offset__x = index * (width__icObj + width__spacing);
+                    // icObj_clone.position.x = icObj.position.x + offset__x;
+
+                    return icObj_clone;
+                  }
+                  operatorConfig.create_clone = create_clone;
+  
+                  const icObjTransformationFunc = (icObj) => {
+                    var transformationOutput;
+  
+                    logger.log("spawner");
+
+                    const icObj_sample = operatorConfig.icObj_sample;
+                    //create clone
+                    const icObj_clone  = operatorConfig.create_clone(icObj_sample);
+                    //set clone position
+                    icObj_clone.position = Object.assign({}, infiniteCanvas.getTrueCursor()); //SHU: operator.position would be better
+                    //set clone homeScale
+                    icObj_clone.homeScale = Object.assign({}, infiniteCanvas.scale);          //SHU: operator.homeScale would be better
+                    
+                    //add clone to iC
+                    // infiniteCanvas.addIcObject(icObj_clone);
+                    infiniteCanvas.addNewIcObject(icObj_clone);
+
+
+  
+                    //incoming icObj is left unchanged
+                    transformationOutput = new TransformationOutput("old", icObj, icObj);
+  
+                    return transformationOutput;
+                  };
+  
+                  operatorConfig.transformationFunc = icObjTransformationFunc;
+                }
+                break;
 
 
 
@@ -25014,11 +25110,17 @@
 
 
       operateOnObject__poopSameScaleClone(icObj) {
-        logger.log("logOperate", "operateOnObject__poopSameScaleClone", icObj);
+        logger.log("logOperate", "operateOnObject__poopSameScaleClone", "icObj:", icObj);
 
         const icObj__clone = icObj.deepClone();
-        const id__clone    = infiniteCanvas.generateIcObjectId();
-        icObj__clone.id    = id__clone;
+        logger.log("logOperate", "operateOnObject__poopSameScaleClone", "icObj__clone:", icObj__clone);
+
+        //shift id(s)
+        if(icObj__clone.type == "composite") { 
+          CompositeUtils.shiftToNextAvailableId(icObj__clone, icObj, infiniteCanvas);
+        } else {
+          icObj__clone.id = infiniteCanvas.generateIcObjectId(); 
+        }
 
         icObj__clone.position = Object.assign({}, icObj.position);
         icObj__clone.position.x = icObj__clone.position.x;
@@ -25030,6 +25132,8 @@
 
           logger.log("rep_free__clone.id", rep_free__clone.id);
         });
+
+
 
         infiniteCanvas.addIcObject(icObj__clone);
       }
@@ -25194,11 +25298,18 @@
         return icObj__selected;
       }
 
+      getSelectedEntity() {
+        const icObj__selected    = this.getSelectedIcObj();
+        const icEntity__selected = this.getEntity(icObj__selected); 
+        return icEntity__selected;
+      }
+
       operateOnSelected__poopSameHomeScaleClone() {
         const infiniteCanvas = this;
 
-        const icObj__selected = infiniteCanvas.getSelectedIcObj();
-        infiniteCanvas.operateOnObject__poopSameScaleClone(icObj__selected);
+        // const icObj__selected = infiniteCanvas.getSelectedIcObj();
+        const icEntity__selected = infiniteCanvas.getSelectedEntity();
+        infiniteCanvas.operateOnObject__poopSameScaleClone(icEntity__selected);
       }
 
 
@@ -26108,6 +26219,10 @@
 
         const customizableOperator = infiniteCanvas.createIcCustomizableOperator(trueRect);
         infiniteCanvas.addIcObject(customizableOperator);
+      }
+
+      addNewITOperator_withType(type, cfg = {}) {
+
       }
 
 
@@ -27840,7 +27955,7 @@
       }
 
       numberTyping_parseTex(tex) {
-        const dict_parsed = this.numberTyping_lol(tex);
+        const dict_parsed = this.numberTyping_parseTex_to_dict(tex);
 
         return dict_parsed;
       }
@@ -28216,6 +28331,7 @@
       }
 
       numberTyping_parseTex_toOperatorNode__implicit(tex) {
+        logger.log("numberTyping_parseTex_toOperatorNode__implicit", tex);
         var outMathNode;
 
         function parseToOperatorNode__unary_pre__implicit(tex) {
@@ -28488,7 +28604,7 @@
 
       }
 
-      numberTyping_lol(tex) {
+      numberTyping_parseTex_to_dict(tex) {
         var outDict;
 
         outDict = {};
@@ -30866,10 +30982,13 @@
       }
 
       deepClone() { 
-        // logger.log("logCP", "deepClone", "this:", this);
+        logger.log("logCP", "deepClone", "this:", this);
+
         const icObj = this;
 
-        const id   = this.id;
+        // const id   = this.id;
+        const id   = infiniteCanvas.getId__fresh();
+
         const type = this.type;
 
         const position = {
@@ -30990,6 +31109,8 @@
                 break;
               case "parts":
                 {
+                  logger.log("logCP", "deepClone", "parts:");
+
                   icObj__deepClone[key] = [...Object.entries(icObj[key])].reduce((acc, [partName, icObj__part]) => {
                     acc[partName] = icObj__part.deepClone();
                     return acc;
@@ -31034,7 +31155,8 @@
 
       deepClone__func(func) {
         // logger.log("logCP", "deepClone__func", func);
-        return deserialize(serialize(func)); 
+        // return deserialize(serialize(func)); 
+        return func;  //SHU: for operator cloning
       }
 
       deepClone__propertyObject(motherObject, propName, prop) {
@@ -37150,12 +37272,204 @@
           };
 
 
-
+          // this.managePartUpdate__homeScale = function (icObj_compositePart, outerUpdatesDict) {}
 
           this.managePartUpdate__homeScale = function (icObj_compositePart, outerUpdatesDict) {
 
+            logger.log("logComposite", "managePartUpdate__homeScale", icObj_compositePart);
+
+            //SHU FLUID
+
+            logger.log("managePartUpdate__homeScale", icObj_compositePart);
+
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const handle = this.scopeObj.engineCarrier;
+
+            const compositeConfig = handle.compositeConfig;
+            console.log("compositeConfig", compositeConfig);
+            const id__compositePart = icObj_compositePart.id;
+            logger.log("logComposite", "id__compositePart", id__compositePart);
+
+            const isMobile    = compositeConfig[id__compositePart].isMobile;
+            const isAlterable = compositeConfig[id__compositePart].isAlterable;
+
+            if (isMobile) {
+              //ignore
+            } else {
+
+              logger.log("logComposite", "managePartUpdate__homeScale", ".isAltering:", infiniteCanvas.isAltering);
+
+              if(infiniteCanvas.isDeepAltering) {
+                //only move selected part: do nothing with other parts
+              } 
+              else if(infiniteCanvas.isAltering) {
+
+                if(isAlterable) {
+                  //only bulkMove closest composite of selected part (SHU: bulkMove "most meaningful" closest composite would be a better achievement)
+
+                } else {
+                  logger.log("logPlatform", ".isAlterable:false");
+
+
+                  //find closest alterable composite
+
+                  const closestAlterableComposite__rep_free = infiniteCanvas.getParentCompositeForContentOrPart(icObj_compositePart, "free");
+                  logger.log("logComposite", "managePartUpdate__homeScale", "isAltering", "closestAlterableComposite__rep_free:", closestAlterableComposite__rep_free);
+                  
+                  // closestAlterableComposite__rep_free.dict_engine["composite"].engine.awoken.manageHandleUpdate__position__bulkMove(icObj_compositePart, outerUpdatesDict);
+                  
+                  const listener = this.listeners[closestAlterableComposite__rep_free.id];
+
+                  const isRootObject = closestAlterableComposite__rep_free.isRootObject(infiniteCanvas);
+
+                  if(!isRootObject) {
+                    //listen:off
+                    closestAlterableComposite__rep_free.offInnerUpdate(listener);
+                  }
+                  
+                  closestAlterableComposite__rep_free.dict_engine["composite"].engine.awoken.managePartUpdate__homeScale__bulkRescale(icObj_compositePart, outerUpdatesDict);
+                  
+                  if(!isRootObject) {
+                    //listen:on
+                    closestAlterableComposite__rep_free.onInnerUpdate(listener);
+                  }
+
+                }
+
+              }
+              else {
+                //bulkMove everything accordingly
+                this.manageHandleUpdate__homeScale(icObj_compositePart, outerUpdatesDict);
+
+              }
+
+            }
+
           };
 
+          
+          this.managePartUpdate__homeScale__bulkRescale = function (icObj_compositePart, outerUpdatesDict) {
+            logger.log("logCompZscroll", "managePartUpdate__homeScale__bulkRescale", icObj_compositePart, outerUpdatesDict);
+
+            //get free_rep
+            const icObj_handle        = this.scopeObj.engineCarrier;
+
+            const handle__represented = infiniteCanvas.getRepresented(icObj_handle.id);
+            const handle__rep_free    = handle__represented.r_free();
+
+            if (outerUpdatesDict.homeScale != null) {
+
+              const scaleFactor = {
+                X: outerUpdatesDict.homeScale.new.X / outerUpdatesDict.homeScale.old.X,
+                Y: outerUpdatesDict.homeScale.new.Y / outerUpdatesDict.homeScale.old.Y,
+              };
+              logger.log("logCompZscroll", "scaleFactor", scaleFactor);
+
+              if(scaleFactor.X == 1 && scaleFactor.Y == 1) {  //SHU: bwerk
+                //ignore
+                return;
+              }
+
+              const content = handle__rep_free.content;
+              const parts   = handle__rep_free.parts;
+
+              const arr_parts_all             = Object.values(parts);
+              const arr_content_and_parts_all = [content, ...arr_parts_all].filter(icObj => (icObj != null));
+
+              const arr_parts_other = arr_content_and_parts_all.filter(part => part.id != icObj_compositePart.id);
+
+              const arr_handle_and_other = [handle__rep_free, ...arr_parts_other];
+
+              arr_handle_and_other.forEach((part__rep_free, i) => {
+
+                const listener = this.listeners[part__rep_free.id];
+
+                //listen:off
+                // if(typeof part__rep_free.offInnerUpdate === "function") { //SHU HORROR
+                part__rep_free.offInnerUpdate(listener);
+                // }
+
+
+
+                //mutate
+                // logger.log("mutating part:", part__rep_free.id);
+                // if(part__rep_free.type != "composite")
+                {
+
+                  //homeScale
+                  const homeScale__new__part = {
+                    X: part__rep_free.homeScale.X * scaleFactor.X,
+                    Y: part__rep_free.homeScale.Y * scaleFactor.Y,
+                  };
+                  logger.log("logCompZscroll", "homeScale__old__part", part__rep_free.homeScale);
+                  logger.log("logCompZscroll", "homeScale__new__part", homeScale__new__part);
+                  part__rep_free.homeScale = homeScale__new__part;
+
+
+                  //other (induced)
+                    //position
+                  const offset_wrt_handle__old = {
+                    dx: part__rep_free.position.x - handle__rep_free.position.x,
+                    dy: part__rep_free.position.y - handle__rep_free.position.y,
+                  };
+                  logger.log("logCompZscroll", "offset_wrt_handle__old", offset_wrt_handle__old);
+
+                  const offset_wrt_handle__new = {
+                    dx: offset_wrt_handle__old.dx / scaleFactor.X,
+                    dy: offset_wrt_handle__old.dy / scaleFactor.Y,
+                  };
+                  logger.log("logCompZscroll", "offset_wrt_handle__new", offset_wrt_handle__new);
+
+
+                  if (part__rep_free.position != null) {
+                    const position_new = {
+                      x: part__rep_free.position.x - offset_wrt_handle__old.dx + offset_wrt_handle__new.dx,
+                      y: part__rep_free.position.y - offset_wrt_handle__old.dy + offset_wrt_handle__new.dy,
+                    };
+                    logger.log("logCompZscroll", "position_new", position_new);
+
+                    part__rep_free.position = position_new;
+
+                  } else if (part__rep_free.point_start != null) {
+                    //move segment parts
+                    const point_start_new = {
+                      x: part__rep_free.point_start.x + offset_wrt_handle__new.dx,
+                      y: part__rep_free.point_start.y + offset_wrt_handle__new.dy,
+                    };
+                    part__rep_free.point_start = point_start_new;
+
+                    const v__old = {
+                      dx: part__rep_free.point_end.x - part__rep_free.point_start.x,
+                      dy: part__rep_free.point_end.y - part__rep_free.point_start.y,
+                    };
+                    const v__new = {
+                      dx: v__old.dx / scaleFactor.X,
+                      dy: v__old.dy / scaleFactor.Y,
+                    };
+
+                    const point_end_new = {
+                      x: part__rep_free.point_end.x + v__new.dx,
+                      y: part__rep_free.point_end.y + v__new.dy,
+                    };
+                    part__rep_free.point_end = point_end_new;
+                  }
+                } 
+                // else {
+                //   //bulkMove everything accordingly
+                //   const engine__part_which_is_handle = part__rep_free.dict_engine["composite"].engine.awoken;
+                //   engine__part_which_is_handle.manageHandleUpdate__homeScale(part__rep_free, outerUpdatesDict);
+                // }
+
+                //listen:on
+                // if(typeof part__rep_free.onInnerUpdate === "function") { //SHU HORROR
+                part__rep_free.onInnerUpdate(listener);
+                // }
+
+              });
+
+            }
+
+          };
 
           //content update
           this.manageContentUpdate = function (icObj_compositeContent, outerUpdatesDict) {
@@ -37643,6 +37957,118 @@
               //   });
               //
               // }
+
+            }
+
+          };
+
+
+          this.manageHandleUpdate__homeScale__bulkRescale = function (icObj_composite, outerUpdatesDict) {
+            logger.log("logCompZscroll", "manageHandleUpdate__homeScale__bulkRescale", icObj_composite, outerUpdatesDict);
+
+            //get free_rep
+            const handle__represented = infiniteCanvas.getRepresented(icObj_composite.id);
+            const handle__rep_free    = handle__represented.r_free();
+
+            if (outerUpdatesDict.homeScale != null) {
+
+              const scaleFactor = {
+                X: outerUpdatesDict.homeScale.new.X / outerUpdatesDict.homeScale.old.X,
+                Y: outerUpdatesDict.homeScale.new.Y / outerUpdatesDict.homeScale.old.Y,
+              };
+              logger.log("logCompZscroll", "scaleFactor", scaleFactor);
+
+              if(scaleFactor.X == 1 && scaleFactor.Y == 1) {  //SHU: bwerk
+                //ignore
+                return;
+              }
+
+              const content = handle__rep_free.content;
+              const parts   = handle__rep_free.parts;
+
+              const arr_parts_all             = Object.values(parts);
+              const arr_content_and_parts_all = [content, ...arr_parts_all].filter(icObj => (icObj != null));
+
+              arr_content_and_parts_all.forEach((part__rep_free, i) => {
+
+                const listener = this.listeners[part__rep_free.id];
+
+                //listen:off
+                // if(typeof part__rep_free.offInnerUpdate === "function") { //SHU HORROR
+                part__rep_free.offInnerUpdate(listener);
+                // }
+
+
+
+                //mutate
+                // logger.log("mutating part:", part__rep_free.id);
+                {
+
+                  //homeScale
+                  const homeScale__new__part = {
+                    X: part__rep_free.homeScale.X * scaleFactor.X,
+                    Y: part__rep_free.homeScale.Y * scaleFactor.Y,
+                  };
+                  logger.log("logCompZscroll", "homeScale__old__part", part__rep_free.homeScale);
+                  logger.log("logCompZscroll", "homeScale__new__part", homeScale__new__part);
+                  part__rep_free.homeScale = homeScale__new__part;
+
+
+                  //other (induced)
+                    //position
+                  const offset_wrt_handle__old = {
+                    dx: part__rep_free.position.x - handle__rep_free.position.x,
+                    dy: part__rep_free.position.y - handle__rep_free.position.y,
+                  };
+                  logger.log("logCompZscroll", "offset_wrt_handle__old", offset_wrt_handle__old);
+
+                  const offset_wrt_handle__new = {
+                    dx: offset_wrt_handle__old.dx / scaleFactor.X,
+                    dy: offset_wrt_handle__old.dy / scaleFactor.Y,
+                  };
+                  logger.log("logCompZscroll", "offset_wrt_handle__new", offset_wrt_handle__new);
+
+
+                  if (part__rep_free.position != null) {
+                    const position_new = {
+                      x: part__rep_free.position.x - offset_wrt_handle__old.dx + offset_wrt_handle__new.dx,
+                      y: part__rep_free.position.y - offset_wrt_handle__old.dy + offset_wrt_handle__new.dy,
+                    };
+                    logger.log("logCompZscroll", "position_new", position_new);
+
+                    part__rep_free.position = position_new;
+
+                  } else if (part__rep_free.point_start != null) {
+                    //move segment parts
+                    const point_start_new = {
+                      x: part__rep_free.point_start.x + offset_wrt_handle__new.dx,
+                      y: part__rep_free.point_start.y + offset_wrt_handle__new.dy,
+                    };
+                    part__rep_free.point_start = point_start_new;
+
+                    const v__old = {
+                      dx: part__rep_free.point_end.x - part__rep_free.point_start.x,
+                      dy: part__rep_free.point_end.y - part__rep_free.point_start.y,
+                    };
+                    const v__new = {
+                      dx: v__old.dx / scaleFactor.X,
+                      dy: v__old.dy / scaleFactor.Y,
+                    };
+
+                    const point_end_new = {
+                      x: part__rep_free.point_end.x + v__new.dx,
+                      y: part__rep_free.point_end.y + v__new.dy,
+                    };
+                    part__rep_free.point_end = point_end_new;
+                  }
+                }
+
+                //listen:on
+                // if(typeof part__rep_free.onInnerUpdate === "function") { //SHU HORROR
+                part__rep_free.onInnerUpdate(listener);
+                // }
+
+              });
 
             }
 
@@ -50943,9 +51369,10 @@
               acc[partName] = icFreeDrawing;
               return acc;
             }, {});
-            const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+            const compositeConfig = Compositer.defaultCompositeConfig(parts, false, false);
             const icComposite     = infiniteCanvas.createIcComposite(trueRect__composite, parts, compositeConfig); 
             icComposite.cType = "freeDrawingObj";
+            icComposite.isEntity = true;
             // icComposite.fillColor = "green";
 
             //SHU: illusion
@@ -60534,6 +60961,34 @@
             "KeyN": new KeyUpTrigger("KeyN", KeyUpTrigger.defaultKeyUpFunc(["KeyN"]), () => {
               // keyboardIntegration.infiniteCanvas.addNewComposite();
               // keyboardIntegration.infiniteCanvas.addNewGreenMouseWell();
+
+              const truePoint = infiniteCanvas.getTrueCursor();
+
+              //[[5]]
+              const trueRect__5 = {
+                x: truePoint.x,
+                y: truePoint.y,
+                width:  100,
+                height: 100,
+              };
+              const mathNode__5 = new math.ConstantNode(5);
+              mathNode__5.autoSimplify = true;
+              const icMathNode__5 = infiniteCanvas.createIcMathNode(trueRect__5.x, trueRect__5.y, mathNode__5);
+
+              //(spawn(5))
+              const trueRect__appOp_5 = {
+                x: truePoint.x,
+                y: truePoint.y,
+                width:  100,
+                height: 100,
+              };
+              const appOp__spawn5 = infiniteCanvas.createIcGMApplicableOperator_withType(trueRect__appOp_5, "spawner", {
+                str__spawned: icMathNode__5.mathNode.toString(),
+                icObj_sample: icMathNode__5,
+              });
+
+              infiniteCanvas.addIcObject(appOp__spawn5);
+
             }),
 
             "KeyM": new KeyUpTrigger("KeyM", KeyUpTrigger.defaultKeyUpFunc(["KeyM"]), () => {
@@ -98259,6 +98714,35 @@
         constructor(infiniteCanvas) {
           this.infiniteCanvas = infiniteCanvas;
 
+          //convenience
+          this.trueRect1 = {
+            x: 100,
+            y: 100,
+            width:  100,
+            height: 100,
+          }; 
+
+          this.trueRect2 = {
+            x: 800,
+            y: 150,
+            width:  100,
+            height: 100,
+          }; 
+
+          this.trueRect3 = {
+            x: 100,
+            y: 800,
+            width:  100,
+            height: 100,
+          }; 
+
+          this.trueRect4 = {
+            x: 800,
+            y: 950,
+            width:  100,
+            height: 100,
+          }; 
+
           // this.debug1();
           // this.debug2();
 
@@ -98424,6 +98908,10 @@
             //this.debug_buttonConfig();
 
             // this.debug_pyramidOfOperators();
+
+            // this.debug_generator();
+
+            // this.debug_operator_cloning();
 
           } catch(e) {
             logger.log("logError", e);
@@ -104892,7 +105380,107 @@
 
         }
 
+        debug_pyramidOfOperators() {
 
+        }
+
+
+        debug_generator() {
+          //[[5]]
+          const trueRect__5 = {
+            x: 100,
+            y: 100,
+            width:  100,
+            height: 100,
+          };
+          const icMathNode__5 = infiniteCanvas.createIcMathNode(trueRect__5.x, trueRect__5.y, new math.ConstantNode(5));
+
+          //[[6]]
+          const trueRect__6 = {
+            x: 100,
+            y: 300,
+            width:  100,
+            height: 100,
+          };
+          const icMathNode__6 = infiniteCanvas.createIcMathNode(trueRect__6.x, trueRect__6.y, new math.ConstantNode(6));
+
+          //(spawn(5))
+          const trueRect__appOp_5 = {
+            x: 500,
+            y: 600,
+            width:  100,
+            height: 100,
+          };
+          const appOp__spawn5 = infiniteCanvas.createIcGMApplicableOperator_withType(trueRect__appOp_5, "spawner", {
+            str__spawned: icMathNode__5.mathNode.toString(),
+            icObj_sample: icMathNode__5,
+          });
+
+          infiniteCanvas.addIcObject(appOp__spawn5);
+
+          //(spawn(6))
+          const trueRect__appOp_6 = {
+            x: 850,
+            y: 600,
+            width:  100,
+            height: 100,
+          };
+          const appOp__spawn6 = infiniteCanvas.createIcGMApplicableOperator_withType(trueRect__appOp_6, "spawner", {
+            str__spawned: icMathNode__6.mathNode.toString(),
+            icObj_sample: icMathNode__6,
+          });
+
+          infiniteCanvas.addIcObject(appOp__spawn6);
+
+
+
+
+
+          //[[+ 10]]
+          const mathNode__anonFunction = new math.ObjectNode({
+            type: new math.SymbolNode("anonFunction"),
+
+            mathNode__arr_bound_var: new math.ArrayNode([new math.SymbolNode("x")]),
+            expr:                    math.parse("x + 10"),
+          });
+
+          //[+ 10]
+          const trueRect__op__plus10 = {
+            x: 800,
+            y: 800,
+            width:  100,
+            height: 100,
+          };
+          const op__plus10 = infiniteCanvas.createIcGMOperator_withType(trueRect__op__plus10, "from_anonFunctionObjectNode", {mathNode__anonFunction: mathNode__anonFunction});
+
+          //(spawn([+ 10]))
+          const trueRect__appOp_spawn_plus10 = {
+            x: 500,
+            y: 1000,
+            width:  100,
+            height: 100,
+          };
+          const appOp_spawn_plus10 = infiniteCanvas.createIcGMApplicableOperator_withType(trueRect__appOp_spawn_plus10, "spawner", {
+            str__spawned: "[+ 10]",
+            icObj_sample: op__plus10,
+          });
+
+          infiniteCanvas.addIcObject(appOp_spawn_plus10);
+
+        }
+
+        debug_operator_cloning() {
+
+          const atelier = this;
+
+          //create debug operator
+          const gmOperator__debug = infiniteCanvas.createIcGMOperator_withType(atelier.trueRect1, "debug", {"stroke": "oh yes"});
+          infiniteCanvas.addIcObject(gmOperator__debug);
+
+          //create [+ 2] operator
+          const gmOperator__plus2 = infiniteCanvas.createIcGMOperator_withType(atelier.trueRect2, "from_string", {str__operator:"+ 2"});
+          infiniteCanvas.addIcObject(gmOperator__plus2);
+        }
 
 
 
