@@ -786,6 +786,16 @@
         return outArray;
       }
 
+      static getAllContained_filtered(icObjComposite, filterFunc) {
+        var outArray = [];
+        CompositeUtils.traverseComposite(icObjComposite, (icObj) => {
+          if(filterFunc(icObj)) {
+            outArray.push(icObj);
+          }
+        });
+        return outArray;
+      }
+
       static isContainerOf(icObjCandidate, icObj) {
         //hard no brainer
         var outBool;
@@ -14899,8 +14909,10 @@
           };
 
           touchSlotConfig = {
-            transformationFunc__touch: transformationFunc,
+            transformationFunc__touch:   transformationFunc,
             transformationFunc__untouch: transformationFunc,
+            filterFunc__touch__isObjectIgnored:   (icObj) => false,
+            filterFunc__untouch__isObjectIgnored: (icObj) => false,
           };
         }
 
@@ -33523,24 +33535,35 @@
           // this.r_official_update_handler = (icObj_slot, icObj_piece, outerUpdatesDict) => {
           this.r_official_update_handler = function (icObj_slot, icObj_piece, outerUpdatesDict) {
 
+            const dropTouchSlot   = this.scopeObj.engineCarrier;
+            const touchSlotConfig = this.scopeObj.engineCarrier.touchSlotConfig;
+
             // logger.log("r_official_update_handler", icObj_piece);
 
             const touchState = icObj_piece.touchStateDict[icObj_slot.id];
             // logger.log("touchState", touchState);
 
             if (touchState == TouchState.Untouched) {
-              this.attemptTouching(icObj_slot, icObj_piece);
+              const isObjectIgnored_ = touchSlotConfig.filterFunc__touch__isObjectIgnored(icObj_piece);
+              logger.log("logPlatform", "isObjectIgnored_:", isObjectIgnored_);
+              if (!isObjectIgnored_) {
+                this.attemptTouching(icObj_slot, icObj_piece);
+              }
             } else if (touchState == TouchState.Touched) {
-              this.attemptUntouching(icObj_slot, icObj_piece);
+              const isObjectIgnored_ = touchSlotConfig.filterFunc__untouch__isObjectIgnored(icObj_piece);
+              logger.log("logPlatform", "isObjectIgnored_:", isObjectIgnored_);
+              if (!isObjectIgnored_) {
+                this.attemptUntouching(icObj_slot, icObj_piece);
+              }
             }
 
           };
 
-          this.isObjectIgnored = function (incomingObj) {  // Platform should override this function
-            // to allow platform to transport intangible objects
-            //ignore: incomingObj is intangible         //  while not allowing 'standard' dropTouchSlot to touch intangible objects
-            return !incomingObj.isTouchable;
-          };
+          // this.isObjectIgnored = function (incomingObj) {  // Platform should override this function
+          //   // to allow platform to transport intangible objects
+          //   //ignore: incomingObj is intangible         //  while not allowing 'standard' dropTouchSlot to touch intangible objects
+          //   return !incomingObj.isTouchable;
+          // };
 
           // this.r_official_update_handler2 = (rep_official_incoming, outerUpdatesDict) => {
           this.r_official_update_handler2 = function (rep_official_incoming, outerUpdatesDict) {   //SHU: when using func.bind(myObj), be sure not to use arrow functions
@@ -33567,13 +33590,15 @@
             const touchSlot = rep_official;
             const incomingObj = rep_official_incoming;
 
+            const touchSlotConfig = touchSlot.touchSlotConfig;
+
             if (incomingObj != touchSlot) { //don't touch oneself
 
-              const isObjectIgnored_ = this.isObjectIgnored(incomingObj);
-              logger.log("logPlatform", "isObjectIgnored_:", isObjectIgnored_);
-              if (!isObjectIgnored_) {
+              // const isObjectIgnored_ = touchSlotConfig.isObjectIgnored(incomingObj);
+              // logger.log("logPlatform", "isObjectIgnored_:", isObjectIgnored_);
+              // if (!isObjectIgnored_) {
                 this.r_official_update_handler(touchSlot, incomingObj, outerUpdatesDict);
-              }
+              // }
 
             } else {
               console.log("I won't touch myself");  //SHU: ...
@@ -38748,9 +38773,19 @@
 
             this.initialized = true;
           };
+          
 
+          this.getArr_childPlatforms = function() {
+            const icPlatform     = this.scopeObj.engineCarrier;
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            
+            const arr_platform = CompositeUtils.getAllContained_filtered(icPlatform.parts.terrace, (icObj) => {
+              return (icObj.cType == "platform");
+            });
 
-          // this.arr_terraced = [];
+            return arr_platform;
+          };
+
 
 
 
@@ -38761,6 +38796,21 @@
             const infiniteCanvas = this.scopeObj.infiniteCanvas;
             const platform       = this.scopeObj.engineCarrier;
 
+            const icDropTouchSlot      = platform.parts.dropTouchSlot;
+            const icComposite__terrace = platform.parts.terrace;
+
+            //listen to terrace events
+            const compositeEngine__terrace = icComposite__terrace.dict_engine["composite"].engine.awoken;
+            
+              //addPart
+            Hooker.installHooks(compositeEngine__terrace, "addPart");
+            const listener__terrace_addPart = compositeEngine__terrace.did["addPart"];
+            outListenersDict["terrace_addPart"] = listener__terrace_addPart;
+            
+              //removePart
+            Hooker.installHooks(compositeEngine__terrace, "removePart");
+            const listener__terrace_removePart = compositeEngine__terrace.did["removePart"];
+            outListenersDict["terrace_removePart"] = listener__terrace_removePart;
 
 
             return outListenersDict;
@@ -38775,6 +38825,8 @@
             platform.arr_terraced.push(icObj__added);
 
             logger.log("logPlatform", "platform.arr_terraced:", platform.arr_terraced);
+
+            this.updateDropTouchSlot();
           };
 
           this.onObjectRemoved = function(icObj__removed) {
@@ -38784,94 +38836,88 @@
             platform.arr_terraced = Utils.arrayByRemovingElement(platform.arr_terraced, icObj__removed);
 
             logger.log("logPlatform", "platform.arr_terraced:", platform.arr_terraced);
+
+            this.updateDropTouchSlot();
           };
 
-
-          
-
-
-
-
-          this.start = function () {
-            logger.log("engine::start, this", this);
-            console.log("platformEngine::start", "this.scopeObj", this.scopeObj);
+          this.updateDropTouchSlot = function() {
 
             const platformEngine = this;
 
-            this.listeners = this.createListeners();
-
             const infiniteCanvas = this.scopeObj.infiniteCanvas;
-            const handle         = this.scopeObj.engineCarrier;
 
-            console.log("platformEngine.start", handle.id);
+            const icPlatform           = this.scopeObj.engineCarrier;
+            const icDropTouchSlot      = icPlatform.parts.dropTouchSlot;
+            const icComposite__terrace = icPlatform.parts.terrace;
 
-            //get free_rep
-            const handle__represented = infiniteCanvas.getRepresented(handle.id);
-            const handle__rep_free    = handle__represented.r_free();
+            //do something ?
 
-
-            // //listen to handle
-            // const handle__listener = this.listeners[handle.id];
-            // handle__rep_free.onInnerUpdate(handle__listener);
-
-            // //listen to parts
-            // const parts = handle__rep_free.parts;
-            // const arr_parts_all = Object.values(parts);
-            // arr_parts_all.forEach((part__rep_free, i) => {
-
-            //   //'activate' listeners
-            //   const part__listener = this.listeners[part__rep_free.id];
-            //   part__rep_free.onInnerUpdate(part__listener);
-            // });
+          };
 
 
 
-            //rework
-            // infiniteCanvas.onceOnAddRepresentedForIcObject(icPlatform, (icPlatform) => {
+          this.setupDropTouchSlot = function() {
 
-              // const rep_free__platform = infiniteCanvas.getRepresented(icPlatform.id).r_free();
-              const rep_free__platform   = handle__rep_free;
+            const platformEngine = this;
+            
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const icPlatform     = this.scopeObj.engineCarrier;
 
-              const icPlatform           = rep_free__platform;
-              const icDropTouchSlot      = rep_free__platform.parts.dropTouchSlot;
-              const icComposite__terrace = rep_free__platform.parts.terrace;
+            const rep_free__platform   = this.scopeObj.engineCarrier;
+            const icDropTouchSlot      = rep_free__platform.parts.dropTouchSlot;
+            const icComposite__terrace = rep_free__platform.parts.terrace;
 
-              const transformationFunc__touch = (icObj) => {
-                // const icObj__sadness = icObjToIcObjFunc(icObj);
-                logger.log("logPlatform", "transformationFunc__touch", icObj);
+            const transformationFunc__touch = (icObj) => {
+              // const icObj__sadness = icObjToIcObjFunc(icObj);
+              logger.log("logPlatform", "transformationFunc__touch", icObj);
 
-                // rep_free__platform.parts.terrace.dict_engine["composite"].engine.awoken.addPart(icObj, false);
-                const rootObject = icObj.getRootObject(infiniteCanvas);
-                  //root object is added just below terrace (remember it later when thinking about removal)
-                rep_free__platform.parts.terrace.dict_engine["composite"].engine.awoken.addPart(rootObject, false);
+              // rep_free__platform.parts.terrace.dict_engine["composite"].engine.awoken.addPart(icObj, false);
+              const rootObject = icObj.getRootObject(infiniteCanvas);
+                //root object is added just below terrace (remember it later when thinking about removal)
+              rep_free__platform.parts.terrace.dict_engine["composite"].engine.awoken.addPart(rootObject, false);
 
-                const transformationOutput = new TransformationOutput("displaced", icObj, icObj);
-                return transformationOutput;
-              };
-              rep_free__platform.parts.dropTouchSlot.touchSlotConfig.transformationFunc__touch = transformationFunc__touch;
+              const transformationOutput = new TransformationOutput("displaced", icObj, icObj);
+              return transformationOutput;
+            };
+            rep_free__platform.parts.dropTouchSlot.touchSlotConfig.transformationFunc__touch = transformationFunc__touch;
 
-              const transformationFunc__untouch = (icObj) => {
-                logger.log("logPlatform", "transformationFunc__untouch", icObj);
+            const transformationFunc__untouch = (icObj) => {
+              logger.log("logPlatform", "transformationFunc__untouch", icObj);
 
-                // rep_free__platform.parts.terrace.dict_engine["composite"].engine.awoken.removePart(icObj);
-                // const rootObject = icObj.getRootObject(infiniteCanvas);
-                const highestRootBeforeTerrace = CompositeUtils.getHighestRootObjectBefore(icObj, rep_free__platform.parts.terrace);
+              // rep_free__platform.parts.terrace.dict_engine["composite"].engine.awoken.removePart(icObj);
+              // const rootObject = icObj.getRootObject(infiniteCanvas);
+              const highestRootBeforeTerrace = CompositeUtils.getHighestRootObjectBefore(icObj, rep_free__platform.parts.terrace);
 
-                rep_free__platform.parts.terrace.dict_engine["composite"].engine.awoken.removePart(highestRootBeforeTerrace);
+              rep_free__platform.parts.terrace.dict_engine["composite"].engine.awoken.removePart(highestRootBeforeTerrace);
 
-                const transformationOutput = new TransformationOutput("displaced", icObj, icObj);
-                return transformationOutput;
-              };
-              rep_free__platform.parts.dropTouchSlot.touchSlotConfig.transformationFunc__untouch = transformationFunc__untouch;
-
-
-            // });
+              const transformationOutput = new TransformationOutput("displaced", icObj, icObj);
+              return transformationOutput;
+            };
+            rep_free__platform.parts.dropTouchSlot.touchSlotConfig.transformationFunc__untouch = transformationFunc__untouch;
 
 
-            const dropTouchSlotEngine__platformEdition = rep_free__platform.parts.dropTouchSlot.dict_engine["dropTouchSlot"].engine.awoken;
+            // //bugfix: 'double move' (== avoid "composition ouroboros")
+            // const filterFunc__touch__isObjectIgnored = function (incomingObj) {
+            //   logger.log("dropTouchSlotEngine__platformEdition.isObjectIgnored", incomingObj);
+            //   // return false;
+            //   const isMyPlatform = (incomingObj.id == icPlatform.id);
+            //   const isMyTerrace  = (incomingObj.id == icComposite__terrace.id);
+            //   const isMyParent   = CompositeUtils.isContainerOf(incomingObj, icPlatform); //SHU /!\ serialization issues ?
 
-            //bugfix: 'double move' (== avoid "composition ouroboros")
-            dropTouchSlotEngine__platformEdition.isObjectIgnored = function (incomingObj) {
+            //   const isPartOfMyPlatform = CompositeUtils.isHavingCommonContainer(incomingObj, icPlatform, infiniteCanvas);
+            //   const isPartOfMyTerrace  = CompositeUtils.isHavingCommonContainer(incomingObj, icComposite__terrace, infiniteCanvas);
+            //   const isPartOfMyParentButNotOnMyTerrace = isPartOfMyPlatform && !isPartOfMyTerrace;
+              
+            //   // const isIgnored = isMyTerrace || isMyPlatform || isMyParent || isPartOfMyParent;
+            //   const isIgnored = isMyTerrace || isMyPlatform || isMyParent || isPartOfMyParentButNotOnMyTerrace;
+            //   logger.log("dropTouchSlotEngine__platformEdition.isObjectIgnored", "isIgnored:", isIgnored);
+
+            //   return isIgnored;
+            // };
+            // rep_free__platform.parts.dropTouchSlot.touchSlotConfig.filterFunc__touch__isObjectIgnored = filterFunc__touch__isObjectIgnored;
+
+
+            const filterFunc__touch__isObjectIgnored__original = function (incomingObj) {
               logger.log("dropTouchSlotEngine__platformEdition.isObjectIgnored", incomingObj);
               // return false;
               const isMyPlatform = (incomingObj.id == icPlatform.id);
@@ -38888,29 +38934,78 @@
 
               return isIgnored;
             };
-            icDropTouchSlot.dict_engine["dropTouchSlot"].engine.virgin = Object.assign({}, dropTouchSlotEngine__platformEdition);  //virgin == not bound
+
+            const filterFunc__touch__isObjectIgnored__platformOnPlatform = function(incomingObj) {
+              //get child platforms
+              const arr_childPlatforms = platformEngine.getArr_childPlatforms();
+
+              const canTouchFunc_geometryWise = function (above, below, context) {
+                // const canTouchFunc = Touch.canTouch;
+  
+                const touch2Singleton = Touch2Singleton.sharedInstance();
+                const canTouchFunc    = touch2Singleton.canTouch.bind(touch2Singleton);
+  
+                return canTouchFunc(above, below);
+              };
+
+              //ignore if incoming obj is touching a child platfom's dropTouchSlot, _geometryWise_
+                  //SHU: maybe there could be a function in childPlatform to call (ask directly childPlatform if it may handle incomingObj)
+              const isObjectIgnored = (arr_childPlatforms.find((icChildPlatform) => {
+                const icChildDropTouchSlot = icChildPlatform.parts.dropTouchSlot;
+                const canTouch_geometryWise = canTouchFunc_geometryWise(incomingObj, icChildDropTouchSlot);
+                logger.log("logPlatform", "platformEngine", "canTouch_geometryWise:", canTouch_geometryWise);
+                return canTouch_geometryWise;
+              })  != null);
+
+              return isObjectIgnored;
+            };
+
+            const filterFunc__touch__isObjectIgnored = function(incomingObj) {
+              return   filterFunc__touch__isObjectIgnored__original(incomingObj)
+                    || filterFunc__touch__isObjectIgnored__platformOnPlatform(incomingObj); 
+            }
+
+            icDropTouchSlot.touchSlotConfig.filterFunc__touch__isObjectIgnored = filterFunc__touch__isObjectIgnored;
+
+          };
 
 
-            //listen to terrace events
-            const compositeEngine__terrace = icComposite__terrace.dict_engine["composite"].engine.awoken;
-            
-              //addPart
-            Hooker.installHooks(compositeEngine__terrace, "addPart");
-            compositeEngine__terrace.did["addPart"].on((icObj) => {
+
+
+          this.start = function () {
+            logger.log("engine::start, this", this);
+            console.log("platformEngine::start", "this.scopeObj", this.scopeObj);
+
+            const platformEngine = this;
+
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const handle         = this.scopeObj.engineCarrier;
+
+            console.log("platformEngine.start", handle.id);
+
+            //get free_rep
+            const handle__represented = infiniteCanvas.getRepresented(handle.id);
+            const handle__rep_free    = handle__represented.r_free();
+
+            //create listeners
+            this.listeners = this.createListeners();
+
+            //listen to terrace
+            const listener__terrrace_addPart = this.listeners["terrace_addPart"];
+            listener__terrrace_addPart.on((icObj) => {
               // logger.log("logPlatform", "terrace did addPart", icObj);
               
               platformEngine.onObjectAdded(icObj);
-
             });
 
-              //removePart
-            Hooker.installHooks(compositeEngine__terrace, "removePart");
-            compositeEngine__terrace.did["removePart"].on((icObj) => {
+            const listener__terrace_removePart = this.listeners["terrace_removePart"];
+            listener__terrace_removePart.on((icObj) => {
               // logger.log("logPlatform", "terrace did addPart", icObj);
               
               platformEngine.onObjectRemoved(icObj);
-
             });
+
+            this.setupDropTouchSlot();
 
 
           };
