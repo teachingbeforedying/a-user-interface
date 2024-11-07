@@ -29375,6 +29375,11 @@
         this.dOffset.dy = this.offset.dy - this.previousOffset.dy;
 
         // this.redrawCanvas(RedrawOccasion.offsetChanged);
+
+        // this.didUpdateListenersDict["offsetChanged"].forEach((listener, i) => {
+        //   listener(this);
+        // });
+
       }
 
       updateScale(scale_new) {
@@ -99147,6 +99152,8 @@
 
             // this.debug_operator_cloning();
 
+            // this.debug_ghost();
+
           } catch(e) {
             logger.log("logError", e);
           }
@@ -105714,6 +105721,120 @@
           //create [+ 2] operator
           const gmOperator__plus2 = infiniteCanvas.createIcGMOperator_withType(atelier.trueRect2, "from_string", {str__operator:"+ 2"});
           infiniteCanvas.addIcObject(gmOperator__plus2);
+        }
+
+        debug_ghost() {
+
+          //[[5]]
+          const trueRect__mathNode = {
+            x: 100,
+            y: 100,
+            width:  100,
+            height: 100,
+          };
+          const icMathNode = infiniteCanvas.createIcMathNode(trueRect__mathNode.x, trueRect__mathNode.y, new math.ConstantNode(5));
+
+
+          infiniteCanvas.onceOnAddRepresentedForIcObject(icMathNode, (icMathNode) => {
+
+            const rep_free__mathNode = infiniteCanvas.getRepresented(icMathNode.id).r_free();
+
+            // infiniteCanvas.onScreenPovChange((pov__screen, updatesDict) => {
+            infiniteCanvas.didUpdateListenersDict["scaleChanged"].push((infiniteCanvas) => {
+              logger.log("logGhost", "infiniteCanvas.scale.X:", infiniteCanvas.scale.X);
+
+              const pov__screen = infiniteCanvas.getCurrentPov();
+
+              //compute "ghost" distance
+              const trueRect__mathNode  = rep_free__mathNode.getTrueRect2();
+              const trueRect__screenPov = pov__screen.getTrueRect2();
+              
+              const trueArea__mathNode  = trueRect__mathNode.width  * trueRect__mathNode.height; 
+              const trueArea__screenPov = trueRect__screenPov.width * trueRect__screenPov.height;
+
+              function ghostDistanceMiniDict(trueArea__icObj, trueArea__screenPov) {
+                const [trueArea__min, trueArea__max] = math.sort([trueArea__icObj, trueArea__screenPov]);
+
+                const distance = trueArea__max / trueArea__min - 1;
+
+                const distance__bounded = math.max(distance, 1e-20);
+
+                const miniDict = {
+                  ghostDistance:     distance__bounded,
+                  isPovInsideGhost: (trueArea__min == trueArea__screenPov),
+                };
+
+                return miniDict;
+              }
+
+              function ghostOpacity(ghostDistanceMiniDict, ghostConfigDict_in = null) {
+                var outOpacity;
+
+                var ghostConfigDict;
+                if(ghostConfigDict_in != null) {
+                  ghostConfigDict = ghostConfigDict_in;
+                } else {
+                  ghostConfigDict = {
+                    ghostDistance__fullOpacity__povIsOutsideGhost: 10.0,
+                    ghostDistance__fullOpacity__povIsInsideGhost:  0.1,
+                  };
+                }
+
+                const ghostDistance = ghostDistanceMiniDict.ghostDistance;
+
+                var ghostDistance__fullOpacity;
+                if(ghostDistanceMiniDict.isPovInsideGhost) {
+                  ghostDistance__fullOpacity = ghostConfigDict.ghostDistance__fullOpacity__povIsInsideGhost;
+                } else {
+                  ghostDistance__fullOpacity = ghostConfigDict.ghostDistance__fullOpacity__povIsOutsideGhost;
+                }
+
+                const opacity__ghost__raw = math.min(1.0 / ghostDistance, 1.0);
+                logger.log("logGhost", "opacity__ghost__raw:", opacity__ghost__raw);
+                
+                const func__easing            = anime.easing("easeOutExpo", 1.0);
+                const opacity__ghost__refined = func__easing(math.min(ghostDistance__fullOpacity / ghostDistance, 1.0));
+                logger.log("logGhost", "opacity__ghost__refined:", opacity__ghost__refined);
+
+                outOpacity = opacity__ghost__refined;
+
+                return outOpacity;
+              }
+
+              const ghostDistance__fullOpacity__povIsOutsideGhost = 30.0;
+              const ghostDistance__fullOpacity__povIsInsideGhost  = 0.01;
+              const ghostConfigDict = {
+                ghostDistance__fullOpacity__povIsOutsideGhost: ghostDistance__fullOpacity__povIsOutsideGhost,
+                ghostDistance__fullOpacity__povIsInsideGhost:  ghostDistance__fullOpacity__povIsInsideGhost,
+              };
+
+              const ghostDistanceMiniDict_ = ghostDistanceMiniDict(trueArea__mathNode, trueArea__screenPov);
+              const ghostDistance_         = ghostDistanceMiniDict_.ghostDistance;
+              const ghostOpacity_          = ghostOpacity(ghostDistanceMiniDict_, ghostConfigDict);
+
+              //debug
+              rep_free__mathNode.mathNode = new math.ConstantNode(ghostDistance_); 
+
+              //ghost effect
+              rep_free__mathNode.opacity = ghostOpacity_;
+
+            });
+
+          });
+
+
+          infiniteCanvas.addIcObject(icMathNode);
+
+          // //debug: hot editing of icMathNode.mathNode
+          // setTimeout(() => {
+
+          //   const rep_free__mathNode = infiniteCanvas.getRepresented(icMathNode.id).r_free();
+          //   rep_free__mathNode.mathNode = new math.ConstantNode(3017); 
+            
+          // }, 3000);
+
+          
+
         }
 
 
