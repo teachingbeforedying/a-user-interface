@@ -67,6 +67,11 @@
 
   <!-- <script src="lib/wad.min.js" type='text/javascript'></script> -->
 
+  <!-- wouldnt it be nice ?! ... --> 
+  <!--<link  href="lib/dropzone/dropzone.min.css" rel="stylesheet">               -->
+  <!--<script src="lib/dropzone/dropzone.min.js" type='text/javascript'></script> -->
+  
+
   <script src="lib/pdf/pdfjs/pdf.min.js" type='text/javascript'></script>
   <script>
     // console.log("pdfjsLib", pdfjsLib);
@@ -1004,6 +1009,9 @@
   <script src='lib/fabricjs+floodFill.js'  type='text/javascript'></script>
 
   <script src='lib/fabricjs+curve3.js'  type='text/javascript'></script>
+
+  <script src='lib/fabricjs+stickerStroke.js'  type='text/javascript'></script>
+
 
 
   <script>
@@ -7990,6 +7998,32 @@
   </script>
 
   <!-- <script>
+    Dropzone.autoDiscover = false;
+    //const dropzone = new Dropzone("canvas#myCanvas", { url: "/file/post" });
+    //const dropzone = new Dropzone("canvas#myCanvas", { 
+    const dropzone = new Dropzone("div#container__for_canvases", { 
+      url: "/",
+      addRemoveLinks: true,
+      acceptedFiles: "image/jpeg, image/png, image/avif",
+      maxFileSize: 10, //MB
+      maxFiles: 10,
+      init: function() {
+
+        this.on("addedFile", function(file) {
+          logger.log("logDropZone", "addedFile", "file:", file);
+        });
+
+        this.on("removedFile", function(file) {
+          logger.log("logDropZone", "removedFile", "file:", file);
+        });
+
+      },
+    });
+
+    logger.log("logDropZone", "dropzone:", dropzone);
+  </script> -->
+
+  <!-- <script>
     {
       const canvas = document.getElementById("myCanvas");
       panzoom(canvas);
@@ -8213,6 +8247,7 @@
         this.mathField_numberTyping = null;
         this.mathNode_numberTyping  = null;
 
+        this.isIOPasting            = false;
         this.isBatchPasting         = false;
 
         this.isAltering             = false;
@@ -8810,6 +8845,8 @@
 
 
         if(icObj__completenessObject != null) {
+
+          //check if there is no noticeable object other than the completeness
           
           const pov__screen         = this.getCurrentPov();
           const trueRect__screenPov = pov__screen.getTrueRect2();
@@ -9148,6 +9185,20 @@
         };
 
         const icRect = Object.assign(icObj, icRect_spec);
+
+        return icRect;
+      }
+
+      createIcRect__backingPov(pov) {
+
+        // const trueRect   = pov.getTrueRect2();
+        const screenRect = pov.getScreenRect();
+
+        // const icRect  = this.createIcRect(trueRect);
+        const icRect  = this.createIcRect(screenRect); 
+
+        icRect.zIndex    = -300;
+        icRect.homeScale = Object.assign({}, pov.scale);
 
         return icRect;
       }
@@ -23394,6 +23445,42 @@
         return outString;
       }
 
+
+      manageApplyCommand__setActiveColor__onUnderlying() {
+        logger.log("logColor", "manageApplyCommand__setActiveColor__onUnderlying");
+        const infiniteCanvas = this;
+
+        const rep_free__underlying = infiniteCanvas.getIcObj__underCursor("free");
+        logger.log("logColor", "manageApplyCommand__setActiveColor__onUnderlying", "rep_free__underlying:", rep_free__underlying);
+
+
+        if(rep_free__underlying != null) {
+          const rgbaColorString = inputProperties.getActiveRgbaColorString();
+          infiniteCanvas.updateMainColorOfObject(rep_free__underlying, rgbaColorString);
+        } else {
+          //create underlying object: screenPov's povBackingRect
+          const pov__screen = infiniteCanvas.getCurrentPov();
+
+          const icObj__screenPovBackingRect = infiniteCanvas.createIcRect__backingPov(pov__screen);
+
+          infiniteCanvas.onceOnAddRepresentedForIcObject(icObj__screenPovBackingRect, (icObj__screenPovBackingRect) => {
+
+            const rep_free__screenPovBackingRect = infiniteCanvas.getRepresented(icObj__screenPovBackingRect.id).r_free();
+
+            const rgbaColorString = inputProperties.getActiveRgbaColorString();
+            infiniteCanvas.updateMainColorOfObject(rep_free__screenPovBackingRect, rgbaColorString);
+          });
+
+          infiniteCanvas.addIcObject(icObj__screenPovBackingRect);
+          
+        }
+
+      }
+
+      
+
+
+
       addNewIcObject(icObj) {
         // logger.log("addNewIcObject", icObj);
 
@@ -26772,6 +26859,29 @@
         return Geometry.createRect(noOrTL.x, noOrTL.y, w, h);
       }
 
+      //   //reverse funcs:
+      // toOrX(trueX, scale) {
+      //   const orX = (trueX + this.offset.dx) * scale.X;
+      //   return orX;
+      // }
+
+      // toOrY(trueY, scale) {
+      //   const orY = (trueY + this.offset.dy) * scale.Y;
+      //   return orY;
+      // }
+
+      // toOrPoint(truePoint, scale) {
+      //   return Geometry.createPoint(this.toOrX(truePoint.x, scale), this.toOrY(truePoint.y, scale));
+      // }
+
+      // toOrRect(trueRect, scale) {
+      //   const orTL = this.toOrPoint(Geometry.getPointTL(Geometry.createLTRect(trueRect)), scale);
+      //   const orBR = this.toOrPoint(Geometry.getPointBR(Geometry.createLTRect(trueRect)), scale);
+      //   const w = orBR.x - orTL.x;
+      //   const h = orBR.y - orTL.y;
+      //   return Geometry.createRect(orTL.x, orTL.y, w, h);
+      // }      
+
 
 
       getCanvasBoundingRect() {
@@ -26819,7 +26929,11 @@
         return shownRect;
       }
 
-
+      getScreenRectForTrueRectAtScale(trueRect, scale) {
+        const orRect = this.toOrRect(trueRect, scale);
+        const screenRect  = Geometry.createXYRect(orRect);
+        return screenRect;
+      }
 
 
       createPOVWithRect(trueRect) {
@@ -27257,29 +27371,33 @@
 
           //update main color of object
           arr_rep_free_selected.forEach((rep_free, i) => {
-
-            switch(rep_free.type) {
-              case "rect":
-                rep_free.fill = rgbaColorString;
-                break;
-              case "text":
-                rep_free.textColor = rgbaColorString;
-                break;
-              case "mathNode":
-                rep_free.stroke = rgbaColorString;
-                break;
-              case "freeDrawing":
-                rep_free.stroke = rgbaColorString;
-                break;
-              default:
-                rep_free.fill = rgbaColorString;
-                break;
-            }
-
+            this.updateMainColorOfObject(rep_free, rgbaColorString);
           });
 
           //update brush color 
           fabricIntegration.configureFreeDrawingBrush({color: rgbaColorString});
+        }
+
+      }
+
+      updateMainColorOfObject(rep_free, rgbaColorString) {
+
+        switch(rep_free.type) {
+          case "rect":
+            rep_free.fill = rgbaColorString;
+            break;
+          case "text":
+            rep_free.textColor = rgbaColorString;
+            break;
+          case "mathNode":
+            rep_free.stroke = rgbaColorString;
+            break;
+          case "freeDrawing":
+            rep_free.stroke = rgbaColorString;
+            break;
+          default:
+            rep_free.fill = rgbaColorString;
+            break;
         }
 
       }
@@ -29139,6 +29257,90 @@
       }
 
 
+      //io pasting (==pasting stuff from inside (== from aui) or from outside (== from browser's clipboard))
+
+      enterIOPasting() {
+        logger.log("logCP", "enterIOPasting");
+        this.isIOPasting           = true;
+
+        // globalsSingleton.isEditing = true;
+        // this.isNumberTyping        = true;
+
+        //add airlock
+
+
+      }
+
+      leaveIOPasting() {
+        logger.log("logCP", "leaveIOPasting");
+        const infiniteCanvas = this;
+
+
+          navigator.clipboard.read()
+          .then((arr_clipboardItem) => {
+            var out_p;
+
+            logger.log("logCP", "leaveIOPasting", "navigator.clipboard.read()", "arr_clipboardItem:", arr_clipboardItem);
+
+            const clipboardItem = arr_clipboardItem.find(e => true);
+            logger.log("logCP", "leaveIOPasting", "navigator.clipboard.read()", "clipboardItem:", clipboardItem);
+
+            // const type__clipboardItem = clipboardItem.types.find(e => true);
+            const type__clipboardItem = 'image/png';
+            logger.log("logCP", "leaveIOPasting", "navigator.clipboard.read()", "type__clipboardItem:", type__clipboardItem);
+
+            out_p = clipboardItem.getType(type__clipboardItem);
+
+            out_p = out_p.then((blob) => {
+              logger.log("logCP", "leaveIOPasting", "navigator.clipboard.read()", "blob:", blob);
+            });
+            // out_p = clipboardIntegration.outerToInner_p(clipboardEvent);
+
+            //inner to ic
+            // const infiniteCanvas = this.infiniteCanvas;
+
+            out_p = out_p.then(content => {
+              var outIcObj;
+
+              logger.log("content", content);
+
+              const true_cursor = infiniteCanvas.getTrueCursor();
+              const trueRect = {
+                x: true_cursor.x,
+                y: true_cursor.y,
+                width: 100,
+                height: 100,
+              };
+
+              if (typeof content == "string") {
+                const text = content;
+                outIcObj = infiniteCanvas.createIcText(trueRect.x, trueRect.y, text);
+              } else if (content instanceof Image) {
+                const img = content;
+                outIcObj = infiniteCanvas.createIcImage(trueRect.x, trueRect.y, img);
+              } else {
+                outIcObj = infiniteCanvas.createIcRect(trueRect);
+              }
+
+              return outIcObj;
+            });
+
+            return out_p;
+          }).then((icObj) => {
+            infiniteCanvas.addPastedIcObject(icObj);
+          });
+        
+
+
+        //add object to iC (== allow it to interact with other objects)
+
+        //remove airlock
+
+        this.isIOPasting         = false;
+      }
+
+
+
 
 
       //batch pasting
@@ -29684,7 +29886,7 @@
       }
 
       updateScaleAndDOffset(scale_new, dOffset) {
-        //console.log("updateScaleAndDOffset", scale_new, dOffset);
+        // logger.log("updateScaleAndDOffset", scale_new, dOffset);
 
         if(this.isPovBeing_setPovd__portal_crossing) {
           logger.log("logPOV", "updateScaleAndDOffset", "ignored");
@@ -29696,7 +29898,7 @@
       }
 
       updateScaleAndOffset(scale_new, offset) {
-        console.log("updateScaleAndOffset", scale_new, offset);
+        // logger.log("updateScaleAndOffset", scale_new, offset);
 
         if(this.isPovBeing_setPovd__portal_crossing) {
           logger.log("logPOV", "updateScaleAndOffset", "ignored");
@@ -29791,9 +29993,20 @@
 
       /* POVs */
 
+      // getCurrentPov() {
+      //   const center   = this.getTrueCenterPoint();
+      //   const trueRect = this.getCanvasBoundingTrueRect();
+      //   const size = {
+      //     width:  trueRect.width,
+      //     height: trueRect.height,
+      //   };
+      //   return new POV(this.scale, center, size);
+      // }
+
       getCurrentPov() {
         const center   = this.getTrueCenterPoint();
-        const trueRect = this.getCanvasBoundingTrueRect();
+        // const trueRect = this.getCanvasBoundingTrueRect();
+        const trueRect = this.getShownRect();
         const size = {
           width:  trueRect.width,
           height: trueRect.height,
@@ -31670,6 +31883,19 @@
             height: this.size.height,
           };
           return trueRect2;
+        }
+
+        getScreenRect() {
+          const trueRect2 = this.getTrueRect2();
+          const size__screen = {
+            width: trueRect2.width   * this.scale.X,
+            height: trueRect2.height * this.scale.Y,
+          };
+          const screenRect = Object.assign({}, {
+            x: trueRect2.x,
+            y: trueRect2.y,
+          }, size__screen);
+          return screenRect;
         }
 
         static createPOVWithValues(scale_X, scale_Y, center_x, center_y, size_width, size_height) {
@@ -42728,10 +42954,14 @@
 
 
             selectionColor: 'blue',
-            selectionLineWidth: 2,
+            selectionLineWidth: 2.0,
 
             // width:  canvas.width,
             // height: canvas.height,
+
+            // scale: 100.0,
+            // scale: 1e-10,
+            // scale: 1e10,
 
 
             // imageSmoothingEnabled: true,
@@ -42739,11 +42969,17 @@
 
             preserveObjectStacking: true,
           });
+          logger.log("logFabric", "fabricCanvas:", fabricCanvas);
+
+
           installFabricZIndexUpgrade(fabricCanvas);         //fabric+zIndex.js
           installFabricBrushPreviewUpgrade(fabricCanvas);   //fabric+brushPreview.js
           installFabricCombUpgrade(fabricCanvas);           //fabric+comb.js
 
           installFabricStraightStrokeUpgrade(fabricCanvas); //fabric+straightStroke.js
+
+          // installFabricStickerStrokeUpgrade__image(fabric.Image.prototype);   //fabric+stickerStroke.js
+          // installFabricStickerStrokeUpgrade(fabric.Object.prototype);         //fabric+stickerStroke.js
 
           //improve performance: (?)
           // fabricCanvas.contextTop       = fabricCanvas.upperCanvasEl.getContext('2d', { willReadFrequently: true }); 
@@ -42803,8 +43039,8 @@
 
                       const rect__realBound = {
                         left: realBound.x1,
-                        top: realBound.y1,
-                        width: realBound.x2 - realBound.x1,
+                        top:  realBound.y1,
+                        width:  realBound.x2 - realBound.x1,
                         height: realBound.y2 - realBound.y1,
                       };
 
@@ -43148,7 +43384,7 @@
             const arr_unselected = difference;
 
             outObj = {
-              arr_selected: arr_selected,
+              arr_selected:   arr_selected,
               arr_unselected: arr_unselected,
             };
 
@@ -43157,6 +43393,13 @@
 
           function processSelectionMgmtObject(selectionMgmtObj, options) {
             logger.log("processSelectionMgmtObject", selectionMgmtObj, options);
+
+            //debug
+            selectionMgmtObj.arr_selected.forEach((fObj, i) => {
+              fObj.borderColor = ColorUtils.randomColor();
+              fObj.borderScaleFactor = 3.0;
+            });
+
 
             selectionMgmtObj.arr_selected.forEach((fObj, i) => {
               const icObj = fObj.icObj;
@@ -43217,6 +43460,36 @@
 
             } else {
               logger.log("selectionMgmtObj.arr_selected.length > 1");
+
+              const arr_icObj__selected = selectionMgmtObj.arr_selected.map((fObj) => fObj.icObj);
+
+              //create transient composite
+              //create composite
+              const icObj__selected0 = arr_icObj__selected.find(e => true);
+              const trueRect__composite = {
+                x: icObj__selected0.position.x,
+                y: icObj__selected0.position.y,
+                width:  10,
+                height: 10,
+              };
+              const parts = arr_icObj__selected.reduce((acc, icFreeDrawing) => {
+                const partName = "selected__" + icFreeDrawing.id;
+                acc[partName] = icFreeDrawing;
+                return acc;
+              }, {});
+              const compositeConfig = Compositer.defaultCompositeConfig(parts, false, false);
+              const icComposite     = infiniteCanvas.createIcComposite(trueRect__composite, parts, compositeConfig); 
+              icComposite.cType = "selection";
+              icComposite.isEntity = true;
+              // icComposite.fillColor = "green";
+
+              //SHU: illusion
+              icComposite.fill    = "transparent";
+              // icComposite.opacity = 0;
+
+              //add composite 
+              infiniteCanvas.addNewIcObject(icComposite);
+
             }
 
             selectionMgmtObj__previous = selectionMgmtObj;
@@ -49133,7 +49406,7 @@
           const fabricIntegration = this;
 
           const infiniteCanvas = this.infiniteCanvas;
-          const fabricCanvas = this.fabricCanvas;
+          const fabricCanvas   = this.fabricCanvas;
 
           //creation
           this.fabricCanvas.on("selection:created", (options) => {
@@ -49145,22 +49418,24 @@
               const activeSelection = activeObject;
               logger.log("logAS", "selection:created", "activeSelection:", activeSelection);
 
-              //inject 'initial' props
-              const icActiveSelection = infiniteCanvas.createIcActiveSelection_from_activeSelectionFObj(activeSelection);
+              // this.fabricCanvas._discardActiveObject();
 
-              activeSelection.icObj = icActiveSelection;
+              // //inject 'initial' props
+              // const icActiveSelection = infiniteCanvas.createIcActiveSelection_from_activeSelectionFObj(activeSelection);
 
-              activeSelection.forEachObject((fObj, index, arr_fObj) => {
-                logger.log("logAS", "activeSelection", "forEachObject", fObj);
-                setGroupCoords(fObj, activeSelection);
-                savePrivateCoords(fObj, activeSelection);
-              }, fabricIntegration.fabricCanvas.contextTop);
+              // activeSelection.icObj = icActiveSelection;
 
-              //store
-              infiniteCanvas.activeSelection = icActiveSelection;
+              // activeSelection.forEachObject((fObj, index, arr_fObj) => {
+              //   logger.log("logAS", "activeSelection", "forEachObject", fObj);
+              //   setGroupCoords(fObj, activeSelection);
+              //   savePrivateCoords(fObj, activeSelection);
+              // }, fabricIntegration.fabricCanvas.contextTop);
+
+              // //store
+              // infiniteCanvas.activeSelection = icActiveSelection;
 
             } else {
-              logger.log("activeObject is not fabric.ActiveSelection", typeof activeObject);
+              logger.log("logAS", "activeObject is not fabric.ActiveSelection", typeof activeObject);
 
               // const activeSelection = activeObject;
               // console.log("activeSelection", activeSelection);
@@ -49190,7 +49465,7 @@
             logger.log("logAS", "activeSelectionCT", activeSelectionCT);
 
             fObj.left = left__solo - activeSelectionCL;
-            fObj.top =  top__solo  - activeSelectionCT;
+            fObj.top  = top__solo  - activeSelectionCT;
           }
 
           function savePrivateCoords(fObj, activeSelection) {
@@ -49236,49 +49511,50 @@
           // });
           // this.fabricCanvas.on("object:moved", (options) => {
           //   logger.log("logAS", "object:moved", options);
-          this.fabricCanvas.on("object:modified", (options) => {
-            logger.log("logAS", "object:modified", options);
 
-            if(options.action == "drag") {
-              const target = options.target;
-              if (target.icObj.type == "activeSelection") {
-                activeSelection_moved(target);
-              }
-            }
+          // this.fabricCanvas.on("object:modified", (options) => {
+          //   logger.log("logAS", "object:modified", options);
 
-          });
+          //   if(options.action == "drag") {
+          //     const target = options.target;
+          //     if (target.icObj.type == "activeSelection") {
+          //       activeSelection_moved(target);
+          //     }
+          //   }
 
-          //scale
-          this.fabricCanvas.on("object:scaling", (options) => {
-            // console.log("object:scaling", options);
+          // });
 
-            const target = options.target;
-            if (target.type == "activeSelection") {
-              activeSelection_scaling(options);
-            }
+          // //scale
+          // this.fabricCanvas.on("object:scaling", (options) => {
+          //   // console.log("object:scaling", options);
 
-          });
-          this.fabricCanvas.on("object:scaled", (options) => {
-            // console.log("object:scaling", event);
+          //   const target = options.target;
+          //   if (target.type == "activeSelection") {
+          //     activeSelection_scaling(options);
+          //   }
 
-            const target = options.target;
-            if (target.type == "activeSelection") {
-              activeSelection_scaled(target);
-            }
+          // });
+          // this.fabricCanvas.on("object:scaled", (options) => {
+          //   // console.log("object:scaling", event);
 
-          });
+          //   const target = options.target;
+          //   if (target.type == "activeSelection") {
+          //     activeSelection_scaled(target);
+          //   }
+
+          // });
 
 
-          //rotate
-          this.fabricCanvas.on("object:rotating", (options) => {
-            // console.log("object:rotating", event);
+          // //rotate
+          // this.fabricCanvas.on("object:rotating", (options) => {
+          //   // console.log("object:rotating", event);
 
-            const target = options.target;
-            if (target.type == "activeSelection") {
-              activeSelection_rotating(options);
-            }
+          //   const target = options.target;
+          //   if (target.type == "activeSelection") {
+          //     activeSelection_rotating(options);
+          //   }
 
-          });
+          // });
 
 
 
@@ -49987,54 +50263,54 @@
 
           //SHU: this case is (?) rare (?)
           if (activeObject instanceof fabric.ActiveSelection) {
-            logger.log("logZScroll", "updateFabricObjectsPosition_zScroll", "activeObject instanceof fabric.ActiveSelection");
+          //   logger.log("logZScroll", "updateFabricObjectsPosition_zScroll", "activeObject instanceof fabric.ActiveSelection");
 
-            // if(activeObject.icObj.isCompositeContentOrPart() || activeObject.icObj.type == "composite") {
+          //   // if(activeObject.icObj.isCompositeContentOrPart() || activeObject.icObj.type == "composite") {
 
-            //   //get composite
-            //   var icObj__composite;
-            //   if(activeObject.icObj.isCompositeContentOrPart()) {
-            //     const id__composite = activeObject.icObj.compositeId;
-            //     icObj__composite = infiniteCanvas.getRepresented(id__composite).rep_free();
-            //   } else {
-            //     icObj__composite = activeObject.icObj;
-            //   }
+          //   //   //get composite
+          //   //   var icObj__composite;
+          //   //   if(activeObject.icObj.isCompositeContentOrPart()) {
+          //   //     const id__composite = activeObject.icObj.compositeId;
+          //   //     icObj__composite = infiniteCanvas.getRepresented(id__composite).rep_free();
+          //   //   } else {
+          //   //     icObj__composite = activeObject.icObj;
+          //   //   }
 
-            //   //get all .isMobile==false in this composite
-            //   const arr_children = Object.values(icObj__composite.parts);
-            //   const arr_children_immobile = arr_children.filter((icObj) => {
-            //     return icObj.isMobile == false;
-            //   });
+          //   //   //get all .isMobile==false in this composite
+          //   //   const arr_children = Object.values(icObj__composite.parts);
+          //   //   const arr_children_immobile = arr_children.filter((icObj) => {
+          //   //     return icObj.isMobile == false;
+          //   //   });
 
-            //   arr_children_immobile.forEach((fObj, i) => {
-            //     this.updateFabricObject_position_zScroll__contained(activeSelection, fObj);
-            //   });
+          //   //   arr_children_immobile.forEach((fObj, i) => {
+          //   //     this.updateFabricObject_position_zScroll__contained(activeSelection, fObj);
+          //   //   });
 
-            // } else 
-            {
+          //   // } else 
+          //   {
 
-              const activeSelection = activeObject;
+          //     const activeSelection = activeObject;
 
-              this.updateFabricObject_position_zScroll__container(activeSelection);
+          //     this.updateFabricObject_position_zScroll__container(activeSelection);
 
-              const arr_affected = activeSelection.getObjects()
-                .filter(fObj => fObj.icObj.canBeMoved);
+          //     const arr_affected = activeSelection.getObjects()
+          //       .filter(fObj => fObj.icObj.canBeMoved);
 
-              const arr1 = fabric_objects;
-              const arr2 = arr_affected;
+          //     const arr1 = fabric_objects;
+          //     const arr2 = arr_affected;
 
-              let difference = arr1.filter(x => !arr2.includes(x));
-              const arr_unaffected = difference;
+          //     let difference = arr1.filter(x => !arr2.includes(x));
+          //     const arr_unaffected = difference;
 
-              arr_affected.forEach((fObj, i) => {
-                this.updateFabricObject_position_zScroll__contained(activeSelection, fObj);
-              });
+          //     arr_affected.forEach((fObj, i) => {
+          //       this.updateFabricObject_position_zScroll__contained(activeSelection, fObj);
+          //     });
 
-              arr_unaffected.forEach((fObj, i) => {
-                this.updateFabricObject_position_default(fObj);
-              });
+          //     arr_unaffected.forEach((fObj, i) => {
+          //       this.updateFabricObject_position_default(fObj);
+          //     });
 
-            }
+          //   }
 
           } else {
             logger.log("logZScroll", "updateFabricObjectsPosition_zScroll", "fabric_objects", fabric_objects);
@@ -50107,18 +50383,18 @@
             const activeSelection = activeObject;
             logger.log("logAS", "updateFabricObjectsPosition_default", "ActiveSelection:", activeSelection);
 
-            arr_fObj_to_move = [];
-            arr_fObj_to_move.push(activeSelection);
+            // arr_fObj_to_move = [];
+            // arr_fObj_to_move.push(activeSelection);
 
-            const arr_affected = activeSelection.getObjects();
+            // const arr_affected = activeSelection.getObjects();
 
-            const arr1 = fabric_objects;
-            const arr2 = arr_affected;
+            // const arr1 = fabric_objects;
+            // const arr2 = arr_affected;
 
-            let difference = arr1.filter(x => !arr2.includes(x));
-            const arr_unaffected = difference;
+            // let difference = arr1.filter(x => !arr2.includes(x));
+            // const arr_unaffected = difference;
 
-            arr_fObj_to_move.push(...arr_unaffected);
+            // arr_fObj_to_move.push(...arr_unaffected);
 
           } else  //when panning while there is no activeSelection
           {
@@ -50503,27 +50779,27 @@
           if (activeObject instanceof fabric.ActiveSelection) {
             logger.log("logZScroll", "updateFabricObjectsSize_zScroll", "activeObject instanceof fabric.ActiveSelection");
 
-            const activeSelection = activeObject;
+            // const activeSelection = activeObject;
 
-            this.updateFabricObject_size_zScroll(activeSelection);
+            // this.updateFabricObject_size_zScroll(activeSelection);
 
-            const arr_affected = activeSelection.getObjects()
-              .filter(fObj => fObj.icObj.canBeMoved);
+            // const arr_affected = activeSelection.getObjects()
+            //   .filter(fObj => fObj.icObj.canBeMoved);
 
 
-            const arr1 = fabric_objects;
-            const arr2 = arr_affected;
+            // const arr1 = fabric_objects;
+            // const arr2 = arr_affected;
 
-            let difference = arr1.filter(x => !arr2.includes(x));
-            const arr_unaffected = difference;
+            // let difference = arr1.filter(x => !arr2.includes(x));
+            // const arr_unaffected = difference;
 
-            arr_affected.forEach((fObj, i) => {
-              this.updateFabricObject_size_zScroll(fObj);
-            });
+            // arr_affected.forEach((fObj, i) => {
+            //   this.updateFabricObject_size_zScroll(fObj);
+            // });
 
-            arr_unaffected.forEach((fObj, i) => {
-              this.updateFabricObject_size_default(fObj);
-            });
+            // arr_unaffected.forEach((fObj, i) => {
+            //   this.updateFabricObject_size_default(fObj);
+            // });
 
           } else {
             fabric_objects.forEach((fObj, i) => {
@@ -57452,12 +57728,13 @@
         constructor(clipboardIntegration) {
           this.clipboardIntegration = clipboardIntegration;
 
-          document.onpaste = function (event) {
-            logger.log("onpaste", "event", event);
+          // document.onpaste = function (event) {
+          //   logger.log("onpaste", "event", event);
 
-            clipboardIntegration.rx_outerPaste.next(event);
-          };
+          //   clipboardIntegration.rx_outerPaste.next(event);
+          // };
 
+          document.onpaste = function() {};
         }
 
         static openFileDialog(accept, callback) {
@@ -58689,7 +58966,7 @@
               var outObservable;
 
               console.log("rx_mixedPaste");
-              console.log("outerPasteEvent", outerPasteEvent);
+              logger.log("logCP", "outerPasteEvent:", outerPasteEvent);
               console.log("innerCopyEvent",  innerCopyEvent);
 
               const timestamp_outerPaste = outerPasteEvent.timeStamp;
@@ -58935,6 +59212,37 @@
 
           return out_p;
         }
+
+
+        // outerToInner_p(blob) {
+        //   var out_p;
+        //   logger.log("outerToInner_p", "blob:", blob);
+
+        //   // get text representation of clipboard
+        //   var text = (clipboardEvent.originalEvent || clipboardEvent).clipboardData.getData('text/plain');
+        //   if (text) {
+        //     logger.log("text", text);
+        //     // fileIntegration.onPasteTextListeners.forEach((listener, i) => {
+        //     //   listener(text);
+        //     // });
+        //     out_p = Promise.resolve(text);
+        //   } else {
+        //     logger.log("not a text");
+
+        //     out_p =
+        //       FileIntegration.getPastedFile_p(clipboardEvent)
+        //         .then(FileIntegration.createImage_p);
+        //     // .then(img => {
+        //     //   fileIntegration.onPasteImageListeners.forEach((listener, i) => {
+        //     //     listener(img);
+        //     //   });
+        //     // });
+
+        //   }
+
+        //   return out_p;
+        // }
+
 
         lol() {
           // pasteFabricObjects(event) {
@@ -59566,6 +59874,7 @@
             arr_keyDownToggles.forEach((keyDownToggle, i) => {
               keyDownToggle.update(e, down);
             });
+            // logger.log("logKI", "updateKeyDownToggles", "arr_keyDownToggles:", arr_keyDownToggles.filter((kdt) => kdt.isActive));
           }
 
           function updateKeyDownTimeouts(e, down) {
@@ -59852,6 +60161,15 @@
               case "KeyC":
                 {
                   keyboardIntegration.infiniteCanvas.isColorPickerAvailable = true;
+                }
+                break;
+
+              case "KeyV":
+                {
+                  if (keyboardIntegration.keyDownToggles.ctrlLeft.isActive) {
+                      //io paste
+                      keyboardIntegration.infiniteCanvas.enterIOPasting();
+                  }
                 }
                 break;
               
@@ -61205,6 +61523,13 @@
               }
             }),
 
+            "KeyV": new KeyUpTrigger("KeyV", KeyUpTrigger.defaultKeyUpFunc(["KeyV"]), () => {
+              if (keyboardIntegration.infiniteCanvas.isIOPasting) {
+                //ioPaste
+                keyboardIntegration.infiniteCanvas.leaveIOPasting();
+              }
+            }),
+
             "KeyB": new KeyUpTrigger("KeyB", KeyUpTrigger.defaultKeyUpFunc(["KeyB"]), () => {
               if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
                 //decompose
@@ -61925,6 +62250,7 @@
 
 
             if (event.button == 0) {
+              // logger.log("logMouse", "onMouseUp", "event.button == 0");
               mouseIntegration.leftMouseDown  = false;
 
               infiniteCanvas.isReverseCombSpacing = false;
@@ -61969,6 +62295,10 @@
                 infiniteCanvas.combSetup__addBrush();
               }
 
+              if(keyboardIntegration.keyDownToggles.c.isActive) {
+                infiniteCanvas.manageApplyCommand__setActiveColor__onUnderlying();
+              }
+
               //SHU999
               infiniteCanvas.operateOnSelected__apply();
 
@@ -61989,8 +62319,23 @@
             if (keyboardIntegration.keyDownToggles.e.isActive) {
               transportationScroll(event);
             } 
-            /**/else/**/ 
 
+            /**/else/**/ 
+            if (keyboardIntegration.keyDownToggles.ctrlLeft.isActive) {
+              event.preventDefault(); //kill Ctrl.scroll to control browser zoom 
+              // return false;
+
+              if(keyboardIntegration.keyDownToggles.v.isActive) {
+                ioPasteScroll(event);
+              } else if(keyboardIntegration.keyDownToggles.b.isActive) {
+                batchPasteScroll(event);
+              } else {
+                //do nothing
+              }
+
+            }
+
+            /**/else/**/ 
             if (keyboardIntegration.keyDownToggles.c.isActive && keyboardIntegration.keyDownToggles.v.isActive) {
               lightnessScroll(event);
             } 
@@ -99447,6 +99792,12 @@
             // this.debug_neveremptiness();
             // this.debug_nevercompleteness();
 
+            // this.debug_ioPasteScroll();  // :(
+            // this.debug_batchPasteScroll();
+
+            this.debug_stickerStroke();
+
+            // this.debug_selection();
 
           } catch(e) {
             logger.log("logError", e);
@@ -99463,17 +99814,37 @@
 
         //convenience methods
 
-        spawnRectGrid() {
+        spawnRectGrid(config__grid_in) {
 
-          const grid_square_width  = 150;
-          const grid_square_height = 150;
+          var config__grid;
+          if(config__grid_in != null) {
+            config__grid = config__grid_in;
+          } else {
+            const config__grid__default = {
+              position: {
+                x: 100,
+                y: 100,
+              },
+              size__childRect: {
+                width:  200,
+                height: 200,
+              },
+              spacing: {
+                X: 100,
+                Y: 100,
+              },
+              nb_rows: 4,
+              nb_cols: 4,
+            };
+            config__grid = config__grid__default;
+          }
 
-          function createRectWith_gridRowCol_and_zIndex(row, col, zIndex) {
+          function createRectWith_gridRowCol_and_zIndex(row, col, zIndex, config__grid) {
               const trueRect = {
-                x:      col * grid_square_width,
-                y:      row * grid_square_height,
-                width:  100,
-                height: 100,
+                x:      config__grid.position.x + col * config__grid.size__childRect.width  + (col * config__grid.spacing.X),
+                y:      config__grid.position.y + row * config__grid.size__childRect.height + (row * config__grid.spacing.Y),
+                width:  config__grid.size__childRect.width,
+                height: config__grid.size__childRect.height,
               };
               const icRect = infiniteCanvas.createIcRect(trueRect);
 
@@ -99484,10 +99855,10 @@
           }
 
 
-          [...new Array(4).keys()].forEach((row) => {
-            [...new Array(4).keys()].forEach((col) => {
+          [...new Array(config__grid.nb_rows).keys()].forEach((row) => {
+            [...new Array(config__grid.nb_cols).keys()].forEach((col) => {
               const zIndex = 1 + 4 * row + col; 
-              const icRect = createRectWith_gridRowCol_and_zIndex(row, col, zIndex);
+              const icRect = createRectWith_gridRowCol_and_zIndex(row, col, zIndex, config__grid);
               infiniteCanvas.addIcObject(icRect);
             })            
           });
@@ -106203,15 +106574,6 @@
             }
 
 
-            const pov__screen = infiniteCanvas.getCurrentPov();
-
-            //get object contained in screenPov
-            const arr_icObj__inScreenPov = infiniteCanvas.getArr_icObj__underCursor;
-
-            if(arr_icObj__inScreenPov.length == 0) {
-
-            }
-
           });
           
 
@@ -106232,17 +106594,18 @@
             logger.log("logNevercompleteness", "trueSize__pixel__screen:", trueSize__pixel__screen);
 
 
-            const icObj__eminent = infiniteCanvas.getIcObj__eminentObject();
-            logger.log("logNevercompleteness", "icObj__eminent:", icObj__eminent);
+            //debug
+            // const icObj__eminent = infiniteCanvas.getIcObj__eminentObject();
+            // logger.log("logNevercompleteness", "icObj__eminent:", icObj__eminent);
 
-            if(icObj__eminent != null) {
-              const trueSize__pixel__eminentObject = infiniteCanvas.getTrueSize__forObjectPixel(icObj__eminent);
-              logger.log("logNevercompleteness", "trueSize__pixel__eminentObject:", trueSize__pixel__eminentObject);
-            }
+            // if(icObj__eminent != null) {
+            //   const trueSize__pixel__eminentObject = infiniteCanvas.getTrueSize__forObjectPixel(icObj__eminent);
+            //   logger.log("logNevercompleteness", "trueSize__pixel__eminentObject:", trueSize__pixel__eminentObject);
+            // }
+
 
             // const isCompleteScreenPov_ = infiniteCanvas.isCompleteScreenPov();
             // logger.log("logNevercompleteness", "isCompleteScreenPov_:", isCompleteScreenPov_);
-
 
             const icObj__completenessObject = infiniteCanvas.getIcObj__completenessObject();
             logger.log("logNevercompleteness", "icObj__completenessObject:", icObj__completenessObject);
@@ -106251,48 +106614,106 @@
             logger.log("logNevercompleteness", "isCompleteScreenPov__noticeablyWise_:", isCompleteScreenPov__noticeablyWise_);
 
             //debug 1
-            // if(isCompleteScreenPov__noticeablyWise_) {
-            //   const pov__screen         = infiniteCanvas.getCurrentPov();
-            //   const trueRect__screenPov = pov__screen.getTrueRect2();
-            //   const position__screenPov__center = Geometry.getCenterPoint(Geometry.createLTRect(trueRect__screenPov)); 
+            if(isCompleteScreenPov__noticeablyWise_) {
+              const pov__screen         = infiniteCanvas.getCurrentPov();
+              const trueRect__screenPov = pov__screen.getTrueRect2();
+              const position__screenPov__center = Geometry.getCenterPoint(Geometry.createLTRect(trueRect__screenPov)); 
 
-            //   const icText = infiniteCanvas.createIcText(position__screenPov__center.x, position__screenPov__center.y, "nevercompleteness");
-            //   icText.isUsingCenterPosition = true; 
+              const icText = infiniteCanvas.createIcText(position__screenPov__center.x, position__screenPov__center.y, "nevercompleteness");
+              icText.isUsingCenterPosition = true;
+              icText.zIndex = 300; 
 
-            //   infiniteCanvas.addIcObject(icText);
-            // }
+              infiniteCanvas.addIcObject(icText);
+            }
 
             //debug 2
-            if(isCompleteScreenPov__noticeablyWise_) {
-              // const pov__initial = infiniteCanvas.getPov__initial();
-              // infiniteCanvas.move_to_pov__animation(pov_initial);
+            // if(isCompleteScreenPov__noticeablyWise_) {
+            //   // const pov__initial = infiniteCanvas.getPov__initial();
+            //   // infiniteCanvas.move_to_pov__animation(pov_initial);
 
-              const trueRect__initial = {
-                x: -500,
-                y: -500,
-                width: 1920,
-                height: 1080,
-              };
+            //   const trueRect__initial = {
+            //     x: -500,
+            //     y: -500,
+            //     width: 1920,
+            //     height: 1080,
+            //   };
 
-              const cfg_anim__easy = {
-                duration: 10,
-              };
+            //   const cfg_anim__easy = {
+            //     duration: 10,
+            //   };
 
-              infiniteCanvas.move_to_rect__animation(trueRect__initial, cfg_anim__easy);
-            }
+            //   infiniteCanvas.move_to_rect__animation(trueRect__initial, cfg_anim__easy);
+            // }
 
-
-            const pov__screen = infiniteCanvas.getCurrentPov();
-
-            //get object contained in screenPov
-            const arr_icObj__inScreenPov = infiniteCanvas.getArr_icObj__underCursor;
-
-            if(arr_icObj__inScreenPov.length == 0) {
-
-            }
 
           });
           
+
+        }
+
+        debug_ioPasteScroll() {
+          this.spawnRectGrid();
+          
+
+
+
+        }
+
+
+        debug_batchPasteScroll() {
+
+
+        }
+
+
+        debug_stickerStroke() {
+          this.spawnRectGrid();
+
+
+        }
+
+        debug_selection() {
+
+          const config__gridBig = {
+            position: {
+              x: 100,
+              y: 100,
+            },
+            size__childRect: {
+              width:  200,
+              height: 200,
+            },
+            spacing: {
+              X: 100,
+              Y: 100,
+            },
+            nb_rows: 4,
+            nb_cols: 4,
+          };
+          this.spawnRectGrid(config__gridBig);
+          const config__gridSmall = {
+            position: {
+              x: 310,
+              y: 100,
+            },
+            size__childRect: {
+              width:  2,
+              height: 2,
+            },
+            spacing: {
+              X: 1,
+              Y: 1,
+            },
+            nb_rows: 4,
+            nb_cols: 4,
+          };
+          this.spawnRectGrid(config__gridSmall);
+
+          logger.log("logSelection", "fabricIntegration.fabricCanvas:", fabricIntegration.fabricCanvas);
+          // fabricIntegration.fabricCanvas.selectionLineWidth = 20.0;
+
+          
+
 
         }
 
