@@ -783,6 +783,72 @@
 
       }
 
+      static shiftToPositionAndScale2(icObj__composite__root, position_dst, homeScale_dst, icObj__composite_in = null, position_new_in = null, homeScale_new_in = null) {
+        logger.log("shiftToPositionAndScale2", icObj__composite__root, position_dst, homeScale_dst, icObj__composite_in, position_new_in, homeScale_new_in);
+
+        //take care of null params
+        var icObj__composite = icObj__composite_in;
+        if(icObj__composite == null) {
+          icObj__composite = icObj__composite__root;
+        }
+
+        var position_new = position_new_in;
+        if(position_new == null) {
+          position_new = position_dst;
+        }
+
+        var homeScale_new = homeScale_new_in;
+        if(homeScale_new == null) {
+          homeScale_new = homeScale_dst;
+        }
+
+
+
+        const position__root__old  = Object.assign({}, icObj__composite__root.position);
+        const homeScale__root__old = Object.assign({}, icObj__composite__root.homeScale);
+        const dHomeScale = {
+          X: homeScale__root__old.X / homeScale_dst.X,
+          Y: homeScale__root__old.Y / homeScale_dst.Y,
+        };
+        // logger.log("logCU", "shiftToPositionAndScale2", "dHomeScale:", dHomeScale);
+
+        const position__old  = Object.assign({}, icObj__composite.position);
+        const homeScale__old = Object.assign({}, icObj__composite.homeScale);
+
+
+          //shift children
+        Object.values(icObj__composite.parts).forEach((icObj__child) => {
+
+          //use absolute position and homeScale (i.e. refer to root, to old grandpa)
+          const position_new__child = {
+            x: position_dst.x + (icObj__child.position.x - position__root__old.x) * dHomeScale.X,
+            y: position_dst.y + (icObj__child.position.y - position__root__old.y) * dHomeScale.Y,
+          };
+
+          const homeScale_new__child = {
+            X: icObj__child.homeScale.X / dHomeScale.X,
+            Y: icObj__child.homeScale.Y / dHomeScale.Y,
+          };
+          // logger.log("logCU", "shiftToPositionAndScale2", "homeScale__new:", homeScale__new);
+
+
+          if(icObj__child.type == "composite") {
+            CompositeUtils.shiftToPositionAndScale2(icObj__composite__root, position_dst, homeScale_dst, icObj__child, position_new__child, homeScale_new__child);
+          } else {
+            icObj__child.position  = Object.assign({}, position_new__child);
+            icObj__child.homeScale = Object.assign({}, homeScale_new__child);
+          }
+
+        });
+
+          //shift composite
+        icObj__composite.position  = Object.assign({}, position_new);
+        icObj__composite.homeScale = Object.assign({}, homeScale_new);
+
+      }
+
+
+
       static getAllContained(icObjComposite) {
         var outArray = [];
         CompositeUtils.traverseComposite(icObjComposite, (icObj) => {
@@ -16203,7 +16269,7 @@
         return icPlatform_;
       }
 
-      createIcBiPlatform(trueRect__biPlatform, parts__terrace1, parts__terrace2) {
+      createIcBiPlatform(trueRect__biPlatform, parts__terrace1 = {}, parts__terrace2 = {}) {
 
         const icRect__backade = infiniteCanvas.createIcRect(trueRect__biPlatform);
         icRect__backade.fill = "grey";
@@ -16219,8 +16285,25 @@
         const trueRect__platform1 = Geometry.rectForRectRel(rectRel__platform1, trueRect__biPlatform);
           //set position of parts to be terraced
         Object.values(parts__terrace1).forEach((icObj) => {
-          icObj.position.x = trueRect__platform1.x + 1;
-          icObj.position.y = trueRect__platform1.y + 1;
+          logger.log("logBiPlatform", "createIcBiPlatform", "parts__terrace1", "icObj:", icObj);
+
+          const position_dst = {
+            x: trueRect__platform1.x + 1,
+            y: trueRect__platform1.y + 1,
+          };
+
+          const homeScale_dst = {
+            X: 2.0,
+            Y: 2.0,
+          };
+
+          if(icObj.type == "composite") {
+            CompositeUtils.shiftToPositionAndScale2(icObj, position_dst, homeScale_dst);
+          } else {
+            icObj.position  = Object.assign({}, position_dst);
+            icObj.homeScale = Object.assign({}, homeScale_dst);
+          }
+
         });
 
         const icPlatform1 = infiniteCanvas.createIcPlatform(trueRect__platform1, parts__terrace1);
@@ -16236,8 +16319,25 @@
         const trueRect__platform2 = Geometry.rectForRectRel(rectRel__platform2, trueRect__biPlatform);
           //set position of parts to be terraced
         Object.values(parts__terrace2).forEach((icObj) => {
-          icObj.position.x = trueRect__platform2.x + 1;
-          icObj.position.y = trueRect__platform2.y + 1;
+          logger.log("logBiPlatform", "createIcBiPlatform", "parts__terrace2", "icObj:", icObj);
+
+          const position_dst = {
+            x: trueRect__platform2.x + 1,
+            y: trueRect__platform2.y + 1,
+          };
+
+          const homeScale_dst = {
+            X: 2.0,
+            Y: 2.0,
+          };
+
+          if(icObj.type == "composite") {
+            CompositeUtils.shiftToPositionAndScale2(icObj, position_dst, homeScale_dst);
+          } else {
+            icObj.position  = Object.assign({}, position_dst);
+            icObj.homeScale = Object.assign({}, homeScale_dst);
+          }
+
         });
         const icPlatform2 = infiniteCanvas.createIcPlatform(trueRect__platform2, parts__terrace2);
 
@@ -50666,7 +50766,7 @@
 
               const screenPoint__fObj_TL = {
                 left: fObj.left, 
-                top: fObj.top,
+                top:  fObj.top,
                 
                 x: fObj.left,
                 y: fObj.top,
@@ -50719,7 +50819,7 @@
 
             const fObj_screenPos = {
               x: activeSelection.left + scaleFactor.X * (Math.cos(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.left - Math.sin(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.top),
-              y: activeSelection.top + scaleFactor.Y * (Math.sin(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.left + Math.cos(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.top),
+              y: activeSelection.top  + scaleFactor.Y * (Math.sin(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.left + Math.cos(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.top),
             };
 
             const position_update = infiniteCanvas.toTruePoint(fObj_screenPos);
@@ -55422,7 +55522,6 @@
           return outRectRel;
         }
 
-
         static rectForRectRel(rectRel, rect_container) {
           var outRect;
 
@@ -55455,7 +55554,18 @@
         }
 
         
+        static scaleRelForRectInRectContainer(rect, rect_container) {  //never tested
+          var outScale;
 
+          const rectRel = Geometry.rectRelForRectInRectContainer(rect, rect_container);
+
+          outScale = {
+            X: rectRel.r - rectRel.l, 
+            Y: rectRel.b - rectRel.t,
+          };
+
+          return outScale;
+        }
 
 
 
@@ -57906,13 +58016,13 @@
         constructor(clipboardIntegration) {
           this.clipboardIntegration = clipboardIntegration;
 
-          // document.onpaste = function (event) {
-          //   logger.log("onpaste", "event", event);
+          document.onpaste = function (event) {
+            logger.log("onpaste", "event", event);
 
-          //   clipboardIntegration.rx_outerPaste.next(event);
-          // };
+            clipboardIntegration.rx_outerPaste.next(event);
+          };
 
-          document.onpaste = function() {};
+          // document.onpaste = function() {};
         }
 
         static openFileDialog(accept, callback) {
@@ -60342,14 +60452,14 @@
                 }
                 break;
 
-              case "KeyV":
-                {
-                  if (keyboardIntegration.keyDownToggles.ctrlLeft.isActive) {
-                      //io paste
-                      keyboardIntegration.infiniteCanvas.enterIOPasting();
-                  }
-                }
-                break;
+              // case "KeyV":
+              //   {
+              //     if (keyboardIntegration.keyDownToggles.ctrlLeft.isActive) {
+              //         //io paste
+              //         keyboardIntegration.infiniteCanvas.enterIOPasting();
+              //     }
+              //   }
+              //   break;
               
               case "KeyB":
                 {
@@ -99999,6 +100109,7 @@
             // this.debug_freeDrawingApply();
             
             // this.debug_biPlatform();
+            // this.debug_shiftPositionAndScale();
 
             // this.debug_fun();
 
@@ -106941,7 +107052,7 @@
             
             const mathNode1    = new math.ConstantNode(4);
             // const icMathNode1  = infiniteCanvas.createIcMathNode(trueRect__platform.x, trueRect__platform.y, mathNode1);
-            const icMathNode1  = infiniteCanvas.createIcMathNode(trueRect__platform.x + 1, trueRect__platform.y + 1, mathNode1); //SHU: mathNode's size is 0 so to intersect terrace, we offset a little bit
+            const icMathNode1  = infiniteCanvas.createIcMathNode(trueRect__platform.x + 40, trueRect__platform.y + 40, mathNode1); //SHU: mathNode's size is 0 so to intersect terrace, we offset a little bit
             icMathNode1.zIndex = 1000;
 
             const parts__terrace = {
@@ -106950,31 +107061,195 @@
 
             const icPlatform = infiniteCanvas.createIcPlatform(trueRect__platform, parts__terrace);
 
+            const homeScale_dst = {
+              X: 5,
+              Y: 5,
+            };
+            CompositeUtils.shiftToPositionAndScale2(icPlatform, icPlatform.position, homeScale_dst);
+
             //spawn platform
             infiniteCanvas.addIcObject(icPlatform);
           }
 
 
           //spawn a biPlatform with something already on its terraces
+          function create_sample_biPlatform(trueRect__biPlatform)
           {
-            const mathNode1    = new math.ConstantNode(12);
+            const mathNode1    = random_constantNode();
             const icMathNode1  = infiniteCanvas.createIcMathNode(0, 0, mathNode1); //its position will be set by biPlatform
             icMathNode1.zIndex = 1000;
   
-            const mathNode2    = new math.ConstantNode(-6);
+            const mathNode2    = random_constantNode();
             const icMathNode2  = infiniteCanvas.createIcMathNode(0, 0, mathNode2); //its position will be set by biPlatform
             icMathNode2.zIndex = 1000;
   
-            const trueRect__biPlatform = {
-              x:      100,
-              y:      100,
-              width:  500,
-              height: 225,
-            };
-  
             const icBiPlatform = infiniteCanvas.createIcBiPlatform(trueRect__biPlatform, {mn1: icMathNode1}, {mn2: icMathNode2});
+            // icBiPlatform.zIndex = 500;
+              
+            return icBiPlatform; 
+          }
+
+          const trueRect__biPlatform1 = {
+            x:      100,
+            y:      100,
+            width:  500,
+            height: 225,
+          };
+          const icBiPlatform1 = create_sample_biPlatform(trueRect__biPlatform1);
+          // infiniteCanvas.addIcObject(icBiPlatform1);   //this breaks biPlatform3 (can't untouch, "double parent", ...)
+
+          const trueRect__biPlatform2 = {
+            x:      1000,
+            y:      100,
+            width:  500,
+            height: 225,
+          };
+          const icBiPlatform2 = create_sample_biPlatform(trueRect__biPlatform2);
+          // infiniteCanvas.addIcObject(icBiPlatform2);   //this breaks biPlatform3 (can't untouch, "double parent", ...)
+
+          const trueRect__biPlatform3 = {
+            x:      1000,
+            y:      1000,
+            width:  500,
+            height: 225,
+          };
+          // const icBiPlatform3 = infiniteCanvas.createIcBiPlatform(trueRect__biPlatform3, {}, {});
+          
+          // CompositeUtils.shiftToPositionAndScale2(icBiPlatform1, icBiPlatform3.parts.platform1.position, icBiPlatform1.homeScale);
+          // CompositeUtils.shiftToPositionAndScale2(icBiPlatform2, icBiPlatform3.parts.platform2.position, icBiPlatform2.homeScale);
+          const icBiPlatform3 = infiniteCanvas.createIcBiPlatform(trueRect__biPlatform3, {icBiPlatform1: icBiPlatform1}, {icBiPlatform2: icBiPlatform2});
+          icBiPlatform3.zIndex = -2;
+
+
+          infiniteCanvas.addIcObject(icBiPlatform3);
+
+        }
+
+        debug_shiftPositionAndScale() {
+
+          function randomRectRel() {
+            return {
+              l: math.random() * 0.4,
+              t: math.random() * 0.4,
+              r: 1 - (math.random() * 0.4),
+              b: 1 - (math.random() * 0.4),
+            };
+          }
+
+          function randomTrueRectInTrueRect(trueRect__container) {
+            const rectRel = randomRectRel();
+            const trueRect__random = Geometry.rectForRectRel(rectRel, trueRect__container);
+            return trueRect__random;
+          }
+
+          // function create_sampleIcRectInTrueRect(trueRect__container) {
+
+          //   const trueRect__random = randomTrueRectInTrueRect(trueRect__container);
+          //   return create_sampleIcRect(trueRect__random);
+          // }
+
+          function create_sampleIcRect(trueRect) {
+
+            const icRect = infiniteCanvas.createIcRect(trueRect);
+
+            // icRect.zIndex = zIndex;
+            icRect.fill    = ColorUtils.randomColor();
+            icRect.opacity = 0.5;
+
+            return icRect;
+          }
+
+          function create_sampleComposite(trueRect__composite, arr_icObj, isMobileParts) {
+            const parts = Object.fromEntries(Object.entries(arr_icObj).map(([k,v]) => {
+              return ["obj_" + k, v];
+            }));
+            const compositeConfig = Compositer.defaultCompositeConfig(parts, isMobileParts, false);
+            
+            const icComposite = infiniteCanvas.createIcComposite(trueRect__composite, parts, compositeConfig);
+            icComposite.zIndex = -100;
+
+            return icComposite;
+          }
+
+          function createArrArr__trueRect(trueRect__composite1, trueRect__composite2) {
+            const arr_trueRect1 = [...Array(3).keys()].map((index) => randomTrueRectInTrueRect(trueRect__composite1));
+            const arr_trueRect2 = arr_trueRect1.map((trueRect) => {
+              const trueRect__offsetted = {
+                x:      trueRect.x    + (trueRect__composite2.x - trueRect__composite1.x),
+                y:      trueRect.y    + (trueRect__composite2.y - trueRect__composite1.y),
+                width:  trueRect.width,
+                height: trueRect.height,
+              };
+              return trueRect__offsetted;
+            });
+
+            return [arr_trueRect1, arr_trueRect2];
+          }
+
+          const trueRect__composite1 = {
+            x:      100,
+            y:      100,
+            width:  500,
+            height: 200,
+          };
+
+          const trueRect__composite2 = {
+            x:      800,
+            y:      100,
+            width:  trueRect__composite1.width,
+            height: trueRect__composite1.height,
+          };
+
+          const homeScale_dst = {
+            X: 1.7,
+            Y: 1.7,
+          };
+
+          const [arr_trueRect1,  arr_trueRect2]  = createArrArr__trueRect(trueRect__composite1, trueRect__composite2);
+          const [arr_trueRect1A, arr_trueRect2A] = createArrArr__trueRect(arr_trueRect1[2], arr_trueRect2[2]);
+
+          {
+            const arr_icRect1 = arr_trueRect1.slice(0,-1).map((trueRect) => create_sampleIcRect(trueRect));
+
+            const trueRect__composite1A = arr_trueRect1[arr_trueRect1.length - 1];
+            const arr_icRect1A = arr_trueRect1A.map((trueRect) => create_sampleIcRect(trueRect));
+            
+            const icComposite1A = create_sampleComposite(trueRect__composite1A, arr_icRect1A, false);
+
+            const icComposite1 =  create_sampleComposite(trueRect__composite1, [...arr_icRect1, icComposite1A], true);
+
+            //update scale without using the compositeEngine
+            // CompositeUtils.shiftToPositionAndScale(icComposite1, icComposite1.position, homeScale_dst);
+            CompositeUtils.shiftToPositionAndScale2(icComposite1, icComposite1.position, homeScale_dst);
+
+
+            infiniteCanvas.addIcObject(icComposite1);
+          }
+          
+          {
+            const arr_icRect2 = arr_trueRect2.slice(0,-1).map((trueRect) => create_sampleIcRect(trueRect));
+
+            const trueRect__composite2A = arr_trueRect2[arr_trueRect2.length - 1];
+            const arr_icRect2A = arr_trueRect2A.map((trueRect) => create_sampleIcRect(trueRect));
+            
+            const icComposite2A = create_sampleComposite(trueRect__composite2A, arr_icRect2A, false);
+
+            const icComposite2 =  create_sampleComposite(trueRect__composite2, [...arr_icRect2, icComposite2A], true);
+
+
+            infiniteCanvas.onceOnAddRepresentedForIcObject(icComposite2, (icComposite2) => {
   
-            infiniteCanvas.addIcObject(icBiPlatform);
+              setTimeout(() => {
+  
+                const rep_free__composite2 = infiniteCanvas.getRepresented(icComposite2.id).r_free();
+  
+                rep_free__composite2.homeScale = homeScale_dst;  //handled by compositeEngine
+  
+              }, 2000);
+            });
+
+            infiniteCanvas.addIcObject(icComposite2);
+
           }
 
         }
