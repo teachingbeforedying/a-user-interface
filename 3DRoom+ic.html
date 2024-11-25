@@ -978,7 +978,7 @@
       constructor() {
         this.initialize();
 
-        // this.hush(this);
+        this.hush(this);
       }
 
       initialize() {
@@ -15243,9 +15243,14 @@
 
           //touch animation
           // setTimeout(() => {
-            const icObj__result = transformationOutput.value; 
-            const rep_free = infiniteCanvas.getRepresented(icObj__result.id).r_free();
-            infiniteCanvas.animate_bounce(rep_free);
+            try {
+              const icObj__result = transformationOutput.value; 
+              const rep_free = infiniteCanvas.getRepresented(icObj__result.id).r_free();
+              infiniteCanvas.animate_bounce(rep_free);
+            } catch(e) {
+              // logger.log("logTouchSlot", "transformationFunc__decorated", "error:", e);
+            }
+
           // }, 1); 
 
           return transformationOutput;
@@ -33573,6 +33578,77 @@
                     const mutationObj = transformationOutput.value;
                     // icObj__touched.mathNode = mutationObj.mathNode;
                     Object.assign(icObj__touched, mutationObj);
+                  }
+                  break;
+                case "wrapped":
+                  {
+                    logger.log("transformationOutput:", transformationOutput);
+
+                    //add new
+                    function addNew(icObj__new, isInCanvas) {
+                      icObj__new.isTouchable = true;
+                      icObj__new.touchStateDict[icObj_slot.id] = TouchState.Touched;
+                      if (icObj__new.type == "composite") {
+                        Object.entries(icObj__new.parts).forEach(([partName, icObj__part], i) => {
+                          icObj__part.touchStateDict[icObj_slot.id] = TouchState.Touched;
+                        });
+                      }
+
+                      if (!isInCanvas) {
+                        infiniteCanvas.addIcObject(icObj__new);
+                      }
+
+                    }
+
+                    const icObj__wrapper = transformationOutput.value;
+
+                    const icObj__old = transformationOutput.from;
+                      //off ALL existing composite listeners (==pause all composite engines)
+                    CompositeUtils.shiftToPositionAndScale2(icObj__wrapper, icObj__old.position, icObj__wrapper.homeScale);
+                      //on ALL existing composite listeners (==resume all composite engines)
+
+                    const fabricCanvas = fabricIntegration.fabricCanvas;
+
+                    const isAlreadyExistingInCanvas = (infiniteCanvas.getRepresented(icObj__wrapper.id) != null);
+                    if(!isAlreadyExistingInCanvas) {
+                      infiniteCanvas.onceOnAddRepresentedForIcObject(icObj__wrapper, (icObj__wrapper) => {
+                        const rep_free__wrapper = infiniteCanvas.getRepresented(icObj__wrapper.id).r_free();
+                        
+                        setTimeout(() => {
+                          const fObj = fabricIntegration.getFObjForIcObj(rep_free__wrapper);  //SHU: setTimeout allows getFObjForIcObj to return something
+
+                          //!magic!
+                          const e = fabricIntegration.createMouseDownEvent(fObj);
+                          fabricCanvas._setupCurrentTransform(e, fObj, true);     //magic: 3
+                          fabricCanvas.setActiveObject(fObj, e);                  //magic: 4
+
+                          //magic: 5
+                          {
+                            const canvasElement = fabric.document;
+                            const eventTypePrefix = "mouse";
+                            const addEventOptions = { passive: false };
+                            fabric.util.addListener(canvasElement, eventTypePrefix + 'move', fabricCanvas._onMouseMove, addEventOptions);
+                          }
+
+                        }, 1);
+
+                      });
+                    }
+
+                    //magic: 1
+                    {
+                      const canvasElement = fabric.document;
+                      const eventTypePrefix = "mouse";
+                      const addEventOptions = { passive: false };
+                      const fabricCanvas = fabricIntegration.fabricCanvas;
+                      fabric.util.removeListener(canvasElement, eventTypePrefix + 'move', fabricCanvas._onMouseMove, addEventOptions);
+                    }
+
+                    //magic: 2
+                    const e = {};
+                    fabricCanvas.discardActiveObject(e);
+
+                    addNew(icObj__wrapper, isAlreadyExistingInCanvas);
                   }
                   break;
                 // case "displaced":
@@ -52571,6 +52647,136 @@
                 transform: null,
               };
               fabricCanvas._onMouseUp(options__mouseUp);
+
+            });
+
+            // start the sequence
+            setTimeout(() => globalsSingleton.functionCallsQueue.next(), 1);
+        }
+
+        createMouseDownEvent() {
+          const fabricIntegration = this;
+          const fabricCanvas      = this.fabricCanvas;
+
+          const fCursor__mouseDown = fabricIntegration.getFCursor(false);
+          const x__mouseDown = fCursor__mouseDown.x;
+          const y__mouseDown = fCursor__mouseDown.y;
+          const mouseEvent__mouseDown = new MouseEvent("mousedown", {
+            isTrusted: true,
+            altKey : false, 
+            bubbles : true,
+            button : 0,
+            buttons : 1,
+            cancelBubble : false,
+            cancelable : true,
+            clientX: x__mouseDown,
+            clientY: y__mouseDown,
+            composed: true,
+            ctrlKey: false,
+            currentTarget: null,
+            defaultPrevented: false,
+            detail: 1,
+            eventPhase: 0,
+            fromElement: null,
+            layerX: x__mouseDown,
+            layerY: y__mouseDown,
+            metaKey: false,
+            movementX: 0,
+            movementY: 0,
+            offsetX: x__mouseDown,
+            offsetY: y__mouseDown,
+            pageX: x__mouseDown,
+            pageY: y__mouseDown,
+            relatedTarget: null,
+            returnValue: true,
+            screenX: x__mouseDown,
+            screenY: y__mouseDown,
+            shiftKey: false,
+            sourceCapabilities: new InputDeviceCapabilities({firesTouchEvents: false}),
+            srcElement: fabricCanvas.upperCanvasEl,
+            target:     fabricCanvas.upperCanvasEl,
+            timeStamp: 5848.39999999851,
+            toElement:  fabricCanvas.upperCanvasEl,
+            view: window,
+            which: 1,
+            x: x__mouseDown,
+            y: y__mouseDown,
+          });
+          const options__mouseDown = {
+            absolutePointer: fabricCanvas._absolutePointer,
+            button: 1,
+            e:       mouseEvent__mouseDown,
+            isClick: false,
+            pointer: fabricCanvas._pointer,
+            subTargets: [],
+            target: null,
+            transform: null,
+          };
+
+          return options__mouseDown.e;
+        }
+
+        simulateMouseDown(func_inBetween) {
+            const fabricIntegration = this;
+            const fabricCanvas      = fabricIntegration.fabricCanvas;
+
+            globalsSingleton.functionCallsQueue.add(() => {
+
+              const fCursor__mouseDown = fabricIntegration.getFCursor(false);
+              const x__mouseDown = fCursor__mouseDown.x;
+              const y__mouseDown = fCursor__mouseDown.y;
+              const mouseEvent__mouseDown = new MouseEvent("mousedown", {
+                isTrusted: true,
+                altKey : false, 
+                bubbles : true,
+                button : 0,
+                buttons : 1,
+                cancelBubble : false,
+                cancelable : true,
+                clientX: x__mouseDown,
+                clientY: y__mouseDown,
+                composed: true,
+                ctrlKey: false,
+                currentTarget: null,
+                defaultPrevented: false,
+                detail: 1,
+                eventPhase: 0,
+                fromElement: null,
+                layerX: x__mouseDown,
+                layerY: y__mouseDown,
+                metaKey: false,
+                movementX: 0,
+                movementY: 0,
+                offsetX: x__mouseDown,
+                offsetY: y__mouseDown,
+                pageX: x__mouseDown,
+                pageY: y__mouseDown,
+                relatedTarget: null,
+                returnValue: true,
+                screenX: x__mouseDown,
+                screenY: y__mouseDown,
+                shiftKey: false,
+                sourceCapabilities: new InputDeviceCapabilities({firesTouchEvents: false}),
+                srcElement: fabricCanvas.upperCanvasEl,
+                target:     fabricCanvas.upperCanvasEl,
+                timeStamp: 5848.39999999851,
+                toElement:  fabricCanvas.upperCanvasEl,
+                view: window,
+                which: 1,
+                x: x__mouseDown,
+                y: y__mouseDown,
+              });
+              const options__mouseDown = {
+                absolutePointer: fabricCanvas._absolutePointer,
+                button: 1,
+                e:       mouseEvent__mouseDown,
+                isClick: false,
+                pointer: fabricCanvas._pointer,
+                subTargets: [],
+                target: null,
+                transform: null,
+              };
+              fabricCanvas._onMouseDown(options__mouseDown);
 
             });
 
@@ -100110,6 +100316,7 @@
             
             // this.debug_biPlatform();
             // this.debug_shiftPositionAndScale();
+            // this.debug_biPlatform_operator();
 
             // this.debug_fun();
 
@@ -107252,6 +107459,77 @@
 
           }
 
+        }
+
+        debug_biPlatform_operator() {
+
+            const mathNode1    = random_constantNode();
+            const icMathNode1  = infiniteCanvas.createIcMathNode(100, 100, mathNode1); //its position will be set by biPlatform
+            icMathNode1.zIndex = 1000;
+
+            infiniteCanvas.addIcObject(icMathNode1);
+
+            //operator transforms object by wrapping it in a bigger object
+            {
+              function create_sampleIcRect(trueRect) {
+
+                const icRect = infiniteCanvas.createIcRect(trueRect);
+    
+                // icRect.zIndex = zIndex;
+                icRect.fill    = ColorUtils.randomColor();
+                icRect.opacity = 0.5;
+    
+                return icRect;
+              }
+
+              function create_sampleComposite(trueRect__composite, arr_icObj, isMobileParts) {
+                const parts = Object.fromEntries(Object.entries(arr_icObj).map(([k,v]) => {
+                  return ["obj_" + k, v];
+                }));
+                const compositeConfig = Compositer.defaultCompositeConfig(parts, isMobileParts, false);
+                
+                const icComposite = infiniteCanvas.createIcComposite(trueRect__composite, parts, compositeConfig);
+                icComposite.zIndex = -100;
+    
+                return icComposite;
+              }
+
+              const trueRect__touchSlot = {
+                x: 600,
+                y: 600,
+                width:  100,
+                height: 100,
+              };
+
+              const transformationFunc = function (icObj, icTouchSlot) {
+
+                // icObj.stroke = ColorUtils.randomColor();
+                // const transformationOutput = new TransformationOutput("mutated", icObj, icObj);
+ 
+                const trueRect__icRect = {
+                  x: trueRect__touchSlot.x + 100,
+                  y: trueRect__touchSlot.y - 100,
+                  width:  100,
+                  height: 100,
+                };
+                const icRect = create_sampleIcRect(trueRect__icRect);
+
+                // const icComposite = create_sampleComposite(trueRect__touchSlot, [icObj, icRect], false);
+                const icComposite = create_sampleComposite(trueRect__touchSlot, [icObj, icRect], true);
+
+                const transformationOutput = new TransformationOutput("wrapped", icComposite, icObj);
+      
+                return transformationOutput;
+              };
+              
+              const touchSlotConfig = {
+                transformationFunc: transformationFunc,
+              };
+      
+              const touchSlot = infiniteCanvas.createIcTouchSlot(trueRect__touchSlot, touchSlotConfig);
+              infiniteCanvas.addIcObject(touchSlot);
+
+            }
         }
 
 
