@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport"      content="width=device-width, initial-scale=1.0">
   <!-- <meta name="viewport" content= "width=device-width, user-scalable=no">--> <!--does not work -->
   <title>3DRoom+iC</title>
 
@@ -915,6 +915,83 @@
 
     }
 
+    class NavigationUtils {
+      //SHU: also look for "query variables" somewhere in the codebase
+
+      static getQueryVariable(variable) {
+        var query = window.location.search.substring(1);
+        var vars = query.split("&");
+        for (var i=0;i<vars.length;i++) {
+                var pair = vars[i].split("=");
+                if(pair[0] == variable){return pair[1];}
+        }
+        return(false);
+      }
+
+      static getQueryVariablesDict() {
+        const query = window.location.search.substring(1);  //remove starting string '?' 
+        logger.log("logQuery", "query:", query);
+        const arr__var_kv = query.split("&");
+        const dict_kv = arr__var_kv.reduce((acc, str_kv) => {
+          var [k,v] = str_kv.split("=");
+          switch(k) {
+            case "challenge":
+            case "worldType":
+              //don't try to math.parse
+              break;
+            default:
+            {
+              if(v != null) {
+                const mathNode = math.parse(v);
+                if(mathNode != null) {
+                  v = mathNode;
+                }
+              }
+            }
+            break;
+          }
+          acc[k] = v;
+          return acc;
+        }, {});
+        logger.log("logQuery", "dict_kv:", dict_kv);
+        return dict_kv;
+      }
+
+      static createString__queryVarsString(dict_query_var) {
+        const str__query_var = Object.entries(dict_query_var).reduce((acc, [k,v]) => {
+          if(acc != "?") {
+            acc += "&";
+          }
+          acc += k;
+          acc += "=";
+          acc += v;
+          return acc;
+        }, "?");
+        return str__query_var;
+      }
+
+      static refreshPageWithQueryVarsDict(dict_query_var) {
+
+        logger.log("logNavigation", "window.location:", window.location);
+
+        const str__query_var__old = window.location.search;
+        // const str__query_var__new = "?challenge=math/numer/n2_ten__0_to_HTU__missing100";
+        const str__query_var__new = NavigationUtils.createString__queryVarsString(dict_query_var);
+
+        const href__old = window.location.href;
+        var href__new;
+        if(str__query_var__old == "") {
+          href__new = href__old + str__query_var__new;
+        } else {
+          href__new = href__old.replace(str__query_var__old, str__query_var__new);
+        } 
+
+        window.location.href = href__new;
+        return false;
+      }
+
+    }
+
 
 
 
@@ -978,7 +1055,7 @@
       constructor() {
         this.initialize();
 
-        this.hush(this);
+        // this.hush(this);
       }
 
       initialize() {
@@ -7978,51 +8055,7 @@
 
   <!-- query variables -->
   <script>
-
-    function getQueryVariable(variable)
-    {
-      var query = window.location.search.substring(1);
-      var vars = query.split("&");
-      for (var i=0;i<vars.length;i++) {
-              var pair = vars[i].split("=");
-              if(pair[0] == variable){return pair[1];}
-      }
-      return(false);
-    }
-
-    function getQueryVariablesDict()
-    {
-      const query = window.location.search.substring(1);  //remove starting string '?' 
-      logger.log("logQuery", "query:", query);
-      const arr__var_kv = query.split("&");
-      const dict_kv = arr__var_kv.reduce((acc, str_kv) => {
-        var [k,v] = str_kv.split("=");
-        switch(k) {
-          case "challenge":
-          case "worldType":
-            //don't try to math.parse
-            break;
-          default:
-          {
-            if(v != null) {
-              const mathNode = math.parse(v);
-              if(mathNode != null) {
-                v = mathNode;
-              }
-            }
-          }
-          break;
-        }
-        acc[k] = v;
-        return acc;
-      }, {});
-      logger.log("logQuery", "dict_kv:", dict_kv);
-      return dict_kv;
-    }
-
-  </script>
-  <script>
-    globalsSingleton.dict_query_var = getQueryVariablesDict();
+    globalsSingleton.dict_query_var = NavigationUtils.getQueryVariablesDict();
   </script>
 
 
@@ -33601,11 +33634,53 @@
                     }
 
                     const icObj__wrapper = transformationOutput.value;
+                    const icObj__old     = transformationOutput.from;
 
-                    const icObj__old = transformationOutput.from;
+                    //shift wrapper so that it has the position of icObj__old
+                    {
+                      const position__icObj__old__src = Object.assign({}, icObj__old.position);
+
                       //off ALL existing composite listeners (==pause all composite engines)
-                    CompositeUtils.shiftToPositionAndScale2(icObj__wrapper, icObj__old.position, icObj__wrapper.homeScale);
+                      CompositeUtils.traverseComposite(icObj__wrapper, (icObj) => {
+                        if(icObj.type == "composite") {
+                          const compositeEngine = icObj.dict_engine["composite"].engine;
+                          if(compositeEngine.initialized) {
+                            compositeEngine.awoken.listenAll_off();
+                          }
+                        }
+                      });
+                      
+                      //shift wrapper
+                      CompositeUtils.shiftToPositionAndScale2(icObj__wrapper, position__icObj__old__src, icObj__wrapper.homeScale);
+                      
+                      //set perfect position and homeScale of icObj__old in icObj__wrapper (==layout)
+                      const position__icObj__old__dst  = {
+                        x: icObj__wrapper.position.x - 100,
+                        y: icObj__wrapper.position.y - 100,
+                      };
+                      const homeScale__icObj__old__dst = icObj__old.homeScale;
+                      // //debug
+                      // const homeScale__icObj__old__dst = {
+                      //   X: 2,
+                      //   Y: 2,
+                      // };
+                      if(icObj__old.type == "composite") {
+                        CompositeUtils.shiftToPositionAndScale2(icObj__old, position__icObj__old__dst, homeScale__icObj__old__dst);
+                      } else {
+                        icObj__old.position  = position__icObj__old__dst;
+                        icObj__old.homeScale = homeScale__icObj__old__dst;
+                      }
+                      
                       //on ALL existing composite listeners (==resume all composite engines)
+                      CompositeUtils.traverseComposite(icObj__wrapper, (icObj) => {
+                        if(icObj.type == "composite") {
+                          const compositeEngine = icObj.dict_engine["composite"].engine;
+                          if(compositeEngine.initialized) {
+                            compositeEngine.awoken.listenAll_on();
+                          }
+                        }
+                      });
+                    }
 
                     const fabricCanvas = fabricIntegration.fabricCanvas;
 
@@ -39079,6 +39154,70 @@
           };
 
 
+          this.listenAll_on = function() {
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const handle         = this.scopeObj.engineCarrier;
+
+            //get free_rep
+            const handle__represented = infiniteCanvas.getRepresented(handle.id);
+            const handle__rep_free = handle__represented.r_free();
+
+              //listen to handle
+            const handle__listener = this.listeners[handle.id];
+            handle__rep_free.onInnerUpdate(handle__listener);
+
+              //listen to content
+            const content__rep_free = handle__rep_free.content;
+            if(content__rep_free != null) {
+              const content__listener = this.listeners[content__rep_free.id];
+              content__rep_free.onInnerUpdate(content__listener);
+            }
+
+              //listen to parts
+            const parts = handle__rep_free.parts;
+            const arr_parts_all = Object.values(parts);
+            arr_parts_all.forEach((part__rep_free, i) => {
+
+              const part__listener = this.listeners[part__rep_free.id];
+              part__rep_free.onInnerUpdate(part__listener);
+            });
+
+          };
+
+          this.listenAll_off = function() {
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const handle         = this.scopeObj.engineCarrier;
+
+            //get free_rep
+            const handle__represented = infiniteCanvas.getRepresented(handle.id);
+            const handle__rep_free = handle__represented.r_free();
+
+              //listen to handle
+            const handle__listener = this.listeners[handle.id];
+            handle__rep_free.offInnerUpdate(handle__listener);
+
+              //listen to content
+            const content__rep_free = handle__rep_free.content;
+            if(content__rep_free != null) {
+              const content__listener = this.listeners[content__rep_free.id];
+              content__rep_free.offInnerUpdate(content__listener);
+            }
+
+              //listen to parts
+            const parts = handle__rep_free.parts;
+            const arr_parts_all = Object.values(parts);
+            arr_parts_all.forEach((part__rep_free, i) => {
+
+              const part__listener = this.listeners[part__rep_free.id];
+              part__rep_free.offInnerUpdate(part__listener);
+            });
+
+          };
+
+          
+          // this.isEngineOn = function() {
+          //   return this.initialized;
+          // };
 
 
           this.start = function () {
@@ -65801,6 +65940,27 @@
                 b: 0.50,
               },
             },
+
+
+            "button_link": {
+              // type: "button",
+              type: "button_link",
+              // bType: "link",
+              zIndex: 10,
+              config: {
+                dict_query_var: {
+                  "challenge": "math/numer/n2_ten__0_to_HTU__missing100",
+                },
+                fill: "orange",
+              },
+              rect_rel: {
+                l:  1.2,
+                r:  1.3,
+                t: -0.2,
+                b: -0.1,
+              },
+            },
+            
           };
 
           //add/overwrite some props for equation challenges
@@ -67466,8 +67626,27 @@
             case "button":
               {
                 const config = componentConfig.config;
-                const fill = config.fill;
                 outIcObj = infiniteCanvas.createIcButton(trueRect__component);
+                const fill = config.fill;
+                outIcObj.fill = fill;
+              }
+              break;
+
+            case "button_link":
+              {
+                const config = componentConfig.config;
+                
+                const buttonConfig = {
+                  buttonFunc: (scopeObj) => {
+                    const buttonConfig = scopeObj.engineCarrier.buttonConfig;
+                    const dict_query_var = buttonConfig.dict_query_var; 
+                    NavigationUtils.refreshPageWithQueryVarsDict(dict_query_var);
+                  },
+                  dict_query_var: config.dict_query_var,
+                }
+                outIcObj = infiniteCanvas.createIcButton(trueRect__component, buttonConfig);
+                
+                const fill = config.fill;
                 outIcObj.fill = fill;
               }
               break;
@@ -100318,6 +100497,8 @@
             // this.debug_shiftPositionAndScale();
             // this.debug_biPlatform_operator();
 
+            // this.debug_refreshPageWithDifferentQueryVars();
+
             // this.debug_fun();
 
           } catch(e) {
@@ -107092,8 +107273,12 @@
               };
 
               infiniteCanvas.move_to_rect__animation(trueRect__initial, cfg_anim__easy);
-            }
 
+              //"inner link"
+              // NavigationUtils.refreshPageWithQueryVarsDict({
+              //   "challenge": "math/numer/n2_ten__0_to_HTU__missing100",
+              // });
+            }
 
           });
           
@@ -107532,6 +107717,14 @@
             }
         }
 
+        debug_refreshPageWithDifferentQueryVars() {
+          // setTimeout(() => {
+          //   NavigationUtils.refreshPageWithQueryVarsDict({
+          //    "challenge": "math/numer/n2_ten__0_to_HTU__missing100",
+          //   });
+          // }, 5000); 
+        }
+
 
         debug_fun() {
 
@@ -107554,8 +107747,6 @@
           this.spawnRectGrid(config__gridBig);
 
         }
-
-
 
 
         debug_th() {
@@ -107683,8 +107874,6 @@
         const atelier__X_X = new Atelier__X_X(infiniteCanvas);          //atelier
       });
     </script>
-
-
 
 
 
