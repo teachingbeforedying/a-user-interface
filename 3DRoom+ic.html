@@ -912,6 +912,20 @@
 
       }
 
+      static zIndexTranslation(icObj, dZIndex) {
+        if(icObj.type == "composite") {
+          const icObjComposite = icObj;
+          CompositeUtils.traverseComposite(icObjComposite, (icObj) => {
+            if(icObj == icObjComposite) {
+              icObj.zIndex += dZIndex;
+            } else {
+              CompositeUtils.zIndexTranslation(icObj, dZIndex);
+            }
+          });
+        } else {
+          icObj.zIndex += dZIndex;
+        }
+      }
 
 
       static getAllContained(icObjComposite) {
@@ -15732,7 +15746,7 @@
       }
 
 
-      createIcComposite(trueRect, parts, compositeConfig, content = null) {
+      createIcComposite(trueRect, parts, compositeConfig, content = null, config_in = {}) {
         console.log("createIcComposite", trueRect);
 
         const infiniteCanvas = this;
@@ -15743,7 +15757,6 @@
         const size      = Geometry.createSize(trueRect.width, trueRect.height);
         const homeScale = Object.assign({}, this.scale);
         const icObj     = this.createIcObject(type, position, size, homeScale);
-
 
         const icComposite_spec = {
           isSnappable: false,
@@ -15761,6 +15774,12 @@
         }
 
         const icComposite = Object.assign(icObj, icComposite_spec);
+
+        //layout
+        if(config_in.zIndex != null) {
+          const zIndex = config_in.zIndex;
+          CompositeUtils.zIndexTranslation(icComposite, zIndex);
+        }
 
         const engine = new CompositeEngine();
         const eType  = "composite";
@@ -16348,7 +16367,7 @@
         icObj.im_active_now = true;
       }
 
-      createIcPlatform(trueRect, parts__terrace = {}) {
+      createIcPlatform(trueRect, parts__terrace = {}, config_in = {}) {
         logger.log("createIcPlatform", trueRect);
 
         const infiniteCanvas = this;
@@ -16361,6 +16380,7 @@
 
         icComposite__terrace.fill = "lime";
         icComposite__terrace.opacity = 0.7;
+
 
           //dropTouchSlot
         const dropTouchSlotEngine = new DropTouchSlotEngine();
@@ -16396,7 +16416,42 @@
         };
 
         const icPlatform = Object.assign(icComposite, icPlatform_spec);
+        logger.log("logPlatform", "createIcPlatform", "icPlatform.zIndex:", icPlatform.zIndex);
 
+        //layout
+        {
+          //zIndex
+          {
+            // icPlatform.zIndex = icPlatform.zIndex;
+
+            icDropTouchSlot.zIndex      = icPlatform.zIndex + 1;
+
+            // icComposite__terrace.zIndex = icDropTouchSlot.zIndex + 1;
+            // //have terraced objects be in front
+            // Object.values(icComposite__terrace.parts).forEach((icObj__terraced) => {
+            //   icObj__terraced.zIndex = icComposite__terrace.zIndex + 1;
+            // });
+
+            CompositeUtils.zIndexTranslation(icComposite__terrace, ((icDropTouchSlot.zIndex + 10) - icComposite__terrace.zIndex) );
+          }
+
+          //style
+          {
+            //have terraced objects be black bordered
+            Object.values(icComposite__terrace.parts).forEach((icObj__terraced) => {
+              // icObj__terraced.borderWidth = 2.0; 
+              // icObj__terraced.borderColor = "black";
+
+              icObj__terraced.strokeWidth = 2.0; 
+              // icObj__terraced.stroke_width = 2.0; 
+              icObj__terraced.stroke       = "black";
+            });
+          }
+
+        }
+
+
+        
         const engine = new PlatformEngine();
         const eType  = "platform";
         
@@ -16411,11 +16466,13 @@
         });
         logger.log("logPlatform", "createIcPlatform", "icPlatform_:", icPlatform_);
 
+
         return icPlatform_;
       }
 
-      createIcBiPlatform(trueRect__biPlatform, parts__terrace1 = {}, parts__terrace2 = {}) {
+      createIcBiPlatform(trueRect__biPlatform, parts__terrace1 = {}, parts__terrace2 = {}, config_in = {}) {
 
+        //create backade
         const icRect__backade = infiniteCanvas.createIcRect(trueRect__biPlatform);
         icRect__backade.fill = "grey";
         icRect__backade.isTouchable = false;
@@ -16429,31 +16486,30 @@
         };
         const trueRect__platform1 = Geometry.rectForRectRel(rectRel__platform1, trueRect__biPlatform);
           //set position of parts to be terraced
-        Object.values(parts__terrace1).forEach((icObj) => {
-          logger.log("logBiPlatform", "createIcBiPlatform", "parts__terrace1", "icObj:", icObj);
+        // Object.values(parts__terrace1).forEach((icObj) => {
+        //   logger.log("logBiPlatform", "createIcBiPlatform", "parts__terrace1", "icObj:", icObj);
 
-          const position_dst = {
-            x: trueRect__platform1.x + 1,
-            y: trueRect__platform1.y + 1,
-          };
+        //   const position_dst = {
+        //     x: trueRect__platform1.x + 1,
+        //     y: trueRect__platform1.y + 1,
+        //   };
 
-          const homeScale_dst = {
-            X: 2.0,
-            Y: 2.0,
-          };
+        //   const homeScale_dst = {
+        //     X: 2.0,
+        //     Y: 2.0,
+        //   };
 
-          if(icObj.type == "composite") {
-            CompositeUtils.shiftToPositionAndScale2(icObj, position_dst, homeScale_dst);
-          } else {
-            icObj.position  = Object.assign({}, position_dst);
-            icObj.homeScale = Object.assign({}, homeScale_dst);
-          }
+        //   if(icObj.type == "composite") {
+        //     CompositeUtils.shiftToPositionAndScale2(icObj, position_dst, homeScale_dst);
+        //   } else {
+        //     icObj.position  = Object.assign({}, position_dst);
+        //     icObj.homeScale = Object.assign({}, homeScale_dst);
+        //   }
 
-        });
+        // });
 
         const icPlatform1 = infiniteCanvas.createIcPlatform(trueRect__platform1, parts__terrace1);
           
-
         //create platform2
         const rectRel__platform2 = {
           l: 0.6,
@@ -16463,27 +16519,27 @@
         };
         const trueRect__platform2 = Geometry.rectForRectRel(rectRel__platform2, trueRect__biPlatform);
           //set position of parts to be terraced
-        Object.values(parts__terrace2).forEach((icObj) => {
-          logger.log("logBiPlatform", "createIcBiPlatform", "parts__terrace2", "icObj:", icObj);
+        // Object.values(parts__terrace2).forEach((icObj) => {
+        //   logger.log("logBiPlatform", "createIcBiPlatform", "parts__terrace2", "icObj:", icObj);
 
-          const position_dst = {
-            x: trueRect__platform2.x + 1,
-            y: trueRect__platform2.y + 1,
-          };
+        //   const position_dst = {
+        //     x: trueRect__platform2.x + 1,
+        //     y: trueRect__platform2.y + 1,
+        //   };
 
-          const homeScale_dst = {
-            X: 2.0,
-            Y: 2.0,
-          };
+        //   const homeScale_dst = {
+        //     X: 2.0,
+        //     Y: 2.0,
+        //   };
 
-          if(icObj.type == "composite") {
-            CompositeUtils.shiftToPositionAndScale2(icObj, position_dst, homeScale_dst);
-          } else {
-            icObj.position  = Object.assign({}, position_dst);
-            icObj.homeScale = Object.assign({}, homeScale_dst);
-          }
+        //   if(icObj.type == "composite") {
+        //     CompositeUtils.shiftToPositionAndScale2(icObj, position_dst, homeScale_dst);
+        //   } else {
+        //     icObj.position  = Object.assign({}, position_dst);
+        //     icObj.homeScale = Object.assign({}, homeScale_dst);
+        //   }
 
-        });
+        // });
         const icPlatform2 = infiniteCanvas.createIcPlatform(trueRect__platform2, parts__terrace2);
 
         //create content
@@ -16527,6 +16583,29 @@
         };
 
         const icBiPlatform = Object.assign(icComposite, icBiPlatform_spec);
+
+
+        //layout
+        {
+          //zIndex
+          {
+            // icBiPlatform.zIndex = icBiPlatform.zIndex;
+
+            icRect__backade.zIndex      = icBiPlatform.zIndex + 1;
+
+            CompositeUtils.zIndexTranslation(icPlatform1,     ((icBiPlatform.zIndex + 1) - icPlatform1.zIndex) );
+            CompositeUtils.zIndexTranslation(icPlatform2,     ((icBiPlatform.zIndex + 1) - icPlatform2.zIndex) );
+            CompositeUtils.zIndexTranslation(icRect__content, ((icBiPlatform.zIndex + 1) - icRect__content.zIndex) );
+          }
+
+          //style
+          {
+
+          }
+
+        }
+
+
 
         // //SHU: TODO: BiPlatformEngine
         // const engine = new BiPlatformEngine();
@@ -43909,32 +43988,32 @@
 
               const arr_icObj__selected = selectionMgmtObj.arr_selected.map((fObj) => fObj.icObj);
 
-              //create transient composite
-              //create composite
-              const icObj__selected0 = arr_icObj__selected.find(e => true);
-              const trueRect__composite = {
-                x: icObj__selected0.position.x,
-                y: icObj__selected0.position.y,
-                width:  10,
-                height: 10,
-              };
-              const parts = arr_icObj__selected.reduce((acc, icFreeDrawing) => {
-                const partName = "selected__" + icFreeDrawing.id;
-                acc[partName] = icFreeDrawing;
-                return acc;
-              }, {});
-              const compositeConfig = Compositer.defaultCompositeConfig(parts, false, false);
-              const icComposite     = infiniteCanvas.createIcComposite(trueRect__composite, parts, compositeConfig); 
-              icComposite.cType = "selection";
-              icComposite.isEntity = true;
-              // icComposite.fillColor = "green";
+              // //create transient composite
+              // //create composite
+              // const icObj__selected0 = arr_icObj__selected.find(e => true);
+              // const trueRect__composite = {
+              //   x: icObj__selected0.position.x,
+              //   y: icObj__selected0.position.y,
+              //   width:  10,
+              //   height: 10,
+              // };
+              // const parts = arr_icObj__selected.reduce((acc, icFreeDrawing) => {
+              //   const partName = "selected__" + icFreeDrawing.id;
+              //   acc[partName] = icFreeDrawing;
+              //   return acc;
+              // }, {});
+              // const compositeConfig = Compositer.defaultCompositeConfig(parts, false, false);
+              // const icComposite     = infiniteCanvas.createIcComposite(trueRect__composite, parts, compositeConfig); 
+              // icComposite.cType = "selection";
+              // icComposite.isEntity = true;
+              // // icComposite.fillColor = "green";
 
-              //SHU: illusion
-              icComposite.fill    = "transparent";
-              // icComposite.opacity = 0;
+              // //SHU: illusion
+              // icComposite.fill    = "transparent";
+              // // icComposite.opacity = 0;
 
-              //add composite 
-              infiniteCanvas.addNewIcObject(icComposite);
+              // //add composite 
+              // infiniteCanvas.addNewIcObject(icComposite);
 
             }
 
@@ -62985,7 +63064,7 @@
             } 
             
             
-            /*else*/ if (keyboardIntegration.keyDownToggles.r.isActive) {   //SHU: pourquoi ça pête ? ???
+            /*else*/ if (keyboardIntegration.keyDownToggles.r && keyboardIntegration.keyDownToggles.r.isActive) {   //SHU: pourquoi ça pête ? ??? //SHU: sûrement une histoire de race conditions ?
 
               var factor;
               if (mouseIntegration.leftMouseDown) {
@@ -100603,9 +100682,10 @@
             // this.debug_composite_operator();
             // this.debug_platform_operator();
             // this.debug_biPlatform_operator();
+            // this.debug_entitize();
 
             // this.debug_refreshPageWithDifferentQueryVars();
-            this.debug_saveWholePage();
+            // this.debug_saveWholePage();
 
             // this.debug_fun();
 
@@ -107978,21 +108058,40 @@
                   });
                 }
 
-                //debug
-                setTimeout(() => {
-                  CompositeUtils.traverseComposite(icPlatform, (icObj) => {
-                    icObj.isTouchable = false;
-                  });
-                  icPlatform.isTouchable = true;
-                }, 1000);
-
                 const transformationOutput = new TransformationOutput("wrapped", icPlatform, dict_from);
       
                 return transformationOutput;
               };
+
+              //canTouchFunc
+              const canTouchFunc_geometryWise = function (above, below, context) {
+                const touch2Singleton = Touch2Singleton.sharedInstance();
+                const canTouchFunc    = touch2Singleton.canTouch.bind(touch2Singleton);
+  
+                return canTouchFunc(above, below);
+              };
+  
+              const canTouchFunc_typeWise = function (icObj) {
+                const isOrphan = (icObj.compositeId == -1);
+                // const isPlatform = (icObj.cType == "platform");
+                return isOrphan;
+              };
+  
+              const canTouchFuncs = {
+                "geometry": canTouchFunc_geometryWise,
+                "type":     canTouchFunc_typeWise,
+              };
+  
+              const canTouchFunc_allWise = (above, below, context) => {
+                return Object.entries(canTouchFuncs).reduce((acc, [canTouchFunc_xWiseName, canTouchFunc_xWise]) => {
+                  const canTouch_xWise = canTouchFunc_xWise(above, below, context);
+                  return acc && canTouch_xWise;
+                }, true);
+              };
               
               const touchSlotConfig = {
                 transformationFunc: transformationFunc,
+                canTouchFunc:       canTouchFunc_allWise,
               };
       
               const touchSlot = infiniteCanvas.createIcTouchSlot(trueRect__touchSlot, touchSlotConfig);
@@ -108020,28 +108119,20 @@
                 return icMathNode;
               }
 
-              function create_sampleBiPlatform(trueRect__biPlatform, arr_icObj__platform1, arr_icObj__platform2) {
-                function createPartsDict(arr_icObj) {
-                  const parts = Object.fromEntries(Object.entries(arr_icObj).map(([k,v]) => {
-                    return ["obj_" + k, v];
-                  }));
-                  return parts;
-                }
-                const parts__platform1 = createPartsDict(arr_icObj__platform1);
-                const parts__platform2 = createPartsDict(arr_icObj__platform2);
+              // function create_sampleBiPlatform(trueRect__biPlatform, arr_icObj__platform1, arr_icObj__platform2) {
+              //   function createPartsDict(arr_icObj) {
+              //     const parts = Object.fromEntries(Object.entries(arr_icObj).map(([k,v]) => {
+              //       return ["obj_" + k, v];
+              //     }));
+              //     return parts;
+              //   }
+              //   const parts__platform1 = createPartsDict(arr_icObj__platform1);
+              //   const parts__platform2 = createPartsDict(arr_icObj__platform2);
                 
-                const icBiPlatform = infiniteCanvas.createIcBiPlatform(trueRect__biPlatform, parts__platform1, parts__platform2);
-                const arr_icObj__children = [...arr_icObj__platform1,...arr_icObj__platform2];
-                const zIndex_min__children = math.min(arr_icObj__children.map((icObj) => icObj.zIndex));
-                icBiPlatform.zIndex = zIndex_min__children - 1;
-
-                CompositeUtils.traverseComposite(icBiPlatform, (icObj) => {
-                  icObj.isTouchable = false;
-                });
-                icBiPlatform.isTouchable = true;
+              //   const icBiPlatform = infiniteCanvas.createIcBiPlatform(trueRect__biPlatform, parts__platform1, parts__platform2);
     
-                return icBiPlatform;
-              }
+              //   return icBiPlatform;
+              // }
 
               const trueRect__touchSlot = {
                 x: 600,
@@ -108083,16 +108174,127 @@
                   height: 110,
                 };
 
-                // const icBiPlatform = infiniteCanvas.createIcBiPlatform(trueRect__biPlatform, [icObj], [icMathNode]);
-                const icBiPlatform = infiniteCanvas.createIcBiPlatform(trueRect__biPlatform, [icMathNode], [icObj]);
+                var arr_icObj__children;
+
+                var icBiPlatform;
+                if(math.random() < 0.5) {
+                  arr_icObj__children = [icObj, icMathNode];
+                  icBiPlatform = infiniteCanvas.createIcBiPlatform(trueRect__biPlatform, [icObj], [icMathNode]);
+                } else {
+                  arr_icObj__children = [icMathNode, icObj];
+                  icBiPlatform = infiniteCanvas.createIcBiPlatform(trueRect__biPlatform, [icMathNode], [icObj]);
+                }
+                
+                //put everything nicely on biPlatform
+                // const icBiPlatformLayout = 
+                //shift wrapper so that it has the position of icObj__old
+                {
+                  // const position__icObj__old__src = Object.assign({}, icObj__old.position);
+
+                  //off ALL existing composite listeners (==pause all composite engines)
+                  CompositeUtils.traverseComposite(icBiPlatform, (icObj) => {
+                    if(icObj.type == "composite") {
+                      const compositeEngine = icObj.dict_engine["composite"].engine;
+                      if(compositeEngine.initialized) {
+                        compositeEngine.awoken.listenAll_off();
+                      }
+                    }
+                  });
+
+                  function shiftObjectTo(icObj, position_dst, homeScale_dst) {
+                    if(icObj.type == "composite") {
+                      CompositeUtils.shiftToPositionAndScale2(icObj, position_dst, homeScale_dst);
+                    } else {
+                      icObj.position  = position_dst;
+                      icObj.homeScale = homeScale_dst;
+                    }
+                  }
+
+                  function getPositionAndHomeScaleForIcObjToFitInTrueRect(icObj, trueRect) {
+
+                  }
+
+                  function getPositionAndHomeScaleForIndex(i) {
+                    var position;
+                    var homeScale;
+
+                    if(i==0) {
+                      position = {
+                        x: trueRect__biPlatform.x + 0.1* trueRect__biPlatform.width,
+                        y: trueRect__biPlatform.y + 0.1* trueRect__biPlatform.height,
+                      };
+                      homeScale = {X: 3.0, Y: 3.0};
+                    } else if(i==1) {
+                      position = {
+                        x: trueRect__biPlatform.x + 0.7* trueRect__biPlatform.width,
+                        y: trueRect__biPlatform.y + 0.1* trueRect__biPlatform.height,
+                      };
+                      homeScale = {X: 3.0, Y: 3.0};
+                    } else {
+                      throw new Error("index:2 not supported");
+                    }
+
+                    return {
+                      position:  position,
+                      homeScale: homeScale,
+                    };
+                  }
+                  
+                  arr_icObj__children.forEach((icObj, i) => {
+
+                    const dict_positionAndHomeScale = getPositionAndHomeScaleForIndex(i);
+
+                    shiftObjectTo(icObj, dict_positionAndHomeScale.position, dict_positionAndHomeScale.homeScale);
+
+                  });
+                  
+                  //on ALL existing composite listeners (==resume all composite engines)
+                  CompositeUtils.traverseComposite(icBiPlatform, (icObj) => {
+                    if(icObj.type == "composite") {
+                      const compositeEngine = icObj.dict_engine["composite"].engine;
+                      if(compositeEngine.initialized) {
+                        compositeEngine.awoken.listenAll_on();
+                      }
+                    }
+                  });
+                }
+
+
 
                 const transformationOutput = new TransformationOutput("wrapped", icBiPlatform, dict_from);
       
                 return transformationOutput;
               };
               
+              //canTouchFunc
+              const canTouchFunc_geometryWise = function (above, below, context) {
+                const touch2Singleton = Touch2Singleton.sharedInstance();
+                const canTouchFunc    = touch2Singleton.canTouch.bind(touch2Singleton);
+  
+                return canTouchFunc(above, below);
+              };
+  
+              const canTouchFunc_typeWise = function (icObj) {
+                const isOrphan = (icObj.compositeId == -1);
+                // const isPlatform = (icObj.cType == "platform");
+                return isOrphan;
+              };
+  
+              const canTouchFuncs = {
+                "geometry": canTouchFunc_geometryWise,
+                "type":     canTouchFunc_typeWise,
+              };
+  
+              const canTouchFunc_allWise = (above, below, context) => {
+                return Object.entries(canTouchFuncs).reduce((acc, [canTouchFunc_xWiseName, canTouchFunc_xWise]) => {
+                  const canTouch_xWise = canTouchFunc_xWise(above, below, context);
+                  return acc && canTouch_xWise;
+                }, true);
+              };
+              
               const touchSlotConfig = {
                 transformationFunc: transformationFunc,
+                canTouchFunc:       canTouchFunc_allWise,
               };
       
               const touchSlot = infiniteCanvas.createIcTouchSlot(trueRect__touchSlot, touchSlotConfig);
