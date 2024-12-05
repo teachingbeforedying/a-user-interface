@@ -649,6 +649,25 @@
         return outFColor;
       }
 
+      static rgbaColorStringForColorAndOpacity(str__color, opacity) {
+        const fColor = new fabric.Color(str__color);
+        fColor.setAlpha(opacity);
+        const rgbaColorString = fColor.toRgba();
+        return rgbaColorString;
+      }
+
+      static fGradient__default() {
+        const gradient__default = new fabric.Gradient({
+          type: 'linear',
+          gradientUnits: 'percentage',
+          coords: { x1: 0, y1: 0.5, x2: 1, y2: 0.5},
+          colorStops:[
+            { offset: 0,    color: 'red' },
+            { offset: 1,    color: 'blue' },
+          ],
+        });
+        return gradient__default;
+      }
 
     }
 
@@ -926,27 +945,27 @@
 
       static dictator__shiftToPositionAndScale2(icObj__composite__root, position_dst, homeScale_dst, icObj__composite_in = null, position_new_in = null, homeScale_new_in = null) {
 
-          //off ALL existing composite listeners (==pause all composite engines)
-          CompositeUtils.traverseComposite(icObj__composite__root, (icObj) => {
-            if(icObj.type == "composite") {
-              const compositeEngine = icObj.dict_engine["composite"].engine;
-              if(compositeEngine.initialized) {
-                compositeEngine.awoken.listenAll_off();
-              }
+        //off ALL existing composite listeners (==pause all composite engines)
+        CompositeUtils.traverseComposite(icObj__composite__root, (icObj) => {
+          if(icObj.type == "composite") {
+            const compositeEngine = icObj.dict_engine["composite"].engine;
+            if(compositeEngine.initialized) {
+              compositeEngine.awoken.listenAll_off();
             }
-          });
+          }
+        });
 
-          CompositeUtils.shiftToPositionAndScale2(icObj__composite__root, position_dst, homeScale_dst, icObj__composite_in, position_new_in, homeScale_new_in);
+        CompositeUtils.shiftToPositionAndScale2(icObj__composite__root, position_dst, homeScale_dst, icObj__composite_in, position_new_in, homeScale_new_in);
 
-          //on ALL existing composite listeners (==resume all composite engines)
-          CompositeUtils.traverseComposite(icObj__composite__root, (icObj) => {
-            if(icObj.type == "composite") {
-              const compositeEngine = icObj.dict_engine["composite"].engine;
-              if(compositeEngine.initialized) {
-                compositeEngine.awoken.listenAll_on();
-              }
+        //on ALL existing composite listeners (==resume all composite engines)
+        CompositeUtils.traverseComposite(icObj__composite__root, (icObj) => {
+          if(icObj.type == "composite") {
+            const compositeEngine = icObj.dict_engine["composite"].engine;
+            if(compositeEngine.initialized) {
+              compositeEngine.awoken.listenAll_on();
             }
-          });
+          }
+        });
 
       }
 
@@ -1030,6 +1049,82 @@
         return outIcObj;
       }
 
+      static traverseComposite__upwards(infiniteCanvas, icObj__src, func_callback) {
+
+        if(icObj__src.isCompositeContentOrPart()) {
+
+          const icObj__parent = infiniteCanvas.getRepresented(infiniteCanvas, icObj__src.compositeId).r_official();
+
+          const arr_content_and_parts_all = [icObj__parent.content, ...icObj__parent.parts].filter(icObj => (icObj != null));
+
+          arr_content_and_parts_all.forEach((icObj) => {
+            func_callback(icObj);
+          });
+
+          CompositeUtils.traverseComposite__upwards(infiniteCanvas, icObj__parent, func_callback);
+
+        } else {
+          //do nothing
+        }
+
+      }
+
+      static find__upwards(infiniteCanvas, icObj__src, func_callback) {
+        var outIcObj;
+
+        if(icObj__src.isCompositeContentOrPart()) {
+
+          const icObj__parent = infiniteCanvas.getRepresented(infiniteCanvas, icObj__src.compositeId).r_official();
+
+          const arr_content_and_parts_all = [icObj__parent.content, ...icObj__parent.parts].filter(icObj => (icObj != null));
+
+          outIcObj = arr_content_and_parts_all.find(func_callback);
+          if(outIcObj == null) {
+            outIcObj = CompositeUtils.find__upwards(infiniteCanvas, icObj__parent, func_callback);
+          }
+
+        } else {
+          outIcObj = null;
+        }
+
+      }
+
+    }
+
+    class IntelligenceUtils {
+
+      static findIcVariableWithVId(infiniteCanvas, icObj__src, vId__raw) {
+        var outIcObj;
+
+        if(vId__raw instanceof String) {
+          outIcObj = IntelligenceUtils.findIcVariableWithVId__str(infiniteCanvas, icObj__src, vId__raw);
+        } else {
+          //TODO: other vId__raw types
+        }
+
+        return outIcObj;
+      }
+
+      static findIcVariableWithVId__str(infiniteCanvas, icObj__src, str__vId) {
+        var outIcObj;
+        
+        outIcObj = CompositeUtils.find__upwards(infiniteCanvas, icObj__parent, (icObj) => {
+          var outBool = false;
+
+          if(icObj.cType = "variable") {
+            if(icObj.parts.vId.type = "text") {
+              if(icObj.parts.vId.text == str__vId) {
+                outBool = true;
+              }
+            }
+          }
+
+          return outBool;
+        });
+      
+        return outIcObj;
+      }
+      
     }
 
     class NavigationUtils {
@@ -1088,12 +1183,17 @@
       }
 
       static refreshPageWithQueryVarsDict(dict_query_var) {
+        const str__query_var__new = NavigationUtils.createString__queryVarsString(dict_query_var);
 
-        logger.log("logNavigation", "window.location:", window.location);
+        NavigationUtils.refreshPageWithQueryVarsString(str__query_var__new);
+      }
+
+      static refreshPageWithQueryVarsString(str__query_var) {
+        logger.log("logNavigation", "refreshPageWithQueryVarsString", "window.location:", window.location);
 
         const str__query_var__old = window.location.search;
         // const str__query_var__new = "?challenge=math/numer/n2_ten__0_to_HTU__missing100";
-        const str__query_var__new = NavigationUtils.createString__queryVarsString(dict_query_var);
+        const str__query_var__new = str__query_var;
 
         const href__old = window.location.href;
         var href__new;
@@ -1108,7 +1208,6 @@
       }
 
       static refreshPageWithClonePage(filename__clone) {
-
         logger.log("logNavigation", "window.location:", window.location);
 
         const str__href = window.location.href;
@@ -9715,31 +9814,61 @@
         return icEngined;
       }
 
-      createIcAbstractPortal(composite_in__facade, composite_out__facade, config__diveSlot) {
+      createIcEntrance(trueRect, config__entrance = {}) {
+
+        const type      = "entrance";
+        const position  = Geometry.createPoint(trueRect.x, trueRect.y);
+        const size      = Geometry.createSize(trueRect.width, trueRect.height);
+        const homeScale = Object.assign({}, this.scale);
+
+        const icObj = this.createIcObject(type, position, size, homeScale);
+
+        const icEntrance_spec = {
+          entranceConfig: {
+            func__cross: config__entrance.func__cross ? config__entrance.func__cross : function(infiniteCanvas, icEntrance) {},
+          },
+        };
+
+        const icEntrance = Object.assign(icObj, icEntrance_spec);
+
+        const engine    = new EntranceEngine();
+        const eType     = "entrance";
+        const icEngined = infiniteCanvas.installEngineOnIcObj(icEntrance, eType, engine);
+
+        return icEngined;
+      }
+
+      createIcAbstractPortal(composite_in__facade, composite_cfg__facade, config__diveSlot) {
+        //it's a decorated icEntrance
+        //  with a facade
+        //  and  a configuration
 
         //layout
-        const rect_rel__layout__out_wrt_in = {
+        const rect_rel__layout__cfg_wrt_in = {
           l: 1.02,
           t: 0,
           r: 0.1,
           b: 0.1,
         };
 
-        const trueRect__layout__in  = composite_in__facade.getTrueRect2();
-        const trueRect__layout__out = Geometry.rectForRectRel(rect_rel__layout__out_wrt_in,trueRect__layout__in);
+        // const trueRect__layout__in  = composite_in__facade.getTrueRect2();
+        const trueRect__layout__in  = composite_in__facade.getTrueRect();
+        const trueRect__layout__cfg = Geometry.rectForRectRel(rect_rel__layout__out_wrt_in,trueRect__layout__in);
 
 
         //create composite_in
           //create diveSlot
-        const icDiveSlot = infiniteCanvas.createIcDiveSlot(trueRect__layout__in, config__diveSlot);
+        const icEntrance  = infiniteCanvas.createIcDiveSlot(trueRect__layout__in, config__diveSlot);
+        icDiveSlot.zIndex = -5;
 
         const parts__in = {
           "facade":   composite_in__facade,
-          "diveSlot": icDiveSlot,
+          "entrance": icDiveSlot,
         };
         const compositeConfig__in = Compositer.defaultCompositeConfig(parts__in, false);
 
         const icComposite__in = this.createIcComposite(trueRect__layout__in, parts__in, compositeConfig__in);
+        icComposite__in.zIndex = -6;
 
         //create composite_out
 
@@ -9757,6 +9886,8 @@
         const trueRect__composite__out = composite_out__facade.getTrueRect2();
 
         const icComposite__out = this.createIcComposite(trueRect__composite__out, parts__out, compositeConfig__out);
+        icComposite__out.zIndex = -6;
+
 
 
 
@@ -9766,6 +9897,10 @@
         const trueRect__portal__rect2 = trueRect__layout__out;
   
         const icPortal__debug = infiniteCanvas.createIcPortal(trueRect__portal__rect1, trueRect__portal__rect2);
+        icPortal__debug.zIndex = -8;
+        icPortal__debug.parts.rect__in.zIndex  = -7;
+        icPortal__debug.parts.rect__out.zIndex = -7;
+
         
 
 
@@ -10835,6 +10970,88 @@
         return icEngined;
       }
 
+      createIcVariable__thinged(icObj__vId, icObj__value) {
+
+        //layout
+        const size_rel__layout__vId_wrt_value = {
+          w: 0.17,
+          h: 0.17,
+        }; 
+        const rect_rel__layout__vId_wrt_value = {
+          l: 0,
+          t: -0.01 - size_rel__layout__vId_wrt_value.h,
+          r: 0     + size_rel__layout__vId_wrt_value.w,
+          b: -0.01,
+        };
+
+        const trueRect__layout__value  = icObj__value.getTrueRect2();
+        // const trueRect__layout__value    = icObj__value.getTrueRect();
+        const trueRect__layout__vId      = Geometry.rectForRectRel(rect_rel__layout__vId_wrt_value,trueRect__layout__value);
+
+          //layout vId
+          const position__vId__new  = {x: trueRect__layout__vId.x, y: trueRect__layout__vId.y}; 
+          const homeScale__vId__new = {X: icObj__vId.homeScale.X / 0.17, Y: icObj__vId.homeScale.Y / 0.17};
+          if(icObj__vId.type == "composite") {
+            CompositeUtils.dictator__shiftToPositionAndScale2(icObj__vId, position__vId__new, homeScale__vId__new);
+          } else {
+            // icObj__vId.offAllInnerUpdates();
+            icObj__vId.position  = position__vId__new;
+            icObj__vId.homeScale = homeScale__vId__new;
+            // icObj__vId.onAllInnerUpdates();
+          }
+
+          icObj__vId.zIndex = icObj__value.zIndex;
+
+
+
+        const rect_rel__layout__composite_wrt_value = {
+          l: 0,
+          t: 0,
+          r: 0 + 0.1,
+          b: 0 + 0.1,
+        };
+        // const trueRect__composite = Geometry.rectForRectRel(rect_rel__layout__composite_wrt_value,trueRect__layout__value);
+        const trueRect__composite = Geometry.rectForRectRel(rect_rel__layout__composite_wrt_value,icObj__value.getTrueRect());  //SHU: horror
+
+        //create composite
+        const parts = {
+          "vId":   icObj__vId,
+          "value": icObj__value,
+        };
+        const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+
+        const icComposite = this.createIcComposite(trueRect__composite, parts, compositeConfig);
+        icComposite.cType = "variable";
+
+        icComposite.fill        = ColorUtils.rgbaColorStringForColorAndOpacity("grey", 0.5);
+        icComposite.stroke      = ColorUtils.rgbaColorStringForColorAndOpacity("black", 0.5);
+        icComposite.strokeWidth = 1.0;
+
+        icComposite.zIndex = icObj__value.zIndex - 1;
+
+        return icComposite;
+      }
+
+      createIcVariable__named(str__name, icObj__value) {
+
+        //create icText
+        const icText__vId = infiniteCanvas.createIcText(0,0,str__name);
+          //style
+        icText__vId.backgroundColor = ColorUtils.rgbaColorStringForColorAndOpacity("yellow", 0.6);
+        icText__vId.textColor   = "gradient";
+        icText__vId.fontFamily  = "Tahoma";
+
+        icText__vId.borderColor       = "red";
+        icText__vId.borderScaleFactor = 3.0;
+
+        const icVariable__named = infiniteCanvas.createIcVariable__thinged(icText__vId, icObj__value);
+
+        return icVariable__named;
+      }
+
+      createIcVariable__imaged(img__vId, icObj__value) {
+        //SHU: TODO
+      }
 
       createIcFreeDrawing_from_freeDrawingFObj(fObj) {
         console.log("createIcFreeDrawing_from_freeDrawingFObj", fObj);
@@ -26196,6 +26413,19 @@
         infiniteCanvas.operateOnObject__poopSameScaleClone(icEntity__selected);
       }
 
+      operateOnSelected__variablize__named() {
+        const infiniteCanvas = this;
+
+        //get selected icObj
+        const icObj__selected = infiniteCanvas.getSelectedIcObj();
+
+        //spawn icVariable__named
+        const str__vId = "myVId__" + icObj__selected.id;
+        const icVariable__named = infiniteCanvas.createIcVariable__named(str__vId, icObj__selected);
+
+        infiniteCanvas.addIcObject(icVariable__named);
+      }
+
 
       operateOnSelected__adhere() {
         const infiniteCanvas = this;
@@ -30987,6 +31217,8 @@
         this.strokeWidth = 3;
 
         this.backgroundColor = "";
+        
+        this.borderColor = "";
 
         // this.hotState = {
         //   toBeDeleted: false,
@@ -31081,6 +31313,9 @@
 
         const backgroundColor = json_icObject.backgroundColor;
         icObj.backgroundColor = backgroundColor;
+
+        const borderColor = json_icObject.borderColor;
+        icObj.borderColor = borderColor;
 
         const opacity = json_icObject.opacity;
         icObj.opacity = opacity;
@@ -33759,8 +33994,6 @@
             }
 
             if (transformationFunc != null) {
-              console.log("&&&touch");
-              console.log("icTouchSlot", icTouchSlot);
 
               const icObj__touched = rep_free;
 
@@ -37258,14 +37491,11 @@
 
 
 
-          this.attemptCrossing = function (icObj_slot, icObj_piece) {
-            // logger.log("attemptCrossing", icObj_slot, icObj_piece);
+          this.attemptCrossing = function (icObj_slot, infiniteCanvas) {
+            // logger.log("logPortal", "attemptCrossing", icObj_slot, infiniteCanvas);
 
-            const canCross = this.checkCanCross(icObj_slot, icObj_piece);
-            logger.log("logPortal", "canCross:", canCross);
-
-            const rep_official = icObj_piece;
-            // logger.log("attempting to cross with crossState: " + rep_official.crossStateDict[icObj_slot.id]);
+            const canCross = this.checkCanCross(icObj_slot, infiniteCanvas);
+            // logger.log("logPortal", "canCross:", canCross);
 
             if (canCross) {
               this.hasAlreadyCrossed = true;
@@ -37273,19 +37503,7 @@
                 this.hasAlreadyCrossed = false;
               }, 500);
 
-              // const rep_official = icObj_piece;
-              // const represented  = icObj_piece.represented;
-              // const rep_free     = represented.getRepresentation("free");
-
-              // console.log("rep_free.isHeld", rep_free.isHeld);
-              // if(rep_free.isHeld) {
-              //   presnap(icObj_slot, icObj_piece);
-              // } else {
-              //   presnap(icObj_slot, icObj_piece);
-              //   snap(icObj_slot, icObj_piece);
-              // }
-
-              this.cross(icObj_slot, icObj_piece);
+              this.cross(icObj_slot, infiniteCanvas);
 
             } else {
               console.log("can't cross");
@@ -37293,8 +37511,8 @@
 
           };
 
-          this.checkCanCross = function (icObj_slot, icObj_piece) {
-            logger.log("logPortal", "checkCanCross", icObj_piece);
+          this.checkCanCross = function (icObj_slot, infiniteCanvas) {
+            // logger.log("logPortal", "checkCanCross", infiniteCanvas);
             var outBool;
 
             if(this.hasAlreadyCrossed) {
@@ -37312,24 +37530,23 @@
 
 
             const icPortal       = this.scopeObj.engineCarrier;
-            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            // const infiniteCanvas = this.scopeObj.infiniteCanvas;
 
             const rep_free__portal = infiniteCanvas.getRepresented(icPortal.id).r_free();
 
-            const pov__current = icObj_piece;
+            const pov__current = infiniteCanvas.getCurrentPov();
             const rect__in     = rep_free__portal.parts["rect__in"];
 
-            // outBool = canCrossFunc(icObj_piece, icObj_slot, context);
             outBool = canCrossFunc(pov__current, rect__in, context);
 
             return outBool;
           };
 
-          this.cross = async function (icObj_slot, icObj_piece) {
-            // console.log("PortalEngine", "cross", icObj_piece);
+          this.cross = async function (icObj_slot, infiniteCanvas) {
+            // console.log("PortalEngine", "cross", infiniteCanvas);
 
             const icPortal       = this.scopeObj.engineCarrier;
-            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            // const infiniteCanvas = this.scopeObj.infiniteCanvas;
 
             const rep_free__portal = infiniteCanvas.getRepresented(icPortal.id).r_free();
             
@@ -37339,9 +37556,7 @@
             const rep_free__rect2 = rep_free__portal.parts["rect__out"];
             // logger.log("LogPortal", "cross", "rep_free__rect2:", rep_free__rect2);
 
-
-            // const pov__in = infiniteCanvas.getCurrentPov();
-            const pov__in = icObj_piece;
+            const pov__in = infiniteCanvas.getCurrentPov();
             // logger.log("LogPortal", "cross", "pov__in:", pov__in);
             
             const pov__out = infiniteCanvas.getPov2WrtIcObj2_sameWayAsPov1WrtIcObj1(rep_free__rect2, pov__in, rep_free__rect1);
@@ -37360,10 +37575,10 @@
             // infiniteCanvas.onListeners();
           };
 
-          this.r_official_update_handler = function (icObj_slot, icObj_piece, outerUpdatesDict) {
-            // logger.log("logPortal", "r_official_update_handler", icObj_piece);
+          this.r_official_update_handler = function (icObj_slot, infiniteCanvas, outerUpdatesDict) {
+            // logger.log("logPortal", "r_official_update_handler", infiniteCanvas);
 
-              this.attemptCrossing(icObj_slot, icObj_piece);
+              this.attemptCrossing(icObj_slot, infiniteCanvas);
           };
 
 
@@ -37374,11 +37589,8 @@
 
             //listen to infiniteCanvas.scale
             infiniteCanvas.didUpdateListenersDict["scaleChanged"].push((infiniteCanvas) => {
-              // logger.log("logPortal", "infiniteCanvas.scale.X:", infiniteCanvas.scale.X);
 
-              const pov__in = infiniteCanvas.getCurrentPov();
-
-              this.r_official_update_handler(icPortal, pov__in, {
+              this.r_official_update_handler(icPortal, infiniteCanvas, {
                 scale: {
                   new: infiniteCanvas.scale,
                   old: null,
@@ -37399,7 +37611,140 @@
         }
       }
 
+      class EntranceEngine {
+      // constructor(diveSlotConfig) {
+        constructor() {
 
+          this.initialized = false;
+
+          this.initialize = function (scopeObj) {
+
+            //"wake up":
+            //bind all funcs
+            // function isFunction(functionToCheck) {
+            //   return functionToCheck && {}.toString.call(functionToCheck) === '[object Function]';
+            // }
+            const isFunction = value => value && (Object.prototype.toString.call(value) === "[object Function]" || "function" === typeof value || value instanceof Function);
+
+            this.awoken = {
+              'i_am': "awoken",
+            };
+            console.log("this.virgin", this.virgin);
+            Object.entries(this.virgin)
+              .filter(([propName, prop]) => isFunction(prop))
+              .forEach(([propName, prop], i) => {
+                this.awoken[propName] = prop.bind(this.awoken);
+              });
+
+            // this.scopeObj  = scopeObj;
+            //engineCarrier,
+            //infiniteCanvas,
+            this.awoken.scopeObj = scopeObj;
+
+            this.initialized = true;
+          }
+
+
+
+          this.attemptCrossing = function (icObj_slot, infiniteCanvas) {
+            // logger.log("logEntrance", "attemptCrossing", icObj_slot, infiniteCanvas);
+
+            const canCross = this.checkCanCross(icObj_slot, infiniteCanvas);
+            // logger.log("logEntrance", "canCross:", canCross);
+
+            if (canCross) {
+              this.hasAlreadyCrossed = true;
+              setTimeout(() => {
+                this.hasAlreadyCrossed = false;
+              }, 500);
+
+              this.cross(icObj_slot, infiniteCanvas);
+
+            } else {
+              console.log("can't cross");
+            }
+
+          };
+
+          this.checkCanCross = function (icObj_slot, infiniteCanvas) {
+            // logger.log("logEntrance", "checkCanCross", infiniteCanvas);
+            var outBool;
+
+            if(this.hasAlreadyCrossed) {
+              return false;
+            }
+
+            var canCrossFunc = this.scopeObj.engineCarrier.entranceConfig.canCrossFunc;
+            if (canCrossFunc == null) {
+
+              const portalCrossingSingleton = PortalCrossingSingleton.sharedInstance();
+              canCrossFunc = portalCrossingSingleton.canCross.bind(portalCrossingSingleton);
+            }
+
+            const context = this.scopeObj.engineCarrier.entranceConfig.context;
+
+            const icEntrance     = this.scopeObj.engineCarrier;
+            // const infiniteCanvas = this.scopeObj.infiniteCanvas;
+
+            // const rep_free__entrance = infiniteCanvas.getRepresented(icEntrance.id).r_free();
+
+            const pov__current = infiniteCanvas.getCurrentPov();
+
+            outBool = canCrossFunc(pov__current, icEntrance, context);
+
+            return outBool;
+          };
+
+          this.cross = async function (icObj_slot, infiniteCanvas) {
+            // console.log("EntranceEngine", "cross", infiniteCanvas);
+
+            const icEntrance     = this.scopeObj.engineCarrier;
+            // const infiniteCanvas = this.scopeObj.infiniteCanvas;
+
+            // const rep_free__entrance = infiniteCanvas.getRepresented(icEntrance.id).r_free();
+            
+            var transformationFunc = icEntrance.entranceConfig.func__cross;
+            if (transformationFunc != null) {
+              transformationFunc(infiniteCanvas, icEntrance);
+            }
+
+          };
+
+          this.r_official_update_handler = function (icObj_slot, infiniteCanvas, outerUpdatesDict) {
+            // logger.log("logEntrance", "r_official_update_handler", infiniteCanvas);
+
+              this.attemptCrossing(icObj_slot, infiniteCanvas);
+          };
+
+
+          this.start = function () {
+            // logger.log("PortalEngine::start", "this.scopeObj", this.scopeObj);
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+            const icEntrance     = this.scopeObj.engineCarrier;
+
+            //listen to infiniteCanvas.scale
+            infiniteCanvas.didUpdateListenersDict["scaleChanged"].push((infiniteCanvas) => {
+
+              this.r_official_update_handler(icEntrance, infiniteCanvas, {
+                scale: {
+                  new: infiniteCanvas.scale,
+                  old: null,
+                },
+              });
+
+            });
+
+          };
+
+          this.stop = function () {
+            // delete this.scopeObj;
+          };
+
+
+          this.virgin = Object.assign({}, this);  //virgin == not bound
+
+        }
+      }
 
 
       class CoreEngine {
@@ -44560,17 +44905,45 @@
 
             function standardRedraw(fObj) {
               const icObj = fObj.icObj;
+
+              //common
               fObj.set({
                 opacity: icObj.opacity,
                 fill: icObj.fill,
               });
 
+                //border
+              if(icObj.borderScaleFactor != null) {
+                fObj.set({
+                  borderScaleFactor: icObj.borderScaleFactor,
+                });
+              }
+              if(icObj.borderColor != null) {
+                fObj.set({
+                  borderColor: icObj.borderColor,
+                });
+              }
+
+              //type specific
               if (icObj.text) {
                 console.log("fObj", fObj);
                 fObj.set({
                   text: icObj.text,
-                  fill: icObj.textColor,
+                  // fill: icObj.textColor,
                 });
+                
+                if(icObj.textColor != null) {
+                  if(icObj.textColor == "gradient") {
+                    const gradient__default = ColorUtils.fGradient__default();
+                    fObj.set({
+                      fill: gradient__default,
+                    });
+                  } else {
+                    fObj.set({
+                      fill: icObj.textColor,
+                    });
+                  }
+                }
               }
 
               switch (icObj.type) {
@@ -45079,6 +45452,7 @@
           switch (icObj.type) {
             case "rect":
             case "povRect":
+            case "entrance":
               {
                 const fObj = this.createFabricRectWithIcObj(icObj);
                 fObj_p = Promise.resolve(fObj);
@@ -45719,6 +46093,9 @@
 
 
         createFabricITextWithIcObj(icObj) {
+          /*
+          *   /!\ some props are managed in manageCreatedFObj::standardRedraw
+          */
           // console.log("createFabricITextWithIcObj", icObj);
 
           // const scale = this.infiniteCanvas.scale;
@@ -45743,11 +46120,15 @@
 
             // fill: '#f55',
             // fill: 'black',
-            fill: icObj.textColor,
+            // fill: icObj.textColor,
+
             backgroundColor: icObj.backgroundColor ? icObj.backgroundColor : "",
 
-            // opacity: 0.7,
+            // borderColor: icObj.borderColor ? icObj.borderColor : "",
 
+            // stroke: icObj.stroke ? icObj.stroke : "",
+
+            // opacity: 0.7,
 
             //~'persistent'
             // birth_scale : birth_scale,
@@ -45765,9 +46146,26 @@
             });
           }
 
+          if (icObj.isSharpRect !== null && icObj.isSharpRect == false) {
+            fObj.set({
+              rx: 5,
+              ry: 5,
+            });
+          }
+
+          if(icObj.textColor != null) {
+            //DONE IN manageCreatedFObj::standardRedraw
+          }
+
+          if(icObj.fontFamily != null) {
+            fObj.set({
+              fontFamily: icObj.fontFamily,
+            });
+          }
+
           //initial size poll
           icObj.size = {          //SHU TODO: convert screen coords to infiniteCanvas coords
-            width: fObj.width,
+            width:  fObj.width,
             height: fObj.height,
           };
 
@@ -60953,7 +61351,8 @@
 
           const fabricIntegration = this.fabricIntegration;
 
-          // document.addEventListener('keyup', logKey);
+          document.addEventListener('keyup', logKey);
+
           document.addEventListener('keyup',   handleKeyUp);
           document.addEventListener('keydown', handleKeyDown);
 
@@ -62602,17 +63001,49 @@
             "Backslash": new KeyUpTrigger("Backslash", KeyUpTrigger.defaultKeyUpFunc(["Backslash"]), () => {
               // keyboardIntegration.infiniteCanvas.addNewEventEmitter();
 
-              const mathNode_left = new math.SymbolNode("x");
-              mathNode_left.autoSimplify = false;
-              const mathNode_right = new math.ConstantNode(1);
-              mathNode_right.autoSimplify = true;
-              const mathNode_equation = new math.RelationalNode(["equal"], [mathNode_left, mathNode_right]);
-              // mathNode_equation.params[0].autoSimplify = false;
-              // mathNode_equation.params[1].autoSimplify = true;
-              mathNode_equation.isEquation = true;
+              // {
+              //   //spawn equation mathNode
+              //   const mathNode_left = new math.SymbolNode("x");
+              //   mathNode_left.autoSimplify = false;
+              //   const mathNode_right = new math.ConstantNode(1);
+              //   mathNode_right.autoSimplify = true;
+              //   const mathNode_equation = new math.RelationalNode(["equal"], [mathNode_left, mathNode_right]);
+              //   // mathNode_equation.params[0].autoSimplify = false;
+              //   // mathNode_equation.params[1].autoSimplify = true;
+              //   mathNode_equation.isEquation = true;
+  
+              //   const mathNode = mathNode_equation;
+              //   keyboardIntegration.infiniteCanvas.addNewMathNode(mathNode);
+              // }
 
-              const mathNode = mathNode_equation;
-              keyboardIntegration.infiniteCanvas.addNewMathNode(mathNode);
+              
+              {
+                const infiniteCanvas = keyboardIntegration.infiniteCanvas;
+
+                const icObj__selected = infiniteCanvas.getSelectedIcObj();
+
+                if(icObj__selected != null) {
+                  infiniteCanvas.operateOnSelected__variablize__named();
+                } else {
+                  //spawn icVariable__named
+                  const true_cursor = infiniteCanvas.getTrueCursor();
+
+                  const trueRect__rect = {
+                    x: true_cursor.x,
+                    y: true_cursor.y,
+                    width:  200,
+                    height: 200,
+                  };
+                  const icRect = infiniteCanvas.createIcRect(trueRect__rect);
+                  icRect.fill = ColorUtils.rgbaColorStringForColorAndOpacity("orange", 0.5);
+
+                  const icVariable__named = infiniteCanvas.createIcVariable__named("debug__rect", icRect);
+
+                  infiniteCanvas.addIcObject(icVariable__named);
+                }
+
+              }
+
             }),
 
             "BracketRight": new KeyUpTrigger("BracketRight", KeyUpTrigger.defaultKeyUpFunc(["BracketRight"]), () => {
@@ -100985,6 +101416,7 @@
             // this.debug_refreshPageWithDifferentQueryVars();
             // this.debug_saveWholePage();
 
+            this.debug_entrance();
             // this.debug_abstractPortal();
             // this.debug_platformBasedPortal();
 
@@ -108734,6 +109166,20 @@
           // }, 2000);
         }
 
+        debug_entrance() {
+          const atelier = this; 
+
+          const trueRect1 = atelier.trueRect1;
+          const icEntrance = infiniteCanvas.createIcEntrance(trueRect1, {
+            func__cross: (infiniteCanvas, icEntrance) => {
+              icEntrance.fill = ColorUtils.randomColor();
+              // const rep_free__entrance = infiniteCanvas.getRepresented(icEntrance.id).r_free();
+              // rep_free__entrance.fill = ColorUtils.randomColor();
+            },
+          });
+
+          infiniteCanvas.addIcObject(icEntrance);
+        }
 
         debug_abstractPortal() {
 
@@ -108746,7 +109192,10 @@
           };
 
           const icText__in__0 = infiniteCanvas.createIcText(trueRect__facade__in.x, trueRect__facade__in.y, "facade__in");
+          icText__in__0.homeScale = {X: 3.0, Y: 3.0};
           const icText__in__1 = infiniteCanvas.createIcText(trueRect__facade__in.x, trueRect__facade__in.y + 100, "come in");
+          icText__in__1.homeScale = {X: 3.0, Y: 3.0};
+
 
           const parts__in = {
             "text__0": icText__in__0,
@@ -108755,33 +109204,46 @@
           const compositeConfig__in = Compositer.defaultCompositeConfig(parts__in, false);
   
           const icComposite__facade__in = infiniteCanvas.createIcComposite(trueRect__facade__in, parts__in, compositeConfig__in);
+          icComposite__facade__in.zIndex = -1;
+          icComposite__facade__in.fill   = "cyan";
 
           //facade__out
           const trueRect__facade__out = trueRect__facade__in;
 
-          const icText__out__0 = infiniteCanvas.createIcText(trueRect__facade__out.x, trueRect__facade__out.y,       "innerUrl:");
-          const icText__out__1 = infiniteCanvas.createIcText(trueRect__facade__out.x, trueRect__facade__out.y + 100, "move/to/some/place");
+          const str__vId       = "str__query_var";
+          const str__query_var = "?challenge=math/numer/n1_ten__0_to_HTU";
+
+          const icText__str__query_var     = infiniteCanvas.createIcText(trueRect__facade__out.x, trueRect__facade__out.y + 100, str__query_var);
+          icText__str__query_var.homeScale = {X: 3.0, Y: 3.0};
+
+          const icVariable__str__query_var = infiniteCanvas.createIcVariable__named(str__vId, icText__str__query_var);
 
           const parts__out = {
-            "text__0": icText__out__0,
-            "text__1": icText__out__1,
+            "var1": icVariable__str__query_var,
           };
           const compositeConfig__out = Compositer.defaultCompositeConfig(parts__out, false);
   
           const icComposite__facade__out = infiniteCanvas.createIcComposite(trueRect__facade__out, parts__out, compositeConfig__out);
+          icComposite__facade__out.zIndex = -1;
+          icComposite__facade__out.fill   = "magenta";
 
           //diveSlot config
           const config__diveSlot = {
             transformationFunc: function (icObj, icObj_slot) {
-              const dict_query_var = {
-                "challenge": "math/numer/n2_ten__0_to_HTU__missing100",
-              }; 
-              NavigationUtils.refreshPageWithQueryVarsDict(dict_query_var);
+              // const dict_query_var = {
+              //   "challenge": "math/numer/n2_ten__0_to_HTU__missing100",
+              // }; 
+              // NavigationUtils.refreshPageWithQueryVarsDict(dict_query_var);
+
+              const str__vId       = "str__query_var";
+              // const str__query_var = IntelligenceUtils.
+              
             },
           };
 
-          const icAbstractPortal = infiniteCanvas.createIcAbstractPortal(icComposite__facade__in, icComposite__facade__out, config__diveSlot);
-          
+          const icAbstractPortal  = infiniteCanvas.createIcAbstractPortal(icComposite__facade__in, icComposite__facade__out, config__diveSlot);
+          icAbstractPortal.zIndex = -10;
+
           infiniteCanvas.addIcObject(icAbstractPortal);
         }
         
@@ -108938,7 +109400,9 @@
       //  const atelier__X_X = new Atelier__X_X(infiniteCanvas);          //atelier
       // }, 1000);
       globalsSingleton.functionCallsQueue.add(() => {
-        const atelier__X_X = new Atelier__X_X(infiniteCanvas);          //atelier
+        if(globalsSingleton.dict_query_var.atelier) {
+          const atelier__X_X = new Atelier__X_X(infiniteCanvas);          //atelier
+        }
       });
     </script>
 
