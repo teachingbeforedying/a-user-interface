@@ -1089,6 +1089,12 @@
 
       }
 
+      static findIcVariable__named(icComposite, str__vId) {
+        return Object.values(icComposite.parts).find((icObj) => {
+          return ((icObj.cType == "variable") && (icObj.parts.vId.type == "text") && (icObj.parts.vId.text == str__vId));
+        });
+      }
+
     }
 
     class IntelligenceUtils {
@@ -9824,9 +9830,13 @@
         const icObj = this.createIcObject(type, position, size, homeScale);
 
         const icEntrance_spec = {
-          entranceConfig: {
-            func__cross: config__entrance.func__cross ? config__entrance.func__cross : function(infiniteCanvas, icEntrance) {},
-          },
+          fill: ColorUtils.rgbaColorStringForColorAndOpacity("purple", 0.6),
+
+          // entranceConfig: {
+          //   func__cross: config__entrance.func__cross ? config__entrance.func__cross : function(infiniteCanvas, icEntrance) {},
+          // },
+
+          entranceConfig: config__entrance,
         };
 
         const icEntrance = Object.assign(icObj, icEntrance_spec);
@@ -9838,10 +9848,11 @@
         return icEngined;
       }
 
-      createIcAbstractPortal(composite_in__facade, composite_cfg__facade, config__diveSlot) {
+      createIcAbstractPortal(composite__facade, composite__cfg) {
         //it's a decorated icEntrance
         //  with a facade
         //  and  a configuration
+        //  using NavigationUtils to bring user "elsewhere"
 
         //layout
         const rect_rel__layout__cfg_wrt_in = {
@@ -9851,68 +9862,58 @@
           b: 0.1,
         };
 
-        // const trueRect__layout__in  = composite_in__facade.getTrueRect2();
-        const trueRect__layout__in  = composite_in__facade.getTrueRect();
-        const trueRect__layout__cfg = Geometry.rectForRectRel(rect_rel__layout__out_wrt_in,trueRect__layout__in);
+        // const trueRect__layout__in  = composite__facade.getTrueRect2();
+        const trueRect__layout__in  = composite__facade.getTrueRect();
+        const trueRect__layout__cfg = Geometry.rectForRectRel(rect_rel__layout__cfg_wrt_in, trueRect__layout__in);
+
+          //layout composite__cfg
+        const position__cfg__new  = {x: trueRect__layout__cfg.x, y: trueRect__layout__cfg.y}; 
+        const homeScale__cfg__new = {X: composite__cfg.homeScale.X * 10.0, Y: composite__cfg.homeScale.Y * 10.0};
+        CompositeUtils.dictator__shiftToPositionAndScale2(composite__cfg, position__cfg__new, homeScale__cfg__new);
 
 
-        //create composite_in
-          //create diveSlot
-        const icEntrance  = infiniteCanvas.createIcDiveSlot(trueRect__layout__in, config__diveSlot);
-        icDiveSlot.zIndex = -5;
+          //create entrance
+        const config__entrance = {
+          func__cross: (infiniteCanvas, icEntrance) => {
 
-        const parts__in = {
-          "facade":   composite_in__facade,
-          "entrance": icDiveSlot,
+            const entranceConfig = icEntrance.entranceConfig;
+            
+            const id__cfg = entranceConfig.id__cfg;
+            const icComposite__config = infiniteCanvas.getRepresented(id__cfg).r_free();
+
+              //try getting a variable with vId:"str__query_var"
+            const icVar__str__query_var = CompositeUtils.findIcVariable__named(icComposite__config, "str__query_var");
+
+            if(icVar__str__query_var != null) {
+              const icText__str__query_var = icVar__str__query_var.parts.value; 
+              const str__query_var = icText__str__query_var.text;
+              
+              NavigationUtils.refreshPageWithQueryVarsString(str__query_var);
+            }
+
+              //TODO: manage other ways to go "elsewhere" using composite__cfg
+
+          },
+          id__cfg: composite__cfg.id,
         };
-        const compositeConfig__in = Compositer.defaultCompositeConfig(parts__in, false);
+        const icEntrance  = infiniteCanvas.createIcEntrance(trueRect__layout__in, config__entrance);
+        icEntrance.zIndex = -5;
 
-        const icComposite__in = this.createIcComposite(trueRect__layout__in, parts__in, compositeConfig__in);
-        icComposite__in.zIndex = -6;
-
-        //create composite_out
-
-          //layout
-          const position__out__new  = {x: trueRect__layout__out.x, y: trueRect__layout__out.y}; 
-          const homeScale__out__new = {X: composite_out__facade.homeScale.X * 10.0, Y: composite_out__facade.homeScale.Y * 10.0};
-          CompositeUtils.dictator__shiftToPositionAndScale2(composite_out__facade, position__out__new, homeScale__out__new);
-
-        const parts__out = {
-          "facade":   composite_out__facade,
-        };
-
-        const compositeConfig__out = Compositer.defaultCompositeConfig(parts__out, false);
-
-        const trueRect__composite__out = composite_out__facade.getTrueRect2();
-
-        const icComposite__out = this.createIcComposite(trueRect__composite__out, parts__out, compositeConfig__out);
-        icComposite__out.zIndex = -6;
-
-
-
-
-
-        //create icPortal (for editor to use)
+          //create icPortal (for editor to use)
         const trueRect__portal__rect1 = trueRect__layout__in;
-        const trueRect__portal__rect2 = trueRect__layout__out;
+        const trueRect__portal__rect2 = trueRect__layout__cfg;
   
         const icPortal__debug = infiniteCanvas.createIcPortal(trueRect__portal__rect1, trueRect__portal__rect2);
         icPortal__debug.zIndex = -8;
         icPortal__debug.parts.rect__in.zIndex  = -7;
         icPortal__debug.parts.rect__out.zIndex = -7;
 
-        
-
-
-
-
-        //main composite
         const parts = {
-          "composite__in":  icComposite__in,
-          "composite__out": icComposite__out,
+          "facade":         composite__facade,
+          "configuration":  composite__cfg,
+          "entrance":       icEntrance,
           // "portal__debug":  icPortal__debug,
         };
-
         const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
 
         const trueRect_composite = {
@@ -101416,8 +101417,8 @@
             // this.debug_refreshPageWithDifferentQueryVars();
             // this.debug_saveWholePage();
 
-            this.debug_entrance();
-            // this.debug_abstractPortal();
+            // this.debug_entrance();
+            this.debug_abstractPortal();
             // this.debug_platformBasedPortal();
 
             // this.debug_fun();
@@ -109207,41 +109208,27 @@
           icComposite__facade__in.zIndex = -1;
           icComposite__facade__in.fill   = "cyan";
 
-          //facade__out
-          const trueRect__facade__out = trueRect__facade__in;
+          //configuration
+          const trueRect__cfg = trueRect__facade__in;
 
           const str__vId       = "str__query_var";
           const str__query_var = "?challenge=math/numer/n1_ten__0_to_HTU";
 
-          const icText__str__query_var     = infiniteCanvas.createIcText(trueRect__facade__out.x, trueRect__facade__out.y + 100, str__query_var);
+          const icText__str__query_var     = infiniteCanvas.createIcText(trueRect__cfg.x, trueRect__cfg.y + 100, str__query_var);
           icText__str__query_var.homeScale = {X: 3.0, Y: 3.0};
 
           const icVariable__str__query_var = infiniteCanvas.createIcVariable__named(str__vId, icText__str__query_var);
 
-          const parts__out = {
+          const parts__cfg = {
             "var1": icVariable__str__query_var,
           };
-          const compositeConfig__out = Compositer.defaultCompositeConfig(parts__out, false);
+          const compositeConfig__cfg = Compositer.defaultCompositeConfig(parts__cfg, false);
   
-          const icComposite__facade__out = infiniteCanvas.createIcComposite(trueRect__facade__out, parts__out, compositeConfig__out);
-          icComposite__facade__out.zIndex = -1;
-          icComposite__facade__out.fill   = "magenta";
+          const icComposite__cfg  = infiniteCanvas.createIcComposite(trueRect__cfg, parts__cfg, compositeConfig__cfg);
+          icComposite__cfg.zIndex = -1;
+          icComposite__cfg.fill   = "magenta";
 
-          //diveSlot config
-          const config__diveSlot = {
-            transformationFunc: function (icObj, icObj_slot) {
-              // const dict_query_var = {
-              //   "challenge": "math/numer/n2_ten__0_to_HTU__missing100",
-              // }; 
-              // NavigationUtils.refreshPageWithQueryVarsDict(dict_query_var);
-
-              const str__vId       = "str__query_var";
-              // const str__query_var = IntelligenceUtils.
-              
-            },
-          };
-
-          const icAbstractPortal  = infiniteCanvas.createIcAbstractPortal(icComposite__facade__in, icComposite__facade__out, config__diveSlot);
+          const icAbstractPortal  = infiniteCanvas.createIcAbstractPortal(icComposite__facade__in, icComposite__cfg);
           icAbstractPortal.zIndex = -10;
 
           infiniteCanvas.addIcObject(icAbstractPortal);
