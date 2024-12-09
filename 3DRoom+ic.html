@@ -9594,6 +9594,27 @@
         return icRect;
       }
 
+      createIcZPixel(zPixelCoords/*, homeScale__dst*/) {
+
+        // const type      = "zPixel";  //SHU: TODO
+
+        // const trueRect = Geometry.zPixelUtils.defaultInstance.trueRectForZPixelCoordsAndHomeScale(zPixelCoords, homeScale__dst);
+        // const trueRect = Geometry.zPixelUtils.defaultInstance.trueRectForZPixelCoordsAndZLevel(zPixelCoords, zLevel__dst);
+        const {trueRect, homeScale} = Geometry.zPixelUtils.defaultInstance.dict_trueRectAndHomeScale_forZPixelCoords(zPixelCoords);
+
+        const icRect = infiniteCanvas.createIcRect(trueRect);
+        icRect.homeScale = Object.assign({}, homeScale);
+        
+        icRect.strokeWidth = 0;
+        icRect.isSharpRect = true;
+        
+        icRect.fill        = ColorUtils.randomColor();
+
+        icRect.zPixelCoords = zPixelCoords;
+
+        return icRect;
+      }
+
       createIcPOVRect(trueRect, orientation = 0) {
 
         const type      = "povRect";
@@ -30791,6 +30812,7 @@
             old: scale__old,
           },
         };
+        logger.log("logScale", "updateScale", "updatesDict:", updatesDict);
 
         this.didUpdateListenersDict["scaleChanged"].forEach((listener, i) => {
           listener(infiniteCanvas, updatesDict);
@@ -57594,8 +57616,110 @@
 
         }
 
+      }
+
+      class zPixelUtils {
+        /*
+         *  Instantiate this class with your zPixelOrigin coords
+         */
+
+        constructor(truePoint__zPixelOrigin = {x:0, y:0}, homeScaleX__zPixelOrigin = 1.0) {
+          this.truePoint__zPixelOrigin  = truePoint__zPixelOrigin;
+          this.homeScaleX__zPixelOrigin = homeScaleX__zPixelOrigin;   //only homeScale.X is used
+
+            //stating the obvious
+          this.ix__zPixelOrigin     = 0;
+          this.iy__zPixelOrigin     = 0; 
+          this.zLevel__zPixelOrigin = 0; 
+        }
+
+        getZPixelCoords__origin() {
+          return createZPixelCoords(0,0,0);
+        }
+
+        createZPixelCoords(ix,iy,zLevel) {
+          return {
+            ix:       ix,
+            iy:       iy,
+            zLevel:   zLevel,
+          };
+        }
+
+        zPixelCoordsForTruePointAndHomeScaleX(truePoint,homeScaleX) {
+          const dScaleX = homeScaleX / this.homeScaleX__zPixelOrigin;
+          const log2__dScaleX = math.floor(math.log2(dScaleX));
+          logger.log("logZPixel", "log2__dScaleX:", log2__dScaleX);
+
+          const zLevel = this.zLevel__zPixelOrigin + log2__dScaleX;
+          
+          const ix = math.floor(truePoint.x - this.truePoint__zPixelOrigin.x) * math.pow(2,zLevel);
+          const iy = math.floor(truePoint.y - this.truePoint__zPixelOrigin.y) * math.pow(2,zLevel);
+
+          return this.createZPixelCoords(ix,iy,zLevel);
+        }
+
+        // trueRectForZPixelCoordsAndHomeScale(zPixelCoords, homeScale__dst) {
+        //   const homeScaleX = this.homeScaleX__zPixelOrigin + math.pow(2,zPixelCoords.zLevel);
+
+        //   const trueRect = {
+        //     x: this.truePoint__zPixelOrigin.x + zPixelCoords.ix * homeScaleX,
+        //     y: this.truePoint__zPixelOrigin.y + zPixelCoords.iy * homeScaleX,
+        //     width:  1 * homeScale__dst.X,
+        //     height: 1 * homeScale__dst.Y,
+        //   };
+
+        //   return trueRect;
+        // }
+
+        // trueRectForZPixelCoordsAndZLevel(zPixelCoords, zLevel__dst) {
+        //   const homeScaleX = this.homeScaleX__zPixelOrigin + math.pow(2,zPixelCoords.zLevel);
+
+        //   const trueRect = {
+        //     x: this.truePoint__zPixelOrigin.x + zPixelCoords.ix * homeScaleX,
+        //     y: this.truePoint__zPixelOrigin.y + zPixelCoords.iy * homeScaleX,
+        //     width:  1 * zLevel__dst,
+        //     height: 1 * zLevel__dst,
+        //   };
+
+        //   return trueRect;
+        // }
+
+        dict_trueRectAndHomeScale_forZPixelCoords(zPixelCoords) {
+          const homeScaleX = this.homeScaleX__zPixelOrigin * math.pow(2,zPixelCoords.zLevel);
+
+          const trueRect = {
+            x: this.truePoint__zPixelOrigin.x + zPixelCoords.ix / math.pow(2,zPixelCoords.zLevel),
+            y: this.truePoint__zPixelOrigin.y + zPixelCoords.iy / math.pow(2,zPixelCoords.zLevel),
+            width:  1,
+            height: 1,
+          };
+
+          const homeScale = {
+            X: homeScaleX,
+            Y: homeScaleX,
+          };
+
+          const miniDict = {
+            trueRect:  trueRect,
+            homeScale: homeScale,
+          };
+
+          return miniDict;
+        }
+
 
       }
+      Geometry.zPixelUtils = zPixelUtils;
+      Geometry.zPixelUtils.defaultInstance = new Geometry.zPixelUtils();
+
+
+
+
+
+
+
+
+
 
 
       const SnapState = {
@@ -63021,7 +63145,29 @@
             }),
 
             "KeyA": new KeyUpTrigger("KeyA", KeyUpTrigger.defaultKeyUpFunc(["KeyA"]), () => {
-              // keyboardIntegration.infiniteCanvas.addNewCircle();
+              const infiniteCanvas = keyboardIntegration.infiniteCanvas;
+             
+              const truePoint = infiniteCanvas.getTrueCursor();
+              
+              // //spawn circle
+              // {
+              //   infiniteCanvas.addNewCircle();
+              // }
+
+              //spawn zPixel
+              {
+                const homeScaleX = inputProperties.homeScale.X;
+                // const homeScaleX = infiniteCanvas.scale.X;
+
+                const zPixelCoords = Geometry.zPixelUtils.defaultInstance.zPixelCoordsForTruePointAndHomeScaleX(truePoint, homeScaleX);
+  
+                const icRect = infiniteCanvas.createIcZPixel(zPixelCoords/*, homeScale__dst*/);
+                
+                icRect.fill = inputProperties.getActiveColor();
+
+                infiniteCanvas.addIcObject(icRect);
+              }
+
             }),
 
             "KeyH": new KeyUpTrigger("KeyH", KeyUpTrigger.defaultKeyUpFunc(["KeyH"]), () => {
@@ -101814,7 +101960,9 @@
             // this.debug_abstractPortal();
             // this.debug_platformBasedPortal();
             // this.debug_outPortal();
-            this.debug_biPortal();
+            // this.debug_biPortal();
+
+            this.debug_zPixel();
 
             // this.debug_construct();
 
@@ -109654,7 +109802,50 @@
 
           const icBiPortal = infiniteCanvas.createIcBiPortal(atelier.trueRect1, atelier.trueRect2);
           infiniteCanvas.addIcObject(icBiPortal);
+        }
 
+        debug_zPixel() {
+          const atelier = this;
+
+          function create_zPixel(zPixelCoords/*, homeScale__dst*/) {
+            // const trueRect = Geometry.zPixelUtils.defaultInstance.trueRectForZPixelCoordsAndHomeScale(zPixelCoords, homeScale__dst);
+            // const trueRect = Geometry.zPixelUtils.defaultInstance.trueRectForZPixelCoordsAndZLevel(zPixelCoords, zLevel__dst);
+            const {trueRect, homeScale} = Geometry.zPixelUtils.defaultInstance.dict_trueRectAndHomeScale_forZPixelCoords(zPixelCoords);
+
+            const icRect = infiniteCanvas.createIcRect(trueRect);
+            icRect.homeScale = Object.assign({}, homeScale);
+            
+            icRect.strokeWidth = 0;
+            icRect.isSharpRect = true;
+            
+            icRect.fill        = ColorUtils.randomColor();
+
+            icRect.zPixelCoords = zPixelCoords;
+
+            return icRect;
+          }
+
+          const arr_trueRect   = [atelier.trueRect1, atelier.trueRect2];
+          const arr_homeScaleX = [0.002,0.02,0.1,1.0,1.6,2.3,3.4,5.11,9.6,16,32];
+          arr_trueRect.forEach((trueRect) => {
+            arr_homeScaleX.forEach((homeScaleX) => {
+              const truePoint    = {x: trueRect.x, y: trueRect.y};
+              const zPixelCoords = Geometry.zPixelUtils.defaultInstance.zPixelCoordsForTruePointAndHomeScaleX(truePoint, homeScaleX);
+              
+              // const homeScale__dst = {
+              //   X: 1.0,
+              //   Y: 1.0,
+              // };
+              // const homeScale__dst = {
+              //   X: homeScaleX,
+              //   Y: homeScaleX,
+              // };
+
+              const icRect = create_zPixel(zPixelCoords/*, homeScale__dst*/);
+              infiniteCanvas.addIcObject(icRect);
+            });
+          });
+          
         }
 
         debug_construct() {
