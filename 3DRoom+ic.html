@@ -9652,6 +9652,32 @@
         return icRect;
       }
 
+      createIcZPixelPath_from_fZPixelPath(fObj__zPixelPath) {
+        logger.log("logZPixel", "createIcZPixelPath_from_fZPixelPath", "fObj__zPixelPath:", fObj__zPixelPath);
+        const dict_zPixel  = fObj__zPixel.__arr_dict_zPixel[0];
+
+        //get props
+        const trueRect     = dict_zPixel.trueRect;
+        const homeScale    = dict_zPixel.homeScale;
+        const zPixelCoords = dict_zPixel.zPixelCoords;
+        const color__fill  = dict_zPixel.color;
+
+        //use props
+        const icRect = infiniteCanvas.createIcRect(trueRect);
+        icRect.homeScale = Object.assign({}, homeScale);
+
+        icRect.rType = "zPixel";
+
+        icRect.strokeWidth = 0;
+        icRect.isSharpRect = true;
+
+        icRect.fill        = color__fill;
+
+        icRect.zPixelCoords = zPixelCoords;
+
+        return icRect;
+      }
+
       createIcPOVRect(trueRect, orientation = 0) {
 
         const type      = "povRect";
@@ -11258,19 +11284,35 @@
         return icFreeDrawing;
       }
 
-      createIcZPixelFreeDrawing_from_freeDrawingFObj(fObj) {
-        console.log("createIcZPixelFreeDrawing_from_freeDrawingFObj", fObj);
-        console.log("createIcZPixelFreeDrawing_from_freeDrawingFObj", fObj.constructor.name);
+      createIcZPixelFreeDrawing_from_zPixelFreeDrawingFObj(fObj) {
+        logger.log("createIcZPixelFreeDrawing_from_zPixelFreeDrawingFObj", fObj);
+        logger.log("createIcZPixelFreeDrawing_from_zPixelFreeDrawingFObj", fObj.constructor.name);
+
+        const arr_dict_zPixel = fObj.arr_dict_zPixel;
+
+
+        const dict_zPixel     = arr_dict_zPixel[0];
+
+        // //get props
+        const trueRect     = dict_zPixel.trueRect;
+        const homeScale    = dict_zPixel.homeScale;
+        // const zPixelCoords = dict_zPixel.zPixelCoords;
+        // const color__fill  = dict_zPixel.color;
 
 
         const type = "zPixelFreeDrawing";
 
+        // const trueRect = this.toTrueRect(fObj);
+        // const position = {x: trueRect.x, y: trueRect.y};
+        const arr_truePointTL = arr_dict_zPixel.map((dict_zPixel) => {
+          return {x: dict_zPixel.trueRect.x, y: dict_zPixel.trueRect.y}
+        });
+        const trueRect__enveloppe = Geometry.getEnveloppeRect(arr_truePointTL);
+        const position = {x: trueRect__enveloppe.x, y: trueRect__enveloppe.y};
 
-        const trueRect = this.toTrueRect(fObj);
-        const position = Geometry.getPointTL(trueRect);
+
         const size     = Geometry.createSize(trueRect.width, trueRect.height);
-
-        const homeScale = Object.assign({}, this.scale);
+        // const homeScale = Object.assign({}, this.scale);
 
         const icObj = this.createIcObject(type, position, size, homeScale);
 
@@ -11280,21 +11322,25 @@
 
         // const isCosmetic = fObj.isCosmetic;
 
-        const icFreeDrawing_spec = {
+        const icZPixelFreeDrawing_spec = {
           // path: fObj.path,
+          arr_dict_zPixel: arr_dict_zPixel,
 
           exoObject: exoObject,
 
           // isCosmetic: isCosmetic,
 
-          opacity: fObj.opacity,
-
+          // opacity: fObj.opacity,
+          opacity: 1.0,
         };
 
-        const icFreeDrawing = Object.assign(icObj, icFreeDrawing_spec);
-        icFreeDrawing.isTouchable = true;
+        const icZPixelFreeDrawing = Object.assign(icObj, icZPixelFreeDrawing_spec);
+        icZPixelFreeDrawing.isTouchable = true;
 
-        return icFreeDrawing;
+        logger.log("createIcZPixelFreeDrawing_from_zPixelFreeDrawingFObj", "icZPixelFreeDrawing:", icZPixelFreeDrawing);
+
+
+        return icZPixelFreeDrawing;
       }
 
 
@@ -24525,6 +24571,9 @@
           case "floodFill":
             break;
 
+          case "zPixelFreeDrawing":
+            break;
+
           case "povRect":
             break;
 
@@ -31713,6 +31762,7 @@
 
           case "freeDrawing":
           case "floodFill":
+          case "zPixelFreeDrawing":
             const exoObject = json_icObject.exoObject;
             icObj.exoObject = exoObject;
             break;
@@ -32058,6 +32108,28 @@
               exoObject__clone._cacheProperties = null;
 
               // exoObject__clone.__brush          = null;   //SHU TODO: store __id__brush
+
+              const exoObject_serial = exoObject__clone;
+              // const exoObject_serial = JSON.stringify(exoObject__clone);
+
+              icObj_serial.exoObject = exoObject_serial;
+            }
+            break;
+
+          case "zPixelFreeDrawing":
+            {
+              const exoObject = icObj.exoObject;
+              logger.log("exoObject", exoObject);
+
+              const exoObject__clone = Object.assign({}, exoObject);
+              logger.log("exoObject__clone", exoObject__clone);
+              //remove cyclical refs
+              exoObject__clone.canvas           = null;
+              exoObject__clone._cacheCanvas     = null;
+              exoObject__clone._cacheContext    = null;
+              exoObject__clone._cacheProperties = null;
+
+              exoObject__clone.__brush          = null;   //SHU TODO: store __id__brush
 
               const exoObject_serial = exoObject__clone;
               // const exoObject_serial = JSON.stringify(exoObject__clone);
@@ -46036,6 +46108,13 @@
               }
               break;
 
+            case "zPixelFreeDrawing":
+              {
+                const fObj = this.createFabricZPixelFreeDrawingWithIcObj(icObj);
+                fObj_p = Promise.resolve(fObj);
+              }
+              break;
+
             case "floodFill":
               {
                 const fObj = this.createFabricFloodFillWithIcObj(icObj);
@@ -50116,6 +50195,106 @@
         }
 
 
+        createFabricZPixelFreeDrawingWithIcObj(icObj) {
+          console.log("createFabricZPixelFreeDrawingWithIcObj", icObj);
+
+          const infiniteCanvas = this.infiniteCanvas;
+
+          const exoObject = icObj.exoObject;
+
+          // var fObj = new fabric.ZPixelPath(exoObject.arr_dict_zPixel);
+          var fObj = exoObject;
+
+          // const position_screen = this.infiniteCanvas.toScreenPoint(icObj.position);
+          // console.log("position_screen", position_screen);
+          // const size_screen     = this.infiniteCanvas.toScreenSize(icObj.size);
+          // console.log("size_screen", size_screen);
+
+          const position_screen = icObj.getScreenPositionWithoutOffset();
+          // console.log("position_screen", position_screen);
+          const homeSize_screen = icObj.getHomeScreenSize();
+          // console.log("homeSize_screen", homeSize_screen);
+
+          fObj.set({
+            left: position_screen.x,    //SHU: ??? where is infiniteCanvas.offset taking part ???
+            top: position_screen.y,
+
+            // width:  homeSize_screen.width,
+            // height: homeSize_screen.height,
+            //
+            // scaleX:  icObj.scale.X,
+            // scaleY:  icObj.scale.Y,
+            //
+            // flipX:   icObj.flip.X,
+            // flipY:   icObj.flip.Y,
+
+
+            angle: icObj.orientation,
+
+
+            stroke:           exoObject.stroke,
+            strokeDashArray:  exoObject.strokeDashArray,
+            strokeLineCap:    exoObject.strokeLineCap,
+            strokeLineJoin:   exoObject.strokeLineJoin,
+            strokeMiterLimit: exoObject.strokeMiterLimit,
+            strokeWidth:      exoObject.strokeWidth,
+
+            fill:             exoObject.fill,
+
+            opacity: icObj.opacity,
+
+            // icObjId  : icObj.id,
+            // trueRect : trueRect,
+            icObj: icObj,
+          });
+
+          // console.log("----", "fObj", fObj);
+
+          //event listeners
+          if (icObj.canBeHeld) {
+            this.addInteraction_hold(fObj);
+          }
+
+          if (icObj.canBeMoved) {
+            this.addInteraction_move(fObj);
+          }
+          if (icObj.canBeResized) {
+            this.addInteraction_resize2(fObj);
+          }
+          if (icObj.canBeRotated) {
+            this.addInteraction_rotate(fObj);
+          }
+
+
+          this.addInteraction_select(fObj);
+          // this.addListeners(fObj);
+
+
+
+
+          //debug
+          fObj.setControlsVisibility({
+            mt: false,
+            mb: false,
+            ml: false,
+            mr: false,
+
+            tl: true,
+            tr: false,
+            br: false,
+            bl: false,
+
+            mtr: true,
+          });
+
+          // fObj.hasControls = false;
+          fObj.hasBorders = true;
+
+
+          return fObj;
+        }
+
+
 
         createFabricFloodFillWithIcObj(icObj) {
           console.log("createFabricFloodFillWithIcObj", icObj);
@@ -53576,6 +53755,12 @@
           function zPixelFreeDrawing_objectAdded__atomic(e) {
             logger.log("logZPixelFD", "zPixelFreeDrawing_objectAdded__atomic", e);
 
+            //debug
+            logger.log("logZPixel", "fabricIntegration.infiniteCanvas.isIgnoreOnObjectAdded:", fabricIntegration.infiniteCanvas.isIgnoreOnObjectAdded);
+            if(fabricIntegration.infiniteCanvas.isIgnoreOnObjectAdded) {  //SHU: remove this after dev, will ya
+              return;
+            }
+
             const fObj = e.target;
 
             // const brush__atDrawingStart = fabricIntegration.brushConfig__current;
@@ -53625,8 +53810,9 @@
 
           //work
           {
-            // const icObj = this.infiniteCanvas.createIcZPixelFreeDrawing_from_freeDrawingFObj(fObj);
-            const icObj = this.infiniteCanvas.createIcZPixel_from_fZPixel(fObj);
+            const icObj = this.infiniteCanvas.createIcZPixelFreeDrawing_from_zPixelFreeDrawingFObj(fObj);
+            // const icObj = this.infiniteCanvas.createIcZPixel_from_fZPixel(fObj);
+            // const icObj = this.infiniteCanvas.createIcZPixelPath_from_fZPixelPath(fObj);
             
             logger.log("logZPixelFD", "fObj.zIndex__ic", fObj.zIndex__ic);
             icObj.zIndex = fObj.zIndex__ic;
@@ -63434,6 +63620,40 @@
                   //   });
                   // });
 
+                if (keyboardIntegration.keyDownToggles.digit2.isActive) {
+
+                  const infiniteCanvas = keyboardIntegration.infiniteCanvas;
+
+                  const truePoint__cursor = infiniteCanvas.getTrueCursor();
+                  const homeScaleX = infiniteCanvas.scale.X / 16.0;
+                  const zPixelCoords__0_0     = Geometry.zPixelUtils.defaultInstance.zPixelCoordsForTruePointAndHomeScaleX(truePoint__cursor, homeScaleX);
+                  
+                  const miniDict = Geometry.zPixelUtils.defaultInstance.dict_trueRectAndHomeScale_forZPixelCoords(zPixelCoords__0_0);
+                  const trueRect__zPixel__0_0  = miniDict.trueRect;
+                  const homeScale__zPixel__0_0 = miniDict.homeScale;
+
+                  infiniteCanvas.isIgnoreOnObjectAdded = true;
+                  
+                  FileIntegration.importImage_multiple_p()
+                  .then(arr_img => {
+                    arr_img.forEach(img => {
+                      
+                      const icImage = infiniteCanvas.createIcImage(trueRect__zPixel__0_0.x, trueRect__zPixel__0_0.y , img);
+                      icImage.homeScale = Object.assign({}, homeScale__zPixel__0_0);
+
+                      infiniteCanvas.addIcObject_p(icImage)
+                      .then(() => {
+                        setTimeout(() => {
+                          infiniteCanvas.isIgnoreOnObjectAdded = false;   //SHU: create a callback when fObj is added and ready
+                        }, 200);
+                      });
+
+                    });
+
+                  });
+
+                } else {
+
                   const truePoint__cursor = infiniteCanvas.getTrueCursor();
 
                   // const homeScaleX = inputProperties.homeScale.X;
@@ -63522,7 +63742,7 @@
 
                     });
 
- 
+                  }
 
               // }
               // else {
