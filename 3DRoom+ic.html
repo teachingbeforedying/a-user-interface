@@ -1427,6 +1427,10 @@
   <script src='lib/fabric+zPixelPath.js'  type='text/javascript'></script>
   <script src='lib/fabric+zPixelBrush.js' type='text/javascript'></script>
 
+  <script src='lib/fabric+zPixelRect.js'      type='text/javascript'></script>
+  <script src='lib/fabric+zPixelRectBrush.js' type='text/javascript'></script>
+
+
   
   <script src='lib/fabricjs+floodFill.js'  type='text/javascript'></script>
 
@@ -9674,6 +9678,53 @@
         icRect.fill        = color__fill;
 
         icRect.zPixelCoords = zPixelCoords;
+
+        return icRect;
+      }
+
+      createIcZPixelRect_from_fZPixelRect(fObj__zPixelRect) {
+        logger.log("logZPixelRect", "createIcZPixelRect_from_fZPixelRect", "fObj__zPixelRect:", fObj__zPixelRect);
+        const dict_zPixelRect  = fObj__zPixelRect.__dict_zPixelRect;
+
+        //get props
+        const trueRect         = dict_zPixelRect.trueRect;
+        const homeScale        = dict_zPixelRect.homeScale;
+        const zPixelRectCoords = dict_zPixelRect.zPixelCoords;
+        const color__fill      = dict_zPixelRect.color;
+
+        //use props
+        const icRect = infiniteCanvas.createIcRect(trueRect);
+        icRect.homeScale = Object.assign({}, homeScale);
+
+        icRect.rType = "zPixelRect";
+
+        icRect.strokeWidth = 0;
+        icRect.isSharpRect = true;
+
+        icRect.fill        = color__fill;
+
+        icRect.zPixelRectCoords = zPixelRectCoords;
+
+        return icRect;
+      }
+
+      createIcZPixelRect(zPixelRectCoords/*, homeScale__dst*/) {
+
+        // const type      = "zPixel";  //SHU: TODO
+
+        // const trueRect = Geometry.zPixelUtils.defaultInstance.trueRectForZPixelCoordsAndHomeScale(zPixelCoords, homeScale__dst);
+        // const trueRect = Geometry.zPixelUtils.defaultInstance.trueRectForZPixelCoordsAndZLevel(zPixelCoords, zLevel__dst);
+        const {trueRect, homeScale} = Geometry.zPixelUtils.defaultInstance.dict_trueRectAndHomeScale_forZPixelRectCoords(zPixelRectCoords);
+
+        const icRect = infiniteCanvas.createIcRect(trueRect);
+        icRect.homeScale = Object.assign({}, homeScale);
+
+        icRect.strokeWidth = 0;
+        icRect.isSharpRect = true;
+
+        icRect.fill        = ColorUtils.randomColor();
+
+        icRect.zPixelRectCoords = zPixelRectCoords;
 
         return icRect;
       }
@@ -32131,6 +32182,9 @@
 
               exoObject__clone.__brush          = null;   //SHU TODO: store __id__brush
 
+              exoObject__clone.objects          = exoObject__clone._objects;
+              delete exoObject__clone._objects;
+
               const exoObject_serial = exoObject__clone;
               // const exoObject_serial = JSON.stringify(exoObject__clone);
 
@@ -50201,9 +50255,11 @@
           const infiniteCanvas = this.infiniteCanvas;
 
           const exoObject = icObj.exoObject;
+          logger.log("logZPixel", "createFabricZPixelFreeDrawingWithIcObj", "exoObject:", exoObject);
+
 
           // var fObj = new fabric.ZPixelPath(exoObject.arr_dict_zPixel);
-          var fObj = exoObject;
+          var fObj = fabric.Group.fromObject(exoObject);
 
           // const position_screen = this.infiniteCanvas.toScreenPoint(icObj.position);
           // console.log("position_screen", position_screen);
@@ -50538,7 +50594,7 @@
             logger.log("moving", "options", options);
 
             const offset = infiniteCanvas.offset;
-            const scale = infiniteCanvas.scale;
+            const scale  = infiniteCanvas.scale;
 
             const icObj = fObj.icObj;
 
@@ -50550,44 +50606,77 @@
             //listen:off
             rep_free.offInnerUpdate(listener);
 
-            //mutate
-            switch (icObj.type) {
-              case "segment":
-                {
-                  const transform = options.transform;
+            if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {  //SHU: replace it with fabricIntegration.isMode__ZPixelMove;
 
-                  // const offset__transform__screen1 = Geometry.createPoint(transform.offsetX, transform.offsetY);   //NOT WORKING
-                  // logger.log("offset__transform__screen1", offset__transform__screen1);
+              const target = options.transform.target;
 
-                  const offset__transform__screen2 = Geometry.createPoint(options.target.left - fObj.position__target__original.x, options.target.top - fObj.position__target__original.y);
-                  logger.log("offset__transform__screen2", offset__transform__screen2);
+              const screenPoint__target = {
+                x: target.left,
+                y: target.top,
+              };
+              const truePoint__target = infiniteCanvas.toTruePoint(screenPoint__target);
 
-                  const offset__transform__ic = infiniteCanvas.toTruePoint(offset__transform__screen2);
+              const homeScaleX = infiniteCanvas.scale.X / 16.0;
 
-                  const v = Geometry.vector_2d(infiniteCanvas.toTruePoint(Geometry.createPoint(0, 0)), offset__transform__ic);
+              const miniDict = Geometry.zPixelUtils.defaultInstance.dict_trueRectAndHomeScale_forTruePointAndHomeScaleX(truePoint__target, homeScaleX);
 
-                  //update .point_start and .point_end
-                  rep_free.point_start = Geometry.translatedPoint(fObj.point_start__original, v);
-                  rep_free.point_end = Geometry.translatedPoint(fObj.point_end__original, v);
+              const trueRect__zPixel  = miniDict.trueRect;
+              const homeScale__zPixel = miniDict.homeScale;
+              logger.log("logZPixel", "trueRect__zPixel:",  trueRect__zPixel);
+              logger.log("logZPixel", "homeScale__zPixel:", homeScale__zPixel);
 
-                }
-                break;
-              default:
-                {
-                  const target = options.transform.target;
+              const position_update = {
+                x: trueRect__zPixel.x,
+                y: trueRect__zPixel.y,
+              };
 
-                  const screenPoint = {
-                    x: target.left,
-                    y: target.top,
-                  };
+              //update .position
+              rep_free.position = position_update;
 
-                  const position_update = infiniteCanvas.toTruePoint(screenPoint);
+            } else {
 
-                  //update .position
-                  rep_free.position = position_update;
-                }
-                break;
+              //mutate
+              switch (icObj.type) {
+                case "segment":
+                  {
+                    const transform = options.transform;
+
+                    // const offset__transform__screen1 = Geometry.createPoint(transform.offsetX, transform.offsetY);   //NOT WORKING
+                    // logger.log("offset__transform__screen1", offset__transform__screen1);
+
+                    const offset__transform__screen2 = Geometry.createPoint(options.target.left - fObj.position__target__original.x, options.target.top - fObj.position__target__original.y);
+                    logger.log("offset__transform__screen2", offset__transform__screen2);
+
+                    const offset__transform__ic = infiniteCanvas.toTruePoint(offset__transform__screen2);
+
+                    const v = Geometry.vector_2d(infiniteCanvas.toTruePoint(Geometry.createPoint(0, 0)), offset__transform__ic);
+
+                    //update .point_start and .point_end
+                    rep_free.point_start = Geometry.translatedPoint(fObj.point_start__original, v);
+                    rep_free.point_end = Geometry.translatedPoint(fObj.point_end__original, v);
+
+                  }
+                  break;
+                default:
+                  {
+                    const target = options.transform.target;
+
+                    const screenPoint = {
+                      x: target.left,
+                      y: target.top,
+                    };
+
+                    const position_update = infiniteCanvas.toTruePoint(screenPoint);
+
+                    //update .position
+                    rep_free.position = position_update;
+                  }
+                  break;
+              }
+
             }
+
+            
 
             //listen:on
             rep_free.onInnerUpdate(listener);
@@ -53322,6 +53411,29 @@
           } catch(e) {
             logger.log("logZPixelFD", "error: ", e);
           }
+
+          //install zPixelRectBrush for zPixelRectFreeDrawing and zPixelRectSelection 
+          try {
+            // const brush__zPixelRect = new fabric.ZPixelRectBrush(this.fabricCanvas);
+            const brush__zPixelRect = fabric.ZPixelRectBrush.createInstance(this.fabricCanvas);
+            brush__zPixelRect.color = new fabric.Color("black").toRgba();
+            brush__zPixelRect.opacity = 1.0;
+            // brush__zPixelRect.width   = 20;
+            brush__zPixelRect.zIndex__ic = 0;
+            brush__zPixelRect.zIndex     = 0;
+            brushUpgrade__preview(brush__zPixelRect);
+            // brushUpgrade__pathWithBrushProperty(brush__zPixelRect);
+            this.fabricCanvas.zPixelRectBrush = brush__zPixelRect;
+            this.fabricCanvas.zPixelRectBrush.config = {};
+            this.fabricCanvas.zPixelRectBrush._setBrushStyles(this.fabricCanvas.contextContainer);
+
+            brush__zPixelRect.fabricIntegration = fabricIntegration;
+
+            fabricIntegration.storeBrush(brush__zPixelRect, "zPixelRectBrush");
+          } catch(e) {
+            logger.log("logZPixelFD", "error: ", e);
+          }
+
         }
 
         freeDrawing__adhesive__checkForSupport() {
@@ -53810,9 +53922,12 @@
 
           //work
           {
-            const icObj = this.infiniteCanvas.createIcZPixelFreeDrawing_from_zPixelFreeDrawingFObj(fObj);
+            // const icObj = this.infiniteCanvas.createIcZPixelFreeDrawing_from_zPixelFreeDrawingFObj(fObj);
             // const icObj = this.infiniteCanvas.createIcZPixel_from_fZPixel(fObj);
             // const icObj = this.infiniteCanvas.createIcZPixelPath_from_fZPixelPath(fObj);
+
+            //debug
+            const icObj = this.infiniteCanvas.createIcZPixelRect_from_fZPixelRect(fObj);
             
             logger.log("logZPixelFD", "fObj.zIndex__ic", fObj.zIndex__ic);
             icObj.zIndex = fObj.zIndex__ic;
@@ -53868,7 +53983,9 @@
           const fabricIntegration = this;
 
           //setup brush
-          fabricIntegration.swapToBrush("zPixelBrush");
+          // fabricIntegration.swapToBrush("zPixelBrush");
+          fabricIntegration.swapToBrush("zPixelRectBrush");
+
 
           const brushConfig = this.brushConfig__zPixelFreeDrawing();
           this.configureFreeDrawingBrush(brushConfig);
@@ -58352,6 +58469,45 @@
             y: this.truePoint__zPixelOrigin.y + zPixelCoords.iy / math.pow(2,zPixelCoords.zLevel),
             width:  1,
             height: 1,
+          };
+
+          const homeScale = {
+            X: homeScaleX,
+            Y: homeScaleX,
+          };
+
+          const miniDict = {
+            trueRect:  trueRect,
+            homeScale: homeScale,
+          };
+
+          return miniDict;
+        }
+
+        dict_trueRectAndHomeScale_forTruePointAndHomeScaleX(truePoint, homeScaleX) {
+
+          const zLevel = Geometry.zPixelUtils.defaultInstance.zLevelForHomeScaleX(homeScaleX);
+          logger.log("logZPixel", "getZPixelFRect", "zLevel:", zLevel);
+
+          const zPixelCoords = Geometry.zPixelUtils.defaultInstance.zPixelCoordsForTruePointAndZLevel(truePoint, zLevel);
+          logger.log("logZPixel", "getZPixelFRect", "zPixelCoords:", zPixelCoords);
+
+          const miniDict = Geometry.zPixelUtils.defaultInstance.dict_trueRectAndHomeScale_forZPixelCoords(zPixelCoords);
+
+          return miniDict;
+        }
+
+
+
+
+        dict_trueRectAndHomeScale_forZPixelRectCoords(zPixelRectCoords) {
+          const homeScaleX = this.homeScaleX__zPixelOrigin * math.pow(2,zPixelRectCoords.zLevel);
+
+          const trueRect = {
+            x: this.truePoint__zPixelOrigin.x + zPixelRectCoords.ix / math.pow(2,zPixelRectCoords.zLevel),
+            y: this.truePoint__zPixelOrigin.y + zPixelRectCoords.iy / math.pow(2,zPixelRectCoords.zLevel),
+            width:  zPixelRectCoords.iwidth,
+            height: zPixelRectCoords.iheight,
           };
 
           const homeScale = {
@@ -63286,6 +63442,12 @@
                 // } else {
                 //   fabricIntegration.leavePathmadeOperatorPathDrawing__composite();
                 // }
+
+                if(keyboardIntegration.keyDownToggles.digit2.isActive) {
+
+
+
+                }
 
               }
 
