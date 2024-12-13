@@ -1427,9 +1427,9 @@
   <script src='lib/fabric+zPixelPath.js'  type='text/javascript'></script>
   <script src='lib/fabric+zPixelBrush.js' type='text/javascript'></script>
 
-  <script src='lib/fabric+zPixelRect.js'      type='text/javascript'></script>
-  <script src='lib/fabric+zPixelRectBrush.js' type='text/javascript'></script>
-
+  <script src='lib/fabric+zPixelRect.js'               type='text/javascript'></script>
+  <script src='lib/fabric+zPixelRectBrush.js'          type='text/javascript'></script>
+  <script src='lib/fabric+zPixelRectSelectionBrush.js' type='text/javascript'></script>
 
   
   <script src='lib/fabricjs+floodFill.js'  type='text/javascript'></script>
@@ -53412,7 +53412,7 @@
             logger.log("logZPixelFD", "error: ", e);
           }
 
-          //install zPixelRectBrush for zPixelRectFreeDrawing and zPixelRectSelection 
+          //install zPixelRectBrush
           try {
             // const brush__zPixelRect = new fabric.ZPixelRectBrush(this.fabricCanvas);
             const brush__zPixelRect = fabric.ZPixelRectBrush.createInstance(this.fabricCanvas);
@@ -53430,6 +53430,28 @@
             brush__zPixelRect.fabricIntegration = fabricIntegration;
 
             fabricIntegration.storeBrush(brush__zPixelRect, "zPixelRectBrush");
+          } catch(e) {
+            logger.log("logZPixelFD", "error: ", e);
+          }
+
+          //install zPixelRectSelectionBrush 
+          try {
+            // const selectionBrush__zPixelRect = new fabric.ZPixelRectSelectionBrush(this.fabricCanvas);
+            const selectionBrush__zPixelRect = fabric.ZPixelRectSelectionBrush.createInstance(this.fabricCanvas);
+            selectionBrush__zPixelRect.color = new fabric.Color("black").toRgba();
+            selectionBrush__zPixelRect.opacity = 1.0;
+            // selectionBrush__zPixelRect.width   = 20;
+            selectionBrush__zPixelRect.zIndex__ic = 0;
+            selectionBrush__zPixelRect.zIndex     = 0;
+            // brushUpgrade__preview(selectionBrush__zPixelRect); //SHU: this call is breaking stuff
+            // brushUpgrade__pathWithBrushProperty(selectionBrush__zPixelRect);
+            this.fabricCanvas.zPixelRectSelectionBrush = selectionBrush__zPixelRect;
+            this.fabricCanvas.zPixelRectSelectionBrush.config = {};
+            this.fabricCanvas.zPixelRectSelectionBrush._setBrushStyles(this.fabricCanvas.contextContainer);
+
+            selectionBrush__zPixelRect.fabricIntegration = fabricIntegration;
+
+            fabricIntegration.storeBrush(selectionBrush__zPixelRect, "selectionBrush__zPixelRect");
           } catch(e) {
             logger.log("logZPixelFD", "error: ", e);
           }
@@ -53494,6 +53516,8 @@
           // logger.log("logFDZ", "configureFreeDrawingBrush", "dict_update:", dict_update);
 
           const brush = this.fabricCanvas.freeDrawingBrush;
+          logger.log("logFDZ", "configureFreeDrawingBrush", "brush:", brush);
+
           // if(brush instanceof fabric.CombPencilBrush) {
           //   brush = brush.arr_brush[0].brush_raw;   //SHU: a bit ugly
           //   // logger.log("logComb", "brush = brush.arr_brush[0];");
@@ -53984,7 +54008,8 @@
 
           //setup brush
           // fabricIntegration.swapToBrush("zPixelBrush");
-          fabricIntegration.swapToBrush("zPixelRectBrush");
+          // fabricIntegration.swapToBrush("zPixelRectBrush");
+          fabricIntegration.swapToBrush("selectionBrush__zPixelRect");
 
 
           const brushConfig = this.brushConfig__zPixelFreeDrawing();
@@ -54110,6 +54135,269 @@
         }
 
         // } zPixelFreeDrawing
+
+
+
+        // zPixelRectSelectionMode {
+
+        enterZPixelFreeDrawing__atomic(cfg) {
+          logger.log("logZPixelFD", "enterZPixelFreeDrawing__atomic", cfg);
+
+          const fabricIntegration = this;
+
+          // fabricIntegration.configureFreeDrawingBrush({
+          //   zIndex__ic: this.inputProperties.getActiveBrushZIndex(),
+          // });
+
+          function zPixelFreeDrawing_objectAdded__atomic(e) {
+            logger.log("logZPixelFD", "zPixelFreeDrawing_objectAdded__atomic", e);
+
+            //debug
+            logger.log("logZPixel", "fabricIntegration.infiniteCanvas.isIgnoreOnObjectAdded:", fabricIntegration.infiniteCanvas.isIgnoreOnObjectAdded);
+            if(fabricIntegration.infiniteCanvas.isIgnoreOnObjectAdded) {  //SHU: remove this after dev, will ya
+              return;
+            }
+
+            const fObj = e.target;
+
+            // const brush__atDrawingStart = fabricIntegration.brushConfig__current;
+            const brush__atDrawingEnd   = fObj.__brush;
+
+            // const fColor   = new fabric.Color(brush__atDrawingEnd.color); //SHU: TODO: brush__atDrawingStart
+            // const rgbColor = fColor.toRgb();
+            // const opacity  = fColor.getAlpha();
+            
+            // fObj.set({
+            //   // strokeWidth:  brush__atDrawingEnd.width,
+            //   // stroke:  rgbColor,
+
+            //   fill: rgbColor,
+
+            //   opacity: opacity,
+
+            //   // isCosmetic: cfg.isCosmetic,   //<--\
+            //                                 //    |--- //SHU: these too are quite incompatible...
+            //   // isAdhesive: cfg.isAdhesive,   //<--/
+            // });
+
+            logger.log("logZPixelFD", "fObj.zIndex", fObj.zIndex);
+            logger.log("logZPixelFD", "fObj", fObj);
+            fObj.moveTo(fObj.zIndex);
+
+            fObj.zIndex__ic = brush__atDrawingEnd.zIndex__ic;
+
+            fabricIntegration.manageCreatedZPixelFreeDrawingObject__atomic(fObj);
+          }
+
+          this.zPixelFreeDrawing_objectAdded__atomic = zPixelFreeDrawing_objectAdded__atomic;
+          this.fabricCanvas.on('object:added', this.zPixelFreeDrawing_objectAdded__atomic);
+        }
+
+        leaveZPixelFreeDrawing__atomic(fObj) {
+          logger.log("logZPixelFD", "leaveZPixelFreeDrawing__atomic");
+          this.fabricCanvas.off('object:added', this.zPixelFreeDrawing_objectAdded__atomic);
+          this.zPixelFreeDrawing_objectAdded__atomic = null;        
+        }
+
+        manageCreatedZPixelFreeDrawingObject__atomic(fObj) {
+          logger.log("logZPixelFD", "manageCreatedZPixelFreeDrawingObject__atomic", fObj);
+          
+          //listener:off 
+          this.fabricCanvas.off('object:added', this.zPixelFreeDrawing_objectAdded__atomic);
+
+          //work
+          {
+            // const icObj = this.infiniteCanvas.createIcZPixelFreeDrawing_from_zPixelFreeDrawingFObj(fObj);
+            // const icObj = this.infiniteCanvas.createIcZPixel_from_fZPixel(fObj);
+            // const icObj = this.infiniteCanvas.createIcZPixelPath_from_fZPixelPath(fObj);
+
+            //debug
+            const icObj = this.infiniteCanvas.createIcZPixelRect_from_fZPixelRect(fObj);
+            
+            logger.log("logZPixelFD", "fObj.zIndex__ic", fObj.zIndex__ic);
+            icObj.zIndex = fObj.zIndex__ic;
+
+            //recycle fObj
+            fObj.id_recycle = icObj.id;
+
+            this.infiniteCanvas.addIcObject(icObj); 
+
+            // //manage .isAdhesive
+            // if(fObj.isAdhesive) {
+            //   //simple
+
+
+            //   //complex: joining adhesive
+
+            // }
+
+            this.arr_icZPixelFreeDrawing.push(icObj);
+          }
+
+          //allow: many zPixelFreeDrawings in one zPixelFreeDrawing session
+          this.fabricCanvas.on('object:added', this.zPixelFreeDrawing_objectAdded__atomic);
+
+        }
+
+        brushConfig__zPixelFreeDrawing() {
+          var outBrushConfig = {};
+
+          // outBrushConfig.width  = this.inputProperties.getActiveBrushWidth();
+          outBrushConfig.width  = 1;
+
+          const rgbaColorString = this.inputProperties.getActiveRgbaColorString();
+          outBrushConfig.color  = rgbaColorString;
+
+          const fColor = new fabric.Color(rgbaColorString);
+          logger.log("fColor", fColor);
+          outBrushConfig.fColor = fColor;
+
+          if(this.infiniteCanvas.lock_homeScale_isActive) {
+            outBrushConfig.homeScale = this.inputProperties.getActiveHomeScale();
+          }
+
+          outBrushConfig.zIndex__ic = this.inputProperties.getActiveBrushZIndex();
+
+          // outBrushConfig.isAdhesive = this.inputProperties.brushIsAdhesive;
+
+          return outBrushConfig;
+        }
+
+        enterZPixelFreeDrawing(cfg) {
+          logger.log("logZPixelFD", "enterZPixelFreeDrawing");
+          const fabricIntegration = this;
+
+          //setup brush
+          // fabricIntegration.swapToBrush("zPixelBrush");
+          // fabricIntegration.swapToBrush("zPixelRectBrush");
+          fabricIntegration.swapToBrush("selectionBrush__zPixelRect");
+
+
+          const brushConfig = this.brushConfig__zPixelFreeDrawing();
+          this.configureFreeDrawingBrush(brushConfig);
+
+          const brushZIndex_new = infiniteCanvas.getFreshIcZIndex__max();
+          fabricIntegration.configureFreeDrawingBrush({zIndex__ic: brushZIndex_new});
+
+          this.fabricCanvas.isDrawingMode = true;
+
+          //create arr for icZPixelFreeDrawings
+          this.arr_icZPixelFreeDrawing = [];
+
+          // //check for adhesive support
+          // this.freeDrawing__adhesive__checkForSupport();
+          
+          //call atomic
+          this.enterZPixelFreeDrawing__atomic(cfg);
+        }
+
+        leaveZPixelFreeDrawing() {
+          logger.log("logZPixelFD", "leaveZPixelFreeDrawing");
+
+          const fabricIntegration = this;
+
+          // this.brush__preview__stop();
+          {
+            const brush = fabricIntegration.fabricCanvas.freeDrawingBrush;
+            brush.clearPreview?.();
+          }
+
+          fabricIntegration.leaveZPixelFreeDrawing__atomic();
+
+          //get all created zPixelFreeDrawing objects
+          fabricIntegration.manageCreatedZPixelFreeDrawingObjects(this.arr_icZPixelFreeDrawing);
+
+          // //restore singleBrush
+          // if(inputProperties.brush__single != null) {
+          //   const singleBrush = inputProperties.brush__single;
+          //   // fabricIntegration.setBrush__hotSwap(singleBrush);
+          //   singleBrush._reset();
+          //   fabricIntegration.fabricCanvas.freeDrawingBrush = singleBrush;
+          // }
+          
+          fabricIntegration.swapToBrush("main");
+
+          this.fabricCanvas.isDrawingMode = false;
+        }
+
+        manageCreatedZPixelFreeDrawingObjects(arr_icZPixelFreeDrawing) {
+          logger.log("logZPixelFD", "manageCreatedZPixelFreeDrawingObjects", arr_icZPixelFreeDrawing);
+
+          const infiniteCanvas = this.infiniteCanvas;
+
+          // var icObj__zPixelFreeDrawing__result;
+          // if(arr_icZPixelFreeDrawing.length > 1) {
+
+          //   //create composite
+          //   const icFreeDrawing0 = arr_icFreeDrawing.find(e => true);
+          //   const trueRect__composite = {
+          //     x: icFreeDrawing0.position.x,
+          //     y: icFreeDrawing0.position.y,
+          //     width:  10,
+          //     height: 10,
+          //   };
+          //   const parts = arr_icFreeDrawing.reduce((acc, icFreeDrawing) => {
+          //     const partName = "freeDrawing__" + icFreeDrawing.id;
+          //     acc[partName] = icFreeDrawing;
+          //     return acc;
+          //   }, {});
+          //   const compositeConfig = Compositer.defaultCompositeConfig(parts, false, false);
+          //   const icComposite     = infiniteCanvas.createIcComposite(trueRect__composite, parts, compositeConfig); 
+          //   icComposite.cType = "freeDrawingObj";
+          //   icComposite.isEntity = true;
+          //   // icComposite.fillColor = "green";
+
+          //   //SHU: illusion
+          //   icComposite.fill    = "transparent";
+          //   // icComposite.opacity = 0;
+
+          //   //add composite 
+          //   infiniteCanvas.addNewIcObject(icComposite);
+
+          //   icObj__freeDrawing__result = icComposite;
+
+          // } else {
+          //   //only one icObj (arr_icFreeDrawing.length == 1) : don't create composite 
+          //   const icFreeDrawing0       = arr_icFreeDrawing.find(e => true);
+          //   icObj__freeDrawing__result = icFreeDrawing0; 
+          // }
+
+          // // if(icObj__freeDrawing__result.fObj.isAdhesive) {
+          // const isAdhesive = arr_icFreeDrawing.find(e => true)?.exoObject.isAdhesive;
+          // if(isAdhesive) {
+
+          //   if((arr_icFreeDrawing.length > 0) && (infiniteCanvas.adhesive__support__icObj != null)) {
+          //     const icObj__support__start           = infiniteCanvas.adhesive__support__icObj;
+          //     const rep_free__icObj__support__start = infiniteCanvas.getRepresented(icObj__support__start.id).r_free(); //SHU: probably overkill
+
+          //     //manage adhesion
+          //     infiniteCanvas.manageAdhesion(icObj__freeDrawing__result, rep_free__icObj__support__start);  
+          //   }
+
+          //   if(infiniteCanvas.adhesive__isAdhesiveKick) {
+          //     const true_cursor = infiniteCanvas.getTrueCursor();
+          //     const icObj__support__end = infiniteCanvas.getCandidateSupportUnderPoint(true_cursor, icObj__freeDrawing__result);
+          //     if(icObj__support__end != null) {
+          //       const rep_free__icObj__support__end = infiniteCanvas.getRepresented(icObj__support__end.id).r_free();
+
+          //       //manage adhesion
+          //       infiniteCanvas.manageAdhesion(icObj__freeDrawing__result, rep_free__icObj__support__end);  
+          //     }
+
+          //     infiniteCanvas.adhesive__isAdhesiveKick = false;
+          //   }
+
+          // }
+
+
+          //clear
+          this.arr_icZPixelFreeDrawing = [];
+          // infiniteCanvas.adhesive__support__icObj = null;
+        }
+        
+      
+        // }
+
 
 
 
@@ -63433,6 +63721,14 @@
                   infiniteCanvas.isZIndexEditing = false;
                 }
                 return;
+              } else if(keyboardIntegration.keyDownToggles.digit2.isActive) {
+
+                // if (isActive) {
+                //   fabricIntegration.enterZPixelRectFreeDrawing(type);
+                // } else {
+                //   fabricIntegration.leaveZPixelRectFreeDrawing();
+                // }
+
               } else {
 
                 // if (isActive) {
@@ -63443,9 +63739,22 @@
                 //   fabricIntegration.leavePathmadeOperatorPathDrawing__composite();
                 // }
 
-                if(keyboardIntegration.keyDownToggles.digit2.isActive) {
+                const isSomethingSelected = false;
+                if(isSomethingSelected) {
 
+                } else {
 
+                  if (isActive) {
+                    const type = "";
+                    const depth = 2;
+                    // const depth = math.Infinity;
+                    const config = {
+                      depth: depth,
+                    };
+                    fabricIntegration.enterZPixelRectSelectionMode(config__selection__zPixelRect);
+                  } else {
+                    fabricIntegration.leaveZPixelRectSelectionMode();
+                  }
 
                 }
 
