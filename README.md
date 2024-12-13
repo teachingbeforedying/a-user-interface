@@ -6,7 +6,7 @@
 
 ## Try it !
 (Keep ² or ` key pressed (right above TAB) and click to draw)    
-https://mathgame.fr/ic.html    
+https://mathgame.fr/3DRoom+ic.html    
        
 Advice: To be very comfortable and precise,       
 reverse left click and right click in your OS mouse settings,       
@@ -23,7 +23,7 @@ Infinite canvas: space is not constrained in width, height, or depth
 Z-scroll: resize your elements in a blink   
 Z-index: bring this in front of that    
 Create and save/load presentations with text, images, videos, ...    
-_Easy yet awesome freeDraw UX_ (zPencil, comb...)       
+_Easy yet awesome freeDraw UX_ (zPencil, comb, zPixel, ...)       
 Batch paste          
 Interactive objects     
 Operators      
@@ -50,7 +50,9 @@ For math stuff: https://mathgame.fr (or index.html in offline mode)
 <br/>
 
 ## Vision
-The vision is to create a galaxy of interactive objects to teach/learn differently.    
+The vision is to create a galaxy of interactive objects to teach/learn differently.       
+But, to be pragmatic, it's all about z-ifying all that can be z-ified        
+(i.e. what if all software were made with infinite canvas as a principle)       
 
 A ton of ideas still remain in ![still_shute](./still_shute.txt)    
 Some are written in English and some in French.     
