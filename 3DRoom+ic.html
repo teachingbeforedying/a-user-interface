@@ -30920,10 +30920,12 @@
 
       createInfinishute_p() {
 
-        const counter = this.counter;
-        const offset = this.offset;
-        const scale = this.scale;
+        const counter     = this.counter;
+        const offset      = this.offset;
+        const scale       = this.scale;
         const orientation = this.orientation;
+
+        const arr_fObjImage = Object.values(fabricIntegration.fabric_objects).filter((fObj) => fObj instanceof fabric.Image);
 
         // const arr_icObjects_serial_p = this.icObjects.any.map(icObj => icObj.toSerial_p());
         // console.log("this.icObjects['any'].length", this.icObjects['any'].length);
@@ -30943,8 +30945,8 @@
         const infinishute_p = all_official_serial_p.then((arr_official_serial) => {
           const infinishute = {};
 
-          infinishute.offset = offset;
-          infinishute.scale = scale;
+          infinishute.offset      = offset;
+          infinishute.scale       = scale;
           infinishute.orientation = orientation;
 
           infinishute.counter = counter;
@@ -30960,6 +30962,9 @@
           //   return acc;
           // }, {});
 
+          return infinishute;
+        }).then((infinishute) => {
+          infinishute.arr_fObjImage = arr_fObjImage;
           return infinishute;
         });
 
@@ -32504,6 +32509,24 @@
         }
         icObj.registerFunc("offRelease", offRelease);
 
+
+        //bonus
+        this.addInitial_onHoldListener();
+
+      }
+
+      addInitial_onHoldListener() {
+        const icObj = this;
+        icObj.onHold((icObj) => {
+          logger.log("logZPixelZScroll", "addInitial_onHoldListener", "onHold", "icObj:", icObj);
+
+          const dScale_when_held = {
+            X: infiniteCanvas.scale.X / icObj.homeScale.X,
+            Y: infiniteCanvas.scale.Y / icObj.homeScale.Y,
+          };
+
+          infiniteCanvas.dScale_when_held = dScale_when_held;
+        });
       }
 
       addInteraction_edit() {
@@ -52653,13 +52676,12 @@
 
         updateFabricObject_position_zPixelZScroll__container(fObj) {
           logger.log("logZScroll", "updateFabricObject_position_zPixelZScroll__container", fObj);
-          // const infiniteCanvas = this.infiniteCanvas;
+
+          const infiniteCanvas = this.infiniteCanvas;
+
+          const dict_zPixel    = this.createDict__zPixel__forZPixelZScroll(infiniteCanvas, fObj);
 
           const icObj = fObj.icObj;
-
-          const screenPoint__cursor = this.cursor;
-
-          const dict_zPixel = this.createDict__zPixel__forZPixelBrushPointer(screenPoint__cursor);
 
           const position_update = {
             x: dict_zPixel.trueRect.x,
@@ -52670,6 +52692,23 @@
           Object.assign(icObj_new.position, position_update);
 
           icObj.update(icObj_new, false);
+        }
+
+        createDict__zPixel__forZPixelZScroll(infiniteCanvas, fObj) {
+          const icObj = fObj.icObj;
+
+          const truePoint      = infiniteCanvas.getTrueCursor();
+
+          // const homeScaleX     = infiniteCanvas.scale.X / 16.0;
+          const homeScaleX     = infiniteCanvas.scale.X / infiniteCanvas.dScale_when_held.X;
+          // logger.log("logZPixelZScroll", "icObj.homeScale.X:",                 icObj.homeScale.X);
+          // logger.log("logZPixelZScroll", "infiniteCanvas.scale.X:",            infiniteCanvas.scale.X);
+          // logger.log("logZPixelZScroll", "infiniteCanvas.dScale_when_held.X:", infiniteCanvas.dScale_when_held.X);
+
+          //get dict_zPixel
+          const dict_zPixel    = Geometry.zPixelUtils.defaultInstance.createDict__zPixel(infiniteCanvas, truePoint, homeScaleX);
+
+          return dict_zPixel;
         }
 
 
@@ -53232,14 +53271,12 @@
         updateFabricObject_size_zPixelZScroll__container(fObj) {
           logger.log("logZScroll", "updateFabricObject_size_zPixelZScroll__container", fObj);
           
-          // const infiniteCanvas = this.infiniteCanvas;
-          // logger.log("logZScroll", "updateFabricObject_size_zPixelZScroll__container", "infiniteCanvas:", infiniteCanvas);
+          const infiniteCanvas = this.infiniteCanvas;
 
+          const dict_zPixel    = this.createDict__zPixel__forZPixelZScroll(infiniteCanvas, fObj);
 
-          // const scale = this.infiniteCanvas.scale;
+          const icObj = fObj.icObj;
 
-          const screenPoint__cursor = this.cursor;
-          const dict_zPixel = this.createDict__zPixel__forZPixelBrushPointer(screenPoint__cursor); //pass icObj.homeScale here to take place of iC.scale
 
           const homeScale_new = Object.assign({}, dict_zPixel.homeScale);
           // const homeScale_new = {
@@ -53250,8 +53287,6 @@
           const icObj_update = {
             homeScale: homeScale_new,
           };
-
-          const icObj = fObj.icObj;
 
           const icObj_new = Object.assign({}, icObj);
           Object.assign(icObj_new, icObj_update);
@@ -54419,50 +54454,11 @@
           
           //get truePoint
           const truePoint = infiniteCanvas.toTruePoint(screenPoint);
-          // logger.log("logZPixel", "getZPixelFRect", "truePoint:", truePoint);
 
+          const homeScaleX = infiniteCanvas.scale.X / 16.0; 
 
-          //get zPixelCoords
-          // const homeScaleX = infiniteCanvas.scale.X;
-
-          const homeScaleX = infiniteCanvas.scale.X / 16.0;
-          // const homeScaleX = infiniteCanvas.scale.X / 128.0;
-
-          const zLevel = Geometry.zPixelUtils.defaultInstance.zLevelForHomeScaleX(homeScaleX);
-          logger.log("logZPixel", "getZPixelFRect", "zLevel:", zLevel);
-
-          // const zPixelCoords = Geometry.zPixelUtils.defaultInstance.zPixelCoordsForTruePointAndHomeScaleX(truePoint, homeScaleX);
-          const zPixelCoords = Geometry.zPixelUtils.defaultInstance.zPixelCoordsForTruePointAndZLevel(truePoint, zLevel);
-          logger.log("logZPixel", "getZPixelFRect", "zPixelCoords:", zPixelCoords);
-
-          //get trueRect
-          const miniDict = Geometry.zPixelUtils.defaultInstance.dict_trueRectAndHomeScale_forZPixelCoords(zPixelCoords);
-          const trueRect__zPixel  = miniDict.trueRect;
-          const homeScale__zPixel = miniDict.homeScale;
-          logger.log("logZPixel", "trueRect__zPixel:",  trueRect__zPixel);
-          logger.log("logZPixel", "homeScale__zPixel:", homeScale__zPixel);
-
-
-          //convert to screenRect
-          // const screenRect__zPixel = infiniteCanvas.getScreenRectForTrueRect(trueRect__zPixel); 
-          const screenRect__zPixel = infiniteCanvas.getScreenRectForTrueRectAtHomeScale(trueRect__zPixel, homeScale__zPixel);
-
-          // screenRect__zPixel.width  *= 16.0;  
-          // screenRect__zPixel.height *= 16.0;
-
-          outDict = {
-            //
-            screenRect:   screenRect__zPixel,
-
-            screenPoint:  screenPoint,
-            truePoint:    truePoint,
-
-            //
-            zPixelCoords: zPixelCoords,
-
-            trueRect:     trueRect__zPixel,
-            homeScale:    homeScale__zPixel,
-          };
+          //get dict_zPixel
+          outDict = Geometry.zPixelUtils.defaultInstance.createDict__zPixel(infiniteCanvas, truePoint, homeScaleX);
 
           return outDict;
         }
@@ -59657,6 +59653,42 @@
           return miniDict;
         }
 
+        createDict__zPixel(infiniteCanvas, truePoint, homeScaleX) {
+          var outDict;
+
+          const zLevel = Geometry.zPixelUtils.defaultInstance.zLevelForHomeScaleX(homeScaleX);
+          logger.log("logZPixel", "getZPixelFRect", "zLevel:", zLevel);
+
+          const zPixelCoords = Geometry.zPixelUtils.defaultInstance.zPixelCoordsForTruePointAndZLevel(truePoint, zLevel);
+          logger.log("logZPixel", "getZPixelFRect", "zPixelCoords:", zPixelCoords);
+
+          //get trueRect
+          const miniDict = Geometry.zPixelUtils.defaultInstance.dict_trueRectAndHomeScale_forZPixelCoords(zPixelCoords);
+          const trueRect__zPixel  = miniDict.trueRect;
+          const homeScale__zPixel = miniDict.homeScale;
+          logger.log("logZPixel", "trueRect__zPixel:",  trueRect__zPixel);
+          logger.log("logZPixel", "homeScale__zPixel:", homeScale__zPixel);
+
+          //convert to screenRect
+          const screenRect__zPixel = infiniteCanvas.getScreenRectForTrueRectAtHomeScale(trueRect__zPixel, homeScale__zPixel);
+
+          outDict = {
+            //
+            screenRect:   screenRect__zPixel,
+
+            // screenPoint:  screenPoint,
+            truePoint:    truePoint,
+
+            //
+            zPixelCoords: zPixelCoords,
+
+            trueRect:     trueRect__zPixel,
+            homeScale:    homeScale__zPixel,
+          };
+
+          return outDict;
+
+        }
 
       }
       Geometry.zPixelUtils = zPixelUtils;
@@ -61647,7 +61679,8 @@
               switch(str__extension) {
                 case "shu":
                   {
-                    file = this.createFile__infinishute__from_zipped_p(file_in);
+                    // file = this.createFile__infinishute__from_zipped_p(file_in);
+                    file = this.createDict__infinishute__from_zipped_p(file_in);
                   }
                   break;
                 case "json":
@@ -61683,6 +61716,33 @@
         }
 
         static createFile__infinishute__from_zipped_p(file__zipped) {
+          return new Promise((resolve, reject) => {
+
+            const jsZip = new JSZip();
+            jsZip.loadAsync(file__zipped).then(function(contents) {
+              logger.log("jsZip.loadAsync", "contents:", contents);
+
+              const files = contents.files;
+              
+              const filename__infinishute_json = "infinishute.json";
+              
+              const jsZipFile__infinishute_json = files[filename__infinishute_json];
+              logger.log("openFile__zipped", "jsZipFile__infinishute_json:", jsZipFile__infinishute_json);
+              
+              jsZipFile__infinishute_json.async('text').then((str__infinishute__json) => {
+                logger.log("openFile__zipped", "str__infinishute__json:", str__infinishute__json);
+
+                const blob__infinishute_json = new Blob([str__infinishute__json], {type: "plain/text"});
+                const file__infinishute_json = new File([blob__infinishute_json], "infinishute.json");
+                resolve(file__infinishute_json);
+              });      
+
+            });
+
+          });
+        }
+
+        static createDict__infinishute__from_zipped_p(file__zipped) {
           return new Promise((resolve, reject) => {
 
             const jsZip = new JSZip();
@@ -61804,6 +61864,31 @@
 
           let file = new File([buf], 'filename', { type: mime }); // note: [buf]
           return file;
+        }
+
+        static fileForFabricImage__indiv_p(fObj__image, filename) {
+          logger.log("logSer", fObj__image, filename);
+
+          const options  = {};
+          const canvasEl = fObj__image.toCanvasElement(options);
+
+          return FileIntegration.fileForCanvasEl__indiv_p(canvasEl, options);
+        }
+
+        static fileForCanvasEl__indiv_p(canvasEl, filename) {
+          logger.log("logSer", canvasEl, filename);
+
+          return new Promise((resolve, reject) => {
+
+            canvasEl.toBlob((blob) => {
+              // const string__objectURL = URL.createObjectURL(blob);
+              const mime = "image/png";
+              const file = new File([blob], filename, { type: mime });  // note: [blob]
+              resolve(file);
+            });
+
+          });
+
         }
 
 
@@ -62570,6 +62655,29 @@
             });
         }
 
+        static save_to_folder__zipped(obj__folder) {
+          logger.log("logSer", "save_to_folder__zipped", obj__folder);
+
+          const jsZip = new JSZip();
+
+          const filename = "infinishute.json";    
+          jsZip.file(filename, obj__folder["infinishute.json"]);
+
+          const folder__res = jsZip.folder("res");
+
+          const folder__img = jsZip.folder("res/img");
+          Object.entries(obj__folder.res.img).forEach(([filename, file]) => {
+            folder__img.file(filename, file, { /*base64: true,*/ binary: true });   //because File extends Blob
+          });
+
+
+          jsZip.generateAsync({ type: "blob", compression: "DEFLATE"})
+            .then(function (content) {
+              // see FileSaver.js
+              saveAs(content, "infinishute.shu");
+            });
+        }
+
 
 
 
@@ -62758,7 +62866,31 @@
 
 
           // FileIntegration.save_to_file(infiniShute);
-          FileIntegration.save_to_file__zipped(infiniShute);
+          // FileIntegration.save_to_file__zipped(infiniShute);
+
+          {
+            const arr_fObjImage     = infiniShute.arr_fObjImage;
+            delete infiniShute.arr_fObjImage;
+
+            const json__infiniShute = JSON.stringify(infiniShute);
+
+            const dict_image = Object.fromEntries(arr_fObjImage.map((fObj__image) => {
+              // const filename    = fObj__image.getFilename();
+              const filename    = "fObjImage_with_id__" + fObj__image.icObj.id + ".png";
+              const file__image = FileIntegration.fileForFabricImage__indiv_p(fObj__image, filename);
+              return [filename, file__image];
+            }));
+
+            const obj__folder = {
+              "infinishute.json": json__infiniShute,
+              res: {
+                img: dict_image,
+                // zImg: dict_zImage,
+              },
+            };
+
+            FileIntegration.save_to_folder__zipped(obj__folder);
+          }
 
           //?
           return Promise.resolve(true);
