@@ -431,6 +431,37 @@
 
     }
 
+    class DictUtils {
+
+      static setValueAtArrKey(dict_inout, arr__key, value, isForceOverwrite = false) {
+        const key__last = arr__key.slice(-1); 
+        arr__key.reduce((acc, x) => {
+          
+          if(x == key__last) { 
+
+            if(acc[x] == null) {
+              acc[x] = value;
+            } else {
+              if(isForceOverwrite) {
+                acc[x] = value;
+              } else {
+                throw new Error("DictUtils::setValueAtArrKey: " + arr__key + ", value already set: " + acc[x]);
+              }
+            }
+
+          } else {
+            if(acc[x] == null) {
+              acc[x] = {};
+            }   
+          }
+    
+          return acc[x];             
+        }, dict_inout);
+        return dict_inout;
+      }
+
+    }
+
     class StringUtils {
       static count(string, word) {
         return string.split(word).length - 1;
@@ -1618,7 +1649,7 @@
         // const ctx = canvas__tool.getContext('2d');
         const ctx = ctx__tool;
 
-        canvas__tool.width = imagedata.width;
+        canvas__tool.width  = imagedata.width;
         canvas__tool.height = imagedata.height;
         ctx.putImageData(imagedata, 0, 0);
 
@@ -8397,7 +8428,7 @@
   <!-- <script type="text/javascript" src="lib/bluebird.min.js"></script> -->
   <script type="text/javascript" src="lib/bluebird.browserified.bundle.js"></script>
   <script>
-    logger.log("Bundle_BBIRD", Bundle_BBIRD);
+    //logger.log("Bundle_BBIRD", Bundle_BBIRD);
 
     const bluebird = Bundle_BBIRD.bluebird;
   </script>
@@ -8415,7 +8446,21 @@
       sum_p.then(value => {
         logger.log("sum_p", value);
       });
-    </script> -->
+
+
+
+      logger.log("Bundle_BBIRD", "bluebird.Promise.props:", bluebird.Promise.props);
+      
+      const dict_withP = {
+        lol: bluebird.delay(100, "lolo"),
+        lil: bluebird.delay(20, "lili"),
+      };
+
+      bluebird.Promise.props(dict_withP).then((dict) => {
+        logger.log("Bundle_BBIRD", "bluebird.Promise.props", "dict", dict);
+      });
+      
+    </script> --></link>
 
 
   <!-- query variables -->
@@ -30985,7 +31030,7 @@
           })
 
           .then(infinishute => {
-            return FileIntegration.saveInfinishute_p(infinishute);
+            return FileIntegration.saveInfinishute_p(infiniteCanvas, infinishute);
           })
           .then(success => {
             console.log("saveInfinishute_p", "success", success);
@@ -31007,11 +31052,14 @@
       }
 
 
-      manageLoadInfinishute(json) {
-        console.log("manageLoadInfinishute", json);
+      //manageLoadInfinishute(json) {
+      manageLoadInfinishute(dict__infinishute) {
+        logger.log("logDeSer", "manageLoadInfinishute", "dict__infinishute:", dict__infinishute);
 
-        this.offset = json.offset;
-        this.scale = json.scale;
+        const json = dict__infinishute["infinishute.json"];
+
+        this.offset      = json.offset;
+        this.scale       = json.scale;
         this.orientation = json.orientation;
 
         // this.counter = json.counter;
@@ -31022,6 +31070,13 @@
         const arr_official = Object.values(json.official);
 
         const arr_icObj_p = arr_official.map((json_icObject, i) => {
+
+          //inject imgSrc
+          const filename__image = "fObjImage_with_id__" + json_icObject.id__imgSrc + ".png";
+          const imgSrc = dict__infinishute["res"]["img"][filename__image];
+          logger.log("logDeSer", "imgSrc:", imgSrc);
+          json_icObject.imgSrc = imgSrc;
+
           const icObj_p = IcObject.fromJson_p(json_icObject);
           return icObj_p;
         });
@@ -31878,18 +31933,21 @@
 
             break;
           case "image":
-            const img_serial = json_icObject.img;
-            const img_p = FileIntegration.imageFromImgSrc_p(img_serial);
+          case "sparkle":
+            {
+              const imgSrc_serial = json_icObject.imgSrc;
+              const img_p = FileIntegration.imageFromImgSrc_p(imgSrc_serial);
 
-            const arr_p = [icObj_p, img_p];
+              const arr_p = [icObj_p, img_p];
 
-            icObj_p = Promise.all(arr_p)
-              .then(([icObj, img]) => {
+              icObj_p = Promise.all(arr_p)
+                .then(([icObj, img]) => {
 
-                icObj.img = img;
+                  icObj.img = img;
 
-                return icObj;
-              });
+                  return icObj;
+                });
+            }
             break;
           case "circle":
             const radius = json_icObject.radius;
@@ -31928,23 +31986,6 @@
           case "zPixelFreeDrawing":
             const exoObject = json_icObject.exoObject;
             icObj.exoObject = exoObject;
-            break;
-
-          case "sparkle":
-            {
-              const img_serial = json_icObject.img;
-              const img_p = FileIntegration.imageFromImgSrc_p(img_serial);
-
-              const arr_p = [icObj_p, img_p];
-
-              icObj_p = Promise.all(arr_p)
-                .then(([icObj, img]) => {
-
-                  icObj.img = img;
-
-                  return icObj;
-                });
-            }
             break;
 
           case "touchSlot":
@@ -32231,18 +32272,21 @@
           //
           //   break;
           case "image":
+          case "sparkle":
             {
-              const img = icObj.img;
-              const img_serial_p = FileIntegration.dataUrlForImgViaCanvas_p(img);
+              // const img = icObj.img;
+              // const img_serial_p = FileIntegration.dataUrlForImgViaCanvas_p(img);
 
-              const arr_p = [icObj_serial_p, img_serial_p];
+              // const arr_p = [icObj_serial_p, img_serial_p];
 
-              icObj_serial_p = Promise.all(arr_p)
-                .then(([icObj_serial, img_serial]) => {
+              // icObj_serial_p = Promise.all(arr_p)
+              //   .then(([icObj_serial, img_serial]) => {
 
-                  icObj_serial.img = img_serial;
-                  return icObj_serial;
-                });
+              //     icObj_serial.img = img_serial;
+              //     return icObj_serial;
+              //   });
+
+              icObj_serial.id__imgSrc = icObj_serial.id;
             }
             break;
 
@@ -32324,22 +32368,6 @@
               // const exoObject_serial = JSON.stringify(exoObject__clone);
 
               icObj_serial.exoObject = exoObject_serial;
-            }
-            break;
-
-          case "sparkle":
-            {
-              const img = icObj.img;
-              const img_serial_p = FileIntegration.dataUrlForImgViaCanvas_p(img);
-
-              const arr_p = [icObj_serial_p, img_serial_p];
-
-              icObj_serial_p = Promise.all(arr_p)
-                .then(([icObj_serial, img_serial]) => {
-
-                  icObj_serial.img = img_serial;
-                  return icObj_serial;
-                });
             }
             break;
 
@@ -61680,7 +61708,7 @@
                 case "shu":
                   {
                     // file = this.createFile__infinishute__from_zipped_p(file_in);
-                    file = this.createDict__infinishute__from_zipped_p(file_in);
+                    file = this.createDict_file__from_zipped_p(file_in);
                   }
                   break;
                 case "json":
@@ -61742,31 +61770,126 @@
           });
         }
 
-        static createDict__infinishute__from_zipped_p(file__zipped) {
-          return new Promise((resolve, reject) => {
+        static createDict_file__from_zipped_p(file__zipped) {
 
-            const jsZip = new JSZip();
-            jsZip.loadAsync(file__zipped).then(function(contents) {
-              logger.log("jsZip.loadAsync", "contents:", contents);
+          function createPromiseForZipObject(file) {
+            var out_p;
 
-              const files = contents.files;
-              
-              const filename__infinishute_json = "infinishute.json";
-              
-              const jsZipFile__infinishute_json = files[filename__infinishute_json];
-              logger.log("openFile__zipped", "jsZipFile__infinishute_json:", jsZipFile__infinishute_json);
-              
-              jsZipFile__infinishute_json.async('text').then((str__infinishute__json) => {
-                logger.log("openFile__zipped", "str__infinishute__json:", str__infinishute__json);
+            const name = file.name;
 
-                const blob__infinishute_json = new Blob([str__infinishute__json], {type: "plain/text"});
-                const file__infinishute_json = new File([blob__infinishute_json], "infinishute.json");
-                resolve(file__infinishute_json);
-              });      
+            if(name == "infinishute.json") {
+
+              const infinishute_p = new Promise((resolve, reject) => {
+
+                file.async('text').then((str__infinishute__json) => {
+                  // logger.log("openFile__zipped", "str__infinishute__json:", str__infinishute__json);
+  
+                  const blob__infinishute_json = new Blob([str__infinishute__json], {type: "plain/text"});
+                  const file__infinishute_json = new File([blob__infinishute_json], "infinishute.json");
+                  resolve(file__infinishute_json);
+                });      
+
+              });
+
+              out_p = infinishute_p;
+
+            } else {
+
+              const filename__last = name.split('/').slice(-1);
+
+              const image_p = new Promise((resolve, reject) => {
+
+                file.async('blob').then((blob__image) => {
+                  // logger.log("openFile__zipped", "blob__image:", blob__image);
+  
+                  const file__image = new File([blob__image], filename__last);
+                  resolve(file__image);
+                });      
+
+              });
+
+              out_p = image_p;
+
+            }
+
+            return out_p;
+          }
+
+
+          function createDict_full_of_promises_p(file_zipped) {
+
+            function updateDict_with_file_promise(dict_inout, relativeName, obj_p) {
+
+              const arr_component = relativeName.split('/');
+              DictUtils.setValueAtArrKey(dict_inout, arr_component, obj_p, false);
+              
+              return dict_inout;
+            }
+
+            function revampChildDictsToFolderPromises(dict_inout) {
+              Object.entries(dict_inout).forEach(([propName, prop]) => {
+                if(prop["__isDir"]) {
+                  const child_p = folderPromiseForDict(prop);
+                  dict_inout[propName] = child_p;
+                }
+              });
+            }
+
+            function folderPromiseForDict(dict_inout) {
+              var out_p;
+
+              //revamp child dicts
+              Object.entries(dict_inout).forEach(([propName, prop]) => {
+                if(prop["__isDir"]) {
+                  const child_p = folderPromiseForDict(prop);
+                  dict_inout[propName] = child_p;
+                }
+              });
+
+              //revamp
+              if(dict_inout["__isDir"]) {
+                delete dict_inout["__isDir"];
+                out_p = bluebird.Promise.props(dict_inout);
+              }
+              
+              return out_p;
+            }
+
+            const outDict_p = new Promise((resolve, reject) => {
+
+              const jsZip = new JSZip();
+              jsZip.loadAsync(file__zipped, {createFolders: true}).then(function(contents) {
+                logger.log("jsZip.loadAsync", "contents:", contents);
+
+                var outDict = {};
+
+                contents.forEach((relativeName, file) => {
+                  logger.log("jsZip.loadAsync", "contents.forEach", "relativeName:", relativeName, "file:", file);
+
+                  const obj_p = createPromiseForZipObject(file);
+
+                  if(file.dir) {
+                    //update dict with folder marker "__isDir"
+                    const arr_component   = relativeName.split('/').slice(0, -1);   //otherwise, last component will be "" (path ends with '/' as in '/lol/lal/')
+                    DictUtils.setValueAtArrKey(outDict, [...arr_component, "__isDir"], true, false);
+                  } else {
+                    updateDict_with_file_promise(outDict, relativeName, obj_p);
+                  }
+
+                });
+
+                revampChildDictsToFolderPromises(outDict);
+              
+                resolve(outDict);
+              });
 
             });
 
-          });
+            return outDict_p;
+          }
+
+          const dict_withP_p = createDict_full_of_promises_p(file__zipped);
+          return bluebird.Promise.props(dict_withP_p);
         }
 
 
@@ -61866,13 +61989,70 @@
           return file;
         }
 
-        static fileForFabricImage__indiv_p(fObj__image, filename) {
-          logger.log("logSer", fObj__image, filename);
+        // static fileForFabricImage__indiv_p(fObj__image, filename) {
+        //   logger.log("logSer", fObj__image, filename);
 
+        //   const options  = {};
+        //   const canvasEl = fObj__image.toCanvasElement(options);
+
+        //   return FileIntegration.fileForCanvasEl__indiv_p(canvasEl, options);
+        // }
+
+        static fileForFabricImage__indiv_p(infiniteCanvas, fObj__image, filename) {
+          logger.log("logSer", fObj__image, filename);
+          var out_p;
+
+          //prepare canvas for photo
+          // {
+            //store "iC pov"
+            const offset__tmp = Object.assign({}, infiniteCanvas.offset);
+            const scale__tmp  = Object.assign({}, infiniteCanvas.scale);
+
+            const icObj = fObj__image.icObj;
+
+            //set "iC pov" = "obj pov" 
+            const scale__obj = {
+              X: icObj.homeScale.X * icObj.scale.X,
+              Y: icObj.homeScale.Y * icObj.scale.Y,
+            };
+            // const offset__obj = {
+            //   dx: 0,
+            //   dy: 0,
+            // };
+            const offset__obj = {
+              dx: -icObj.position.x,
+              dy: -icObj.position.y,
+            };
+            infiniteCanvas.updateScaleAndOffset(scale__obj, offset__obj);
+            infiniteCanvas.redrawCanvas(RedrawOccasion.scaleChanged);
+          // }
+
+          //take photo
+          // {
           const options  = {};
           const canvasEl = fObj__image.toCanvasElement(options);
 
-          return FileIntegration.fileForCanvasEl__indiv_p(canvasEl, options);
+          out_p = FileIntegration.fileForCanvasEl__indiv_p(canvasEl, options)
+          // }
+          .then((file) => {
+            return bluebird.delay(100, file);   //SHU: debug,  TODO: implement redrawCanvas_p 
+          })
+          .then((file) => {
+
+            //restore canvas after photo
+            //{
+              //restore "iC pov"
+              infiniteCanvas.updateScaleAndOffset(scale__tmp, offset__tmp);
+              infiniteCanvas.redrawCanvas(RedrawOccasion.scaleChanged);
+            //}
+
+            return file;
+          })
+          .then((file) => {
+            return bluebird.delay(100, file);   //SHU: debug,  TODO: implement redrawCanvas_p 
+          });
+
+          return out_p;
         }
 
         static fileForCanvasEl__indiv_p(canvasEl, filename) {
@@ -62848,7 +63028,7 @@
 
 
 
-        static saveInfinishute_p(infiniShute) {
+        static saveInfinishute_p(infiniteCanvas, infiniShute) {
 
           // const obj = {
           //   // zimages  : zimages,
@@ -62877,7 +63057,7 @@
             const dict_image = Object.fromEntries(arr_fObjImage.map((fObj__image) => {
               // const filename    = fObj__image.getFilename();
               const filename    = "fObjImage_with_id__" + fObj__image.icObj.id + ".png";
-              const file__image = FileIntegration.fileForFabricImage__indiv_p(fObj__image, filename);
+              const file__image = FileIntegration.fileForFabricImage__indiv_p(infiniteCanvas, fObj__image, filename);
               return [filename, file__image];
             }));
 
@@ -62906,7 +63086,8 @@
           // .then(FileIntegration.createJson_p);
 
           return FileIntegration.openFile_p(accept)
-            .then(FileIntegration.createJson_p);
+            // .then(FileIntegration.createJson_p);
+            .then(FileIntegration.createDict_jsObjects__fromDict_file_p);
         }
 
         static createJson_p(file) {
@@ -62918,8 +63099,145 @@
               //console.log("json:", json);
               return json;
             });
-
         }
+
+        static createDict_jsObjects__fromDict_file_p(dict_file) {
+          logger.log("logDeSer", "createDictWithJSObjects_p", "dict_file:", dict_file);
+
+          function createJson__infinishute_p(file_json__infinishute) {
+            return FileIntegration.getFileText_p(file_json__infinishute)
+            .then(text => {
+              const json = JSON.parse(text);
+              return json;
+            });
+          }
+
+          function createImgSrc_p(file_image) {
+            return FileIntegration.getFileData_p(file_image);
+          }
+
+
+          function createDict_full_of_promises_p(dict_file) {
+
+            // function updateDict_with_file_promise(dict_inout, relativeName, obj_p) {
+
+            //   const arr_component = relativeName.split('/');
+            //   DictUtils.setValueAtArrKey(dict_inout, arr_component, obj_p, false);
+              
+            //   return dict_inout;
+            // }
+
+            // function revampChildDictsToFolderPromises(dict_inout) {
+            //   Object.entries(dict_inout).forEach(([propName, prop]) => {
+            //     if(prop["__isDir"]) {
+            //       const child_p = folderPromiseForDict(prop);
+            //       dict_inout[propName] = child_p;
+            //     }
+            //   });
+            // }
+
+            // function folderPromiseForDict(dict_inout) {
+            //   var out_p;
+
+            //   //revamp child dicts
+            //   Object.entries(dict_inout).forEach(([propName, prop]) => {
+            //     if(prop["__isDir"]) {
+            //       const child_p = folderPromiseForDict(prop);
+            //       dict_inout[propName] = child_p;
+            //     }
+            //   });
+
+            //   //revamp
+            //   if(dict_inout["__isDir"]) {
+            //     delete dict_inout["__isDir"];
+            //     out_p = bluebird.Promise.props(dict_inout);
+            //   }
+              
+            //   return out_p;
+            // }
+
+            const outDict_p = new Promise((resolve, reject) => {
+
+              var outDict = {};
+
+              Object.entries(dict_file).forEach(([propName, prop]) => {
+                logger.log("logDeSer", "createDict_jsObjects__fromDict_file_p", "propName:", propName, "prop:", prop);
+
+                switch(propName) {
+
+                  case "infinishute.json":
+                    {
+                      const file_json__infinishute = prop; 
+                      const json__infinishute_p    = createJson__infinishute_p(file_json__infinishute);
+
+                      // updateDict_with_file_promise(outDict, propName, json__infinishute_p);
+                      outDict[propName] = json__infinishute_p;
+                    }
+                    break;
+
+                  case "res":
+                    {
+
+                      const dict__res = {};
+
+                      //images
+                      {
+                        dict__res["img"] = {};
+
+
+                        const prop__images = prop["img"];
+
+                        Object.entries(prop__images).forEach(([propName__child, prop__child]) => {
+
+                          const file_image = prop__child; 
+                          const imgSrc_p   = createImgSrc_p(file_image);
+
+                          dict__res["img"][propName__child] = imgSrc_p;
+
+                        });
+
+                        const folderPromise = bluebird.Promise.props(dict__res["img"]);
+                        dict__res["img"] = folderPromise;
+
+                      }
+
+                      const folderPromise = bluebird.Promise.props(dict__res);
+                      outDict[propName] = folderPromise;
+
+                    }
+                    break;
+                  default:
+                    {
+                      throw new Error("Unsupported propName: " + propName + ", prop: " + prop);
+                    }
+                    break;
+                }
+
+
+                // if(file.dir) {
+                //   //update dict with folder marker "__isDir"
+                //   const arr_component   = relativeName.split('/').slice(0, -1);   //otherwise, last component will be "" (path ends with '/' as in '/lol/lal/')
+                //   DictUtils.setValueAtArrKey(outDict, [...arr_component, "__isDir"], true, false);
+                // } else {
+                //   updateDict_with_file_promise(outDict, relativeName, obj_p);
+                // }
+
+              });
+
+              // revampChildDictsToFolderPromises(outDict);
+            
+              resolve(outDict);
+
+            });
+
+            return outDict_p;
+          }
+
+          const dict_withP_p = createDict_full_of_promises_p(dict_file);
+          return bluebird.Promise.props(dict_withP_p);
+        }
+
+
 
         // static createInfinishute_p(json) {
         //   const infinishute = {};
