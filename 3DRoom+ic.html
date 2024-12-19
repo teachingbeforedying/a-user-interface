@@ -764,6 +764,16 @@
 
     }
 
+    class ICUtils {
+
+      static toDict_icObj(arr_icObj) {
+        return Object.fromEntries(arr_icObj.map((icObj) => {
+          return [icObj.id, icObj];
+        }));
+      }
+
+    }
+
 
     class CompositeUtils {
 
@@ -9989,6 +9999,151 @@
 
         return icSelectionOutput;
       }
+
+      createIcZPixelImage(dict_zPixel__TL, img) {
+
+      }
+
+      createIcZPixelImage__by_punching_p(dict_zPixelSelectionRect, icObj) {
+        const infiniteCanvas = this;
+
+        //get intersection of punching rect and icObj's trueRect
+        const trueRect__zPixelSelectionRect = dict_zPixelSelectionRect.trueRect;
+        const trueRect__icObj               = icObj.getTrueRect2();
+
+        function getTrueRectIntersection(trueRect1, trueRect2) {
+          const lrtbRect__intersection = Geometry.getIntersectionRect(
+            Geometry.createLRTBRect(Geometry.createLRRect(trueRect1)),
+            Geometry.createLRTBRect(Geometry.createLRRect(trueRect2)),
+          );
+          const trueRect__intersection = {
+            x:      lrtbRect__intersection.left,
+            y:      lrtbRect__intersection.top,
+            width:  (lrtbRect__intersection.right  - lrtbRect__intersection.left),
+            height: (lrtbRect__intersection.bottom - lrtbRect__intersection.right),
+          };
+          return trueRect__intersection;
+        }
+
+        const trueRect__intersection = getTrueRectIntersection(trueRect__zPixelSelectionRect, trueRect__icObj);
+        
+        //create icImage from intersection rect
+        const homeScale = icObj.homeScale;
+
+        const canvasEl_p = infiniteCanvas.getCanvasElement_p(icObj, trueRect__intersection, homeScale);
+        const img_p = canvasEl_p.then((canvasEl) => {
+          logger.log("logZPixelSel", "canvasEl:", canvasEl);
+          const imgSrc = canvasEl.toDataURL();
+          return imgSrc;
+        }).then((imgSrc) => {
+          logger.log("logZPixelSel", "imgSrc:", imgSrc);
+          return FileIntegration.imageFromImgSrc_p(imgSrc);
+        });
+
+        const icImage_p = img_p.then((img) => {
+          logger.log("logZPixelSel", "img:", img);
+
+          const icImage = infiniteCanvas.createIcImage(trueRect__intersection.x, trueRect__intersection.y, img);
+          icImage.homeScale = Object.assign({}, icObj.homeScale);
+
+          return icImage;
+        });
+
+        return icImage_p;
+      }
+
+      getCanvasElement_p(icObj, trueRect__cropping, homeScale) {
+        logger.log("logZPixelSel", "getCanvasElement_p", icObj, trueRect__cropping, homeScale);
+        var out_p;
+
+        const infiniteCanvas = this;    
+
+        const fObj = fabricIntegration.getFObjForIcObj(icObj);  
+
+        const screenRect__fObj = {
+          x:      fObj.left,
+          y:      fObj.top,
+          width:  fObj.width,
+          height: fObj.height,
+        };
+        
+        const screenRect__cropping = infiniteCanvas.getScreenRectForTrueRectAtHomeScale(trueRect__cropping, homeScale);
+
+        // const croppingRect = {
+        //   left:   screenRect__cropping.x,
+        //   top:    screenRect__cropping.y,
+        //   width:  screenRect__cropping.width,
+        //   height: screenRect__cropping.height,
+        // };
+
+        const croppingRect = {
+          left:   screenRect__cropping.x      - screenRect__fObj.x,
+          top:    screenRect__cropping.y      - screenRect__fObj.y,
+          width:  screenRect__cropping.width,
+          height: screenRect__cropping.height,
+        };
+
+
+        
+
+        //prepare canvas for photo
+        // {
+          //store "iC pov"
+          const offset__tmp = Object.assign({}, infiniteCanvas.offset);
+          const scale__tmp  = Object.assign({}, infiniteCanvas.scale);
+
+          // const icObj = fObj.icObj;
+
+          //set "iC pov" = "obj pov" 
+          const scale__obj = {
+            X: icObj.homeScale.X * icObj.scale.X,
+            Y: icObj.homeScale.Y * icObj.scale.Y,
+          };
+          // const offset__obj = {
+          //   dx: 0,
+          //   dy: 0,
+          // };
+          const offset__obj = {
+            dx: -icObj.position.x,
+            dy: -icObj.position.y,
+          };
+          infiniteCanvas.updateScaleAndOffset(scale__obj, offset__obj);
+          infiniteCanvas.redrawCanvas(RedrawOccasion.scaleChanged);
+        // }
+
+        //take photo
+        // {
+        const options  = Object.assign({}, croppingRect);
+        const canvasEl = fObj.toCanvasElement(options);
+
+        out_p = Promise.resolve(canvasEl)
+        .then((canvasEl) => {
+          return bluebird.delay(100, canvasEl);   //SHU: debug,  TODO: implement redrawCanvas_p 
+        })
+        .then((canvasEl) => {
+
+          //restore canvas after photo
+          //{
+            //restore "iC pov"
+            infiniteCanvas.updateScaleAndOffset(scale__tmp, offset__tmp);
+            infiniteCanvas.redrawCanvas(RedrawOccasion.scaleChanged);
+          //}
+
+          return canvasEl;
+        })
+        .then((canvasEl) => {
+          return bluebird.delay(200, canvasEl);   //SHU: debug,  TODO: implement redrawCanvas_p 
+        });
+
+        return out_p;
+      }
+
+      // getZPixel(dict_zPixel, icObj) {
+      // 
+      // //get intersection of punching rect and icObj's trueRect
+      //  const trueRect__intersection = 
+      //  
+      // }
 
       createIcPOVRect(trueRect, orientation = 0) {
 
@@ -29181,6 +29336,7 @@
         const arr_rep_free = arr_represented.map(represented => represented.r_free());
 
         const arr_zIndex = arr_rep_free.map(rep_free => rep_free.zIndex);
+        logger.log("logZPixelRectSel", "getArrIcZIndex", "arr_zIndex:", arr_zIndex);
         return arr_zIndex;
       }
 
@@ -55255,7 +55411,7 @@
             logger.log("logZPixelRectSel", "fObj", fObj);
             fObj.moveTo(fObj.zIndex);
 
-            // fObj.zIndex__ic = brush__atDrawingEnd.zIndex__ic;
+            fObj.zIndex__ic = brush__atDrawingEnd.zIndex__ic;
 
             fabricIntegration.manageCreatedZPixelRectSelectionModeObject__atomic(fObj);
           }
@@ -55289,47 +55445,68 @@
 
 
             const trueRect__zPixelSelectionRect = icObj__zPixelSelectionRect.getTrueRect2();
+            const dict_zPixelSelectionRect      = fObj.__dict_zPixelRect;
             
             const repName = "free";
             // const arr_icObj__selected = this.infiniteCanvas.getArr_icObj__intersectingTrueRect(repName, trueRect__zPixelSelectionRect).filter((icObj) => icObj.id != icObj__zPixelSelectionRect.id);
             // const arr_icObj__selected = this.infiniteCanvas.getArr_icObj__intersectingTrueRect__noticeable(repName, trueRect__zPixelSelectionRect).filter((icObj) => icObj.id != icObj__zPixelSelectionRect.id);
-            const arr_icObj__selected = this.infiniteCanvas.getArr_icObj__insideTrueRect(repName, trueRect__zPixelSelectionRect, false).filter((icObj) => icObj.id != icObj__zPixelSelectionRect.id);
+            // const arr_icObj__selected = this.infiniteCanvas.getArr_icObj__insideTrueRect(repName, trueRect__zPixelSelectionRect, false).filter((icObj) => icObj.id != icObj__zPixelSelectionRect.id);
             // const arr_icObj__selected = this.infiniteCanvas.getArr_icObj__insideTrueRect__noticeable(repName, trueRect__zPixelSelectionRect, false).filter((icObj) => icObj.id != icObj__zPixelSelectionRect.id);
+            // logger.log("logZPixelRectSel", "arr_icObj__selected:", arr_icObj__selected);
+
+
+            const arr_icObj__intersecting = this.infiniteCanvas.getArr_icObj__intersectingTrueRect(repName, trueRect__zPixelSelectionRect).filter((icObj) => icObj.id != icObj__zPixelSelectionRect.id);
+            const arr_icObj__inside       = this.infiniteCanvas.getArr_icObj__insideTrueRect(repName, trueRect__zPixelSelectionRect, false).filter((icObj) => icObj.id != icObj__zPixelSelectionRect.id);
+
+            const dict_icObj__inside = ICUtils.toDict_icObj(arr_icObj__inside);
+            const arr_icObj__overflowing = arr_icObj__intersecting.filter((icObj) => (dict_icObj__inside[icObj.id] == null) );
+
+            const arr_icObj__punched_p = Promise.all(arr_icObj__overflowing.map((icObj__overflowing) => {
+              return infiniteCanvas.createIcZPixelImage__by_punching_p(dict_zPixelSelectionRect, icObj__overflowing);
+            }));
+
+            arr_icObj__punched_p.then((arr_icObj__punched) => {
+              logger.log("logZPixelSel", "arr_icObj__punched:", arr_icObj__punched);
+
+              const icObj__selectionOutput = this.infiniteCanvas.createIcZPixelSelectionOutput(icObj__zPixelSelectionRect, arr_icObj__punched);
             
-            logger.log("logZPixelRectSel", "arr_icObj__selected:", arr_icObj__selected);
-
-            function create_clone(icObj_sample) {
-              const icObj_clone = icObj_sample.deepClone();
-              const id__clone   = infiniteCanvas.generateIcObjectId();
-              icObj_clone.id    = id__clone;
-              return icObj_clone;
-            }
-
-            const arr_icObj__selected__clone = arr_icObj__selected.map((icObj) => {
-              var outIcObj;
+              this.infiniteCanvas.addIcObject(icObj__selectionOutput); 
               
-              //create clone
-              outIcObj = create_clone(icObj);
-
-              return outIcObj;
             });
 
-            const icObj__selectionOutput = this.infiniteCanvas.createIcZPixelSelectionOutput(icObj__zPixelSelectionRect, arr_icObj__selected__clone);
-            
-            this.infiniteCanvas.addIcObject(icObj__selectionOutput); 
 
-
-
-            // //manage .isAdhesive
-            // if(fObj.isAdhesive) {
-            //   //simple
-
-
-            //   //complex: joining adhesive
-
+            // function create_clone(icObj_sample) {
+            //   const icObj_clone = icObj_sample.deepClone();
+            //   const id__clone   = infiniteCanvas.generateIcObjectId();
+            //   icObj_clone.id    = id__clone;
+            //   return icObj_clone;
             // }
 
-            this.arr_icZPixelRectSelectionOutput.push(icObj__selectionOutput);
+            // const arr_icObj__selected__clone = arr_icObj__selected.map((icObj) => {
+            //   var outIcObj;
+              
+            //   //create clone
+            //   outIcObj = create_clone(icObj);
+
+            //   return outIcObj;
+            // });
+
+            // const icObj__selectionOutput = this.infiniteCanvas.createIcZPixelSelectionOutput(icObj__zPixelSelectionRect, arr_icObj__selected__clone);
+            
+            // this.infiniteCanvas.addIcObject(icObj__selectionOutput); 
+
+
+
+            // // //manage .isAdhesive
+            // // if(fObj.isAdhesive) {
+            // //   //simple
+
+
+            // //   //complex: joining adhesive
+
+            // // }
+
+            // this.arr_icZPixelRectSelectionOutput.push(icObj__selectionOutput);
           }
 
           //allow: many zPixelRectSelections in one zPixelRectSelectionMode session (i.e. "polyatomic")
@@ -59274,9 +59451,21 @@
                      point.y >= r1.bottom  );
         }
 
-        // static getIntersectionRect(rect1, rect2) {
-        //
-        // }
+        /**
+         * Calculates the intersection rectangle of two rectangles.
+         * Rectangles have to intersect to work!
+        **/
+        static getIntersectionRect(lrtbRect1, lrtbRect2) {
+
+          const lrtbRect__intersection = {
+            left:   Math.max(lrtbRect1.left,   lrtbRect2.left),
+            top:    Math.max(lrtbRect1.top,    lrtbRect2.top),
+            right:  Math.min(lrtbRect1.right,  lrtbRect2.right),
+            bottom: Math.min(lrtbRect1.bottom, lrtbRect2.bottom),
+          };
+
+          return lrtbRect__intersection;
+        }
 
         static getIntersectionArea(rect1, rect2) {
           const r1 = {
