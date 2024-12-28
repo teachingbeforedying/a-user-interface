@@ -54719,7 +54719,7 @@
               //get funcs
               const func__brushConfig__drawingMode        = cfg.func__brushConfig__drawingMode;
 
-              const func__drawingMode_objectAdded__atomic = cfg.func__drawingMode_objectAdded__atomic;
+              const func__myFabricObjectAdded__atomic_p   = cfg.func__myFabricObjectAdded__atomic_p;
               const func__createIcObj__atomic_p           = cfg.func__createIcObj__atomic_p;
 
               const func__createIcObj__polyatomic_p       = cfg.func__createIcObj__polyatomic_p;
@@ -54727,8 +54727,10 @@
 
               //bind funcs
               this.func__brushConfig__drawingMode         = (func__brushConfig__drawingMode).bind(this);
-              this.func__drawingMode_objectAdded__atomic  = (func__drawingMode_objectAdded__atomic).bind(this);
+
+              this.func__myFabricObjectAdded__atomic_p    = (func__myFabricObjectAdded__atomic_p).bind(this);
               this.func__createIcObj__atomic_p            = (func__createIcObj__atomic_p).bind(this);
+
               this.func__createIcObj__polyatomic_p        = (func__createIcObj__polyatomic_p).bind(this);
 
 
@@ -54747,7 +54749,18 @@
               const drawingMode       = this;
               const fabricIntegration = drawingMode.fabricIntegration;
 
-              fabricIntegration.fabricCanvas.on('object:added', drawingMode.func__drawingMode_objectAdded__atomic);
+              //set brush
+              {
+                // const brush = 
+
+                //configure brush
+                drawingMode.func__brushConfig__drawingMode();
+
+                // fabricIntegration.addBrush();
+              }
+
+              drawingMode.callback__on_object_added = drawingMode.fabricObjectAdded__atomic.bind(drawingMode);
+              fabricIntegration.fabricCanvas.on('object:added', drawingMode.callback__on_object_added);
             }
     
             leaveDrawingMode__atomic(fObj) {
@@ -54755,8 +54768,22 @@
               const drawingMode       = this;
               const fabricIntegration = drawingMode.fabricIntegration;
 
-              fabricIntegration.fabricCanvas.off('object:added', drawingMode.func__drawingMode_objectAdded__atomic);
-              // this.freeDrawing_objectAdded__atomic = null;        
+              fabricIntegration.fabricCanvas.off('object:added', drawingMode.callback__on_object_added);
+              drawingMode.callback__on_object_added = null;  
+            }
+
+            fabricObjectAdded__atomic(e) {
+              logger.log("logFD", "fabricObjectAdded__atomic", "this:", this, "e:", e);
+              const drawingMode = this;
+
+              const fObj = e.target;
+              drawingMode.func__myFabricObjectAdded__atomic_p(fObj)
+                        //.filter((fObj) => (fObj.__brush != null))     //SHU: ça doit sûrement être possible dans bluebird
+                        .then((fObj) => {
+                          if(fObj.__brush != null) {
+                            drawingMode.manageCreatedDrawingModeFabricObject__atomic(fObj);
+                          }
+                        });
             }
     
             manageCreatedDrawingModeFabricObject__atomic(fObj) {
@@ -54765,7 +54792,7 @@
               const fabricIntegration = drawingMode.fabricIntegration;
               
               //listener:off 
-              fabricIntegration.fabricCanvas.off('object:added', drawingMode.func__drawingMode_objectAdded__atomic);
+              fabricIntegration.fabricCanvas.off('object:added', drawingMode.callback__on_object_added);
     
               //work
               {
@@ -54789,13 +54816,16 @@
                   // }
       
                   drawingMode.arr_icObj__created.push(icObj);
-
+                })
+                .then((icObj) => {
+                  //allow: many drawings in one drawingMode session
+                  fabricIntegration.fabricCanvas.on('object:added', drawingMode.callback__on_object_added);
                 });
 
               }
     
-              //allow: many drawings in one drawingMode session
-              fabricIntegration.fabricCanvas.on('object:added', this.func__drawingMode_objectAdded__atomic);
+              // //allow: many drawings in one drawingMode session
+              // fabricIntegration.fabricCanvas.on('object:added', drawingMode.fabricObjectAdded__atomic.bind(drawingMode));
     
             }
     
@@ -54825,7 +54855,7 @@
               drawingMode.arr_icObj__created = [];
     
               //check for adhesive support
-              // this.freeDrawing__adhesive__checkForSupport();
+              drawingMode.icObj__adhesive__support = fabricIntegration.drawingMode__adhesive__getSupport();
               
               //call atomic
               drawingMode.enterDrawingMode__atomic(cfg);
@@ -54842,17 +54872,19 @@
               drawingMode.leaveDrawingMode__atomic();
     
               //gather all created objects
-              drawingMode.manageCreatedDrawingModeObjects(drawingMode.arr_icObj__created);
-    
-              //restore singleBrush
-              if(inputProperties.brush__single != null) {
-                const singleBrush = inputProperties.brush__single;
-                // fabricIntegration.setBrush__hotSwap(singleBrush);
-                singleBrush._reset();
-                fabricIntegration.fabricCanvas.freeDrawingBrush = singleBrush;
-              }
-    
-              fabricIntegration.fabricCanvas.isDrawingMode = false;
+              drawingMode.manageCreatedDrawingModeObjects_p(drawingMode.arr_icObj__created).then((icObj__polyatomic) => {
+
+                //restore singleBrush
+                if(inputProperties.brush__single != null) {
+                  const singleBrush = inputProperties.brush__single;
+                  // fabricIntegration.setBrush__hotSwap(singleBrush);
+                  singleBrush._reset();
+                  fabricIntegration.fabricCanvas.freeDrawingBrush = singleBrush;
+                }
+      
+                fabricIntegration.fabricCanvas.isDrawingMode = false;
+
+              });
             }
     
             brush__preview__stop() {
@@ -54863,80 +54895,26 @@
               brush.clearPreview?.();
             }
     
-            manageCreatedDrawingModeObjects(arr_icObj__created) {
-              logger.log("logFD", "manageCreatedDrawingModeObjects", arr_icObj__created);
+            manageCreatedDrawingModeObjects_p(arr_icObj__created) {
+              logger.log("logFD", "manageCreatedDrawingModeObjects_p", arr_icObj__created);
+              var out_p;
+
               const drawingMode       = this;
               const fabricIntegration = drawingMode.fabricIntegration;
               const infiniteCanvas    = fabricIntegration.infiniteCanvas;
-    
-              // var icObj__freeDrawing__result;
-              // if(arr_icFreeDrawing.length > 1) {
-    
-              //   //create composite
-              //   const icFreeDrawing0 = arr_icFreeDrawing.find(e => true);
-              //   const trueRect__composite = {
-              //     x: icFreeDrawing0.position.x,
-              //     y: icFreeDrawing0.position.y,
-              //     width:  10,
-              //     height: 10,
-              //   };
-              //   const parts = arr_icFreeDrawing.reduce((acc, icFreeDrawing) => {
-              //     const partName = "freeDrawing__" + icFreeDrawing.id;
-              //     acc[partName] = icFreeDrawing;
-              //     return acc;
-              //   }, {});
-              //   const compositeConfig = Compositer.defaultCompositeConfig(parts, false, false);
-              //   const icComposite     = infiniteCanvas.createIcComposite(trueRect__composite, parts, compositeConfig); 
-              //   icComposite.cType = "freeDrawingObj";
-              //   icComposite.isEntity = true;
-              //   // icComposite.fillColor = "green";
-    
-              //   //SHU: illusion
-              //   icComposite.fill    = "transparent";
-              //   // icComposite.opacity = 0;
-    
-              //   //add composite 
-              //   infiniteCanvas.addNewIcObject(icComposite);
-    
-              //   icObj__freeDrawing__result = icComposite;
-    
-              // } else {
-              //   //only one icObj (arr_icFreeDrawing.length == 1) : don't create composite 
-              //   const icFreeDrawing0       = arr_icFreeDrawing.find(e => true);
-              //   icObj__freeDrawing__result = icFreeDrawing0; 
-              // }
-    
-              // // if(icObj__freeDrawing__result.fObj.isAdhesive) {
-              // const isAdhesive = arr_icFreeDrawing.find(e => true)?.exoObject.isAdhesive;
-              // if(isAdhesive) {
-    
-              //   if((arr_icFreeDrawing.length > 0) && (infiniteCanvas.adhesive__support__icObj != null)) {
-              //     const icObj__support__start           = infiniteCanvas.adhesive__support__icObj;
-              //     const rep_free__icObj__support__start = infiniteCanvas.getRepresented(icObj__support__start.id).r_free(); //SHU: probably overkill
-    
-              //     //manage adhesion
-              //     infiniteCanvas.manageAdhesion(icObj__freeDrawing__result, rep_free__icObj__support__start);  
-              //   }
-    
-              //   if(infiniteCanvas.adhesive__isAdhesiveKick) {
-              //     const true_cursor = infiniteCanvas.getTrueCursor();
-              //     const icObj__support__end = infiniteCanvas.getCandidateSupportUnderPoint(true_cursor, icObj__freeDrawing__result);
-              //     if(icObj__support__end != null) {
-              //       const rep_free__icObj__support__end = infiniteCanvas.getRepresented(icObj__support__end.id).r_free();
-    
-              //       //manage adhesion
-              //       infiniteCanvas.manageAdhesion(icObj__freeDrawing__result, rep_free__icObj__support__end);  
-              //     }
-    
-              //     infiniteCanvas.adhesive__isAdhesiveKick = false;
-              //   }
-    
-              // }
-    
-    
+
+              out_p = drawingMode.func__createIcObj__polyatomic_p(arr_icObj__created).then((icObj__polyatomic) => {
+                if(icObj__polyatomic != null) {
+                  // infiniteCanvas.addIcObject(icObj__polyatomic); 
+                  infiniteCanvas.addNewIcObject(icObj__polyatomic); 
+                }
+                return icObj__polyatomic;
+              });
+
               //clear
               drawingMode.arr_icObj__created = [];
-              // infiniteCanvas.adhesive__support__icObj = null;
+
+              return out_p;
             }
     
     
@@ -54983,43 +54961,52 @@
 
               outBrushConfig.zIndex__ic = inputProperties.getActiveBrushZIndex();
 
-              // outBrushConfig.isAdhesive = this.inputProperties.brushIsAdhesive;
+              // outBrushConfig.isAdhesive = inputProperties.brushIsAdhesive;
 
               return outBrushConfig;
             },
               
-            func__drawingMode_objectAdded__atomic: function(e) {
-              logger.log("logFD", "freeDrawing_objectAdded__atomic", e);
+            func__myFabricObjectAdded__atomic_p: function(fObj) {
+              logger.log("logFD", "func__myFabricObjectAdded__atomic_p", fObj);
+              var out_p;
+
               const drawingMode = this;
 
-              const fObj = e.target;
-  
-              // const brush__atDrawingStart = fabricIntegration.brushConfig__current;
-              const brush__atDrawingEnd   = fObj.__brush;
-  
-              // const fColor   = new fabric.Color(brush__atDrawingStart.color);
-              const fColor   = new fabric.Color(brush__atDrawingEnd.color); //SHU: TODO: brush__atDrawingStart
-              const rgbColor = fColor.toRgb();
-              const opacity  = fColor.getAlpha();
-              
-              fObj.set({
-                strokeWidth:  brush__atDrawingEnd.width,
-  
-                stroke:  rgbColor,
-                opacity: opacity,
-  
-                isCosmetic: cfg.isCosmetic,   //<--\
-                                              //    |--- //SHU: these too are quite incompatible...
-                isAdhesive: cfg.isAdhesive,   //<--/
-              });
-  
-              logger.log("logFD", "fObj.zIndex", fObj.zIndex);
-              logger.log("logFD", "fObj", fObj);
-              fObj.moveTo(fObj.zIndex);
-  
-              fObj.zIndex__ic = brush__atDrawingEnd.zIndex__ic;
-  
-              drawingMode.manageCreatedDrawingModeFabricObject__atomic(fObj);
+              // if(fObj.__brush != null) {
+
+                // const brush__atDrawingStart = fabricIntegration.brushConfig__current;
+                const brush__atDrawingEnd   = fObj.__brush;
+    
+                // const fColor   = new fabric.Color(brush__atDrawingStart.color);
+                const fColor   = new fabric.Color(brush__atDrawingEnd.color); //SHU: TODO: brush__atDrawingStart
+                const rgbColor = fColor.toRgb();
+                const opacity  = fColor.getAlpha();
+                
+                fObj.set({
+                  strokeWidth:  brush__atDrawingEnd.width,
+    
+                  stroke:  rgbColor,
+                  opacity: opacity,
+    
+                  isCosmetic: cfg.isCosmetic,   //<--\
+                                                //    |--- //SHU: these too are quite incompatible...
+                  // isAdhesive: cfg.isAdhesive,   //<--/
+                  isAdhesive: true,
+                });
+    
+                logger.log("logFD", "fObj.zIndex", fObj.zIndex);
+                logger.log("logFD", "fObj", fObj);
+                fObj.moveTo(fObj.zIndex);
+    
+                fObj.zIndex__ic = brush__atDrawingEnd.zIndex__ic;
+    
+                out_p = Promise.resolve(fObj);
+
+              // } else {
+              //   out_p = Promise.resolve(null);
+              // }
+
+              return out_p;
             },
 
             func__createIcObj__atomic_p: function(fObj) {
@@ -55034,85 +55021,287 @@
               return out_p;
             },
 
-            func__createIcObj__polyatomic_p: function() {
-              // logger.log("logFD", "manageCreatedFreeDrawingObjects", arr_icFreeDrawing);
+            func__createIcObj__polyatomic_p: function(arr_icObj__created) {
+              var out_p;
 
-              // const infiniteCanvas = this.infiniteCanvas;
+              const drawingMode       = this;
+              const fabricIntegration = drawingMode.fabricIntegration;
+              const infiniteCanvas    = fabricIntegration.infiniteCanvas;
     
-              // var icObj__freeDrawing__result;
-              // if(arr_icFreeDrawing.length > 1) {
+              var icObj__freeDrawing__result;
+              if(arr_icObj__created.length > 1) {
     
-              //   //create composite
-              //   const icFreeDrawing0 = arr_icFreeDrawing.find(e => true);
-              //   const trueRect__composite = {
-              //     x: icFreeDrawing0.position.x,
-              //     y: icFreeDrawing0.position.y,
-              //     width:  10,
-              //     height: 10,
-              //   };
-              //   const parts = arr_icFreeDrawing.reduce((acc, icFreeDrawing) => {
-              //     const partName = "freeDrawing__" + icFreeDrawing.id;
-              //     acc[partName] = icFreeDrawing;
-              //     return acc;
-              //   }, {});
-              //   const compositeConfig = Compositer.defaultCompositeConfig(parts, false, false);
-              //   const icComposite     = infiniteCanvas.createIcComposite(trueRect__composite, parts, compositeConfig); 
-              //   icComposite.cType = "freeDrawingObj";
-              //   icComposite.isEntity = true;
-              //   // icComposite.fillColor = "green";
+                //create composite
+                const icFreeDrawing0 = arr_icObj__created.find(e => true);
+                const trueRect__composite = {
+                  x: icFreeDrawing0.position.x,
+                  y: icFreeDrawing0.position.y,
+                  width:  10,
+                  height: 10,
+                };
+                const parts = arr_icObj__created.reduce((acc, icFreeDrawing) => {
+                  const partName = "freeDrawing__" + icFreeDrawing.id;
+                  acc[partName] = icFreeDrawing;
+                  return acc;
+                }, {});
+                const compositeConfig = Compositer.defaultCompositeConfig(parts, false, false);
+                const icComposite     = infiniteCanvas.createIcComposite(trueRect__composite, parts, compositeConfig); 
+                icComposite.cType = "freeDrawingObj";
+                icComposite.isEntity = true;
+                // icComposite.fillColor = "green";
     
-              //   //SHU: illusion
-              //   icComposite.fill    = "transparent";
-              //   // icComposite.opacity = 0;
+                //SHU: illusion
+                icComposite.fill    = "transparent";
+                // icComposite.opacity = 0;
     
-              //   //add composite 
-              //   infiniteCanvas.addNewIcObject(icComposite);
+                //add composite 
+                // infiniteCanvas.addNewIcObject(icComposite);
     
-              //   icObj__freeDrawing__result = icComposite;
+                icObj__freeDrawing__result = icComposite;
     
-              // } else {
-              //   //only one icObj (arr_icFreeDrawing.length == 1) : don't create composite 
-              //   const icFreeDrawing0       = arr_icFreeDrawing.find(e => true);
-              //   icObj__freeDrawing__result = icFreeDrawing0; 
-              // }
-    
-              // // if(icObj__freeDrawing__result.fObj.isAdhesive) {
-              // const isAdhesive = arr_icFreeDrawing.find(e => true)?.exoObject.isAdhesive;
-              // if(isAdhesive) {
-    
-              //   if((arr_icFreeDrawing.length > 0) && (infiniteCanvas.adhesive__support__icObj != null)) {
-              //     const icObj__support__start           = infiniteCanvas.adhesive__support__icObj;
-              //     const rep_free__icObj__support__start = infiniteCanvas.getRepresented(icObj__support__start.id).r_free(); //SHU: probably overkill
-    
-              //     //manage adhesion
-              //     infiniteCanvas.manageAdhesion(icObj__freeDrawing__result, rep_free__icObj__support__start);  
-              //   }
-    
-              //   if(infiniteCanvas.adhesive__isAdhesiveKick) {
-              //     const true_cursor = infiniteCanvas.getTrueCursor();
-              //     const icObj__support__end = infiniteCanvas.getCandidateSupportUnderPoint(true_cursor, icObj__freeDrawing__result);
-              //     if(icObj__support__end != null) {
-              //       const rep_free__icObj__support__end = infiniteCanvas.getRepresented(icObj__support__end.id).r_free();
-    
-              //       //manage adhesion
-              //       infiniteCanvas.manageAdhesion(icObj__freeDrawing__result, rep_free__icObj__support__end);  
-              //     }
-    
-              //     infiniteCanvas.adhesive__isAdhesiveKick = false;
-              //   }
-    
-              // }
+              } else {
+                //only one icObj (arr_icObj__created.length == 1) : don't create composite 
+                const icFreeDrawing0       = arr_icObj__created.find(e => true);
+                icObj__freeDrawing__result = icFreeDrawing0; 
+              }
+
+              out_p = Promise.resolve(icObj__freeDrawing__result);
+
+              return out_p;
             },
 
           };
 
 
           const DrawingMode = fabricIntegration.class__DrawingMode;
-          fabricIntegration.drawingMode__freeDrawing = new DrawingMode(fabricIntegration, cfg);
+          const drawingMode__freeDrawing = new DrawingMode(fabricIntegration, cfg);
+
+          //decorate "polyatomic" mgmt
+          const func__manageCreatedDrawingModeObjects_p__old       = drawingMode__freeDrawing.manageCreatedDrawingModeObjects_p.bind(drawingMode__freeDrawing);
+          const func__manageCreatedDrawingModeObjects_p__decorated = (function(arr_icObj__created) {
+            logger.log("logFD", "freeDrawing", "manageCreatedDrawingModeObjects_p__decorated", arr_icObj__created);
+            var out_p;
+
+            const drawingMode       = this;
+            const fabricIntegration = drawingMode.fabricIntegration;
+            const infiniteCanvas    = fabricIntegration.infiniteCanvas;
+
+            out_p = func__manageCreatedDrawingModeObjects_p__old(arr_icObj__created).then((icObj__polyatomic) => {
+
+              // if(icObj__polyatomic.fObj.isAdhesive) {
+              const isAdhesive = arr_icObj__created.find(e => true)?.exoObject.isAdhesive;
+              if(isAdhesive) {
+    
+                //adhesion at start of drawing
+                if((arr_icObj__created.length > 0) && (drawingMode.icObj__adhesive__support != null)) {
+                  logger.log("logFD", "freeDrawing", "manageCreatedDrawingModeObjects_p__decorated", "--here--");
+
+                  const icObj__support__start           = drawingMode.icObj__adhesive__support;
+                  const rep_free__icObj__support__start = infiniteCanvas.getRepresented(icObj__support__start.id).r_free(); //SHU: probably overkill
+    
+                  //manage adhesion
+                  infiniteCanvas.manageAdhesion(icObj__polyatomic, rep_free__icObj__support__start);  
+                }
+    
+                //adhesion at end of drawing
+                if(infiniteCanvas.adhesive__isAdhesiveKick) {
+                  const true_cursor = infiniteCanvas.getTrueCursor();
+                  const icObj__support__end = infiniteCanvas.getCandidateSupportUnderPoint(true_cursor, icObj__polyatomic);
+                  if(icObj__support__end != null) {
+                    const rep_free__icObj__support__end = infiniteCanvas.getRepresented(icObj__support__end.id).r_free();
+    
+                    //manage adhesion
+                    infiniteCanvas.manageAdhesion(icObj__polyatomic, rep_free__icObj__support__end);  
+                  }
+    
+                  infiniteCanvas.adhesive__isAdhesiveKick = false;
+                }
+    
+              }
+
+              drawingMode.icObj__adhesive__support = null;
+            });
+
+            return out_p;
+
+          });
+          drawingMode__freeDrawing.manageCreatedDrawingModeObjects_p = func__manageCreatedDrawingModeObjects_p__decorated.bind(drawingMode__freeDrawing);
+
+          fabricIntegration.drawingMode__freeDrawing = drawingMode__freeDrawing;
         }
 
-        initializeDrawingMode__zPixelFreeDrawing() {
 
+        initializeDrawingMode__zPixelFreeDrawing() {
+          const fabricIntegration = this;
+
+          const cfg = {
+
+            func__brushConfig__drawingMode: function () {
+              var outBrushConfig = {};
+
+              const drawingMode       = this;
+              const fabricIntegration = drawingMode.fabricIntegration;
+              const inputProperties   = fabricIntegration.inputProperties;
+
+
+              //debug
+                //setup brush
+                fabricIntegration.swapToBrush("zPixelBrush");
+
+
+              // outBrushConfig.width  = this.inputProperties.getActiveBrushWidth();
+              outBrushConfig.width  = 1;
+    
+              const rgbaColorString = inputProperties.getActiveRgbaColorString();
+              outBrushConfig.color  = rgbaColorString;
+    
+              const fColor = new fabric.Color(rgbaColorString);
+              logger.log("fColor", fColor);
+              outBrushConfig.fColor = fColor;
+    
+              if(infiniteCanvas.lock_homeScale_isActive) {
+                outBrushConfig.homeScale = inputProperties.getActiveHomeScale();
+              }
+    
+              outBrushConfig.zIndex__ic = inputProperties.getActiveBrushZIndex();
+    
+              // outBrushConfig.isAdhesive = inputProperties.brushIsAdhesive;
+    
+              return outBrushConfig;
+            },
+              
+            func__myFabricObjectAdded__atomic_p: function(fObj) {
+              var out_p;
+
+              // if(fObj.__brush != null) {
+                // const brush__atDrawingStart = fabricIntegration.brushConfig__current;
+                const brush__atDrawingEnd   = fObj.__brush;
+
+                // const fColor   = new fabric.Color(brush__atDrawingStart.color);
+                const fColor   = new fabric.Color(brush__atDrawingEnd.color); //SHU: TODO: brush__atDrawingStart
+                const rgbColor = fColor.toRgb();
+                const opacity  = fColor.getAlpha();
+                
+                fObj.set({
+                  strokeWidth:  brush__atDrawingEnd.width,
+    
+                  stroke:  rgbColor,
+                  opacity: opacity,
+    
+                  isCosmetic: cfg.isCosmetic,   //<--\
+                                                //    |--- //SHU: these too are quite incompatible...
+                  // isAdhesive: cfg.isAdhesive,   //<--/
+                  isAdhesive: true,
+                });
+    
+                logger.log("logFD", "fObj.zIndex", fObj.zIndex);
+                logger.log("logFD", "fObj", fObj);
+                fObj.moveTo(fObj.zIndex);
+    
+                fObj.zIndex__ic = brush__atDrawingEnd.zIndex__ic;
+    
+                out_p = Promise.resolve(fObj);
+              // } else {
+                // out_p = Promise.resolve(null);
+              // }
+
+              return out_p;
+            },
+
+            func__createIcObj__atomic_p: function(fObj) {
+              logger.log("logZPixelFD", "func__createIcObj__atomic_p", "fObj:", fObj);
+
+              var out_p;
+
+              const drawingMode       = this;
+              const fabricIntegration = drawingMode.fabricIntegration;
+              const infiniteCanvas    = fabricIntegration.infiniteCanvas;
+
+              out_p = infiniteCanvas.createIcZPixelImage_from_zPixelFreeDrawingFObj_p(fObj).then((icObj) => {
+                logger.log("logZPixelFD", "fObj.zIndex__ic", fObj.zIndex__ic);
+                icObj.zIndex = fObj.zIndex__ic;
+    
+                //destroy fObj
+                fabricIntegration.fabricCanvas.remove(fObj);
+    
+                return icObj;
+              });
+
+              return out_p;
+            },
+
+            func__createIcObj__polyatomic_p: function(arr_icObj__created) {
+              var out_p;
+
+              const drawingMode       = this;
+              const fabricIntegration = drawingMode.fabricIntegration;
+              const infiniteCanvas    = fabricIntegration.infiniteCanvas;
+    
+              var icObj__freeDrawing__result = null;
+
+              out_p = Promise.resolve(icObj__freeDrawing__result);
+
+              return out_p;
+            },
+
+          };
+
+
+          const DrawingMode = fabricIntegration.class__DrawingMode;
+          const drawingMode__zPixelFreeDrawing = new DrawingMode(fabricIntegration, cfg);
+
+          // //decorate "polyatomic" mgmt
+          // const func__manageCreatedDrawingModeObjects_p__old       = drawingMode__zPixelFreeDrawing.manageCreatedDrawingModeObjects_p.bind(drawingMode__zPixelFreeDrawing);
+          // const func__manageCreatedDrawingModeObjects_p__decorated = (function(arr_icObj__created) {
+          //   logger.log("logFD", "zPixelFreeDrawing", "manageCreatedDrawingModeObjects_p__decorated", arr_icObj__created);
+          //   var out_p;
+
+          //   const drawingMode       = this;
+          //   const fabricIntegration = drawingMode.fabricIntegration;
+          //   const infiniteCanvas    = fabricIntegration.infiniteCanvas;
+
+          //   out_p = func__manageCreatedDrawingModeObjects_p__old(arr_icObj__created).then((icObj__polyatomic) => {
+
+          //     // if(icObj__polyatomic.fObj.isAdhesive) {
+          //     const isAdhesive = arr_icObj__created.find(e => true)?.exoObject.isAdhesive;
+          //     if(isAdhesive) {
+    
+          //       //adhesion at start of drawing
+          //       if((arr_icObj__created.length > 0) && (drawingMode.icObj__adhesive__support != null)) {
+          //         logger.log("logFD", "zPixelFreeDrawing", "manageCreatedDrawingModeObjects_p__decorated", "--here--");
+
+          //         const icObj__support__start           = drawingMode.icObj__adhesive__support;
+          //         const rep_free__icObj__support__start = infiniteCanvas.getRepresented(icObj__support__start.id).r_free(); //SHU: probably overkill
+    
+          //         //manage adhesion
+          //         infiniteCanvas.manageAdhesion(icObj__polyatomic, rep_free__icObj__support__start);  
+          //       }
+    
+          //       //adhesion at end of drawing
+          //       if(infiniteCanvas.adhesive__isAdhesiveKick) {
+          //         const true_cursor = infiniteCanvas.getTrueCursor();
+          //         const icObj__support__end = infiniteCanvas.getCandidateSupportUnderPoint(true_cursor, icObj__polyatomic);
+          //         if(icObj__support__end != null) {
+          //           const rep_free__icObj__support__end = infiniteCanvas.getRepresented(icObj__support__end.id).r_free();
+    
+          //           //manage adhesion
+          //           infiniteCanvas.manageAdhesion(icObj__polyatomic, rep_free__icObj__support__end);  
+          //         }
+    
+          //         infiniteCanvas.adhesive__isAdhesiveKick = false;
+          //       }
+    
+          //     }
+
+          //     drawingMode.icObj__adhesive__support = null;
+          //   });
+
+          //   return out_p;
+
+          // });
+          // drawingMode__zPixelFreeDrawing.manageCreatedDrawingModeObjects_p = func__manageCreatedDrawingModeObjects_p__decorated.bind(drawingMode__zPixelFreeDrawing);
+
+          fabricIntegration.drawingMode__zPixelFreeDrawing = drawingMode__zPixelFreeDrawing;
         }
 
         initializeDrawingMode__zPixelRectFreeDrawing() {
@@ -55169,15 +55358,16 @@
 
 
 
-        freeDrawing__adhesive__checkForSupport() {
-          logger.log("logFD", "freeDrawing__adhesive__checkForSupport");
+        drawingMode__adhesive__getSupport() {
+          logger.log("logFD", "drawingMode__adhesive__getSupport");
+          var outIcObj;
 
           const fabricIntegration = this;
           const infiniteCanvas    = fabricIntegration.infiniteCanvas;
 
           const fCursor       = fabricIntegration.getFCursor(false);
           const fObj__support = fabricIntegration.getFObjAtFPosition(fCursor);
-          logger.log("logFD", "freeDrawing__adhesive__checkForSupport", "fObj__support:", fObj__support);
+          logger.log("logFD", "drawingMode__adhesive__getSupport", "fObj__support:", fObj__support);
 
           //OR
           // const trueCursor = infiniteCanvas.getTrueCursor();
@@ -55186,12 +55376,13 @@
           if(fObj__support != null) {
             const icObj__support = fObj__support.icObj;
             if(icObj__support != null) {
-              infiniteCanvas.adhesive__support__icObj = icObj__support;
-              logger.log("logFD", "freeDrawing__adhesive__checkForSupport", "icObj__support:", icObj__support);
-
+              // infiniteCanvas.adhesive__support__icObj = icObj__support;
+              outIcObj = icObj__support;
+              logger.log("logFD", "drawingMode__adhesive__getSupport", "icObj__support:", icObj__support);
             } 
           }
           
+          return outIcObj;
         }
 
 
@@ -55549,6 +55740,7 @@
         //   infiniteCanvas.adhesive__support__icObj = null;
         // }
 
+        
 
 
         // zPixelFreeDrawing {
@@ -55592,285 +55784,6 @@
           outDict = Geometry.zPixelUtils.defaultInstance.createDict__zPixel(infiniteCanvas, truePoint, homeScaleX);
 
           return outDict;
-        }
-
-
-        enterZPixelFreeDrawing__atomic(cfg) {
-          logger.log("logZPixelFD", "enterZPixelFreeDrawing__atomic", cfg);
-
-          const fabricIntegration = this;
-
-          // fabricIntegration.configureFreeDrawingBrush({
-          //   zIndex__ic: this.inputProperties.getActiveBrushZIndex(),
-          // });
-
-          function zPixelFreeDrawing_objectAdded__atomic(e) {
-            logger.log("logZPixelFD", "zPixelFreeDrawing_objectAdded__atomic", e);
-
-            //debug
-            logger.log("logZPixel", "fabricIntegration.infiniteCanvas.isIgnoreOnObjectAdded:", fabricIntegration.infiniteCanvas.isIgnoreOnObjectAdded);
-            if(fabricIntegration.infiniteCanvas.isIgnoreOnObjectAdded) {  //SHU: remove this after dev, will ya
-              return;
-            }
-
-            //debug
-            if(e.target.__brush == null) {
-              return;
-            }
-
-            const fObj = e.target;
-
-            // const brush__atDrawingStart = fabricIntegration.brushConfig__current;
-            const brush__atDrawingEnd   = fObj.__brush;
-
-            // const fColor   = new fabric.Color(brush__atDrawingEnd.color); //SHU: TODO: brush__atDrawingStart
-            // const rgbColor = fColor.toRgb();
-            // const opacity  = fColor.getAlpha();
-            
-            // fObj.set({
-            //   // strokeWidth:  brush__atDrawingEnd.width,
-            //   // stroke:  rgbColor,
-
-            //   fill: rgbColor,
-
-            //   opacity: opacity,
-
-            //   // isCosmetic: cfg.isCosmetic,   //<--\
-            //                                 //    |--- //SHU: these too are quite incompatible...
-            //   // isAdhesive: cfg.isAdhesive,   //<--/
-            // });
-
-            logger.log("logZPixelFD", "fObj.zIndex", fObj.zIndex);
-            logger.log("logZPixelFD", "fObj", fObj);
-            fObj.moveTo(fObj.zIndex);
-
-            fObj.zIndex__ic = brush__atDrawingEnd.zIndex__ic;
-
-            fabricIntegration.manageCreatedZPixelFreeDrawingObject__atomic(fObj);
-          }
-
-          this.zPixelFreeDrawing_objectAdded__atomic = zPixelFreeDrawing_objectAdded__atomic;
-          this.fabricCanvas.on('object:added', this.zPixelFreeDrawing_objectAdded__atomic);
-        }
-
-        leaveZPixelFreeDrawing__atomic(fObj) {
-          logger.log("logZPixelFD", "leaveZPixelFreeDrawing__atomic");
-          this.fabricCanvas.off('object:added', this.zPixelFreeDrawing_objectAdded__atomic);
-          this.zPixelFreeDrawing_objectAdded__atomic = null;        
-        }
-
-        manageCreatedZPixelFreeDrawingObject__atomic(fObj) {
-          logger.log("logZPixelFD", "manageCreatedZPixelFreeDrawingObject__atomic", fObj);
-          
-          //listener:off 
-          this.fabricCanvas.off('object:added', this.zPixelFreeDrawing_objectAdded__atomic);
-
-          //work
-          {
-            // const icObj = this.infiniteCanvas.createIcZPixelFreeDrawing_from_zPixelFreeDrawingFObj(fObj);
-            // const icObj = this.infiniteCanvas.createIcZPixel_from_fZPixel(fObj);
-            // const icObj = this.infiniteCanvas.createIcZPixelPath_from_fZPixelPath(fObj);
-
-            // logger.log("logZPixelFD", "fObj.zIndex__ic", fObj.zIndex__ic);
-            // icObj.zIndex = fObj.zIndex__ic;
-
-            // //recycle fObj
-            // fObj.id_recycle = icObj.id;
-
-            // this.infiniteCanvas.addIcObject(icObj); 
-
-            // // //manage .isAdhesive
-            // // if(fObj.isAdhesive) {
-            // //   //simple
-
-
-            // //   //complex: joining adhesive
-
-            // // }
-
-            // this.arr_icZPixelFreeDrawing.push(icObj);
-
-            this.infiniteCanvas.createIcZPixelImage_from_zPixelFreeDrawingFObj_p(fObj).then((icObj) => {
-              logger.log("logZPixelFD", "fObj.zIndex__ic", fObj.zIndex__ic);
-              icObj.zIndex = fObj.zIndex__ic;
-  
-              //destroy fObj
-              this.fabricCanvas.remove(fObj);
-  
-              this.infiniteCanvas.addIcObject(icObj); 
-  
-              // //manage .isAdhesive
-              // if(fObj.isAdhesive) {
-              //   //simple
-  
-  
-              //   //complex: joining adhesive
-  
-              // }
-  
-              this.arr_icZPixelFreeDrawing.push(icObj);
-            });
-
-          }
-
-          //allow: many zPixelFreeDrawings in one zPixelFreeDrawing session
-          this.fabricCanvas.on('object:added', this.zPixelFreeDrawing_objectAdded__atomic);
-        }
-
-        brushConfig__zPixelFreeDrawing() {
-          var outBrushConfig = {};
-
-          // outBrushConfig.width  = this.inputProperties.getActiveBrushWidth();
-          outBrushConfig.width  = 1;
-
-          const rgbaColorString = this.inputProperties.getActiveRgbaColorString();
-          outBrushConfig.color  = rgbaColorString;
-
-          const fColor = new fabric.Color(rgbaColorString);
-          logger.log("fColor", fColor);
-          outBrushConfig.fColor = fColor;
-
-          if(this.infiniteCanvas.lock_homeScale_isActive) {
-            outBrushConfig.homeScale = this.inputProperties.getActiveHomeScale();
-          }
-
-          outBrushConfig.zIndex__ic = this.inputProperties.getActiveBrushZIndex();
-
-          // outBrushConfig.isAdhesive = this.inputProperties.brushIsAdhesive;
-
-          return outBrushConfig;
-        }
-
-        enterZPixelFreeDrawing(cfg) {
-          logger.log("logZPixelFD", "enterZPixelFreeDrawing");
-          const fabricIntegration = this;
-
-          //setup brush
-          fabricIntegration.swapToBrush("zPixelBrush");
-          // fabricIntegration.swapToBrush("zPixelRectBrush");
-          // fabricIntegration.swapToBrush("selectionBrush__zPixelRect");
-
-
-          const brushConfig = this.brushConfig__zPixelFreeDrawing();
-          this.configureFreeDrawingBrush(brushConfig);
-
-          const brushZIndex_new = infiniteCanvas.getFreshIcZIndex__max();
-          fabricIntegration.configureFreeDrawingBrush({zIndex__ic: brushZIndex_new});
-
-          this.fabricCanvas.isDrawingMode = true;
-
-          //create arr for icZPixelFreeDrawings
-          this.arr_icZPixelFreeDrawing = [];
-
-          // //check for adhesive support
-          // this.freeDrawing__adhesive__checkForSupport();
-          
-          //call atomic
-          this.enterZPixelFreeDrawing__atomic(cfg);
-        }
-
-        leaveZPixelFreeDrawing() {
-          logger.log("logZPixelFD", "leaveZPixelFreeDrawing");
-
-          const fabricIntegration = this;
-
-          // this.brush__preview__stop();
-          {
-            const brush = fabricIntegration.fabricCanvas.freeDrawingBrush;
-            brush.clearPreview?.();
-          }
-
-          fabricIntegration.leaveZPixelFreeDrawing__atomic();
-
-          //get all created zPixelFreeDrawing objects
-          fabricIntegration.manageCreatedZPixelFreeDrawingObjects(this.arr_icZPixelFreeDrawing);
-
-          // //restore singleBrush
-          // if(inputProperties.brush__single != null) {
-          //   const singleBrush = inputProperties.brush__single;
-          //   // fabricIntegration.setBrush__hotSwap(singleBrush);
-          //   singleBrush._reset();
-          //   fabricIntegration.fabricCanvas.freeDrawingBrush = singleBrush;
-          // }
-          
-          fabricIntegration.swapToBrush("main");
-
-          this.fabricCanvas.isDrawingMode = false;
-        }
-
-        manageCreatedZPixelFreeDrawingObjects(arr_icZPixelFreeDrawing) {
-          logger.log("logZPixelFD", "manageCreatedZPixelFreeDrawingObjects", arr_icZPixelFreeDrawing);
-
-          const infiniteCanvas = this.infiniteCanvas;
-
-          // var icObj__zPixelFreeDrawing__result;
-          // if(arr_icZPixelFreeDrawing.length > 1) {
-
-          //   //create composite
-          //   const icFreeDrawing0 = arr_icFreeDrawing.find(e => true);
-          //   const trueRect__composite = {
-          //     x: icFreeDrawing0.position.x,
-          //     y: icFreeDrawing0.position.y,
-          //     width:  10,
-          //     height: 10,
-          //   };
-          //   const parts = arr_icFreeDrawing.reduce((acc, icFreeDrawing) => {
-          //     const partName = "freeDrawing__" + icFreeDrawing.id;
-          //     acc[partName] = icFreeDrawing;
-          //     return acc;
-          //   }, {});
-          //   const compositeConfig = Compositer.defaultCompositeConfig(parts, false, false);
-          //   const icComposite     = infiniteCanvas.createIcComposite(trueRect__composite, parts, compositeConfig); 
-          //   icComposite.cType = "freeDrawingObj";
-          //   icComposite.isEntity = true;
-          //   // icComposite.fillColor = "green";
-
-          //   //SHU: illusion
-          //   icComposite.fill    = "transparent";
-          //   // icComposite.opacity = 0;
-
-          //   //add composite 
-          //   infiniteCanvas.addNewIcObject(icComposite);
-
-          //   icObj__freeDrawing__result = icComposite;
-
-          // } else {
-          //   //only one icObj (arr_icFreeDrawing.length == 1) : don't create composite 
-          //   const icFreeDrawing0       = arr_icFreeDrawing.find(e => true);
-          //   icObj__freeDrawing__result = icFreeDrawing0; 
-          // }
-
-          // // if(icObj__freeDrawing__result.fObj.isAdhesive) {
-          // const isAdhesive = arr_icFreeDrawing.find(e => true)?.exoObject.isAdhesive;
-          // if(isAdhesive) {
-
-          //   if((arr_icFreeDrawing.length > 0) && (infiniteCanvas.adhesive__support__icObj != null)) {
-          //     const icObj__support__start           = infiniteCanvas.adhesive__support__icObj;
-          //     const rep_free__icObj__support__start = infiniteCanvas.getRepresented(icObj__support__start.id).r_free(); //SHU: probably overkill
-
-          //     //manage adhesion
-          //     infiniteCanvas.manageAdhesion(icObj__freeDrawing__result, rep_free__icObj__support__start);  
-          //   }
-
-          //   if(infiniteCanvas.adhesive__isAdhesiveKick) {
-          //     const true_cursor = infiniteCanvas.getTrueCursor();
-          //     const icObj__support__end = infiniteCanvas.getCandidateSupportUnderPoint(true_cursor, icObj__freeDrawing__result);
-          //     if(icObj__support__end != null) {
-          //       const rep_free__icObj__support__end = infiniteCanvas.getRepresented(icObj__support__end.id).r_free();
-
-          //       //manage adhesion
-          //       infiniteCanvas.manageAdhesion(icObj__freeDrawing__result, rep_free__icObj__support__end);  
-          //     }
-
-          //     infiniteCanvas.adhesive__isAdhesiveKick = false;
-          //   }
-
-          // }
-
-
-          //clear
-          this.arr_icZPixelFreeDrawing = [];
-          // infiniteCanvas.adhesive__support__icObj = null;
         }
 
         // } zPixelFreeDrawing
@@ -66186,10 +66099,14 @@
                 isCosmetic: isCosmetic,
                 isAdhesive: inputProperties.brushIsAdhesive,
               };
-              if(isActive) {
-                fabricIntegration.enterZPixelFreeDrawing();
+              if (isActive) {
+                // fabricIntegration.enterZPixelFreeDrawing(cfg);
+                fabricIntegration.addDrawingMode(fabricIntegration.drawingMode__zPixelFreeDrawing);
+                fabricIntegration.enterDrawingMode();
               } else {
-                fabricIntegration.leaveZPixelFreeDrawing();
+                // fabricIntegration.leaveZPixelFreeDrawing();
+                fabricIntegration.leaveDrawingMode();
+                fabricIntegration.removeDrawingMode(fabricIntegration.drawingMode__zPixelFreeDrawing);
               }
               
             }),
