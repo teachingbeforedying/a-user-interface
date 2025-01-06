@@ -26398,35 +26398,35 @@
 
 
 
-      getIcActiveSelection() {
-        // return this.getAllRepresentedWithType("activeSelection").find(e => true).rep_free();
-        return this.activeSelection;
-      }
+      // getIcActiveSelection() {
+      //   // return this.getAllRepresentedWithType("activeSelection").find(e => true).rep_free();
+      //   return this.activeSelection;
+      // }
 
-      operateOnActiveSelection__moveStep(step_x, step_y) {
-        logger.log("operateOnActiveSelection__moveStep", step_x, step_y);
+      // operateOnActiveSelection__moveStep(step_x, step_y) {
+      //   logger.log("operateOnActiveSelection__moveStep", step_x, step_y);
 
-        //getIcActiveSelection
-        const icActiveSelection = this.getIcActiveSelection();
-        logger.log("icActiveSelection", icActiveSelection);
+      //   //getIcActiveSelection
+      //   const icActiveSelection = this.getIcActiveSelection();
+      //   logger.log("icActiveSelection", icActiveSelection);
 
-        moveStep(icActiveSelection, step_x, step_y);
-        icActiveSelection.children.forEach(icObj => {
-          moveStep(icObj, step_x, step_y);
-        });
+      //   moveStep(icActiveSelection, step_x, step_y);
+      //   icActiveSelection.children.forEach(icObj => {
+      //     moveStep(icObj, step_x, step_y);
+      //   });
 
 
-        function moveStep(icObj, step_x, step_y) {
+      //   function moveStep(icObj, step_x, step_y) {
 
-          const default_moveStep_length = 100;
+      //     const default_moveStep_length = 100;
 
-          icObj.position = {
-            x: icObj.position.x + step_x * default_moveStep_length,
-            y: icObj.position.y + step_y * default_moveStep_length,
-          };
-        }
+      //     icObj.position = {
+      //       x: icObj.position.x + step_x * default_moveStep_length,
+      //       y: icObj.position.y + step_y * default_moveStep_length,
+      //     };
+      //   }
 
-      }
+      // }
 
 
 
@@ -45897,7 +45897,7 @@
 
           function selectionHandler__default(options) {
             const selectionMgmtObj = getSelectionMgmtObject(options);
-            processSelectionMgmtObject(selectionMgmtObj, options);     //SHU666666 this call is very heavy
+            // processSelectionMgmtObject(selectionMgmtObj, options);     //SHU666666 this call is very heavy
           }
 
 
@@ -46457,7 +46457,7 @@
           function manageCreatedFObj(fObj) {
 
             function standardRedraw(fObj) {
-              // logger.log("logFI", "standardRedraw", fObj);
+              logger.log("logFI", "standardRedraw", fObj);
               const icObj = fObj.icObj;
 
               //common
@@ -51992,7 +51992,7 @@
           });
 
           fObj.on('moving', function (options) {
-            logger.log("moving", "options", options);
+            logger.log("logFOBJ", "moving", "options", options);
 
             const offset = infiniteCanvas.offset;
             const scale  = infiniteCanvas.scale;
@@ -52718,6 +52718,46 @@
           const infiniteCanvas = this.infiniteCanvas;
           const fabricCanvas   = this.fabricCanvas;
 
+
+          function bugFix__activeSelectionOrigin(activeSelection) { //SHU: could as well be named bugFix__groupOrigin(group)
+            // activeSelection.__isUpdated_by_bugFix = true;
+            
+            //main part of bugFix
+            {
+              const dict_lt__activeSelection = {
+                left: activeSelection.left,
+                top:  activeSelection.top,
+              };
+  
+              const arr_fObj = [...activeSelection._objects];
+  
+              globalsSingleton.functionCallsQueue
+              .add(() => {
+                arr_fObj.forEach((fObj) => {
+                  activeSelection.removeWithUpdate(fObj);
+                });
+              })
+              .add(() => {
+                arr_fObj.forEach((fObj) => {
+                  activeSelection.addWithUpdate(fObj);
+                });
+              })
+              .add(() => {
+                activeSelection.set(dict_lt__activeSelection);
+                activeSelection.setCoords();
+                fabricIntegration.fabricCanvas.requestRenderAll();
+              });
+              
+              // start the sequence
+              setTimeout(() => globalsSingleton.functionCallsQueue.next(), 0);
+
+            }
+
+            // activeSelection.__isUpdated_by_bugFix = false;
+          }
+
+
+
           //creation
           this.fabricCanvas.on("selection:created", (options) => {
             logger.log("selection:created", options);
@@ -52728,209 +52768,284 @@
               const activeSelection = activeObject;
               logger.log("logAS", "selection:created", "activeSelection:", activeSelection);
 
-              // this.fabricCanvas._discardActiveObject();
+              //active selection "originX:'center' etc." fix
+              bugFix__activeSelectionOrigin(activeSelection);
 
-              // //inject 'initial' props
-              // const icActiveSelection = infiniteCanvas.createIcActiveSelection_from_activeSelectionFObj(activeSelection);
-
-              // activeSelection.icObj = icActiveSelection;
-
-              // activeSelection.forEachObject((fObj, index, arr_fObj) => {
-              //   logger.log("logAS", "activeSelection", "forEachObject", fObj);
-              //   setGroupCoords(fObj, activeSelection);
-              //   savePrivateCoords(fObj, activeSelection);
-              // }, fabricIntegration.fabricCanvas.contextTop);
-
-              // //store
-              // infiniteCanvas.activeSelection = icActiveSelection;
-
-            } else {
-              logger.log("logAS", "activeObject is not fabric.ActiveSelection", typeof activeObject);
-
-              // const activeSelection = activeObject;
-              // console.log("activeSelection", activeSelection);
-
-              // //inject 'initial' props
-              // const icActiveSelection = infiniteCanvas.createIcActiveSelection_from_activeSelectionFObj(activeSelection);
-              // icActiveSelection.children = [activeObject.icObj];
-
-              // activeSelection.icObj = icActiveSelection;
-
-              // //store
-              // infiniteCanvas.activeSelection = icActiveSelection;
             }
 
+
+            // if (activeObject instanceof fabric.ActiveSelection) {
+            //     const activeSelection = activeObject;
+            //     logger.log("logAS", "selection:created", "activeSelection:", activeSelection);
+            //   // this.fabricCanvas._discardActiveObject();
+
+            //   // //inject 'initial' props
+            //   // const icActiveSelection = infiniteCanvas.createIcActiveSelection_from_activeSelectionFObj(activeSelection);
+
+            //   // activeSelection.icObj = icActiveSelection;
+
+            //   // activeSelection.forEachObject((fObj, index, arr_fObj) => {
+            //   //   logger.log("logAS", "activeSelection", "forEachObject", fObj);
+            //   //   setGroupCoords(fObj, activeSelection);
+            //   //   savePrivateCoords(fObj, activeSelection);
+            //   // }, fabricIntegration.fabricCanvas.contextTop);
+
+            //   // //store
+            //   // infiniteCanvas.activeSelection = icActiveSelection;
+
+            // } else {
+            //   logger.log("logAS", "activeObject is not fabric.ActiveSelection", typeof activeObject);
+
+            //   // const activeSelection = activeObject;
+            //   // console.log("activeSelection", activeSelection);
+
+            //   // //inject 'initial' props
+            //   // const icActiveSelection = infiniteCanvas.createIcActiveSelection_from_activeSelectionFObj(activeSelection);
+            //   // icActiveSelection.children = [activeObject.icObj];
+
+            //   // activeSelection.icObj = icActiveSelection;
+
+            //   // //store
+            //   // infiniteCanvas.activeSelection = icActiveSelection;
+            // }
+
           });
-
-          function setGroupCoords(fObj, activeSelection) {
-            logger.log("logAS", "setGroupCoords", fObj, activeSelection);
-
-            const left__solo = fObj.left;
-            const top__solo  = fObj.top;
-
-            //set new "group coords"
-            const activeSelectionCL = activeSelection.left + activeSelection.width  / 2;
-            const activeSelectionCT = activeSelection.top  + activeSelection.height / 2;
-            logger.log("logAS", "activeSelectionCL", activeSelectionCL);
-            logger.log("logAS", "activeSelectionCT", activeSelectionCT);
-
-            fObj.left = left__solo - activeSelectionCL;
-            fObj.top  = top__solo  - activeSelectionCT;
-          }
-
-          function savePrivateCoords(fObj, activeSelection) {
-            logger.log("logAS", "savePrivateCoords", fObj, activeSelection);
-
-            //save wrtGroup coords
-            fObj.left__wrtGroup = fObj.left;
-            fObj.top__wrtGroup  = fObj.top;
-
-            const activeSelectionCL = activeSelection.left + activeSelection.width  / 2;
-            const activeSelectionCT = activeSelection.top  + activeSelection.height / 2;
-            logger.log("logAS", "activeSelectionCL", activeSelectionCL);
-            logger.log("logAS", "activeSelectionCT", activeSelectionCT);
-
-
-            //save solo coords
-            fObj.left__solo = fObj.left__wrtGroup + activeSelectionCL;
-            fObj.top__solo  = fObj.top__wrtGroup  + activeSelectionCT;
-          }
-
 
           //update
           this.fabricCanvas.on("selection:updated", (options) => {
             logger.log("selection:updated", options);
 
-            //TBD
+            const activeObject = this.fabricCanvas.getActiveObject();
+
+            if (activeObject instanceof fabric.ActiveSelection) {
+              const activeSelection = activeObject;
+              logger.log("logAS", "selection:updated", "activeSelection:", activeSelection);
+
+              // if(!activeSelection.__isUpdated_by_bugFix) { //bugFix updates activeSelection, so we have to check if it's a "true" update (i.e. coming from fabricCanvas) 
+                //active selection "originX:'center' etc." fix
+                bugFix__activeSelectionOrigin(activeSelection);
+              // }
+            }
+
+          });
+
+
+          //move
+          this.fabricCanvas.on("object:moving", (options) => {
+            const target = options.target;
+            if(target.type == "activeSelection") {
+              activeSelection_moving(options);
+            }
+          });
+          this.fabricCanvas.on("object:moved", (options) => {
+            logger.log("logAS", "object:moved", options);
+            const target = options.target;
+            if(target.type == "activeSelection") {
+              activeSelection_moved(options);
+            }
+          });
+
+          //scale
+          this.fabricCanvas.on("object:scaling", (options) => {
+            // console.log("object:scaling", options);
+
+            const target = options.target;
+            if (target.type == "activeSelection") {
+              activeSelection_scaling(options);
+            }
+
+          });
+
+          //rotate
+          this.fabricCanvas.on("object:rotating", (options) => {
+            // console.log("object:rotating", event);
+
+            const target = options.target;
+            if (target.type == "activeSelection") {
+              activeSelection_rotating(options);
+            }
+
+          });
+
+          //skew
+          this.fabricCanvas.on("object:skewing", (options) => {
+            // console.log("object:skewing", event);
+
+            const target = options.target;
+            if (target.type == "activeSelection") {
+              activeSelection_skewing(options);
+            }
+
+          });
+
+          this.fabricCanvas.on("object:modified", (options) => {
+            logger.log("logAS", "object:modified", options);
+
+            const str__action = options.action;
+            logger.log("logAS", "object:modified", "str__action:", str__action);
+
+            const activeSelection = options.target;
+
+            switch(str__action) {
+              case "scale":
+              case "scaleX":
+              case "scaleY":
+                {
+                  activeSelection_scaled(options);
+                }
+                break;
+              case "skewX":
+              case "skewY":
+                {
+                  // activeSelection_skewed(options);
+                }
+                break;
+              case "drag":
+                {
+                  // activeSelection_moved(options);
+                }
+                break;
+              case "rotate":
+                {
+                  // activeSelection_rotated(options);
+                }
+                break;
+              default:
+                {
+                  throw new Error("Unsupported action: " + str__action);
+                }
+                break;
+            }
 
           });
 
 
 
+          //convenience
+
+          // function setGroupCoords(fObj, activeSelection) {
+          //   logger.log("logAS", "setGroupCoords", fObj, activeSelection);
+
+          //   const left__solo = fObj.left;
+          //   const top__solo  = fObj.top;
+
+          //   //set new "group coords"
+          //   const activeSelectionCL = activeSelection.left + activeSelection.width  / 2;
+          //   const activeSelectionCT = activeSelection.top  + activeSelection.height / 2;
+          //   logger.log("logAS", "activeSelectionCL", activeSelectionCL);
+          //   logger.log("logAS", "activeSelectionCT", activeSelectionCT);
+
+          //   fObj.left = left__solo - activeSelectionCL;
+          //   fObj.top  = top__solo  - activeSelectionCT;
+          // }
+
+          // function savePrivateCoords(fObj, activeSelection) {
+          //   logger.log("logAS", "savePrivateCoords", fObj, activeSelection);
+
+          //   //save wrtGroup coords
+          //   fObj.__left__wrtGroup = fObj.left;
+          //   fObj.__top__wrtGroup  = fObj.top;
+
+          //   const activeSelectionCL = activeSelection.left + activeSelection.width  / 2;
+          //   const activeSelectionCT = activeSelection.top  + activeSelection.height / 2;
+          //   logger.log("logAS", "activeSelectionCL", activeSelectionCL);
+          //   logger.log("logAS", "activeSelectionCT", activeSelectionCT);
 
 
-          //move
-          // this.fabricCanvas.on("object:moving", (options) => {
-          //   // console.log("object:moving", event);
-          //
-          //   const target = options.target;
-          //   if(target.type == "activeSelection") {
-          //     activeSelection_moving(target);
-          //   }
-          //
-          // });
-          // this.fabricCanvas.on("object:moved", (options) => {
-          //   logger.log("logAS", "object:moved", options);
+          //   //save solo coords
+          //   fObj.__left__solo = fObj.__left__wrtGroup + activeSelectionCL;
+          //   fObj.__top__solo  = fObj.__top__wrtGroup  + activeSelectionCT;
+          // }
 
-          // this.fabricCanvas.on("object:modified", (options) => {
-          //   logger.log("logAS", "object:modified", options);
+          function getDict_privateCoords(fObj, activeSelection) {
+            logger.log("logAS", "getDict_privateCoords", fObj, activeSelection);
 
-          //   if(options.action == "drag") {
-          //     const target = options.target;
-          //     if (target.icObj.type == "activeSelection") {
-          //       activeSelection_moved(target);
-          //     }
-          //   }
+            const left__wrtGroup = fObj.left;
+            const top__wrtGroup  = fObj.top;
 
-          // });
-
-          // //scale
-          // this.fabricCanvas.on("object:scaling", (options) => {
-          //   // console.log("object:scaling", options);
-
-          //   const target = options.target;
-          //   if (target.type == "activeSelection") {
-          //     activeSelection_scaling(options);
-          //   }
-
-          // });
-          // this.fabricCanvas.on("object:scaled", (options) => {
-          //   // console.log("object:scaling", event);
-
-          //   const target = options.target;
-          //   if (target.type == "activeSelection") {
-          //     activeSelection_scaled(target);
-          //   }
-
-          // });
+            const activeSelectionCL = activeSelection.left + activeSelection.width  / 2;
+            const activeSelectionCT = activeSelection.top  + activeSelection.height / 2;
+            // logger.log("logAS", "getDict_privateCoords", "activeSelectionCL:", activeSelectionCL);
+            // logger.log("logAS", "getDict_privateCoords", "activeSelectionCT:", activeSelectionCT);
 
 
-          // //rotate
-          // this.fabricCanvas.on("object:rotating", (options) => {
-          //   // console.log("object:rotating", event);
+            const left__solo = left__wrtGroup + activeSelectionCL;
+            const top__solo  = top__wrtGroup  + activeSelectionCT;
 
-          //   const target = options.target;
-          //   if (target.type == "activeSelection") {
-          //     activeSelection_rotating(options);
-          //   }
+            const miniDict = {
+              left: left__solo,
+              top:  top__solo,
+            };
 
-          // });
+            return miniDict;
+          }
+          
+
+          function updateChildIcObj_position(fObj, activeSelection) {
+
+            const dict_privateCoords = getDict_privateCoords(fObj, activeSelection);
+
+            const screenPoint_TL__fObj = {
+              x: dict_privateCoords.left,
+              y: dict_privateCoords.top,
+            };
+            // logger.log("logAS", "updateChildIcObj_position", "screenPoint_TL__fObj:", screenPoint_TL__fObj);
+
+            const position_update = infiniteCanvas.toTruePoint(screenPoint_TL__fObj);
+            // logger.log("logAS", "updateChildIcObj_position", "position_update:", position_update);
+            
+
+            const icObj     = fObj.icObj;
+            // const icObj_new = Object.assign({}, icObj);
+            // Object.assign(icObj_new.position, position_update);
 
 
 
+            const listener = fObj.fListener_inner;
 
+            const rep_free = icObj;
 
+            //listen:off
+            rep_free.offInnerUpdate(listener);
 
+            // rep_free.update(icObj_new, false);
+            rep_free.position = position_update;
 
-          function activeSelection_moved(activeSelection) {
-            logger.log("logAS", "activeSelection_moved", activeSelection);
-
-            //update activeSelection position
-            {
-              const fObj = activeSelection;
-
-              const icObj = fObj.icObj;
-
-              const fObj_screenPos = {
-                x: fObj.left,
-                y: fObj.top,
-              };
-
-              const position_update = infiniteCanvas.toTruePoint(fObj_screenPos);
-
-              const icObj_new = Object.assign({}, icObj);
-              Object.assign(icObj_new.position, position_update);
-
-              icObj.update(icObj_new, false);
-            }
-
-            //update children position
-
-            function updateChildIcObj_position(fObj) {
-
-              savePrivateCoords(fObj, activeSelection);
-
-              const fObj_screenPos = {
-                x: fObj.left__solo,
-                y: fObj.top__solo,
-              };
-
-              const position_update = infiniteCanvas.toTruePoint(fObj_screenPos);
-
-              const icObj = fObj.icObj;
-              const icObj_new = Object.assign({}, icObj);
-              Object.assign(icObj_new.position, position_update);
-
-              icObj.update(icObj_new, false);
-            }
-
-            activeSelection.forEachObject((fObj, index, arr_fObj) => {
-              updateChildIcObj_position(fObj);
-              fObj.left = fObj.left__wrtGroup;
-              fObj.top  = fObj.top__wrtGroup;
-            }, fabricIntegration.fabricCanvas.contextTop);
-
-
+            //listen:on
+            rep_free.onInnerUpdate(listener);
           }
 
 
 
+          //move
+
+          function activeSelection_moving(options) {
+            logger.log("logAS", "activeSelection_moving", options);
+
+            const activeSelection = options.target;
+
+            activeSelection.forEachObject((fObj, index, arr_fObj) => {
+              updateChildIcObj_position(fObj, activeSelection);
+            }, fabricIntegration.fabricCanvas.contextTop);
+          }
+
+          function activeSelection_moved(options) {
+            logger.log("logAS", "activeSelection_moved", options);
+
+          }
+
+
+          //scale
+
           var isScaling = false;
           var original_props = {};
           function activeSelection_scaling(options) {
-            console.log("activeSelection scaling", options);
+            logger.log("logAS", "activeSelection_scaling", options);
+          }
+          function activeSelection_scaled(options) {
+            logger.log("logAS", "activeSelection_scaling", options);
 
-            const target = options.target;
+            const target   = options.target;
             const original = options.transform.original;
 
             const activeSelection = target;
@@ -52938,19 +53053,19 @@
             if (!isScaling) {
 
               //store original props
-              const activeSelection_icObj_propDict = {
-                homeScale: Object.assign({}, activeSelection.icObj.homeScale),
-                scale: Object.assign({}, activeSelection.icObj.scale),
-              };
+              // const activeSelection_icObj_propDict = {
+              //   homeScale: Object.assign({}, activeSelection.icObj.homeScale),
+              //   scale:     Object.assign({}, activeSelection.icObj.scale),
+              // };
 
-              original_props["activeSelection_icObj"] = activeSelection_icObj_propDict;
+              // original_props["activeSelection_icObj"] = activeSelection_icObj_propDict;
 
               activeSelection.forEachObject((fObj, index, arr_fObj) => {
                 const icObj = fObj.icObj;
 
                 const propDict = {
                   homeScale: Object.assign({}, icObj.homeScale),
-                  scale: Object.assign({}, icObj.scale),
+                  scale:     Object.assign({}, icObj.scale),
                 };
 
                 original_props[icObj.id] = propDict;
@@ -52969,7 +53084,7 @@
               X: scaleFactorX,
               Y: scaleFactorY,
             };
-            console.log("scaleFactor", scaleFactor);
+            logger.log("logAS", "activeSelection_scaling", "scaleFactor:", scaleFactor);
 
             switch (options.transform.action) {
 
@@ -52987,35 +53102,45 @@
             function handle_proportionnal_scale(activeSelection) {
 
               //update activeSelection icObj
-              {
-                const icObj = activeSelection.icObj;
+              // {
+              //   const icObj = activeSelection.icObj;
 
-                var homeScale_new;
+              //   var homeScale_new;
 
-                const original_homeScale = original_props["activeSelection_icObj"].homeScale;
+              //   const original_homeScale = original_props["activeSelection_icObj"].homeScale;
 
-                homeScale_new = {
-                  X: original_homeScale.X / scaleFactor.X,
-                  Y: original_homeScale.Y / scaleFactor.Y,
-                };
+              //   homeScale_new = {
+              //     X: original_homeScale.X / scaleFactor.X,
+              //     Y: original_homeScale.Y / scaleFactor.Y,
+              //   };
 
-                console.log("homeScale_new", homeScale_new);
+              //   console.log("homeScale_new", homeScale_new);
 
-                const icObj_update = {
-                  homeScale: homeScale_new,
-                };
+              //   const icObj_update = {
+              //     homeScale: homeScale_new,
+              //   };
 
-                const icObj_new = Object.assign({}, icObj);
-                Object.assign(icObj_new, icObj_update);
+              //   const icObj_new = Object.assign({}, icObj);
+              //   Object.assign(icObj_new, icObj_update);
 
-                icObj.update(icObj_new, false);
-              }
+              //   icObj.update(icObj_new, false);
+              // }
 
 
               //update children
 
               activeSelection.forEachObject((fObj, index, arr_fObj) => {
                 const icObj = fObj.icObj;
+
+
+                const listener = fObj.fListener_inner;
+
+                const rep_free = icObj;
+    
+                //listen:off
+                rep_free.offInnerUpdate(listener);
+
+
 
                 //update scale
                 {
@@ -53028,7 +53153,7 @@
                     Y: original_homeScale.Y / scaleFactor.Y,
                   };
 
-                  console.log("homeScale_new", homeScale_new);
+                  logger.log("logAS", "activeSelection_scaling", "homeScale_new:", homeScale_new);
 
                   const icObj_update = {
                     homeScale: homeScale_new,
@@ -53044,19 +53169,19 @@
                 //update position
                 {
 
-                  const activeSelectionCenterX = activeSelection.width / 2;
+                  const activeSelectionCenterX = activeSelection.width  / 2;
                   const activeSelectionCenterY = activeSelection.height / 2;
 
                   const fObj_pos_wrt_ASTL = {
                     left: activeSelectionCenterX + fObj.left,
-                    top: activeSelectionCenterY + fObj.top,
+                    top: activeSelectionCenterY  + fObj.top,
                   };
 
                   const activeSelection_angleInRadians = fabric.util.degreesToRadians(activeSelection.angle);
 
                   const fObj_screenPos = {
                     x: activeSelection.left + scaleFactor.X * (Math.cos(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.left - Math.sin(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.top),
-                    y: activeSelection.top + scaleFactor.Y * (Math.sin(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.left + Math.cos(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.top),
+                    y: activeSelection.top + scaleFactor.Y  * (Math.sin(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.left + Math.cos(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.top),
                   };
 
                   const position_update = infiniteCanvas.toTruePoint(fObj_screenPos);
@@ -53067,6 +53192,10 @@
                   icObj.update(icObj_new, false);
 
                 }
+
+                //listen:on
+                rep_free.onInnerUpdate(listener);
+
               });
 
             }
@@ -53075,6 +53204,16 @@
 
               activeSelection.forEachObject((fObj, index, arr_fObj) => {
                 const icObj = fObj.icObj;
+
+
+                const listener = fObj.fListener_inner;
+
+                const rep_free = icObj;
+    
+                //listen:off
+                rep_free.offInnerUpdate(listener);
+
+
 
                 //update scale
                 {
@@ -53087,7 +53226,7 @@
                     Y: original_scale.Y * scaleFactor.Y,
                   };
 
-                  console.log("scale_new", scale_new);
+                  logger.log("logAS", "activeSelection_scaling", "scale_new:", scale_new);
 
                   const icObj_update = {
                     scale: scale_new,
@@ -53124,31 +53263,32 @@
 
 
                 //update position
-                {
+                // {
 
-                  const activeSelectionCenterX = fObj_sign.X * activeSelection.width / 2;
-                  const activeSelectionCenterY = fObj_sign.Y * activeSelection.height / 2;
+                //   const activeSelectionCenterX = fObj_sign.X * activeSelection.width  / 2;
+                //   const activeSelectionCenterY = fObj_sign.Y * activeSelection.height / 2;
 
-                  const fObj_pos_wrt_ASTL = {
-                    left: activeSelectionCenterX + fObj_sign.X * fObj.left,
-                    top: activeSelectionCenterY + fObj_sign.Y * fObj.top,
-                  };
+                //   const fObj_pos_wrt_ASTL = {
+                //     left: activeSelectionCenterX + fObj_sign.X * fObj.left,
+                //     top: activeSelectionCenterY  + fObj_sign.Y * fObj.top,
+                //   };
 
-                  const activeSelection_angleInRadians = fabric.util.degreesToRadians(activeSelection.angle);
+                //   const activeSelection_angleInRadians = fabric.util.degreesToRadians(activeSelection.angle);
 
-                  const fObj_screenPos = {
-                    x: activeSelection.left + scaleFactor.X * (Math.cos(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.left - Math.sin(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.top),
-                    y: activeSelection.top + scaleFactor.Y * (Math.sin(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.left + Math.cos(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.top),
-                  };
+                //   const fObj_screenPos = {
+                //     x: activeSelection.left + scaleFactor.X * (Math.cos(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.left - Math.sin(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.top),
+                //     y: activeSelection.top  + scaleFactor.Y  * (Math.sin(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.left + Math.cos(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.top),
+                //   };
 
-                  const position_update = infiniteCanvas.toTruePoint(fObj_screenPos);
+                //   const position_update = infiniteCanvas.toTruePoint(fObj_screenPos);
 
-                  const icObj_new = Object.assign({}, icObj);
-                  Object.assign(icObj_new.position, position_update);
+                //   const icObj_new = Object.assign({}, icObj);
+                //   Object.assign(icObj_new.position, position_update);
 
-                  icObj.update(icObj_new, false);
+                //   icObj.update(icObj_new, false);
 
-                }
+                // }
+                updateChildIcObj_position(fObj, activeSelection);
 
                 //update flip
                 {
@@ -53163,6 +53303,10 @@
                   icObj.update(icObj_new, false);
                 }
 
+
+                //listen:on
+                rep_free.onInnerUpdate(listener);
+
               });
 
             }
@@ -53170,10 +53314,10 @@
 
           }
 
-          function activeSelection_scaled(activeSelection) {
-            isScaling = false;
-            original_props = {};
-          }
+          // function activeSelection_scaled(activeSelection) {
+          //   isScaling = false;
+          //   original_props = {};
+          // }
 
 
 
