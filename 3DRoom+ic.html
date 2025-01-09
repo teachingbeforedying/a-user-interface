@@ -29332,7 +29332,13 @@
         else 
         {
           if(isSomethingSelected && mouseIntegration.leftMouseDown) {
-            infiniteCanvas.manageZScroll(scale_new, dOffset, arr_rep_free_selected, scaleAmount);
+
+            if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+              infiniteCanvas.manageZPixelZScroll(scale_new, dOffset, arr_rep_free_selected, scaleAmount);
+            } else {
+              infiniteCanvas.manageZScroll(scale_new, dOffset, arr_rep_free_selected, scaleAmount);
+            }
+
           } 
 
           this.updateScaleAndDOffset(scale_new, dOffset);
@@ -29340,6 +29346,8 @@
         }
 
       }
+
+      //zScroll
 
       manageZScroll(scale_new, dOffset, arr_rep_free_selected, scaleAmount) {
         logger.log("logZScroll", "manageZScroll", scale_new, dOffset, arr_rep_free_selected, scaleAmount);
@@ -29350,6 +29358,10 @@
         if (activeObject instanceof fabric.ActiveSelection) {
           const activeSelection = activeObject;
           logger.log("logZScroll", "manageZScroll", "activeSelection:", activeSelection);
+
+          // logger.log("logZScroll", "manageZScroll", {
+          //   "activeSelection.scaleX": activeSelection.scaleX,   //SHU: see that activeSelection.scaleX does not change
+          // });
 
           const factor__f = 1.0 / factor;
 
@@ -29403,25 +29415,88 @@
 
       }
 
+      //zPixelZScroll
 
-      manageZPixelZScroll(scale_new, dOffset, arr_rep_free_selected, scaleAmount) {
-        logger.log("logZPixelZScroll", "manageZPixelZScroll", scale_new, dOffset, arr_rep_free_selected, scaleAmount);
+      // createDict__zPixel__forZPixelZScroll(infiniteCanvas, fObj) {
+      //   const icObj = fObj.icObj;
+    
+      //   const truePoint      = infiniteCanvas.getTrueCursor();
+    
+      //   // const homeScaleX     = infiniteCanvas.scale.X / 16.0;
+      //   const homeScaleX     = infiniteCanvas.scale.X / infiniteCanvas.dScale_when_held.X;
+      //   // logger.log("logZPixelZScroll", "icObj.homeScale.X:",                 icObj.homeScale.X);
+      //   // logger.log("logZPixelZScroll", "infiniteCanvas.scale.X:",            infiniteCanvas.scale.X);
+      //   // logger.log("logZPixelZScroll", "infiniteCanvas.dScale_when_held.X:", infiniteCanvas.dScale_when_held.X);
+    
+      //   //get dict_zPixel
+      //   const dict_zPixel    = Geometry.zPixelUtils.defaultInstance.createDict__zPixel(infiniteCanvas, truePoint, homeScaleX);
+    
+      //   return dict_zPixel;
+      // }
 
-        const factor = (1 + scaleAmount);
+      compute_dScale_when_held(icObj) {
+        const dScale_when_held = {
+          X: infiniteCanvas.scale.X / icObj.homeScale.X,
+          Y: infiniteCanvas.scale.Y / icObj.homeScale.Y,
+        };
+        return dScale_when_held;
+      }
+
+      manageZPixelZScroll(scale_iC__new, dOffset, arr_rep_free_selected, scaleAmount) {   //SHU: warfare
+        logger.log("logZPixelZScroll", "manageZPixelZScroll", scale_iC__new, dOffset, arr_rep_free_selected, scaleAmount);
+
+        const infiniteCanvas = this;
+
+        // const factor = (1 + scaleAmount);
+
+
+        function createDict__zPixel__forZPixelZScroll(infiniteCanvas, scale_iC__new, icObj) {
+      
+          const truePoint      = infiniteCanvas.getTrueCursor();
+      
+          // const homeScaleX     = infiniteCanvas.scale.X / infiniteCanvas.dScale_when_held.X;
+          const homeScaleX     = scale_iC__new.X / icObj.__dScale_when_held.X;
+      
+          //get dict_zPixel
+          const dict__zPixel   = Geometry.zPixelUtils.defaultInstance.createDict__zPixel(infiniteCanvas, truePoint, homeScaleX);
+      
+          return dict__zPixel;
+        }
+
+
 
         const activeObject = fabricIntegration.fabricCanvas.getActiveObject();
         if (activeObject instanceof fabric.ActiveSelection) {
           const activeSelection = activeObject;
-          logger.log("logZPixelZScroll", "manageZPixelZScroll", "activeSelection:", activeSelection);
-
-          const factor__f = 1.0 / factor;
-
-          const zPixelZLevel = 2; 
-          const lol = true;
+          // logger.log("logZPixelZScroll", "manageZPixelZScroll", "activeSelection:", activeSelection);
 
           //compute scale corresponding to current zPixelZLevel
+          const icObj__fake = activeSelection.icObj__fake;
 
-          if(activeSelection.scaleX != scale__zPixelZLevel.X) {
+          const dict__zPixel      = createDict__zPixel__forZPixelZScroll(infiniteCanvas, scale_iC__new, icObj__fake);
+          const homeScale__zPixel = dict__zPixel.homeScale;
+
+          // logger.log("logZPixelZScroll", "manageZPixelZScroll", {
+          //   "activeSelection.scaleX": activeSelection.scaleX,       //SHU: see that activeSelection.scaleX does not change
+          //   "scale_f__zPixel.X":      scale_f__zPixel.X,
+          // });
+
+          // logger.log("logZPixelZScroll", "manageZPixelZScroll", {
+          //   "activeSelection.icObj__fake.homeScale.X": activeSelection.icObj__fake.homeScale.X,       
+          //   "homeScale__zPixel.X":                     homeScale__zPixel.X,
+          // });
+
+          // if( activeSelection.scaleX != scale_f__zPixel.X ) {
+          // if( activeSelection.icObj__fake.homeScale.X != homeScale__zPixel.X ) {
+
+            const factor__f = activeSelection.icObj__fake.homeScale.X / homeScale__zPixel.X;
+            
+            activeSelection.icObj__fake.homeScale = Object.assign({}, homeScale__zPixel);
+
+            // const scale_f__zPixel = {
+            //   X: (1.0 / homeScale__zPixel.X),
+            //   Y: (1.0 / homeScale__zPixel.Y),
+            // };
 
             globalsSingleton.functionCallsQueue
             .add(() => {
@@ -29430,8 +29505,11 @@
               fabricIntegration.mutateActiveSelection(activeSelection, (activeSelection) => {
 
                 //mutate scale
-                activeSelection.scaleX = scale__zPixelZLevel.X;
-                activeSelection.scaleY = scale__zPixelZLevel.Y;
+                // activeSelection.scaleX = scale_f__zPixel.X;
+                // activeSelection.scaleY = scale_f__zPixel.Y;
+
+                activeSelection.scaleX = activeSelection.scaleX * factor__f;
+                activeSelection.scaleY = activeSelection.scaleY * factor__f;
 
               });        
               
@@ -29442,23 +29520,22 @@
 
             setTimeout(() => globalsSingleton.functionCallsQueue.next(), 0);
 
-          } else {
-            //do nothing
-          }
+          // } else {
+          //   //do nothing ?
+          //   fabricIntegration.bugFix__groupOrigin(activeSelection);
+          // }
 
-          
 
         } else {
-          
+
           arr_rep_free_selected.forEach((rep_free, i) => {
-          
-            const homeScale__old = Object.assign({}, rep_free.homeScale);
-            const homeScale__new = {
-              X: homeScale__old.X * factor,
-              Y: homeScale__old.Y * factor,
-            };
+
+            //compute scale corresponding to current zPixelZLevel
+            const dict__zPixel      = createDict__zPixel__forZPixelZScroll(infiniteCanvas, scale_iC__new, rep_free);
+            const homeScale__zPixel = dict__zPixel.homeScale; 
+
+            const homeScale__new = Object.assign({}, homeScale__zPixel);
             rep_free.homeScale = homeScale__new;
-            
           });
 
         }
@@ -33552,12 +33629,14 @@
         icObj.onHold((icObj) => {
           logger.log("logZPixelZScroll", "addInitial_onHoldListener", "onHold", "icObj:", icObj);
 
-          const dScale_when_held = {
-            X: infiniteCanvas.scale.X / icObj.homeScale.X,
-            Y: infiniteCanvas.scale.Y / icObj.homeScale.Y,
-          };
+          //for zPixelZScroll
+          {
+            const dScale_when_held = infiniteCanvas.compute_dScale_when_held(icObj);  //SHU: infiniteCanvas is global here, :(
 
-          infiniteCanvas.dScale_when_held = dScale_when_held;
+            // infiniteCanvas.dScale_when_held = dScale_when_held;
+            icObj.__dScale_when_held = dScale_when_held;
+          }
+
         });
       }
 
@@ -34134,8 +34213,6 @@
       // ic_HUD.setActiveColor("rgba(200,100,50,0.6)");
 
     </script>
-
-
 
     <script>
       /*
@@ -46245,9 +46322,13 @@
         createDict_selectionMgmt__selectionCleared(options__selectionCleared) {
           var outDict;
 
+          const fabricIntegration = this;
+
+          const arr_fObj = Object.values(fabricIntegration.fabric_objects).filter((fObj) => (fObj.icObj != null) );
+
           outDict = {
             arr_fObj__selected:   [],
-            arr_fObj__unselected: [],
+            arr_fObj__unselected: arr_fObj,
           };
 
           return outDict;
@@ -53273,6 +53354,19 @@
                 fabricIntegration.bugFix__groupOrigin(activeSelection);
               // }, 20);
 
+              //setup some listeners
+              {
+                //hold
+                activeSelection.on('mousedown', function (options) {
+                  activeSelection_held(options);
+                });
+
+                //release
+                activeSelection.on('mouseup', function (options) {
+                  activeSelection_released(options);
+                });
+              }
+
             }
 
             //manage icObj.isSelected:true/false
@@ -53304,8 +53398,8 @@
           });
 
           //clear 
-          this.fabricCanvas.on("selection:updated", (options) => {
-            logger.log("selection:updated", options);
+          this.fabricCanvas.on("selection:cleared", (options) => {
+            logger.log("selection:cleared", options);
 
             // const activeObject = this.fabricCanvas.getActiveObject();
 
@@ -53324,6 +53418,9 @@
             fabricIntegration.processSelectionMgmtDict(dict__selectionMgmt);
 
           });
+
+
+
 
 
 
@@ -53422,6 +53519,41 @@
           });
 
 
+          //hold/release
+
+          function activeSelection_held(options) {
+            logger.log("logAS", "activeSelection_held", options);
+
+            const activeSelection = options.target;
+
+            //create/set icObj__fake
+            const icObj__fake = {
+              homeScale: {
+                X: (1.0 / activeSelection.scaleX),
+                Y: (1.0 / activeSelection.scaleY),
+              },
+            };
+
+            activeSelection.icObj__fake = icObj__fake;
+
+            //for zPixelZScroll
+            {
+              const dScale_when_held = infiniteCanvas.compute_dScale_when_held(icObj__fake);
+              logger.log("logAS", "activeSelection_held", "dScale_when_held:", dScale_when_held);
+
+              // infiniteCanvas.dScale_when_held = dScale_when_held;
+              activeSelection.icObj__fake.__dScale_when_held = dScale_when_held;
+            }
+
+          }
+
+          function activeSelection_released(options) {
+            logger.log("logAS", "activeSelection_released", options);
+
+            const activeSelection = options.target;
+
+
+          }
 
 
           //move
@@ -53807,23 +53939,6 @@
         }
 
 
-
-        createDict__zPixel__forZPixelZScroll(infiniteCanvas, fObj) {
-          const icObj = fObj.icObj;
-      
-          const truePoint      = infiniteCanvas.getTrueCursor();
-      
-          // const homeScaleX     = infiniteCanvas.scale.X / 16.0;
-          const homeScaleX     = infiniteCanvas.scale.X / infiniteCanvas.dScale_when_held.X;
-          // logger.log("logZPixelZScroll", "icObj.homeScale.X:",                 icObj.homeScale.X);
-          // logger.log("logZPixelZScroll", "infiniteCanvas.scale.X:",            infiniteCanvas.scale.X);
-          // logger.log("logZPixelZScroll", "infiniteCanvas.dScale_when_held.X:", infiniteCanvas.dScale_when_held.X);
-      
-          //get dict_zPixel
-          const dict_zPixel    = Geometry.zPixelUtils.defaultInstance.createDict__zPixel(infiniteCanvas, truePoint, homeScaleX);
-      
-          return dict_zPixel;
-        }
         
 
 
