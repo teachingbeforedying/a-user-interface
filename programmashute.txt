@@ -15090,15 +15090,118 @@ imgInstance.setControlsVisibility({
 																				==> no longer need fabric events :)
 																				==> no longer need to care about bouts colliding
 																			1 drawingMode may also decorate a brush to set its brush
-																			0 _addPoint is not called because wrappedObj already has a _addPoint
+																			0 ? _addPoint is not called because wrappedObj already has a _addPoint and decorator forwards call to wrappedObj and not outerMost
+>>>																				0? abusiveTopDownDecoration(): make it work
+																				1 workaround: put code back in zPencilBrush 
+																			0 fabricIntegration.fabricCanvas.freeDrawingBrush.addBrush(brush__bout)
+																				fabricCanvas.freeDrawingBrush is a 'carrier brush'
+																			0 bug: object is added twice 
+																				0 fabricObjectAdded__atomic_p vs func__myFabricObjectAdded__atomic_p
+																			0 bug: object's position is wrong:
+																				|-> createIcFreeDrawing_from_freeDrawingFObj() {
+																						...
+																						const trueRect = this.toTrueRect(fObj);
+																						...
+																					}
+																					=> must not use iC.scale when doing this
+
+*																			0 use empty class as decoration core
+
 																		0 test: change brush.color at each drawingBout
+																		0 test: use color operator to set brush color and make a drawingBout renewal
 
 																	
 																0 have the other drawingModes working
 
+15 janvier 2025:
+																			0 use CombBrush (with offset: {0,0})
+																				fabricCanvas.freeDrawingBrush is always a combBrush
+																				combBrush does not create any fObj,
+																					it forwards onMouseDown,onMouseMove and onMouseUp, "etc."
+																				drawing bouts add their brush__bout to the combBrush
+																			0 it might be necessary to prepare brush__bout via calls to
+																				onMouseDown() before adding the brush to the comb
+
+**																			0 add CombBrush to CombBrush: to separate each drawing mode in a specific combBrush
+																				1 drawingMode.brush__carrier, drawingMode.brush__raw
+																				0 atelier comb de comb
+																				1 bug: addBrush is called twice
+																					0 log DecorationUtils' process of decorating funcs
+																					=> back to old isFunction(anyObj)
+																				0 Uncaught RangeError: Maximum call stack size exceeded
+																					onMouseMove__preview
+																						=> 0 comment //DecorationUtils.getWrappedObj(brush).onMouseMove__preview
+
+																					0 upgrade "practical" decoratorClasses to static "anyClass" "ideal" decorators
+																						1 CassandraBrush yields CassandraXBrush
+																						1 if(brush_in instanceof fabric.CassandraBrush) ?
+																							1 allow decorator ideal name (example: CassandraBrush) to be in practical decorator (example: CassandraXBrush)
+																						
+																					0 Uncaught RangeError: Maximum call stack size exceeded
+																						0 DecorationUtils.getWrappedObj(brush).onMouseDown(pointer, options);
+
+																					0 ? MonkeyShadowBrush is not CombBrush ? don't need to CassandraBrush the child brushes ?
+																						0 check how combBrush works in old version
+																							0 why is there CassandraBrush ?
+																								=> it's because of rendering: every brush must be rendered at the same time
+
+																0 comb de comb related issues
+																	0 .zIndex with comb de comb ?
+																		0 ? is it ok to have combBrush.zIndex ?
+																			=> in the case of drawingMode's brush__carrier, it's ok (because child brushes will have the same zIndex)
+																		
+																					
+																					0 bug: Brush__DrawingBout__freeDrawing::_finalizeAndAddPath is not called, it's zPencilBrush::_finalizeAndAddPath that is called
+																						|-> overriding does not happen
+
+>>> 0 abusiveTopDownDecorator: use "_identity"																			
+				
+const IDENTITY = Symbol('proxy_target_identity')
+const handler = {
+  get: (target, property, receiver) => {
+    if (property === IDENTITY) {
+      return target
+    }
+    return Reflect.get(target, property, receiver)
+  }
+}
+function createProxy() {
+    const myArray = [Math.random(), Math.random()];
+    return new Proxy(myArray, handler);
+}
+const myProxy = createProxy();
+const orignal_target = myProxy[IDENTITY]
+
+16 janvier 2025:
+DECORATHORROR: si tu ne restes pas zen, dans la forêt de spaghetti, tu es perdu.
+																						1 abusiveTopDownDecorator
+																						1 everyone should use createAbusiveTopDownDecoratorClass
+
+															1 logZComb call "super" {this: Proxy(OffsettedXBrush), wrappedObj: Proxy(CassandraXBrush)}
+																=> don't use DecorationUtils.func_with_forwarded_this(outProp, outerMost);
+
+**?																						(0 almost non abusive: use global object for decorator lookup
+
+>>>																0 multi decoration: instance__deco.arr_wrapper
+																OR
+																0 undecorate()
+
+								(0 ZCombPencilBrush::addBrush(brush_in) {... getWrapperWithClass(CombPencilBrush).addBrush(brush_in); ... }
+
+								1 mystery: _finalizeAndAddPath() called twice, the second time's result is undefined
+									=> 1 CassandraXBrush {
+											_finalizeAndAddPath: function() {
+												return DecorationUtils.getWrappedObj(this)._finalizeAndAddPath();
+											},
+										 }
+									=> 1 decorator should forward func calls to wrappedObj until a wrappedObj has the func
+										(0 ? createDecoratorClass: create forwarding funcs for non decorated funcs ?
+											==> this means proxy is overkill ?
+										=> 1 DecorationUtils.func_with_forwarded_this(outProp, proxy__new);
+
+>>>																0 drawing is invisible while drawing
 
 
-    
 
 
 
