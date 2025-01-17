@@ -11855,22 +11855,34 @@
       createIcFreeDrawing_from_freeDrawingFObj(fObj) {
         // logger.trace("createIcFreeDrawing_from_freeDrawingFObj", fObj);
         // console.log("createIcFreeDrawing_from_freeDrawingFObj", fObj.constructor.name);
+        const infiniteCanvas = this;
 
 
         const type = "freeDrawing";
 
+        // const trueRect = this.toTrueRect(fObj);
+        // const position = Geometry.getPointTL(trueRect);
 
-        const trueRect = this.toTrueRect(fObj);
-        const position = Geometry.getPointTL(trueRect);
-        // const position = Object.assign({}, fObj.__truePoint);
-        const size     = Geometry.createSize(trueRect.width, trueRect.height);
+        // const screenPointTL = {
+        //   x: fObj.left,
+        //   y: fObj.top,
+        // };
+        // const truePointTL = infiniteCanvas.getTruePointForHomeScale(screenPointTL, fObj.__homeScale);
+        // const position = Object.assign({}, truePointTL);
+
+        const position = Object.assign({}, fObj.__truePointTL);
+
+
+        // const size     = Geometry.createSize(trueRect.width, trueRect.height);
+        const size     = Geometry.createSize(fObj.width, fObj.height);
+
 
         var homeScale;
-        if(fObj.__homeScale != null) {
+        // if(fObj.__homeScale != null) {
           homeScale = Object.assign({}, fObj.__homeScale);
-        } else {
-          homeScale = Object.assign({}, this.scale);
-        }
+        // } else {
+        //   homeScale = Object.assign({}, this.scale);
+        // }
         logger.log("logZIndexBrush", "createIcFreeDrawing_from_freeDrawingFObj", "homeScale:", homeScale);
 
         const icObj = this.createIcObject(type, position, size, homeScale);
@@ -24049,10 +24061,18 @@
 
 
       //add
+
+      isObjectAlreadyAdded(icObj) {
+        return (this.getRepresented(icObj.id) != null);
+      }
+
       addIcObject(icObj) {
+        logger.log("logIC", "addIcObject", icObj);
         // logger.log("logCP", "addIcObject", icObj);
 
-        if (this.getRepresented(icObj.id) != null) {
+        const isObjectAlreadyAdded_ = this.isObjectAlreadyAdded(icObj);
+        if (isObjectAlreadyAdded_) {
+          logger.log("logIC", "addIcObject", "this.getRepresented(icObj.id) != null", "==> ignore");
           //ignore
         } else {
 
@@ -24073,20 +24093,34 @@
       }
 
       addIcObject_p(icObj) {
+        logger.log("logIC", "addIcObject_p", icObj);
         var out_p;
 
-        out_p = new Promise((resolve, reject) => {
+        const isObjectAlreadyAdded_ = this.isObjectAlreadyAdded(icObj);
 
-          infiniteCanvas.onceOnAddRepresentedForIcObject(icObj, async (icObj) => {
+        function getRepFree(icObj) {
+          const represented = infiniteCanvas.getRepresented(icObj.id);
+          const rep_free    = represented.r_free();
+          return icObj;
+        }
 
-            const represented = infiniteCanvas.getRepresented(icObj.id);
-            const rep_free = represented.r_free();
+        if(isObjectAlreadyAdded_) {
+          const rep_free = getRepFree(icObj);
+          out_p = Promise.resolve(rep_free);
+        } else {
+          out_p = new Promise((resolve, reject) => {
 
-            resolve(rep_free);
+            infiniteCanvas.onceOnAddRepresentedForIcObject(icObj, (icObj) => {
+              logger.log("logIC", "addIcObject_p", "onceOnAddRepresentedForIcObject", "icObj:", icObj);
+  
+              const rep_free = getRepFree(icObj);
+  
+              resolve(rep_free);
+            });
+            infiniteCanvas.addIcObject(icObj);
+  
           });
-          infiniteCanvas.addIcObject(icObj);
-
-        });
+        }
 
         return out_p;
       }
@@ -28908,6 +28942,11 @@
       }
 
 
+
+
+
+
+
       createPOVWithRect(trueRect) {
         const center = {
           x: trueRect.x + (trueRect.width  / 2.0),
@@ -29653,10 +29692,14 @@
           await fabricIntegration.leaveDrawingMode__atomic_p();
           logger.log("logIC", "### 1B ###");
 
+          //debug
           // await new Promise((resolve, reject) => {
-          //   fabricCanvas.on("object:added", () => {
-          //     resolve("lala");
-          //   });
+          //   // fabricCanvas.on("object:added", () => {
+          //   //   resolve("lala");
+          //   // });
+          //   setTimeout(() => {
+          //     resolve("lalala");
+          //   }, 17);
           // });
 
           logger.log("logIC", "### 2A ###");
@@ -54706,36 +54749,36 @@
 
         }
 
-        on(str__fabricEventName, id__listener, func__listener) {
-          const fabricIntegration = this;
+        // on(str__fabricEventName, id__listener, func__listener) {
+        //   const fabricIntegration = this;
 
-          if(!fabricIntegration.dict_on[id__listener]) {
-            //store
-            fabricIntegration.dict_on[id__listener] = func__listener;
+        //   if(!fabricIntegration.dict_on[id__listener]) {
+        //     //store
+        //     fabricIntegration.dict_on[id__listener] = func__listener;
 
-            //forward to fabricCanvas
-            fabricIntegration.fabricCanvas.on(str__fabricEventName, func__listener);
-          } else {
-            // throw new Error("fabricIntegration.dict_on[" + id__listener + "] != null", "trying to on an already on");
-          }
+        //     //forward to fabricCanvas
+        //     fabricIntegration.fabricCanvas.on(str__fabricEventName, func__listener);
+        //   } else {
+        //     // throw new Error("fabricIntegration.dict_on[" + id__listener + "] != null", "trying to on an already on");
+        //   }
 
-        }
+        // }
 
-        off(str__fabricEventName, id__listener) {
-          const fabricIntegration = this;
+        // off(str__fabricEventName, id__listener) {
+        //   const fabricIntegration = this;
 
-          if(fabricIntegration.dict_on[id__listener]) {
-            //destore
-            const func__listener = fabricIntegration.dict_on[id__listener];
-            fabricIntegration.dict_on[id__listener] = null;
+        //   if(fabricIntegration.dict_on[id__listener]) {
+        //     //destore
+        //     const func__listener = fabricIntegration.dict_on[id__listener];
+        //     fabricIntegration.dict_on[id__listener] = null;
 
-            //forward to fabricCanvas
-            fabricIntegration.fabricCanvas.off(str__fabricEventName, func__listener);
-          } else {
-            // throw new Error("fabricIntegration.dict_on[" + id__listener + "] == null", "trying to off an already off");
-          }
+        //     //forward to fabricCanvas
+        //     fabricIntegration.fabricCanvas.off(str__fabricEventName, func__listener);
+        //   } else {
+        //     // throw new Error("fabricIntegration.dict_on[" + id__listener + "] == null", "trying to off an already off");
+        //   }
 
-        }
+        // }
 
 
         initializeDrawingModes() {
@@ -54773,9 +54816,11 @@
               this.id                     = undefined;
               this.session                = undefined;
 
-              const brush__drawingMode    = undefined;
               this.brush                  = undefined;
+              this.brush__bout__inComb    = undefined;
 
+              this.isIntact               = undefined;
+              this.isForcedToFinish       = undefined;
               this.isFinished             = undefined;
 
               this.dict__atomic           = undefined;
@@ -54784,16 +54829,19 @@
               if(id !== undefined && session !== undefined) {
                 logger.log("logDrawingMode", "DrawingBout::constructor", "id:", id, "session:", session);
 
-                this.id                = id;
-                this.session           = session;
+                this.id                     = id;
+                this.session                = session;
   
                 // const brush__drawingMode = session.drawingMode.brush;
                 // this.brush               = this._createDrawingBoutBrush(brush__drawingMode);
-                this.brush             = null;
+                this.brush                  = null;
+                this.brush__bout__inComb    = null;  //SHU: a bit ugly but let's see
   
-                this.isFinished = false;
+                this.isIntact               = true;
+                this.isForcedToFinish       = false;
+                this.isFinished             = false;
   
-                this.dict__atomic = {};
+                this.dict__atomic           = {};
                 this.truePoint__atomic__end = null;
               } else {
                 //constructor was used by decorator
@@ -54827,11 +54875,7 @@
               // const brush__bout = PreviewBrush.decorate(new fabric.PencilBrush());
 
               //plug bout brush
-              try {
-                drawingMode.brush__carrier.addBrush(brush__bout);
-              } catch(e) {
-                logger.log("logError", e);
-              }
+              drawingBout.plugBoutBrush(brush__bout);
             }
 
             async end_p() {
@@ -54840,6 +54884,8 @@
 
               const drawingBout = this;
 
+              drawingBout.isForcedToFinish = true;
+
               // if(drawingBout.isFinished) {
               //   out_p = Promise.resolve(drawingBout);
               // } else {
@@ -54847,6 +54893,30 @@
               // }
 
               return out_p;
+            }
+
+            plugBoutBrush(brush__bout) {
+              logger.log("logDrawingMode", "DrawingBout::plugBoutBrush");
+
+              const drawingBout       = this;
+              const drawingSession    = drawingBout.session;
+              const drawingMode       = drawingSession.drawingMode;
+
+              const brush__bout__inComb = drawingMode.brush__carrier.addBrush(brush__bout);
+              drawingBout.brush__bout__inComb = brush__bout__inComb;
+            }
+
+            unplugBoutBrush() {
+              logger.log("logDrawingMode", "DrawingBout::unplugBoutBrush");
+
+              const drawingBout       = this;
+              const drawingSession    = drawingBout.session;
+              const drawingMode       = drawingSession.drawingMode;
+
+              const brush__bout__inComb = drawingMode.brush__bout__inComb;
+              logger.log("logDrawingMode", "DrawingBout::unplugBoutBrush", "drawingMode.brush__carrier.arr_brush:", drawingMode.brush__carrier.arr_brush);
+              drawingMode.brush__carrier.removeBrush(brush__bout__inComb);
+              logger.log("logDrawingMode", "DrawingBout::unplugBoutBrush", "drawingMode.brush__carrier.arr_brush:", drawingMode.brush__carrier.arr_brush);
             }
 
             storeTruePoint__atomic__end() {
@@ -54896,7 +54966,7 @@
               const drawingMode    = drawingSession.drawingMode;
 
               //unplug bout brush
-              drawingMode.brush__carrier.removeBrush(drawingBout.brush);
+              drawingBout.unplugBoutBrush();
 
               drawingBout.storeTruePoint__atomic__end();
 
@@ -54919,7 +54989,10 @@
 
             manageCreatedFabricObject_p(fObj) {
               logger.log("logDrawingBout", "manageCreatedFabricObject_p", this, fObj);
+
               const drawingBout       = this;
+              logger.log("logDrawingBout", "manageCreatedFabricObject_p", "drawingBout.id:", drawingBout.id);
+
               const drawingSession    = drawingBout.session;
               const drawingMode       = drawingSession.drawingMode;
               const fabricIntegration = drawingMode.fabricIntegration;
@@ -54950,6 +55023,7 @@
                 })
                 .then(() => {
                   logger.log("logDrawingBout", "manageCreatedFabricObject_p", ".isFinished = true");
+                  
                   drawingBout.isFinished = true;
 
                   return drawingSession.manageDrawingBoutFinished_p(drawingBout);
@@ -54969,24 +55043,31 @@
 
             constructor(id, drawingMode) {
 
-              this.id                   = undefined;
-              this.drawingMode          = undefined;
+              this.id                       = undefined;
+              this.drawingMode              = undefined;
 
-              this.counter__DrawingBout = undefined;
-              this.arr_bout             = undefined;
+              this.counter__DrawingBout     = undefined;
+              this.arr_bout                 = undefined;
               
-              this.arr_icObj__created   = undefined;
+              this.arr_icObj__created       = undefined;
+              this.icObj__adhesive__support = undefined;
+
+              this.isFinished               = undefined;
 
               if(id !== undefined && drawingMode !== undefined) {
                 logger.log("logDrawingMode", "DrawingSession::constructor", "id:", id, "drawingMode:", drawingMode);
                 
-                this.id = id;
-                this.drawingMode = drawingMode;
+                this.id                       = id;
+                this.drawingMode              = drawingMode;
 
-                this.counter__DrawingBout = 0;
-                this.arr_bout = [];
+                this.counter__DrawingBout     = 0;
+                this.arr_bout                 = [];
                 
-                this.arr_icObj__created = [];
+                this.arr_icObj__created       = [];
+                this.icObj__adhesive__support = null;
+
+                this.isFinished               = false;
+
               } else {
                 //constructor was used by decorator
               }
@@ -55004,6 +55085,7 @@
   
               const id__drawingBout = drawingSession.counter__DrawingBout;
               const drawingBout = drawingSession._createDrawingBout(id__drawingBout);
+              logger.log("logDrawingMode", "DrawingSession::createNewDrawingBout", "drawingSession.id:", drawingSession.id, "drawingBout:", drawingBout);
 
               //create bout brush
               const brush__drawingMode = drawingMode.brush__raw;
@@ -55023,6 +55105,11 @@
               return (this.arr_bout.length > 1) ? this.arr_bout[(this.arr_bout.length - 1) - 1] : null;
             }
 
+            getPreviousNonIntactDrawingBout() {
+              const arr_bout__nonIntact = this.arr_bout.filter((bout) => !bout.isIntact);
+              return (arr_bout__nonIntact.length > 1) ? arr_bout__nonIntact[(arr_bout__nonIntact.length - 1) - 1] : null;
+            }
+
 
 
             enter__atomic_p(cfg) {
@@ -55040,14 +55127,12 @@
               const drawingBout__new = drawingSession.createNewDrawingBout();
               drawingSession.arr_bout.push(drawingBout__new);
 
-              drawingSession.configure__atomic(drawingBout__new, cfg);
-
-              // drawingSession.isShouldReOnListener = true;
+              drawingSession.configure__bout(drawingBout__new, cfg);
 
               drawingBout__new.begin_p();
             }
 
-            configure__atomic(drawingBout__new, cfg) {
+            configure__bout(drawingBout__new, cfg) {
               const drawingSession    = this;
               const drawingMode       = drawingSession.drawingMode;
               const fabricIntegration = drawingMode.fabricIntegration;
@@ -55071,23 +55156,43 @@
               const fabricIntegration = drawingMode.fabricIntegration;
 
               const drawingBout__current = drawingSession.getCurrentDrawingBout();
-              if(drawingBout__current.isFinished) {
-                // throw new Error("drawingBout__current is already finished");
-                out_p = Promise.resolve(drawingBout__current);
+
+              if(drawingBout__current.isIntact) {
+                  drawingBout__current.unplugBoutBrush();
+                  drawingBout__current.isFinished = true;
+                  out_p = Promise.resolve(drawingBout__current);
               } else {
-                out_p = drawingBout__current.end_p();
+
+                if(drawingBout__current.isFinished) {
+                  // throw new Error("drawingBout__current is already finished");
+                  out_p = Promise.resolve(drawingBout__current);
+                } else {
+                  out_p = drawingBout__current.end_p();
+                }
+
               }
 
               return out_p;
             }
 
 
-            manageDrawingBoutFinished_p(drawingBout__finished) {
+            async manageDrawingBoutFinished_p(drawingBout__finished) {
               logger.log("logDrawingSession", "manageDrawingBoutFinished_p", drawingBout__finished);
-
               logger.log("logDrawingSession", "manageDrawingBoutFinished_p", "drawingBout__finished.isFinished:", drawingBout__finished.isFinished);
-            }
+              logger.log("logDrawingSession", "manageDrawingBoutFinished_p", "drawingBout__finished.isForcedToFinish:", drawingBout__finished.isForcedToFinish);
 
+              const drawingSession = this;
+
+              if(drawingBout__finished.isForcedToFinish) {
+                //don't create a new drawing bout, something is happening
+                return null;
+              } else {
+                //create a new drawing bout
+                // return drawingSession.enter__atomic_p();
+                return await DecorationUtils.getOutermost(drawingSession).enter__atomic_p();  //SHU: we want the "grand" enter__atomic_p() with the "grand" _createDrawingBout()
+              }
+
+            }
 
           }
           fabricIntegration.class__DrawingSession = DrawingSession;
@@ -55106,17 +55211,20 @@
 
               this.counter__DrawingSession  = undefined;
               this.session                  = undefined;
+              this.session__previous        = undefined;
 
               if(id__drawingMode !== undefined && fabricIntegration !== undefined) {
                 logger.log("logDrawingMode", "DrawingModeZero::constructor", id__drawingMode, fabricIntegration);
-                this.id__drawingMode   = id__drawingMode;
-                this.fabricIntegration = fabricIntegration;
+                this.id__drawingMode          = id__drawingMode;
+                this.fabricIntegration        = fabricIntegration;
 
-                this.brush__raw     = null;
+                this.brush__raw               = null;
                 // this.brush__carrier = null;
 
-                this.counter__DrawingSession = 0;
-                this.session = null;
+                this.counter__DrawingSession  = 0;
+                this.session                  = null;
+                this.session__previous        = null;
+
               } else {
                 //constructor was used by decorator
               }
@@ -55170,7 +55278,10 @@
               const drawingMode = this;
 
               // return (this.arr_session.length > 0) ? this.arr_session[this.arr_session.length - 1] : null;
-              return drawingMode.session;
+              const session = drawingMode.session;
+              logger.trace("logDrawingMode", "getCurrentDrawingSession", "session?.id:", session?.id);
+              
+              return session;
             },
 
 
@@ -55250,12 +55361,13 @@
 
               drawingMode.brush__preview__stop();
     
-              const drawingBout__current = drawingSession.getCurrentDrawingBout();
-              logger.log("logDrawingMode", "leaveDrawingMode_p", "drawingBout__current.isFinished", drawingBout__current.isFinished);
+              // const drawingBout__current = drawingSession.getCurrentDrawingBout();
+              // logger.log("logDrawingMode", "leaveDrawingMode_p", "drawingBout__current.isFinished", drawingBout__current.isFinished);
 
-              if(!drawingBout__current.isFinished) {
-                await drawingMode.leaveDrawingMode__atomic_p();
-              }
+              // if(!drawingBout__current.isFinished) {
+              //   await drawingMode.leaveDrawingMode__atomic_p();
+              // }
+              await drawingMode.leaveDrawingMode__atomic_p();
               
 
               fabricIntegration.fabricCanvas.isDrawingMode = false;
@@ -55264,15 +55376,16 @@
               //unplug carrier brush
               fabricIntegration.fabricCanvas.freeDrawingBrush.removeBrush(drawingMode.brush__carrier);
 
-              drawingMode.session = null;
 
-              
               //gather all created objects
               const icObj__polyatomic = await drawingMode.manageDrawingSessionCreatedObjects_p(drawingSession.arr_icObj__created);  //SHU: this call never ends
               logger.log("logDrawingMode", "leaveDrawingMode_p", "icObj__polyatomic:", icObj__polyatomic);
           
-          
-              // drawingMode.session = null;
+
+              drawingSession.isFinished = true;
+
+              drawingMode.session__previous = drawingSession;
+              drawingMode.session           = null;
             },
 
 
@@ -55316,16 +55429,20 @@
               const fabricIntegration = drawingMode.fabricIntegration;
               const infiniteCanvas    = fabricIntegration.infiniteCanvas;
 
-              var icObj__polyatomic = await drawingMode.func__createIcObj__polyatomic_p(arr_icObj__created);
+              const icObj__polyatomic = await drawingMode.func__createIcObj__polyatomic_p(arr_icObj__created);
+              logger.log("logFD", "DrawingMode", "manageDrawingSessionCreatedObjects_p", "icObj__polyatomic:", icObj__polyatomic);
 
               //clear
               drawingMode.arr_icObj__created = [];
 
               if(icObj__polyatomic != null) {
-                // return infiniteCanvas.addIcObject_p(icObj__polyatomic); 
-                return infiniteCanvas.addNewIcObject_p(icObj__polyatomic); 
+                // const rep_free = await infiniteCanvas.addIcObject_p(icObj__polyatomic)
+                const rep_free = await infiniteCanvas.addNewIcObject_p(icObj__polyatomic)
+
+                return Promise.resolve(rep_free);
               } else {
                 return null;
+                // return Promise.resolve(null);
               }
 
             },
@@ -55368,12 +55485,20 @@
           // class Brush__DrawingBout__raw__freeDrawing extends DecorationUtils.createAbusiveDecoratorClass(fabric.ZPencilBrush, {
           class Brush__DrawingBout__raw__freeDrawing extends DecorationUtils.createAbusiveTopDownDecoratorClass(fabric.ZPencilBrush, {
 
+            onMouseDown: function (pointer, options) {
+              logger.log("logFD", "Brush__DrawingBout__raw__freeDrawing", "onMouseDown", "this:", this);
+              const brush = this;
+
+              brush.drawingBout.isIntact = false;
+              return DecorationUtils.getWrappedObj(this).onMouseDown(pointer, options);
+            },
+
             _finalizeAndAddPath_p: function () {
-              logger.log("logFD", "Brush__DrawingBout__base__freeDrawing", "_finalizeAndAddPath_p");
+              logger.log("logFD", "Brush__DrawingBout__raw__freeDrawing", "_finalizeAndAddPath_p");
               const brush = this;
         
               if(brush._points.length == 0) {
-                const error = new Error("Brush__DrawingBout__base__freeDrawing " + " _finalizeAndAddPath_p " + " brush._points.length == 0");
+                const error = new Error("Brush__DrawingBout__raw__freeDrawing " + " _finalizeAndAddPath_p " + " brush._points.length == 0");
                 return Promise.reject(error);
               }
         
@@ -55454,7 +55579,7 @@
           class DrawingBout__freeDrawing extends DecorationUtils.createAbusiveTopDownDecoratorClass(DrawingBout, {
 
             _createDrawingBoutBrush: function(brush__naive) {
-              // logger.log("logFD", "DrawingBout__freeDrawing", "_createDrawingBoutBrush", "brush__naive:", brush__naive);
+              logger.log("logFD", "DrawingBout__freeDrawing", "_createDrawingBoutBrush", "brush__naive:", brush__naive);
               const drawingBout = this;
 
               // class Brush__DrawingBout__freeDrawing extends DecorationUtils.createAbusiveDecoratorClass(Brush__DrawingMode__freeDrawing, {
@@ -55469,8 +55594,20 @@
 
                   const brush       = this;
                   const drawingBout = brush.drawingBout;
+                  logger.log("logFreeDrawing", "Brush__DrawingBout__freeDrawing", "_finalizeAndAddPath", {
+                    "drawingSession.id"           : drawingBout.session.id,
+                    "drawingSession.isFinished"   : drawingBout.session.isFinished,
 
-                  try {
+                    "drawingBout.id"              : drawingBout.id,
+                    "drawingBout.isFinished"      : drawingBout.isFinished,
+                  });
+
+                  if(drawingBout.session.isFinished) {
+                    throw new Error("Brush__DrawingBout__freeDrawing::_finalizeAndAddPath, drawingSession.isFinished");
+                  }
+
+                  if(!drawingBout.isFinished) {
+
                     const dict__atomic = DecorationUtils.getWrappedObj(this)._finalizeAndAddPath();
 
                     // const wrappedObj__ = DecorationUtils.getDecoratorObj__with_class(this, Brush__DrawingBout__raw__freeDrawing);
@@ -55479,8 +55616,9 @@
                     logger.log("logFreeDrawing", "Brush__DrawingBout__freeDrawing", "_finalizeAndAddPath", "this:", this, "dict__atomic:", dict__atomic);
 
                     await drawingBout.fabricObjectAdded__atomic_p(dict__atomic);
-                  } catch(e) {
-                    logger.log("logError", e);
+
+                  } else {
+                    throw new Error("Brush__DrawingBout__freeDrawing::_finalizeAndAddPath, drawingBout.isFinished");
                   }
 
                 },
@@ -55512,29 +55650,15 @@
               logger.log("logFD", "finalize__brush_p", this);
 
               const drawingBout = this;
+              logger.log("logFD", "finalize__brush_p", {
+                "drawingSession.id":          drawingBout.session.id,
+                "drawingSession.isFinished":  drawingBout.session.isFinished,
+
+                "drawingBout.id":             drawingBout.id,
+                "drawingSession.isFinished":  drawingBout.isFinished,
+              });
 
               const dict__atomic = await drawingBout.brush._finalizeAndAddPath_p();
-
-              // const object_added_p = new Promise(async (resolve, reject) => {
-
-              //   function listener() {
-              //     logger.log("logIC", "### 1Y ###");
-              //     fabricCanvas.off("object:added", listener);
-              //     resolve("lolipop");
-              //   }
-    
-              //   fabricCanvas.on("object:added", listener);
-  
-              // });
-              
-              // await object_added_p;
-
-              // await new Promise((resolve, reject) => {
-              //   setTimeout(() => {
-              //     logger.log("logIC", "### 1Y ###");
-              //     resolve("pops");
-              //   }, 20);
-              // });
 
               drawingBout.brush._reset();
               
@@ -55616,6 +55740,13 @@
               const fabricIntegration = drawingMode.fabricIntegration;
               const infiniteCanvas    = fabricIntegration.infiniteCanvas;
 
+              const screenPointTL = {
+                x: fObj.left,
+                y: fObj.top,
+              };
+              const truePointTL  = infiniteCanvas.toTruePoint(screenPointTL); 
+              fObj.__truePointTL = truePointTL;
+
               const icObj = infiniteCanvas.createIcFreeDrawing_from_freeDrawingFObj(fObj);
               out_p = Promise.resolve(icObj);
 
@@ -55640,15 +55771,16 @@
               // }
             },
 
-            configure__atomic: function(drawingBout, cfg) {
-              DecorationUtils.getWrappedObj(this).configure__atomic(drawingBout, cfg);
+            configure__bout: function(drawingBout, cfg) {
+              DecorationUtils.getWrappedObj(this).configure__bout(drawingBout, cfg);
 
               const drawingSession    = this;
               const drawingMode       = drawingSession.drawingMode;
               const fabricIntegration = drawingMode.fabricIntegration;
               const infiniteCanvas    = fabricIntegration.infiniteCanvas;
 
-              const drawingBout__previous = drawingSession.getPreviousDrawingBout();
+              // const drawingBout__previous = drawingSession.getPreviousDrawingBout();
+              const drawingBout__previous = drawingSession.getPreviousNonIntactDrawingBout();
               const drawingBout__current  = drawingBout;
 
               const isInitial = (drawingBout__previous == null);
@@ -55657,7 +55789,7 @@
                 const truePoint__atomic__end__previous = drawingBout__previous.truePoint__atomic__end;
 
                 const screenPoint__atomic__start = infiniteCanvas.toScreenPoint(truePoint__atomic__end__previous);
-                logger.log("logFD", "configure__atomic", "screenPoint__atomic__start:", screenPoint__atomic__start);
+                logger.log("logFD", "configure__bout", "screenPoint__atomic__start:", screenPoint__atomic__start);
 
                 // const brush = drawingMode.brush;
                 const brush = drawingBout.brush;
@@ -55691,7 +55823,7 @@
 
             // id__drawingMode: "drawingModeFreeDrawing",
 
-            str_event__fabricObjectAdded: "path:created",
+            // str_event__fabricObjectAdded: "path:created",
 
             _createDrawingSession(id__drawingSession, drawingMode) {
               logger.log("logFD", "_createDrawingSession", id__drawingSession, drawingMode);
@@ -55796,8 +55928,6 @@
 
             //override base class
 
-            icObj__adhesive__support: null,
-
             manageDrawingSessionCreatedObjects_p: function(arr_icObj__created) {
               logger.log("logFD", "freeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", arr_icObj__created);
               var out_p;
@@ -55805,19 +55935,23 @@
               const drawingMode       = this;
               const fabricIntegration = drawingMode.fabricIntegration;
               const infiniteCanvas    = fabricIntegration.infiniteCanvas;
+
+              const drawingSession    = drawingMode.getCurrentDrawingSession();  
   
-              out_p = DecorationUtils.getWrappedObj(this).manageDrawingSessionCreatedObjects_p.call(drawingMode,arr_icObj__created)
+              // out_p = DecorationUtils.getWrappedObj(this).manageDrawingSessionCreatedObjects_p.call(drawingMode,arr_icObj__created)
+              out_p = DecorationUtils.getWrappedObj(this).manageDrawingSessionCreatedObjects_p(arr_icObj__created)
               .then((icObj__polyatomic) => {
   
                 // if(icObj__polyatomic.fObj.isAdhesive) {
                 const isAdhesive = arr_icObj__created.find(e => true)?.exoObject.isAdhesive;
+                logger.log("logFD", "freeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "isAdhesive:", isAdhesive);
                 if(isAdhesive) {
       
                   //adhesion at start of drawing
-                  if((arr_icObj__created.length > 0) && (drawingMode.icObj__adhesive__support != null)) {
-                    // logger.log("logFD", "freeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "--here--");
+                  if((arr_icObj__created.length > 0) && (drawingSession.icObj__adhesive__support != null)) {
+                    logger.log("logFD", "freeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "adhesion at start");
   
-                    const icObj__support__start           = drawingMode.icObj__adhesive__support;
+                    const icObj__support__start           = drawingSession.icObj__adhesive__support;
                     const rep_free__icObj__support__start = infiniteCanvas.getRepresented(icObj__support__start.id).r_free(); //SHU: probably overkill
       
                     //manage adhesion
@@ -55826,6 +55960,8 @@
       
                   //adhesion at end of drawing
                   if(infiniteCanvas.adhesive__isAdhesiveKick) {
+                    logger.log("logFD", "freeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "adhesion at end");
+
                     const true_cursor = infiniteCanvas.getTrueCursor();
                     const icObj__support__end = infiniteCanvas.getCandidateSupportUnderPoint(true_cursor, icObj__polyatomic);
                     if(icObj__support__end != null) {
@@ -55840,7 +55976,9 @@
       
                 }
   
-                drawingMode.icObj__adhesive__support = null;
+                // drawingSession.icObj__adhesive__support = null;
+
+                return icObj__polyatomic;
               });
   
               return out_p;
@@ -55908,7 +56046,7 @@
 
             str_event__fabricObjectAdded: "zPixelGroup:created",
 
-            configure__atomic: function(cfg) {
+            configure__bout: function(cfg) {
               const drawingMode       = this;
               const fabricIntegration = drawingMode.fabricIntegration;
               const inputProperties   = fabricIntegration.inputProperties;
@@ -56808,16 +56946,26 @@
         }
 
         async enterDrawingMode__atomic_p(cfg) {
-          this.arr_drawingMode.forEach(async (drawingMode) => {
+          // this.arr_drawingMode.forEach(async (drawingMode) => {
+          //   await drawingMode.enterDrawingMode__atomic_p(cfg);
+          // });
+          for(var i=0; i<this.arr_drawingMode.length;i++) {
+            const drawingMode = this.arr_drawingMode[i];
             await drawingMode.enterDrawingMode__atomic_p(cfg);
-          });
+          }
         }
 
         async leaveDrawingMode__atomic_p() {
           logger.trace("logDrawingModeFI", "leaveDrawingMode__atomic_p");
-          this.arr_drawingMode.forEach(async (drawingMode) => {
+
+          // this.arr_drawingMode.forEach(async (drawingMode) => {
+            // await drawingMode.leaveDrawingMode__atomic_p();
+          // });
+          for(var i=0; i<this.arr_drawingMode.length;i++) {
+            const drawingMode = this.arr_drawingMode[i];
             await drawingMode.leaveDrawingMode__atomic_p();
-          });
+          }
+
           return "lol487";
         }
 
