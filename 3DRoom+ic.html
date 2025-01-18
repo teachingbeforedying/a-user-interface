@@ -29705,17 +29705,17 @@
           // });
 
           logger.log("logIC", "### 2A ###");
-          await new Promise((resolve, reject) => {
+          // await new Promise((resolve, reject) => {
             
-            function listener() {
-              logger.log("logIC", "### 2B ###");
-              fabricCanvas.off("after:render", listener);
-              resolve("loli");
-            }
+          //   function listener() {
+          //     logger.log("logIC", "### 2B ###");
+          //     fabricCanvas.off("after:render", listener);
+          //     resolve("loli");
+          //   }
 
-            fabricCanvas.on("after:render", listener);
+          //   fabricCanvas.on("after:render", listener);
             infiniteCanvas.updateScaleAndDOffset(scale_new, dOffset);
-          });
+          // });
           
         
           logger.log("logIC", "### 3A ###");
@@ -29724,10 +29724,10 @@
 
         }
 
-        manageFreeDrawingZScroll__granular();
+        // manageFreeDrawingZScroll__granular();
 
-        // globalsSingleton.functionCallsQueue.add(manageFreeDrawingZScroll__granular);
-        // setTimeout(() => globalsSingleton.functionCallsQueue.next(), 0);
+        globalsSingleton.functionCallsQueue.add(manageFreeDrawingZScroll__granular);
+        setTimeout(() => globalsSingleton.functionCallsQueue.next(), 0);
       }
 
 
@@ -54802,14 +54802,14 @@
           */
 
 
-          //install combBrush as main freeDrawingBrush
+          //install zNoOffsetCombPencilBrush as main freeDrawingBrush
           {
             const fabricCanvas = fabricIntegration.fabricCanvas;
 
-            const combBrush       = fabric.ZCombPencilBrush.createInstance(fabricCanvas, []);
-            combBrush.debug__name = "freeDrawingBrushIsCombBrush";
+            const brush__zNoOffsetCombPencilBrush       = fabric.ZNoOffsetCombPencilBrush.createInstance(fabricCanvas, []);
+            brush__zNoOffsetCombPencilBrush.debug__name = "freeDrawingBrushIsZNoOffsetCombBrush";
 
-            fabricCanvas.freeDrawingBrush = combBrush;
+            fabricCanvas.freeDrawingBrush = brush__zNoOffsetCombPencilBrush;
           }
                     
           
@@ -54878,7 +54878,6 @@
               // drawingBout.brush = brush__bout; 
 
               const brush__bout = drawingBout.brush;
-              // const brush__bout = PreviewBrush.decorate(new fabric.PencilBrush());
 
               //plug bout brush
               drawingBout.plugBoutBrush(brush__bout);
@@ -54890,19 +54889,28 @@
 
               const drawingBout = this;
 
-              drawingBout.isForcedToFinish = true;
+              if(drawingBout.isForcedToFinish) {
+                //ok, I got it, no need to mash the button
+                out_p = Promise.resolve(drawingBout);
+              } else {
 
-              // if(drawingBout.isFinished) {
-              //   out_p = Promise.resolve(drawingBout);
-              // } else {
-                out_p = drawingBout.finalize_p();
-              // }
+                drawingBout.unplugBoutBrush();
+                drawingBout.isForcedToFinish = true;
+
+
+                // if(drawingBout.isFinished) {
+                //   out_p = Promise.resolve(drawingBout);
+                // } else {
+                  out_p = drawingBout.finalize_p();
+                // }
+
+              }
 
               return out_p;
             }
 
             plugBoutBrush(brush__bout) {
-              logger.log("logDrawingMode", "DrawingBout::plugBoutBrush");
+              logger.log("logDrawingMode", "DrawingBout::plugBoutBrush", "this.id:", this.id);
 
               const drawingBout       = this;
               const drawingSession    = drawingBout.session;
@@ -54910,19 +54918,30 @@
 
               const brush__bout__inComb = drawingMode.brush__carrier.addBrush(brush__bout);
               drawingBout.brush__bout__inComb = brush__bout__inComb;
+
+              logger.log("logDrawingMode", "DrawingBout::plugBoutBrush", "brush__bout__inComb:", brush__bout__inComb);
             }
 
             unplugBoutBrush() {
-              logger.log("logDrawingMode", "DrawingBout::unplugBoutBrush");
+              logger.trace("logDrawingMode", "DrawingBout::unplugBoutBrush", "this.id:", this.id);
 
               const drawingBout       = this;
               const drawingSession    = drawingBout.session;
               const drawingMode       = drawingSession.drawingMode;
 
-              const brush__bout__inComb = drawingMode.brush__bout__inComb;
-              logger.log("logDrawingMode", "DrawingBout::unplugBoutBrush", "drawingMode.brush__carrier.arr_brush:", drawingMode.brush__carrier.arr_brush);
-              drawingMode.brush__carrier.removeBrush(brush__bout__inComb);
-              logger.log("logDrawingMode", "DrawingBout::unplugBoutBrush", "drawingMode.brush__carrier.arr_brush:", drawingMode.brush__carrier.arr_brush);
+              const brush__bout__inComb = drawingBout.brush__bout__inComb;
+              logger.log("logDrawingMode", "DrawingBout::unplugBoutBrush", "brush__bout__inComb:", brush__bout__inComb);
+
+              if(brush__bout__inComb != null) {
+                // brush__bout__inComb._render = function() {};
+
+                logger.log("logDrawingMode", "DrawingBout::unplugBoutBrush", "drawingMode.brush__carrier.arr_brush:", drawingMode.brush__carrier.arr_brush);
+                drawingMode.brush__carrier.removeBrush(brush__bout__inComb);
+                logger.log("logDrawingMode", "DrawingBout::unplugBoutBrush", "drawingMode.brush__carrier.arr_brush:", drawingMode.brush__carrier.arr_brush);
+  
+              }
+
+              drawingBout.brush__bout__inComb = null;
             }
 
             storeTruePoint__atomic__end() {
@@ -54945,7 +54964,7 @@
             }
 
             async finalize_p(cfg__finalize) {
-              logger.log("logDrawingBout", "finalize_p", this);
+              logger.log("logDrawingBout", "finalize_p", "this.id:", this.id);
 
               const drawingBout = this;
 
@@ -54972,7 +54991,9 @@
               const drawingMode    = drawingSession.drawingMode;
 
               //unplug bout brush
-              drawingBout.unplugBoutBrush();
+              if(!drawingMode.isForcedToFinish) {
+                drawingBout.unplugBoutBrush();
+              }
 
               drawingBout.storeTruePoint__atomic__end();
 
@@ -54988,7 +55009,7 @@
               // })
 
               // .then((fObj) => {
-              return drawingBout.manageCreatedFabricObject_p(fObj);
+              return await drawingBout.manageCreatedFabricObject_p(fObj);
               // });
  
             }
@@ -55030,6 +55051,7 @@
                 .then(() => {
                   logger.log("logDrawingBout", "manageCreatedFabricObject_p", ".isFinished = true");
                   
+                  // drawingBout.unplugBoutBrush();
                   drawingBout.isFinished = true;
 
                   return drawingSession.manageDrawingBoutFinished_p(drawingBout);
@@ -55060,6 +55082,8 @@
 
               this.isFinished               = undefined;
 
+              // this.cfg__fromDrawingMode     = undefined;
+
               if(id !== undefined && drawingMode !== undefined) {
                 logger.log("logDrawingMode", "DrawingSession::constructor", "id:", id, "drawingMode:", drawingMode);
                 
@@ -55073,6 +55097,8 @@
                 this.icObj__adhesive__support = null;
 
                 this.isFinished               = false;
+
+                // this.cfg__fromDrawingMode     = null;
 
               } else {
                 //constructor was used by decorator
@@ -55126,6 +55152,8 @@
               const fabricIntegration = drawingMode.fabricIntegration;
 
               const drawingBout__current = drawingSession.getCurrentDrawingBout();
+              logger.log("logDrawingSession", "enter__atomic_p", "drawingBout__current?.id:", drawingBout__current?.id);
+
 
               if(drawingBout__current && !drawingBout__current.isFinished) {
                 throw new Error("DrawingSession, enter__atomic_p: !drawingBout__current.isFinished");
@@ -55133,6 +55161,8 @@
 
               const drawingBout__new = drawingSession.createNewDrawingBout();
               drawingSession.arr_bout.push(drawingBout__new);
+              logger.log("logDrawingSession", "enter__atomic_p", "drawingSession.arr_bout.length:", drawingSession.arr_bout.length);
+
 
               const drawingBout__previous = drawingBout__current;
               if(drawingBout__previous && drawingBout__previous.isForcedToFinish) {
@@ -55145,6 +55175,8 @@
             }
 
             configure__bout(drawingBout__new, cfg) {
+              logger.log("logDrawingSession", "configure__bout", "this:", this, "cfg:", cfg);
+
               const drawingSession    = this;
               const drawingMode       = drawingSession.drawingMode;
               const fabricIntegration = drawingMode.fabricIntegration;
@@ -55168,7 +55200,7 @@
             }
     
             async leave__atomic_p() {
-              logger.trace("logDrawingSession", "leave__atomic_p");
+              logger.log("logDrawingSession", "leave__atomic_p");
               var outDrawingBout;
 
               const drawingSession    = this;
@@ -55176,6 +55208,7 @@
               const fabricIntegration = drawingMode.fabricIntegration;
 
               const drawingBout__current = drawingSession.getCurrentDrawingBout();
+              logger.log("logDrawingSession", "leave__atomic_p", "drawingBout__current?.id:", drawingBout__current?.id);
 
               if(drawingBout__current.isIntact) {
                   drawingBout__current.unplugBoutBrush();
@@ -55266,13 +55299,25 @@
             // brush__carrier: this.createCombBrush(),
             brush__carrier: null,
 
+            // createCombBrush: function() {                          //SHU: this is the classic zComb, maybe someday one might want to use it
+            //   logger.log("logDrawingMode", "createCombBrush", "this:", this);
+            //   const drawingMode       = this;
+            //   const fabricIntegration = drawingMode.fabricIntegration;
+            //   const fabricCanvas      = fabricIntegration.fabricCanvas;
+              
+            //   const combBrush = fabric.ZCombPencilBrush.createInstance(fabricCanvas, []);
+            //   combBrush.debug__name = drawingMode.id__drawingMode;
+
+            //   return combBrush;
+            // },
+
             createCombBrush: function() {
               logger.log("logDrawingMode", "createCombBrush", "this:", this);
               const drawingMode       = this;
               const fabricIntegration = drawingMode.fabricIntegration;
               const fabricCanvas      = fabricIntegration.fabricCanvas;
               
-              const combBrush = fabric.ZCombPencilBrush.createInstance(fabricCanvas, []);
+              const combBrush = fabric.ZNoOffsetCombPencilBrush.createInstance(fabricCanvas, []);
               combBrush.debug__name = drawingMode.id__drawingMode;
 
               return combBrush;
@@ -55307,7 +55352,7 @@
             },
 
 
-            enterDrawingMode_p: function(cfg) {
+            enterDrawingMode_p: async function(cfg) {
               logger.log("logDrawingMode", "enterDrawingMode_p", this);
               const drawingMode       = this;
               const fabricIntegration = drawingMode.fabricIntegration;
@@ -55359,7 +55404,7 @@
               drawingSession__new.icObj__adhesive__support = fabricIntegration.drawingMode__adhesive__getSupport();
               
               //call atomic
-              return drawingMode.enterDrawingMode__atomic_p(cfg);
+              return await drawingMode.enterDrawingMode__atomic_p(cfg);
             },
     
             leaveDrawingMode_p: async function() {
@@ -55408,6 +55453,8 @@
 
               drawingMode.session__previous = drawingSession;
               drawingMode.session           = null;
+
+              logger.log("logDrawingMode", "leaveDrawingMode_p", "drawingMode.session:", drawingMode.session);
             },
 
 
@@ -55518,6 +55565,10 @@
             _finalizeAndAddPath_p: function () {
               logger.log("logFD", "Brush__DrawingBout__raw__freeDrawing", "_finalizeAndAddPath_p");
               const brush = this;
+
+              if(brush.drawingBout != null) {
+                logger.log("logComb", "Brush__DrawingBout__raw__freeDrawing::_finalizeAndAddPath_p:", "(", brush.drawingBout.session.id, ",", brush.drawingBout.id,")");
+              }
         
               if(brush._points.length == 0) {
                 const error = new Error("Brush__DrawingBout__raw__freeDrawing " + " _finalizeAndAddPath_p " + " brush._points.length == 0");
@@ -55614,18 +55665,19 @@
 
                   // throw new Error("lol");
 
-                  const brush       = this;
-                  const drawingBout = brush.drawingBout;
+                  const brush          = this;
+                  const drawingBout    = brush.drawingBout;
+                  const drawingSession = drawingBout.session;
                   logger.log("logFreeDrawing", "Brush__DrawingBout__freeDrawing", "_finalizeAndAddPath", {
-                    "drawingSession.id"           : drawingBout.session.id,
-                    "drawingSession.isFinished"   : drawingBout.session.isFinished,
+                    "drawingSession.id"           : drawingSession.id,
+                    "drawingSession.isFinished"   : drawingSession.isFinished,
 
                     "drawingBout.id"              : drawingBout.id,
                     "drawingBout.isFinished"      : drawingBout.isFinished,
                   });
 
                   if(drawingBout.session.isFinished) {
-                    throw new Error("Brush__DrawingBout__freeDrawing::_finalizeAndAddPath, drawingSession.isFinished");
+                    throw new Error("Brush__DrawingBout__freeDrawing::_finalizeAndAddPath, drawingSession.isFinished, drawingSession.id: " + drawingSession.id + ", drawingBout.id: " + drawingBout.id);
                   }
 
                   if(!drawingBout.isFinished) {
@@ -55677,7 +55729,7 @@
                 "drawingSession.isFinished":  drawingBout.session.isFinished,
 
                 "drawingBout.id":             drawingBout.id,
-                "drawingSession.isFinished":  drawingBout.isFinished,
+                "drawingBout.isFinished":  drawingBout.isFinished,
               });
 
               const dict__atomic = await drawingBout.brush._finalizeAndAddPath_p();
@@ -55793,8 +55845,16 @@
               // }
             },
 
-            configure__bout: function(drawingBout, cfg) {
-              DecorationUtils.getWrappedObj(this).configure__bout(drawingBout, cfg);
+            configure__bout: function(drawingBout__new, cfg) {
+              const drawingSession    = this;
+              
+              DecorationUtils.getWrappedObj(this).configure__bout(drawingBout__new, cfg);
+
+              drawingSession.configure__bout__startingPoint(drawingBout__new, cfg);
+            },
+
+            configure__bout__startingPoint(drawingBout__new, cfg) {
+              logger.log("logFD", "configure__bout__startingPoint", drawingBout__new, cfg);
 
               const drawingSession    = this;
               const drawingMode       = drawingSession.drawingMode;
@@ -55803,7 +55863,6 @@
 
               // const drawingBout__previous = drawingSession.getPreviousDrawingBout();
               const drawingBout__previous = drawingSession.getPreviousNonIntactDrawingBout();
-              const drawingBout__current  = drawingBout;
 
               const isInitial = (drawingBout__previous == null);
 
@@ -55813,8 +55872,7 @@
                 const screenPoint__atomic__start = infiniteCanvas.toScreenPoint(truePoint__atomic__end__previous);
                 logger.log("logFD", "configure__bout", "screenPoint__atomic__start:", screenPoint__atomic__start);
 
-                // const brush = drawingMode.brush;
-                const brush = drawingBout.brush;
+                const brush = drawingBout__new.brush;
 
                 if(brush._points.length == 0) {
                   // brush._points = [screenPoint__atomic__start];
@@ -55831,8 +55889,7 @@
                 throw new Error("drawingBout__current.truePoint__atomic__end == null");
                 logger.log("logFD", "drawingBout__current.truePoint__atomic__end == null");
               }
-
-            },
+            }
 
 
 
@@ -56041,8 +56098,7 @@
           const fabricIntegration = this;
 
 
-          // class Brush__DrawingBout__raw__zPixelFreeDrawing extends DecorationUtils.createAbusiveDecoratorClass(fabric.ZPencilBrush, {
-          class Brush__DrawingBout__raw__zPixelFreeDrawing extends DecorationUtils.createAbusiveTopDownDecoratorClass(fabric.ZPencilBrush, {
+          class Brush__DrawingBout__raw__zPixelFreeDrawing extends DecorationUtils.createAbusiveTopDownDecoratorClass(fabric.ZPixelBrush, {
 
             onMouseDown: function (pointer, options) {
               logger.log("logZPixelFD", "Brush__DrawingBout__raw__zPixelFreeDrawing", "onMouseDown", "this:", this);
@@ -56058,21 +56114,20 @@
 
           //install ZPixelBrush for zPixelFreeDrawing
           try {
-            // const brush__zpencil = new fabric.ZPencilBrush(this.fabricCanvas);
-            var brush__zpencil = fabric.ZPixelBrush.createInstance(this.fabricCanvas);
-            brush__zpencil     = Brush__DrawingBout__raw__zPixelFreeDrawing.decorate(brush__zpencil);
-            brush__zpencil     = PreviewBrush.decorate(brush__zpencil);
+            var brush__zpixel = fabric.ZPixelBrush.createInstance(this.fabricCanvas);
+            brush__zpixel     = Brush__DrawingBout__raw__zPixelFreeDrawing.decorate(brush__zpixel);
+            // brush__zpixel     = PreviewBrush.decorate(brush__zpixel);      //SHU: brush__zpixel has its own brushPreview system
             // logger.log("logPreviewBrush", "brush__zpencil:", brush__zpencil);
 
-            brush__zpencil.color       = new fabric.Color("black").toRgba();
-            brush__zpencil.width       = 20;
-            brush__zpencil.zIndex__ic  = 0;
-            brush__zpencil.zIndex      = 0;
-            brush__zpencil._setBrushStyles(this.fabricCanvas.contextContainer);
+            brush__zpixel.color       = new fabric.Color("black").toRgba();
+            brush__zpixel.width       = 20;
+            brush__zpixel.zIndex__ic  = 0;
+            brush__zpixel.zIndex      = 0;
+            brush__zpixel._setBrushStyles(this.fabricCanvas.contextContainer);
 
-            brush__zpencil.fabricIntegration = fabricIntegration;
+            brush__zpixel.fabricIntegration = fabricIntegration;
 
-            fabricIntegration.storeBrush(brush__zpencil, "zPixelFreeDrawing__raw");
+            fabricIntegration.storeBrush(brush__zpixel, "zPixelFreeDrawing__raw");
           } catch(e) {
             logger.log("logZPencilBrush", "error: ", e);
           }
@@ -56175,7 +56230,7 @@
                 "drawingSession.isFinished":  drawingBout.session.isFinished,
 
                 "drawingBout.id":             drawingBout.id,
-                "drawingSession.isFinished":  drawingBout.isFinished,
+                "drawingBout.isFinished":     drawingBout.isFinished,
               });
 
               const dict__atomic = await drawingBout.brush._finalizeAndAddZPixelPath_p();
@@ -56249,6 +56304,17 @@
                 return icObj;
               });
 
+              //debug
+              // out_p = new Promise((resolve, reject) => {
+
+              //   const icObj = infiniteCanvas.createIcRect({x:0,y:0,width:10,height:10});
+
+              //   //destroy fObj
+              //   // fabricIntegration.fabricCanvas.remove(fObj);
+
+              //   return icObj;
+              // });
+
               return out_p;
             },
 
@@ -56306,7 +56372,6 @@
 
               // const drawingBout__previous = drawingSession.getPreviousDrawingBout();
               const drawingBout__previous = drawingSession.getPreviousNonIntactDrawingBout();
-              const drawingBout           = drawingBout__new;
 
               const isInitial = (drawingBout__previous == null);
 
@@ -56317,7 +56382,7 @@
                 logger.log("logZPixelFD", "configure__bout__startingPoint", "screenPoint__atomic__start:", screenPoint__atomic__start);
 
                 // const brush = drawingMode.brush;
-                const brush = drawingBout.brush;
+                const brush = drawingBout__new.brush;
 
                 if(brush._points.length == 0) {
                   // brush._points = [screenPoint__atomic__start];
