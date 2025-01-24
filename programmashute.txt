@@ -15373,12 +15373,15 @@ perseverance
 							1 adhesive
 							0 isCosmetic
 							0 bug: drawingMode__zPixelRect colorPick
->>>							0 zIndex
+>>>							0 bug: zPixels sometimes overlap (very little but still)
+							0 zIndex
 								1 .zIndex__fabric vs .zIndex__ic
 								1 iC.getBrushZIndex_new() -> ?, ok
 								1 from zIndex__ic to zIndex__fabric
 **								0 ABScroll for zPixelFreeDrawing 
 									0? this needs to be more intuitive, more user friendly
+>>>								0 dict_update.dZIndex__ic
+
 
 							0 opacity/lightness
 								iC.configureFreeDrawingBrush 
@@ -15406,6 +15409,332 @@ perseverance
 								0 ssPathMade 
 								0 etc.
 
+>>>							0 zScroll(composite)
+
+							0 extractPixels__nonTransparent
+							0 extractPixels__smart
+
+0 https://github.com/sponsors
+
+22 janvier 2025:
+							0 bug: zPixels sometimes overlap (very little but still)
+								dict_trueRectAndHomeScale_forZPixelCoords
+								0? x: floor() y: floor()
+*								0 the great bignumberification
+									0 don't bignumberify anything
+									0? bignumberify fabric
+										0 fabricjs transform
+											0 lib/fabric+precision.js
+**												0X? make bignumber contagious: number * bignumber = bignumber  (THE DREAM)
+													0 Object.prototype.operator += function(a, b) {return a + b;};
+													=> sweat will be involved (big rewriting ahead)
+														0 a + b -> math.add(a,b), etc.
+
+												0 put all interesting functions in a file
+													0 fabric.util
+													0 fabric.Canvas
+														_setupCurrentTransform
+													0 fabric.Object
+														setCoords
+														calcTransformMatrix
+														calcOwnMatrix
+														_getCacheCanvasDimensions
+														_limitCacheSize
+															limitDimsByArea
+															capValue
+
+														_constrainScale
+													0 fabric.Point
+
+												0X _constrainScale
+													=> it's ok it's a good function (minScaleLimit is 0)
+												0 serialization: fabric.Object.NUM_FRACTION_DIGITS = 2;
+												0 renderAll
+													renderCanvas
+														0 v = this.viewportTransform
+																viewportTransform: fabric.iMatrix.concat(),
+																	fabric.iMatrix = [1, 0, 0, 1, 0, 0]
+
+														0 ctx.transform(v[0], v[1], v[2], v[3], v[4], v[5]);
+														0 this._renderObjects(ctx, objects);
+
+												0? a + b -> a math.+ b 
+
+												0X ? CanvasRenderingContext2D can be tweaked ?
+													|-> void CanvasRenderingContext2D::transform(float m11, float m12, float m21, float m22, float dx, float dy)
+
+
+renderCanvas: function(ctx, objects) {
+	var v = this.viewportTransform, path = this.clipPath;
+	this.cancelRequestedRender();
+	this.calcViewportBoundaries();
+	this.clearContext(ctx);
+	fabric.util.setImageSmoothing(ctx, this.imageSmoothingEnabled);
+	this.fire('before:render', { ctx: ctx, });
+	this._renderBackground(ctx);
+
+	ctx.save();
+	//apply viewport transform once for all rendering process
+	ctx.transform(v[0], v[1], v[2], v[3], v[4], v[5]);
+	this._renderObjects(ctx, objects);
+	ctx.restore();
+	if (!this.controlsAboveOverlay && this.interactive) {
+	this.drawControls(ctx);
+	}
+	if (path) {
+	path.canvas = this;
+	// needed to setup a couple of variables
+	path.shouldCache();
+	path._transformDone = true;
+	path.renderCache({ forClipping: true });
+	this.drawClipPathOnCanvas(ctx);
+	}
+	this._renderOverlay(ctx);
+	if (this.controlsAboveOverlay && this.interactive) {
+	this.drawControls(ctx);
+	}
+	this.fire('after:render', { ctx: ctx, });
+},
+
+/**
+* Transforms context when rendering an object
+* @param {CanvasRenderingContext2D} ctx Context
+*/
+transform: function(ctx) {
+	var needFullTransform = (this.group && !this.group._transformDone) ||
+		(this.group && this.canvas && ctx === this.canvas.contextTop);
+	var m = this.calcTransformMatrix(!needFullTransform);
+	ctx.transform(m[0], m[1], m[2], m[3], m[4], m[5]);
+},
+
+
+
+    /**
+     * Return the object scale factor counting also the group scaling
+     * @return {Object} object with scaleX and scaleY properties
+     */
+    getObjectScaling: function() {
+      // if the object is a top level one, on the canvas, we go for simple aritmetic
+      // otherwise the complex method with angles will return approximations and decimals
+      // and will likely kill the cache when not needed
+      // https://github.com/fabricjs/fabric.js/issues/7157
+      if (!this.group) {
+        return {
+          scaleX: this.scaleX,
+          scaleY: this.scaleY,
+        };
+      }
+      // if we are inside a group total zoom calculation is complex, we defer to generic matrices
+      var options = fabric.util.qrDecompose(this.calcTransformMatrix());
+      return { scaleX: Math.abs(options.scaleX), scaleY: Math.abs(options.scaleY) };
+    },
+
+    /**
+     * Return the object scale factor counting also the group scaling, zoom and retina
+     * @return {Object} object with scaleX and scaleY properties
+     */
+    getTotalObjectScaling: function() {
+      var scale = this.getObjectScaling(), scaleX = scale.scaleX, scaleY = scale.scaleY;
+      if (this.canvas) {
+        var zoom = this.canvas.getZoom();
+        var retina = this.canvas.getRetinaScaling();
+        scaleX *= zoom * retina;
+        scaleY *= zoom * retina;
+      }
+      return { scaleX: scaleX, scaleY: scaleY };
+    },
+
+_constrainScale: function(value) {
+	if (Math.abs(value) < this.minScaleLimit) {
+	if (value < 0) {
+		return -this.minScaleLimit;
+	}
+	else {
+		return this.minScaleLimit;
+	}
+	}
+	else if (value === 0) {
+	return 0.0001;
+	}
+	return value;
+},
+
+*[
+Pipeline operator: |>
+const result = 'hello'
+  |> doubleSay
+  |> capitalize
+  |> exclaim;
+]*
+
+drawSelectionBackground
+
+															0 veprogames::infinite-canvas
+	document.onwheel = e =>
+	{
+		if (!toolBarFocused)
+		{
+			let f = parseFloat(data.settings.zoomFactor);
+			data.cam.targetRange = data.cam.targetRange.mul(Math.pow(f, e.deltaY / 100));
+		}
+	};
+
+****								=> icObj.homeScale ==> fObj.scaleX, .scaleY is not the right way to do
+									0 bignumberify iC
+										0 icObj has .position: BigNumber, homeScale: BigNumber, etc.
+										0? ic.scale ==> fabricCanvas.setViewportTransform()
+										0 fI.redrawCanvas
+											updateFabricObjectsSize
+											updateFabricObjectsPosition
+>>>										0 fix position "shaking" problem, maybe scale is not an issue
+										0 icObj.getScreenPos()   {bigNumber.toNumber()}
+										0 icObj.getScreenScale() {bigNumber.toNumber()}
+										0 fObj.getScreenPoint(): possible
+										0 fObj.getScreenScale(): impossible at some point: cacheCanvas has a limitedSize
+											=> _render(): if scaleX > scaleX__max: render what would be rendered at scaleX__max
+												0 ? but still update position ?
+										this seems a nice way to go
+										0 check if it's ok with deep adhered objects (normalement, y'a pas de raison que ça fonctionne pas)
+											(0 what would be nice is having a flag isZoomingChangingAnythingWhenRenderingObject
+												(0 capturePixels and check if there's only one color
+										
+function filterShapes()
+{
+    for (let i = 0; i < world.shapeCache.length; i++)
+    {
+        if (world.shapeCache[i] !== undefined && world.shapeCache[i].isRenderable())
+        {
+            world.shapes[i] = world.shapeCache[i];
+            world.shapeCache[i] = undefined;
+        }
+    }
+    for (let i = 0; i < world.shapes.length; i++)
+    {
+        if (world.shapes[i] !== undefined && !world.shapes[i].isRenderable())
+        {
+            world.shapeCache[i] = world.shapes[i];
+            world.shapes[i] = undefined;
+        }
+    }
+}
+
+    getScreenPos(pos)
+    {
+        let s = data.cam.worldToScreenPoint(pos.x, pos.y);
+        return {x: s.x.toNumber(), y: s.y.toNumber()};
+    }
+
+    getScreenSize(n)
+    {
+        return n.div(data.cam.range).mul(innerHeight).toNumber();
+    }
+
+
+
+function autoSave()
+{
+    localStorage.setItem("InfiniteCanvas", exportCanvas());
+}
+
+function autoLoad()
+{
+    if (localStorage.getItem("InfiniteCanvas") !== null)
+    {
+        importCanvas(localStorage.getItem("InfiniteCanvas"));
+    }
+}
+
+0 https://github.com/emilefokkema/infinite-canvas
+
+23 janvier 2025:
+fear is the mindkiller
+	0 Composite: (Alt?) shift.B on part to remove part from composite
+	
+	0 KeyG KeyH: rotate90 left  right
+	0 Key? Key?: flip 	  horiz vert 
+
+	0 ? use fabricCanvas.setOrientation to manage canvas rotation ?
+
+	0 fix position "shaking" problem, maybe scale is not an issue
+		0 bignumberify iC
+			(0 ic.offset: BigNumber, ic.scale: BigNumber
+				0 manageUpdate__scale_withScaleAmount
+					0 updateScaleAndDOffset -> updateScaleAndOffset 
+			OR
+**			0 ic.camera (==ic.screenPov (but the new name will be useful to distinguish from previous code))
+				camera could be used to display the same screenPov on different screen sizes (via scaleX/scaleY): viewportTransform
+				1 class ICCamera {}
+					1 camera.viewportTransform
+					1 camera.transform: matrix of big numbers (the interesting one)
+					1 camera.orientation
+***(*)				0 camera.zIndex 
+				0 ICUtils
+					0 ICUtils.invertTransform
+					0 ICUtils.transformPoint
+*/!\				0 qrDecompose uses atan2: maybe at some point, I will need to use Decimal.js' precise trig funcs
+
+				0 iC.manageCursorMove_offset
+				0 iC.manageCursorMove_rotate
+				0 manageCenterRotation
+				0 iC.manageUpdate__scale_withScaleAmount -> iCCam.manageUpdate__scale_withScaleAmount
+				0 remove noOr stuff
+				0 goToPov
+
+				0 updateScale and updateOffset would simply be updateTransform
+				0 ICUtils { transform ... }
+			0 icObj.position: BigNumber, icObj.homeScale: BigNumber, etc.
+			0 iC.scale: {return ic.camera.getZoom}
+			0 icObj.homeScale.X icObj.homeScale.Y -> icObj.homeScale 
+			1 iC.getScreenRectForTrueRect
+			(0! createRepresentation uses icObj.clone()
+>>>			0 bug: fObjs are not rendered properly
+				dLeft
+				zPixelCoords: {ix: 1, iy: 0, zLevel: -9}
+>>>			0 configure__bout: homeScale
+
+		0 fI should understand iC's bigNumbers
+			redrawCanvas
+				updateFabricObjectsTransform
+					fabric.util.multiplyTransformMatrices(inverted, object.calcOwnMatrix());
+					applyTransformToObject
+					addTransformToObject
+					0 icObj.getTransform()
+						util.composeMatrix(options);
+
+		0 serialization
+
+*[
+	var r = [1,2,3,4];
+    r[4] = 10;
+    r[5] = 30;
+
+    logger.log("logDecimal", "r:", r);
+]*
+
+0 youtube account zPixelArt
+
+24 janvier 2025:
+perseverance, abc|cba
+	1 have icCamera working
+		1 atelier::debug_camera
+			1 there is a bug with x, not with y
+				=> copy paste error on this formula: r = [a * t[3], -a * t[1], -a * t[2], a * t[0]],
+			1 bug: icCamera.toTruePoint() is not reliable
+				1 truePan/screenPan
+				1 trueZoom/screenZoom
+			1 bug: fObj's screen position is wrong wrt their icObj's true position
+				0 ? toScreenTransform does not produce correct translateX, translateY
+					0 camera vs homeScale
+						0 t__icObj ==> camera.vpt ==> camera.t ==> t__homeScale ==> t__fObj
+			1 bug: addNewRect() doesn't spawn a rect so that truePoint__TL == truePoint__cursor
+**			0 transform: t__perfect_position: compensate capped scale with position shift 
+				0 test perfectness with bottom right zPixels
+			0 camera.screenRotate
+			0 try to set canvas's origin scale to something big to avoid the deep pixel floor
+				for example 10^100
+			
+
+	
 
 
 .	

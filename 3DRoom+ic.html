@@ -794,6 +794,215 @@
         }));
       }
 
+
+
+      //bigNumber fun {
+
+      static iMatrix__bigNumber() {
+        const iMatrix__number = [1, 0, 0, 1, 0, 0];
+        const iMatrix__bigNumber_ = iMatrix__number.map((number) => math.bignumber(number));
+        return iMatrix__bigNumber_;
+      }
+
+      static bigNumberize__point(point) {
+        return {
+          x: math.bignumber(point.x),
+          y: math.bignumber(point.y),
+        };
+      }
+
+      static numberize__point(point) {
+        return {
+          x: math.number(point.x),
+          y: math.number(point.y),
+        };
+      }
+
+      static transformPoint(p, t, ignoreOffset = false) {
+        var outPoint;
+
+        // logger.log("logICUtils", "transformPoint", {
+        //   p: p,
+        //   t: t,
+        // });
+
+        if(t.filter((elt) => !math.isBigNumber(elt)).length > 0) {
+          throw new Error("t is not bignumber-based");
+        }
+
+        if(!math.isBigNumber(p.x) || !math.isBigNumber(p.y)) {
+          throw new Error("p is not bignumber-based");
+        }
+
+        // if (ignoreOffset) {
+        //   return new fabric.Point(
+        //     t[0] * p.x + t[2] * p.y,
+        //     t[1] * p.x + t[3] * p.y
+        //   );
+        // }
+        // return new fabric.Point(
+        //   t[0] * p.x + t[2] * p.y + t[4],
+        //   t[1] * p.x + t[3] * p.y + t[5]
+        // );
+        
+        if (ignoreOffset) {
+          outPoint = {
+            x: math.add( math.multiply(t[0], p.x) , math.multiply(t[2], p.y) ),
+            y: math.add( math.multiply(t[1], p.x) , math.multiply(t[3], p.y) ),
+          };
+        } else {
+          outPoint = {
+            x: math.add( math.multiply(t[0], p.x) , math.multiply(t[2], p.y) , t[4]),
+            y: math.add( math.multiply(t[1], p.x) , math.multiply(t[3], p.y) , t[5]),
+          };
+        }
+
+        // logger.log("logICUtils", "transformPoint", "outPoint:", outPoint);
+
+        return outPoint;
+      }
+
+      static invertTransform(t) {
+        // logger.log("logICUtils", "invertTransform", "t:", t);
+
+        // var a = 1 / (t[0] * t[3] - t[1] * t[2]),
+        //     r = [a * t[3], -a * t[1], -a * t[2], a * t[0]],
+        //     o = fabric.util.transformPoint({ x: t[4], y: t[5] }, r, true);
+        // r[4] = -o.x;
+        // r[5] = -o.y;
+        // return r;
+
+        const a = math.divide(math.bignumber(1), math.subtract( math.multiply(t[0], t[3]) , math.multiply(t[1], t[2]) ) );
+        var r   = [ math.multiply(a,t[3]), math.multiply(math.bignumber(-1), a, t[1]), math.multiply(math.bignumber(-1), a, t[2]), math.multiply(a,t[0]) ];
+        const o = ICUtils.transformPoint({ x: t[4], y: t[5] }, r, true);
+
+        r[4] = math.multiply(math.bignumber(-1), o.x);
+        r[5] = math.multiply(math.bignumber(-1), o.y);
+        
+        // logger.log("logICUtils", "invertTransform", "r:", r);
+        
+        return r;
+      }
+
+      static composeMatrix(options) {
+        var matrix = [1, 0, 0, 1, options.translateX || 0, options.translateY || 0].map((number) => math.bignumber(number)),
+            multiply = ICUtils.multiplyTransformMatrices;
+        if (options.angle) {
+          matrix = multiply(matrix, ICUtils.calcRotateMatrix(options));
+        }
+        if ( (options.scaleX && math.number(options.scaleX) !== 1) || (options.scaleY && math.number(options.scaleY) !== 1) ||
+            options.skewX || options.skewY || options.flipX || options.flipY) {
+          matrix = multiply(matrix, ICUtils.calcDimensionsMatrix(options));
+        }
+        return matrix;
+      }
+
+
+      static multiplyTransformMatrices(a, b, is2x2) {
+        // Matrix multiply a * b
+        // return [
+        //   a[0] * b[0] + a[2] * b[1],
+        //   a[1] * b[0] + a[3] * b[1],
+        //   a[0] * b[2] + a[2] * b[3],
+        //   a[1] * b[2] + a[3] * b[3],
+        //   is2x2 ? 0 : a[0] * b[4] + a[2] * b[5] + a[4],
+        //   is2x2 ? 0 : a[1] * b[4] + a[3] * b[5] + a[5]
+        // ];
+        return [
+          math.add( math.multiply(a[0], b[0]) , math.multiply(a[2], b[1]) ),
+          math.add( math.multiply(a[1], b[0]) , math.multiply(a[3], b[1]) ),
+          math.add( math.multiply(a[0], b[2]) , math.multiply(a[2], b[3]) ),
+          math.add( math.multiply(a[1], b[2]) , math.multiply(a[3], b[3]) ),
+          is2x2 ? math.bignumber(0) : math.add( math.multiply(a[0], b[4]) , math.multiply(a[2], b[5]), a[4] ),
+          is2x2 ? math.bignumber(0) : math.add( math.multiply(a[1], b[4]) , math.multiply(a[3], b[5]), a[5] ),
+        ];
+      }
+
+
+      static qrDecompose(a) {
+        // var angle = atan2(a[1], a[0]),
+        //     denom = pow(a[0], 2) + pow(a[1], 2),
+        //     scaleX = sqrt(denom),
+        //     scaleY = (a[0] * a[3] - a[2] * a[1]) / scaleX,
+        //     skewX = atan2(a[0] * a[2] + a[1] * a [3], denom);
+        // return {
+        //   angle: angle / PiBy180,
+        //   scaleX: scaleX,
+        //   scaleY: scaleY,
+        //   skewX: skewX / PiBy180,
+        //   skewY: 0,
+        //   translateX: a[4],
+        //   translateY: a[5]
+        // };
+
+        const PiBy180 = math.pi / 180;
+
+        var angle  = math.atan2(math.number(a[1]), math.number(a[0])),  //SHU: warning, maybe Decimal.js' precise atan2 will be needed at some point
+
+            denom  = math.add( math.pow(a[0], math.bignumber(2)) , math.pow(a[1], math.bignumber(2) ) ),
+            scaleX = math.sqrt(denom),
+            scaleY = math.divide( math.subtract( math.multiply(a[0],a[3]) , math.multiply(a[2], a[1]) ) , scaleX),
+
+            skewX  = math.atan2( math.number( math.add( math.multiply(a[0],a[2]) , math.multiply(a[1], a[3]) ) ) , math.number(denom) ); //SHU: warning, maybe Decimal.js' precise atan2 will be needed at some point
+        
+        return {
+          angle: math.bignumber(angle / PiBy180),    //"imprecise"
+          scaleX: scaleX,
+          scaleY: scaleY,
+          skewX: math.bignumber(skewX / PiBy180),    //"imprecise"
+          skewY: math.bignumber(0),                 
+          translateX: a[4],
+          translateY: a[5]
+        };
+      }
+
+
+
+
+
+
+      static calcRotateMatrix(options) {
+        if (!options.angle) {
+          return ICUtils.iMatrix__bigNumber();
+        }
+        var theta = fabric.util.degreesToRadians(options.angle),
+            cos = fabric.util.cos(theta),                         //SHU: warning, maybe Decimal.js' precise cos will be needed at some point
+            sin = fabric.util.sin(theta);                         //SHU: warning, maybe Decimal.js' precise sin will be needed at some point
+        return [cos, sin, -sin, cos, 0, 0].map((number) => math.bignumber(number));
+      }
+
+      static calcDimensionsMatrix(options) {
+        var scaleX = typeof options.scaleX === 'undefined' ? math.bignumber(1) : options.scaleX,
+            scaleY = typeof options.scaleY === 'undefined' ? math.bignumber(1) : options.scaleY,
+            scaleMatrix = [
+              options.flipX ? math.multiply(math.bignumber(-1), scaleX) : scaleX,
+              0,
+              0,
+              options.flipY ? math.multiply(math.bignumber(-1), scaleY) : scaleY,
+              0,
+              0].map((number) => math.bignumber(number)),
+            multiply = ICUtils.multiplyTransformMatrices,
+            degreesToRadians = ICUtils.degreesToRadians;
+        if (options.skewX) {
+          scaleMatrix = multiply(
+            scaleMatrix,
+            [1, 0, math.tan(degreesToRadians(options.skewX)), 1].map((number) => math.bignumber(number)),   //SHU: 
+            true);
+        }
+        if (options.skewY) {
+          scaleMatrix = multiply(
+            scaleMatrix,
+            [1, math.tan(degreesToRadians(options.skewY)), 0, 1].map((number) => math.bignumber(number)),
+            true);
+        }
+        return scaleMatrix;
+      }
+
+      static degreesToRadians(angle__bignumber) {
+        return math.divide(math.multiply(angle__bignumber, math.bignumber(math.pi)), 180);
+      }
+
+
     }
 
 
@@ -1502,12 +1711,23 @@
 
     <!-- fabric upgrades -->
   <script src='lib/fabric+canvas2D_willReadFrequently.js' type='text/javascript'></script>
-  <!-- <script src='lib/fabric+render_zEdition.js'             type='text/javascript'></script> -->
+  <!-- <script src='lib/fabric+render_zEdition.js'          type='text/javascript'></script> -->
+  <!-- <script src='lib/fabric+precision.js'                type='text/javascript'></script> -->
   <script>
     installFabricUpgrade_Canvas2DWillReadFrequently(fabric);
     //installFabricUpgrade_render_zEdition(fabric);
+    //installFabricUpgrade_precision(fabric);
     logger.log("fabric", fabric);
+
+    /*
+    //fabric.perfLimitSizeTotal = 2097152;
+    fabric.perfLimitSizeTotal   = 2097152 * 16;
+
+    //fabric.maxCacheSideLimit = 4096;
+    fabric.maxCacheSideLimit   = 4096 * 16;
+    */
   </script>
+
 
   <script src='lib/fabric+activeSelectionTL.js' type='text/javascript'></script>
     
@@ -2570,6 +2790,19 @@
 
 
   <script src='lib/decimal.min.js'  type='text/javascript'></script>
+  <script>
+    //discovery
+    {
+      const number  = 0.4;
+      const decimal = new Decimal(2);
+
+      const result  = number * decimal;
+      logger.log("logDecimal", "result:", result);
+      
+      const result2 = new Decimal(2) + new Decimal(8);
+      logger.log("logDecimal", "result2:", result2);     //SHU: incredible!: 28
+    }
+  </script>
   <!-- <script src='lib/fraction.min.js' type='text/javascript'></script> --> <!--already included in math.js-->
   <!-- <script>
     //discovery
@@ -2585,10 +2818,36 @@
   <script>
     //discovery
     {
+      logger.log("logMathJS", "math:", math);
+
       // const mathNode__fraction = math.parse("math.fraction(2,3)");
       // logger.log("logMathJS", "mathNode__fraction:", mathNode__fraction);
+
+      const number    = math.number(0.4);
+      const bignumber = math.bignumber(2);
+
+      const result    = number * bignumber;
+      logger.log("logMathJS", "result:", result);
+
+      const result2   = math.multiply(number,bignumber);
+      logger.log("logMathJS", "result2:", result2);
+      
+      const result3 = math.bignumber(2) + math.bignumber(8);
+      logger.log("logMathJS", "result3:", result3);     //SHU: incredible!: 28
+
+      logger.log("logMathJS", "Number.prototype:", Number.prototype);
+
     }
   </script>
+  <!-- <script>
+    math.config({
+      number: 'BigNumber',      // Default type of number:
+                                // 'number' (default), 'BigNumber', or 'Fraction'
+      precision: 64,            // Number of significant digits for BigNumbers
+      relTol: 1e-60,
+      absTol: 1e-63
+    }); 
+  </script> -->
   <script>
 
     //custom functions
@@ -8738,7 +8997,6 @@
 
 
 
-
   <script>
 
     /**** model  ****/
@@ -8748,11 +9006,12 @@
       "forceRedraw": "forceRedraw",
 
 
-      // "offsetChanged" : 10,
-      "offsetChanged": "offsetChanged",
-      // "scaleChanged"  : 11,
-      "scaleChanged": "scaleChanged",
-      "orientationChanged": "orientationChanged",
+      // // "offsetChanged" : 10,
+      // "offsetChanged": "offsetChanged",
+      // // "scaleChanged"  : 11,
+      // "scaleChanged": "scaleChanged",
+      // "orientationChanged": "orientationChanged",
+      "cameraChanged": "cameraChanged",
 
 
       // "objectAdded"   : 20,
@@ -8769,50 +9028,386 @@
       "animation_bounce": "animation_bounce", 
     };
 
+    class ICCamera {
+
+      //BigNumber is fragile and precious
+
+      constructor(infiniteCanvas) {
+        this.infiniteCanvas = infiniteCanvas;
+
+        //adapt to device's screen
+        this.viewportTransform__bigNumber = ICUtils.iMatrix__bigNumber(); //SHU: only scaleX and scaleY should be used
+                                                                            //for (maybe fun and) devicePixelRatio
+
+        //the important part
+        this.transform__bigNumber         = ICUtils.iMatrix__bigNumber(); //bignumber allows 'infinite' zoom
+        this.orientation                  = 0;
+
+        //debug
+        this.debug__log("constructor");
+      }
+
+      debug__log(occasion) {
+
+        const trueRect  = this.getTrueRect();
+        const _trueRect = {
+          x:      math.number(trueRect.x),
+          y:      math.number(trueRect.y),
+          width:  math.number(trueRect.width),
+          height: math.number(trueRect.height),
+        };
+
+        logger.log("logIC", "ICCamera::debug__log", {
+          "occasion":                       occasion,
+
+          "_trueRect":                      _trueRect,
+
+          "this.getScreenRect()":           this.getScreenRect(),
+          "this.getScreenPoint__TL()":      this.getScreenPoint__TL(),
+          "this.getScreenPoint__center()":  this.getScreenPoint__center(),
+
+          "this.getTrueRect()":             this.getTrueRect(),
+          "this.getTruePoint__TL()":        this.getTruePoint__TL(),
+          "this.getTruePoint__center()":    this.getTruePoint__center(),
+        });
+      }
+
+
+      getScreenRect() {
+        const icCamera       = this;
+        const infiniteCanvas = icCamera.infiniteCanvas; 
+        return infiniteCanvas.getCanvasBoundingRect();
+      }
+
+      getScreenPoint__TL() {
+        const screenRect = this.getScreenRect();
+        return {
+          x: screenRect.x,
+          y: screenRect.y,
+        };
+      }
+
+      getScreenPoint__center() {
+        return Geometry.getCenterPoint(this.getScreenRect());
+      }
+
+      getTrueRect() {
+        return this.toTrueRect(this.getScreenRect());
+      }
+
+      getTruePoint__TL() {
+        const trueRect = this.getTrueRect();
+        return {
+          x: trueRect.x,
+          y: trueRect.y,
+        };
+      }
+
+      getTruePoint__center() {
+        const trueRect = this.getTrueRect();
+        return {
+          x: math.add( trueRect.x, math.divide( trueRect.width,  math.bignumber(2) ) ),
+          y: math.add( trueRect.y, math.divide( trueRect.height, math.bignumber(2) ) ),
+        };
+      }
+
+
+      //mutation
+
+      setViewportTransform(vpt__bigNumber) {
+        this.viewportTransform__bigNumber = vpt__bigNumber;
+
+        this.didUpdate();
+
+        return this;
+      }
+
+      setTransform(t__bigNumber) {
+        // logger.log("logIC", "IcCamera::setTransform", t__bigNumber);
+
+        if(t__bigNumber.filter((elt) => !math.isBigNumber(elt)).length > 0) {
+          throw new Error("t__bigNumber is not bignumber-based");
+        }
+
+        this.transform__bigNumber = t__bigNumber;
+
+        this.didUpdate();
+
+        return this;
+      }
+
+
+
+      createTransformWithZoom(t, zoom) {
+        var t__new = t.slice(0);
+        t__new[0] = zoom;
+        t__new[3] = zoom;
+        return t__new;
+      }
+
+      createTransformWithScreenOffset(t, screenOffset) {
+        // logger.log("logIC", "IcCamera::createTransformWithScreenOffset", "screenOffset:", {
+        //   dx: math.number(screenOffset.dx),
+        //   dy: math.number(screenOffset.dy),
+        // });
+
+        var t__new = t.slice(0);
+        t__new[4] = math.add( t__new[4], math.bignumber(screenOffset.dx) );
+        t__new[5] = math.add( t__new[5], math.bignumber(screenOffset.dy) );
+        return t__new;
+      }
+
+
+
+
+
+
+
+      getZoom__bigNumber() {
+        return this.transform__bigNumber[0];
+      }
+
+      screenZoomToPointByFactor(screenPoint, factor) {
+        const factor__bigNumber = math.bignumber(factor);
+        
+        const zoom = this.getZoom__bigNumber();
+        
+        const zoom__new = math.multiply( zoom, factor__bigNumber );
+
+        this.screenZoomToPoint(screenPoint, zoom__new);
+      }
+
+      screenZoomToPoint(screenPoint, zoom) {
+        logger.log("logIC", "IcCamera::screenZoomToPoint", screenPoint, zoom.toString());
+
+        const vpt = this.viewportTransform__bigNumber.slice(0);
+        const t   = this.transform__bigNumber.slice(0);
+        
+        var t__new = t.slice(0);
+
+        //manage zoom
+        t__new = this.createTransformWithZoom(t__new, zoom);
+        
+        //manage offset
+        const screenPoint__before = screenPoint;
+
+        const truePoint__before  = this.toTruePointForVpTAndT(screenPoint__before, vpt, t);
+        const screenPoint__after = this.toScreenPointForVpTAndT(truePoint__before, vpt, t__new); 
+
+        // logger.log("logIC", "ICCamera::screenZoomToPoint", "screenPoint__before:", screenPoint__before);
+        // logger.log("logIC", "ICCamera::screenZoomToPoint", "screenPoint__after:",  screenPoint__after);
+
+        const screenOffset = {
+          dx: (screenPoint__before.x - screenPoint__after.x),
+          dy: (screenPoint__before.y - screenPoint__after.y),
+        };
+        logger.log("logIC", "ICCamera::screenZoomToPoint", "screenOffset:", screenOffset);
+
+        t__new = this.createTransformWithScreenOffset(t__new, screenOffset);
+        
+        return this.setTransform(t__new);
+      }
+
+      screenZoomToScreenPointTLByFactor(factor) {
+        return this.screenZoomToPointByFactor(this.getScreenPoint__TL(), factor);
+      }
+
+      screenZoomToScreenPointCenterByFactor(factor) {
+        return this.screenZoomToPointByFactor(this.getScreenPoint__center(), factor);
+      }
+
+
+
+      trueZoomToPointByFactor(truePoint, factor) {
+        const screenPoint = this.toScreenPoint(truePoint);
+        return this.screenZoomToPointByFactor(screenPoint, factor);
+      }
+
+      trueZoomToPoint(truePoint, zoom) {
+        const screenPoint = this.toScreenPoint(truePoint);
+        return this.screenZoomToPoint(screenPoint, zoom);
+      }
+
+
+
+
+      truePan(truePoint__before, truePoint__after) {
+        const screenPoint__before = this.toScreenPoint(truePoint__before);
+        const screenPoint__after  = this.toScreenPoint(truePoint__after);
+
+        return this.screenPan(screenPoint__before, screenPoint__after);
+      }
+
+      screenPan(screenPoint__before, screenPoint__after) {
+        const t   = this.transform__bigNumber.slice(0);
+
+        const screenOffset = {
+          dx: math.subtract(screenPoint__after.x , screenPoint__before.x),
+          dy: math.subtract(screenPoint__after.y , screenPoint__before.y),
+        };
+        const t__new = this.createTransformWithScreenOffset(t, screenOffset);
+
+        return this.setTransform(t__new);
+      }
+
+
+
+      trueRotate(screenPoint, angle) {
+
+      }
+
+      screenRotate(screenPoint, angle) {
+
+      }
+
+
+
+
+      //
+
+      updateScale() {
+
+      }
+
+      updateOffset() {
+
+      }
+
+      updateOrientation() {
+
+      }
+
+      didUpdate() {
+
+        this.debug__log("didUpdate");
+
+        //SHU: TODO: use didUpdateListeners
+        this.infiniteCanvas.redrawCanvas(RedrawOccasion.cameraChanged);
+      }
+
+
+      //conversion
+
+      toTruePointForVpTAndT(screenPoint, vpt, t) {
+        const screenPoint__bigNumber = ICUtils.bigNumberize__point(screenPoint);
+
+        const vptPoint  = ICUtils.transformPoint(screenPoint__bigNumber, ICUtils.invertTransform(t));
+        const truePoint = ICUtils.transformPoint(vptPoint,               ICUtils.invertTransform(vpt));
+        return truePoint;
+      }
+
+      toTruePoint(screenPoint) {
+        return this.toTruePointForVpTAndT(screenPoint, this.viewportTransform__bigNumber, this.transform__bigNumber);
+      }
+
+      toTrueRect(screenRect) {
+        const screenPoint__TL = {
+          x: screenRect.x,
+          y: screenRect.y,
+        };
+        const screenPoint__BR = {
+          x: screenRect.x + screenRect.width,
+          y: screenRect.y + screenRect.height,
+        };
+        
+        const truePoint__TL = this.toTruePoint(screenPoint__TL);
+        const truePoint__BR = this.toTruePoint(screenPoint__BR);
+
+        const trueRect = {
+          x:        truePoint__TL.x,
+          y:        truePoint__TL.y,
+          width:    math.subtract(truePoint__BR.x , truePoint__TL.x),
+          height:   math.subtract(truePoint__BR.y , truePoint__TL.y),
+        };
+
+        return trueRect;
+      }
+
+
+      toTrueTransform(screenTransform) {
+
+      }
+
+
+
+      toScreenPointForVpTAndT(truePoint, vpt, t) {
+        const vptPoint               = ICUtils.transformPoint(truePoint, vpt);
+        const screenPoint__bigNumber = ICUtils.transformPoint(vptPoint,  t);
+        const screenPoint__number    = ICUtils.numberize__point(screenPoint__bigNumber);
+        return screenPoint__number;
+      }
+
+      toScreenPoint(truePoint) {
+        return this.toScreenPointForVpTAndT(truePoint, this.viewportTransform__bigNumber, this.transform__bigNumber);
+      }
+
+      toScreenRect(trueRect) {
+        const truePoint__TL = {
+          x: trueRect.x,
+          y: trueRect.y,
+        };
+        const truePoint__BR = {
+          x: math.add(trueRect.x , trueRect.width),
+          y: math.add(trueRect.y , trueRect.height),
+        };
+        
+        const screenPoint__TL = this.toScreenPoint(truePoint__TL);
+        const screenPoint__BR = this.toScreenPoint(truePoint__BR);
+
+        const screenRect = {
+          x:      screenPoint__TL.x,
+          y:      screenPoint__TL.y,
+          width:  (screenPoint__BR.x - screenPoint__TL.x),
+          height: (screenPoint__BR.y - screenPoint__TL.y),
+        };
+
+        return screenRect;
+      }
+
+      toScreenTransform(trueTransform) {
+        // logger.log("logIC", "IcCamera::toScreenTransform", "{");
+        // logger.log("logIC", "IcCamera::toScreenTransform", "trueTransform:",    trueTransform.map((bn) => math.number(bn)) );
+        const multiply = ICUtils.multiplyTransformMatrices;
+
+        const vpt = this.viewportTransform__bigNumber;
+        const t   = this.transform__bigNumber;
+        // logger.log("logIC", "IcCamera::toScreenTransform", "t:",                t.map((bn) => math.number(bn)) );
+
+
+        // const screenTransform = multiply( multiply(trueTransform, vpt) , t);
+        const screenTransform = multiply( multiply(t, vpt) , trueTransform);    //SHU: une journée de perdue
+
+        // logger.log("logIC", "IcCamera::toScreenTransform", "screenTransform:",  screenTransform.map((bn) => math.number(bn)) );
+        // logger.log("logIC", "IcCamera::toScreenTransform", "}");
+
+
+        return screenTransform.map((bigNumber) => math.number(bigNumber));
+      }
+
+
+    }
+
 
     class InfiniteCanvas {
 
       constructor(canvas, inputProperties) {
 
-        this.canvas = canvas;
+        this.canvas          = canvas;
         this.inputProperties = inputProperties;
 
         //--properties
 
-        this.coords_initial = {
-          scale: {
-            X: 1,
-            Y: 1,
-          },
-          offset: {
-            dx: 0,
-            dy: 0,
-          },
-          orientation: 0,
-        };
+        this.camera = new ICCamera(this);
 
-        // coordinates of our cursor
-        this.cursor = {
+        this.cursor__screen = {
           x: 0,
           y: 0,
         };
-        this.previousCursor = Object.assign({}, this.cursor);
+        this.cursor__screen__previous = Object.assign({}, this.cursor__screen);
 
 
-        // distance from origin
-        this.offset = Object.assign({}, this.coords_initial.offset);
-        this.previousOffset = Object.assign({}, this.offset);
-        this.dOffset = {
-          dx: 0,
-          dy: 0,
-        };
 
-        // zoom amount
-        this.scale = Object.assign({}, this.coords_initial.scale);
-        // this.rx_scale_subject    = new Subject();
-        // this.rx_scale_observable = rx_scale_subject.asObservable();
 
-        this.orientation = this.coords_initial.orientation;
 
         this.didUpdateListeners = [];
 
@@ -8976,6 +9571,14 @@
       }
 
 
+      //debug
+      get scale() {
+        const zoom__bigNumber = this.camera.getZoom__bigNumber();
+        logger.log("logIC", "get scale:", math.number(zoom__bigNumber));
+        return zoom__bigNumber;
+      }
+
+
 
 
       setChanged(changed) {
@@ -9043,10 +9646,24 @@
       }
 
       createIcObject(type, position, size, homeScale) {
+        logger.trace("logIC", "createIcObject", {
+          type: type,
+          position: position, 
+          size: size, 
+          homeScale: homeScale,
+        });
 
         const id = this.generateIcObjectId();
 
-        const icObj = new IcObject(id, type, position, size, homeScale);
+        const position__bigNumber = {
+          x: math.bignumber(position.x), 
+          y: math.bignumber(position.y),
+        };
+        const homeScale__bigNumber = math.bignumber(homeScale);
+
+        // const icObj = new IcObject(id, type, position, size, homeScale);
+        const icObj = new IcObject(id, type, position__bigNumber, size, homeScale__bigNumber);
+
         return icObj;
 
         // return this.createRepresentedIcObject(icObj);
@@ -9846,7 +10463,8 @@
         const type      = "rect";
         const position  = Geometry.createPoint(left, top);
         const size      = Geometry.createSize(width, height);
-        const homeScale = Object.assign({}, this.scale);
+        // const homeScale = Object.assign({}, this.scale);
+        const homeScale = math.clone(this.scale);
 
         const icObj = this.createIcObject(type, position, size, homeScale);
 
@@ -9875,7 +10493,8 @@
         const type      = "rect";
         const position  = Geometry.createPoint(trueRect.x, trueRect.y);
         const size      = Geometry.createSize(trueRect.width, trueRect.height);
-        const homeScale = Object.assign({}, this.scale);
+        // const homeScale = Object.assign({}, this.scale);
+        const homeScale = math.clone(this.scale);
 
         const icObj = this.createIcObject(type, position, size, homeScale);
 
@@ -9941,8 +10560,6 @@
 
         // const type      = "zPixel";  //SHU: TODO
 
-        // const trueRect = Geometry.zPixelUtils.defaultInstance.trueRectForZPixelCoordsAndHomeScale(zPixelCoords, homeScale__dst);
-        // const trueRect = Geometry.zPixelUtils.defaultInstance.trueRectForZPixelCoordsAndZLevel(zPixelCoords, zLevel__dst);
         const {trueRect, homeScale} = Geometry.zPixelUtils.defaultInstance.dict_trueRectAndHomeScale_forZPixelCoords(zPixelCoords);
 
         const trueRect__specialEdition = {  //SHU: ohlala
@@ -9953,7 +10570,8 @@
         };
 
         const icRect = infiniteCanvas.createIcRect(trueRect__specialEdition);
-        icRect.homeScale = Object.assign({}, homeScale);
+        // icRect.homeScale = Object.assign({}, homeScale);
+        icRect.homeScale = math.clone(homeScale);
         
         icRect.rType = "zPixel";
         
@@ -10832,14 +11450,14 @@
       createIcPoint(point) {
         logger.log("createIcPoint", point);
 
-        const type = "point";
+        const type     = "point";
         const position = Geometry.createPoint(point.x, point.y);
-        const size = Geometry.createSize(10, 10);
+        const size     = Geometry.createSize(10, 10);
         // const size      = Geometry.createSize(1, 1);
 
         // const homeScale = null;   // exact geometry objects don't have a homeScale
-        const homeScale = { X: 1, Y: 1 };   // exact geometry objects don't have a homeScale
-
+        // const homeScale = { X: 1, Y: 1 };   // exact geometry objects don't have a homeScale
+        const homeScale = math.clone(infiniteCanvas.scale);  // exact geometry objects don't have a homeScale
 
         const icObj = this.createIcObject(type, position, size, homeScale);
 
@@ -25588,7 +26206,7 @@
 
         /*
         //debug
-        const point_from = this.cursor;
+        const point_from = this.cursor__screen;
         const center     = this.getScreenCenterPoint();
 
         [10,20,30,70,80,90,  270,300, -85].forEach((angleInDegrees, i) => {
@@ -25610,7 +26228,7 @@
         //
         // }
         //
-        // debugRotation(this.cursor, screenCenterPoint);
+        // debugRotation(this.cursor__screen, screenCenterPoint);
 
 
       }
@@ -28759,49 +29377,41 @@
         return this.canvas.height / this.scale.Y;
       }
 
-      toTruePoint(point) {
-        // logger.trace("logIC", "toTruePoint", "this.scale.X:", this.scale.X);
+      toTruePoint(screenPoint) {
+        // logger.trace("logIC", "toTruePoint", screenPoint);
 
-        const trueX = this.toTrueX(point);
-        // console.log("trueX", trueX);
-
-        const trueY = this.toTrueY(point);
-        const truePoint = Geometry.createPoint(trueX, trueY);
-        // console.log("truePoint", truePoint);
-        return truePoint;
+        const icCamera = this.camera;
+        return icCamera.toTruePoint(screenPoint);
       }
 
       toTrueRect(ltRect) {
-        const pointTL = Geometry.createPoint(ltRect.left, ltRect.top);
-        const pointBR = Geometry.createPoint(ltRect.left + ltRect.width, ltRect.left + ltRect.height);
-
-        const true_pointTL = this.toTruePoint(pointTL);
-        const true_pointBR = this.toTruePoint(pointBR);
-
-        const true_w = true_pointBR.x - true_pointTL.x;
-        const true_h = true_pointBR.y - true_pointTL.y;
-
-        const trueRect = Geometry.createRect(true_pointTL.x, true_pointTL.y, true_w, true_h);
-
-        return trueRect;
+        const screenRect = {
+          x:      ltRect.left,
+          y:      ltRect.top,
+          width:  ltRect.width,
+          height: ltRect.height,
+        };
+        const icCamera = this.camera;
+        return icCamera.toScreenRect(screenRect);
       }
 
       getTrueCursor() {
-        return this.toTruePoint(this.cursor);
+        const screenPoint__cursor = this.cursor__screen; 
+        return this.toTruePoint(screenPoint__cursor);
       }
 
-      truePointFromNoOrPoint(noOrPoint) {
+      // truePointFromNoOrPoint(noOrPoint) {
 
-        const stdBaseVectors = this.getStdBaseVectors();
-        // console.log("stdBaseVectors", stdBaseVectors);
+      //   const stdBaseVectors = this.getStdBaseVectors();
+      //   // console.log("stdBaseVectors", stdBaseVectors);
 
-        const trueX = Geometry.dotProduct_2d(noOrPoint, stdBaseVectors.u);
-        const trueY = Geometry.dotProduct_2d(noOrPoint, stdBaseVectors.v);
+      //   const trueX = Geometry.dotProduct_2d(noOrPoint, stdBaseVectors.u);
+      //   const trueY = Geometry.dotProduct_2d(noOrPoint, stdBaseVectors.v);
 
-        const truePoint = Geometry.createPoint(trueX, trueY);
+      //   const truePoint = Geometry.createPoint(trueX, trueY);
 
-        return truePoint;
-      }
+      //   return truePoint;
+      // }
 
       toTrueHomeScaleAndScale(scale__fObj) {
 
@@ -28835,56 +29445,56 @@
 
 
       //noOr == no orientation == almost true point (wrong axes orientation)
-      toNoOrX(screenX) {
-        const noOrX = (screenX / this.scale.X) - this.offset.dx;
-        return noOrX;
-      }
+      // toNoOrX(screenX) {
+      //   const noOrX = (screenX / this.scale.X) - this.offset.dx;
+      //   return noOrX;
+      // }
 
-      toNoOrY(screenY) {
-        const noOrY = (screenY / this.scale.Y) - this.offset.dy;
-        return noOrY;
-      }
+      // toNoOrY(screenY) {
+      //   const noOrY = (screenY / this.scale.Y) - this.offset.dy;
+      //   return noOrY;
+      // }
 
-      toNoOrPoint(screenPoint) {
-        return Geometry.createPoint(this.toNoOrX(screenPoint.x), this.toNoOrY(screenPoint.y));
-      }
+      // toNoOrPoint(screenPoint) {
+      //   return Geometry.createPoint(this.toNoOrX(screenPoint.x), this.toNoOrY(screenPoint.y));
+      // }
 
-      toNoOrRect(screenRect) {
-        const noOrTL = this.toNoOrPoint(Geometry.getPointTL(screenRect));
-        const noOrBR = this.toNoOrPoint(Geometry.getPointBR(screenRect));
-        const w = noOrBR.x - noOrTL.x;
-        const h = noOrBR.y - noOrTL.y;
-        return Geometry.createRect(noOrTL.x, noOrTL.y, w, h);
-      }
+      // toNoOrRect(screenRect) {
+      //   const noOrTL = this.toNoOrPoint(Geometry.getPointTL(screenRect));
+      //   const noOrBR = this.toNoOrPoint(Geometry.getPointBR(screenRect));
+      //   const w = noOrBR.x - noOrTL.x;
+      //   const h = noOrBR.y - noOrTL.y;
+      //   return Geometry.createRect(noOrTL.x, noOrTL.y, w, h);
+      // }
 
         //reverse funcs:
         // {
-      toOrX(trueX) {
-        const orX = (trueX + this.offset.dx) * this.scale.X;
-        return orX;
-      }
+      // toOrX(trueX) {
+      //   const orX = (trueX + this.offset.dx) * this.scale.X;
+      //   return orX;
+      // }
 
-      toOrY(trueY) {
-        const orY = (trueY + this.offset.dy) * this.scale.Y;
-        return orY;
-      }
+      // toOrY(trueY) {
+      //   const orY = (trueY + this.offset.dy) * this.scale.Y;
+      //   return orY;
+      // }
 
-      toOrPoint(truePoint) {
-        return Geometry.createPoint(this.toOrX(truePoint.x), this.toOrY(truePoint.y));
-      }
+      // toOrPoint(truePoint) {
+      //   return Geometry.createPoint(this.toOrX(truePoint.x), this.toOrY(truePoint.y));
+      // }
 
-      toOrRect(trueRect) {
-        logger.log("logScreenRect", "toOrRect", "trueRect:", trueRect);
+      // toOrRect(trueRect) {
+      //   logger.log("logScreenRect", "toOrRect", "trueRect:", trueRect);
 
-        const truePoint__TL = Geometry.getPointTL(Geometry.createLTRect(trueRect));
-        const truePoint__BR = Geometry.getPointBR(Geometry.createLTRect(trueRect));
+      //   const truePoint__TL = Geometry.getPointTL(Geometry.createLTRect(trueRect));
+      //   const truePoint__BR = Geometry.getPointBR(Geometry.createLTRect(trueRect));
 
-        const orTL = this.toOrPoint(truePoint__TL);
-        const orBR = this.toOrPoint(truePoint__BR);
-        const w = orBR.x - orTL.x;
-        const h = orBR.y - orTL.y;
-        return Geometry.createRect(orTL.x, orTL.y, w, h);
-      }      
+      //   const orTL = this.toOrPoint(truePoint__TL);
+      //   const orBR = this.toOrPoint(truePoint__BR);
+      //   const w = orBR.x - orTL.x;
+      //   const h = orBR.y - orTL.y;
+      //   return Geometry.createRect(orTL.x, orTL.y, w, h);
+      // }      
         // }
 
 
@@ -28934,16 +29544,19 @@
       }
 
       getScreenRectForTrueRect(trueRect) {
-        const orRect     = this.toOrRect(trueRect);
-        const screenRect = Geometry.createXYRect(orRect);
-        return screenRect;
+        // const orRect     = this.toOrRect(trueRect);
+        // const screenRect = Geometry.createXYRect(orRect);
+        // return screenRect;
+
+        const icCamera = this.camera;
+        return icCamera.toScreenRect(trueRect);
       }
 
       getScreenRectForTrueRectAtHomeScale(trueRect, homeScale) {
         const screenRect = this.getScreenRectForTrueRect(trueRect);
         const screenRect_with_scaled_w_h = Object.assign(screenRect, {
-          width:  screenRect.width  / homeScale.X,
-          height: screenRect.height / homeScale.Y,
+          width:  screenRect.width  / math.number(homeScale),
+          height: screenRect.height / math.number(homeScale),
         });
         return screenRect_with_scaled_w_h;
       }
@@ -29038,20 +29651,25 @@
 
         const func_update = function() {
 
-          const noOr_cursor         = infiniteCanvas.toNoOrPoint(infiniteCanvas.cursor);
-          const noOr_previousCursor = infiniteCanvas.toNoOrPoint(infiniteCanvas.previousCursor);
+          // const noOr_cursor                   = infiniteCanvas.toNoOrPoint();
+          // const noOr_cursor__screen__previous = infiniteCanvas.toNoOrPoint();
 
-          // move the screen
-          const dOffsetX = (noOr_cursor.x - noOr_previousCursor.x) * infiniteCanvas.inputProperties.moveProperties.moveMultiplier;
-          const dOffsetY = (noOr_cursor.y - noOr_previousCursor.y) * infiniteCanvas.inputProperties.moveProperties.moveMultiplier;
+          // // move the screen
+          // const dOffsetX = (noOr_cursor.x - noOr_cursor__screen__previous.x) * infiniteCanvas.inputProperties.moveProperties.moveMultiplier;
+          // const dOffsetY = (noOr_cursor.y - noOr_cursor__screen__previous.y) * infiniteCanvas.inputProperties.moveProperties.moveMultiplier;
 
-          const dOffset = {
-            dx: dOffsetX * factor,
-            dy: dOffsetY * factor,
-          };
+          // const dOffset = {
+          //   dx: dOffsetX * factor,
+          //   dy: dOffsetY * factor,
+          // };
 
-          infiniteCanvas.updateDOffset(dOffset);
-          infiniteCanvas.redrawCanvas(RedrawOccasion.offsetChanged);
+
+          const icCamera = infiniteCanvas.camera; 
+
+          icCamera.screenPan(infiniteCanvas.cursor__screen__previous, infiniteCanvas.cursor__screen);
+
+          // infiniteCanvas.updateDOffset(dOffset);
+          // infiniteCanvas.redrawCanvas(RedrawOccasion.offsetChanged);
 
         };
 
@@ -29220,8 +29838,8 @@
       manageCursorMove_rotate(factor) {
         const infiniteCanvas = this;
 
-        // console.log("this.cursor",         this.cursor);
-        // console.log("this.previousCursor", this.previousCursor);
+        // console.log("this.cursor__screen",         this.cursor__screen);
+        // console.log("this.cursor__screen__previous", this.cursor__screen__previous);
 
         // const screenRect   = this.getScreenRect();
         // console.log("screenRect", screenRect);
@@ -29231,12 +29849,12 @@
 
         // get rotation angle
         const v1 = {
-          x: this.cursor.x - screenCenterPoint.x,
-          y: this.cursor.y - screenCenterPoint.y,
+          x: this.cursor__screen.x - screenCenterPoint.x,
+          y: this.cursor__screen.y - screenCenterPoint.y,
         };
         const v2 = {
-          x: this.previousCursor.x - screenCenterPoint.x,
-          y: this.previousCursor.y - screenCenterPoint.y,
+          x: this.cursor__screen__previous.x - screenCenterPoint.x,
+          y: this.cursor__screen__previous.y - screenCenterPoint.y,
         };
 
         const norm_v1 = Geometry.norm_2d(v1);
@@ -29274,14 +29892,21 @@
         const angleInDegrees = angleInRadians * 180 / Math.PI;
         console.log("mcr", "angleInDegrees", angleInDegrees);
 
-        const rotationCenter = this.getNoOrCenterPoint();
+
+        // const rotationCenter = this.getNoOrCenterPoint();
         // console.log("rotationCenter", rotationCenter);
 
         if(fabricIntegration.fabricCanvas.isDrawingMode && mouseIntegration.leftMouseDown) {
           infiniteCanvas.manageFreeDrawingRotate(angleInDegrees, rotationCenter);
         } else {
-          infiniteCanvas.updateWithDRotation(angleInDegrees, rotationCenter);
-          infiniteCanvas.redrawCanvas(RedrawOccasion.orientationChanged);
+
+          const icCamera = infiniteCanvas.camera;
+
+          icCamera.rotateWrtCenterPoint(screenCenterPoint, angleInDegrees);
+
+
+          // infiniteCanvas.updateWithDRotation(angleInDegrees, rotationCenter);
+          // infiniteCanvas.redrawCanvas(RedrawOccasion.orientationChanged);
         }
 
       }
@@ -29315,15 +29940,17 @@
       }
 
       logCursor() {
+        const screenPoint__cursor = this.cursor__screen;
+        logger.log("logCursor", "screenPoint__cursor:", screenPoint__cursor);
 
-        console.log("this.cursor", this.cursor);
-        const true_cursor = this.toTruePoint(this.cursor);
-        console.log("true_cursor", true_cursor);
+        // const screenPoint__screenCenter = this.getScreenCenterPoint();
+        // logger.log("logCursor", "screenPoint__screenCenter", screenPoint__screenCenter);
 
+        const truePoint__cursor = this.toTruePoint(screenPoint__cursor);
+        logger.log("logCursor", "truePoint__cursor:", ICUtils.numberize__point(truePoint__cursor));
 
-        const screenCenterPoint = this.getScreenCenterPoint();
-        console.log("screenCenterPoint", screenCenterPoint);
-
+        const zoom = this.camera.getZoom__bigNumber();
+        logger.log("logCursor", "zoom:", math.number(zoom));
       }
 
 
@@ -29348,43 +29975,17 @@
 
         const infiniteCanvas = this;
 
-        const factor = (1 + scaleAmount); 
-
-        const scale_new = {
-          X: this.scale.X * factor,
-          Y: this.scale.Y * factor,
-        };
-        // logger.log("log1", "scale_new", scale_new);
-
         // zoom the page based on where the cursor is
-        const cursor            = this.cursor;        //the only point that does not move on screen 
-        const pos__cursor__ic   = infiniteCanvas.toNoOrPoint(cursor);
-        logger.log("log1", "pos__cursor__ic", pos__cursor__ic);
+        const cursor__screen = this.cursor__screen;        //the only point that does not move on screen 
 
-        // const screenCenterPoint = this.getScreenCenterPoint();
-        const screenRect       = this.getScreenRect();
-        logger.log("log1", "screenRect", screenRect);
-        const trueRect__screen = this.toNoOrRect(screenRect);
-        logger.log("log1", "trueRect__screen", trueRect__screen);
+        const factor = 1 + scaleAmount; 
 
-        // const trueRect__screen__after_homot = Geometry.rectWithHomothety(trueRect__screen, pos__cursor__ic, factor);
-        const pointTL__screen = {
-          x: trueRect__screen.left,
-          y: trueRect__screen.top,
-        };
-        const pointTL__screen__after_homot = Geometry.pointWithHomothety(pointTL__screen, pos__cursor__ic, factor);
 
-          //wrong
-        // const dOffset = {
-        //   dx: pointTL__screen__after_homot.x - pointTL__screen.x,
-        //   dy: pointTL__screen__after_homot.y - pointTL__screen.y,
-        // };
-          //correct
-        const dOffset = {
-          dx: (pointTL__screen__after_homot.x - pointTL__screen.x) / factor,
-          dy: (pointTL__screen__after_homot.y - pointTL__screen.y) / factor,
-        };
-        logger.log("log1", "dOffset", dOffset);
+        infiniteCanvas.camera.screenZoomToPointByFactor(cursor__screen, factor);
+
+        //debug
+        // infiniteCanvas.camera.screenZoomToScreenPointCenterByFactor(factor);
+        // infiniteCanvas.camera.screenZoomToScreenPointTLByFactor(factor);
 
 
         logger.log("logFreeDrawing", "manageScaleUpdateWithScaleAmount", "fabricCanvas.isDrawingMode:", fabricIntegration.fabricCanvas.isDrawingMode);
@@ -29409,8 +30010,8 @@
 
           } 
 
-          this.updateScaleAndDOffset(scale_new, dOffset);
-          this.redrawCanvas(RedrawOccasion.scaleChanged);
+          // this.updateScaleAndDOffset(scale_new, dOffset);
+          // this.redrawCanvas(RedrawOccasion.scaleChanged);
         }
 
       }
@@ -29450,7 +30051,7 @@
               // };
               // logger.log("logZScroll", "manageZScroll", "screenPointTL__before_homot:", screenPointTL__before_homot);
 
-              // const cursor = this.cursor;        //the only point that does not move on screen during zScroll
+              // const cursor = this.cursor__screen;        //the only point that does not move on screen during zScroll
               // const screenPointTL__after_homot = Geometry.pointWithHomothety(screenPointTL__before_homot, cursor, factor__f);
               // logger.log("logZScroll", "manageZScroll", "screenPointTL__after_homot:", screenPointTL__after_homot);
 
@@ -32324,20 +32925,20 @@
 
       updateCursor(cursor) {
         // console.log("updateCursor", cursor);
-        this.previousCursor = Object.assign({}, this.cursor);
-        this.cursor = Object.assign({}, cursor);
+        this.cursor__screen__previous = Object.assign({}, this.cursor__screen);
+        this.cursor__screen = Object.assign({}, cursor);
       }
 
 
       updateOffset(offset_new) {
         console.log("updateOffset", offset_new);
 
-        this.previousOffset = Object.assign({}, this.offset);
+        this.offset__previous = Object.assign({}, this.offset);
 
         this.offset = Object.assign({}, offset_new);
 
-        this.dOffset.dx = this.offset.dx - this.previousOffset.dx;
-        this.dOffset.dy = this.offset.dy - this.previousOffset.dy;
+        this.dOffset.dx = this.offset.dx - this.offset__previous.dx;
+        this.dOffset.dy = this.offset.dy - this.offset__previous.dy;
 
         // this.redrawCanvas(RedrawOccasion.offsetChanged);
 
@@ -32888,25 +33489,50 @@
     class IcObject {
 
       constructor(id, type, position, size, homeScale) {
+        logger.log("logIC", "IcObject::constructor", {
+          id:   id,
+          type: type,
+          size: size,
+          position: position,
+          homeScale: homeScale,
+        });
         this.id        = id;
         this.type      = type;
 
-        this.position  = position;
-        this.size      = size;       //"information" size    //gives an idea of the sharpness/heavyness of the object
+        this.size      = size;        //"information" size    //gives an idea of the sharpness/heavyness of the object
 
-        this.homeScale = homeScale;
+        this._position  = null;
+        this._homeScale = null;
+        this.position  = position;    //{x: BigNumber, y: BigNumber}
+        this.homeScale = homeScale;   //BigNumber
+
+        this._position__debug = {
+          x: math.number(position.x),
+          y: math.number(position.y),
+        };
+        this._homeScale__debug = math.number(homeScale);
+
 
         this.orientation = 0;
+        this.zIndex      = 0;
+
+
+        //refinement using controls
         this.scale = {
           X: 1.0,
           Y: 1.0,
+        };
+        this.skew = {
+          X: 0,
+          Y: 0,
         };
         this.flip = {
           X: false,
           Y: false,
         };
 
-        this.zIndex = 0;
+
+
 
 
         this.fill = "";
@@ -32974,6 +33600,100 @@
         //ugliness from outer space
         this.counter__path = 0;
       }
+
+      //_calcRotateMatrix() {
+      //  return util.calcRotateMatrix(this);
+      //}
+
+      //_calcTranslateMatrix() {
+      //  var center = this.getCenterPoint();
+      //  return [1, 0, 0, 1, center.x, center.y];
+      //}
+
+
+      //debug
+      set position(position__new) {
+        logger.trace("logIC", "ICObject::set position", position__new);
+        if(!math.isBigNumber(position__new.x) || !math.isBigNumber(position__new.y)) {
+          throw new Error("setting non-BigNumber-based position");
+        }
+
+        //check if object is ok
+        const x__number = math.number(position__new.x);
+        const y__number = math.number(position__new.y);
+
+
+        this._position = position__new;
+
+        this._position__debug  = {
+          x: math.number(position__new.x),
+          y: math.number(position__new.y),
+        };
+      }
+      get position() {
+        return this._position;
+      }
+
+      set homeScale(homeScale__new) {
+        logger.trace("logIC", "ICObject::set homeScale", homeScale__new);
+        if(!math.isBigNumber(homeScale__new)) {
+          throw new Error("setting non-BigNumber-based homeScale");
+        }
+
+        //check if object is ok
+        const homeScale__number = math.number(homeScale__new);
+
+        this._homeScale = homeScale__new;
+
+        this._homeScale__debug = math.number(homeScale__new);
+      }
+      get homeScale() {
+        return this._homeScale;
+      }
+
+
+
+
+      getTransform() {    //similar to calcOwnMatrix()
+        logger.log("logIC", "ICObject::getTransform", "this:", this);
+
+        const t__translation = ICUtils.composeMatrix({
+          translateX: this.position.x,
+          translateY: this.position.y,
+        });
+
+        const t__scaleAndOther = ICUtils.composeMatrix({
+          angle: math.bignumber(this.orientation ? this.orientation : 0),
+
+          scaleX: this.scale.X,
+          scaleY: this.scale.Y,
+
+          skewX: math.bignumber(this.skew.X),
+          skewY: math.bignumber(this.skew.Y),
+          
+          flipX: this.flip.X,
+          flipY: this.flip.Y,
+        });
+        logger.log("logIC", "ICObject::getTransform__icObj", "t__scaleAndOther:", t__scaleAndOther);
+
+        const inverse_of_homeScale = math.divide(math.bignumber(1), this.homeScale);
+        const t__homeScale = ICUtils.composeMatrix({
+          scaleX: inverse_of_homeScale,                 //main "infinite" mechanism,    
+          scaleY: inverse_of_homeScale,                 //main "infinite" mechanism,   
+        });
+
+        //SHU: as strange as it seems, the order of transforms applied to object will be:
+        //  1. translation
+        //  2. scaleAndOther
+        //  3. homeScale
+        const multiply = ICUtils.multiplyTransformMatrices; 
+        const t = multiply(t__translation, multiply(t__scaleAndOther, t__homeScale));  //SHU: we could check obj's homeScale vs camera.zoom 
+                                                                                       // to avoid rendering objects that will be too small to be visible
+
+        return t;
+      }
+
+
 
       //debug
       //get touchStateDict() {return this.touchStateDict_;}
@@ -34011,11 +34731,11 @@
       }
 
       clone() {
-        const id   = this.id;
-        const type = this.type;
+        const id       = this.id;
+        const type     = this.type;
 
         const position = this.position;
-        const size = this.size;
+        const size     = this.size;
 
         const homeScale = this.homeScale;
 
@@ -46993,6 +47713,11 @@
 
           switch (redrawOccasion) {
 
+            case RedrawOccasion.cameraChanged:
+              this.updateFabricObjectsTransform(redrawOccasion);
+              break;
+
+
             case RedrawOccasion.offsetChanged:
               this.updateFabricObjectsPosition(redrawOccasion);
               // this.updateFabricObjectsSize(redrawOccasion);
@@ -47009,8 +47734,11 @@
               break;
 
             case RedrawOccasion.objectAdded:
-              this.updateFabricObjectsPosition(redrawOccasion);
-              this.updateFabricObjectsSize(redrawOccasion);
+              // this.updateFabricObjectsPosition(redrawOccasion);
+              // this.updateFabricObjectsSize(redrawOccasion);
+
+              this.updateFabricObjectsTransform(redrawOccasion);
+
               break;
 
             case RedrawOccasion.pureObjectAdded:
@@ -47320,8 +48048,10 @@
                   break;
               }
 
-              fabricIntegration.updateFabricObject_size_default(fObj);
-              fabricIntegration.updateFabricObject_position_default(fObj);
+              // fabricIntegration.updateFabricObject_size_default(fObj);
+              // fabricIntegration.updateFabricObject_position_default(fObj);
+
+              fabricIntegration.updateFabricObject_transform_default(fObj);
 
               // fabricCanvas.renderAll();
               fabricCanvas.requestRenderAll();
@@ -52061,7 +52791,7 @@
 
           fObj.set({
             left: position_screen.x,    //SHU: ??? where is infiniteCanvas.offset taking part ???
-            top: position_screen.y,
+            top:  position_screen.y,
 
             // width:  homeSize_screen.width,
             // height: homeSize_screen.height,
@@ -54086,12 +54816,105 @@
         }
 
 
+
+
+
         
-
-
- 
-
         //update fObjs to match icObjs
+
+        updateFabricObjectsTransform(redrawOccasion) {
+          const infiniteCanvas = this.infiniteCanvas;
+  
+          // const fabric_objects = this.fabric_objects;
+          const fabric_objects = this.getFabricObjects();
+
+          var arr_fObj__to_move = [];
+
+          const activeObject = this.fabricCanvas.getActiveObject();
+          if (activeObject instanceof fabric.ActiveSelection) {   //when panning while there is an activeSelection
+            const activeSelection = activeObject;
+            logger.log("logAS", "updateFabricObjectsPosition_default", "ActiveSelection:", activeSelection);
+
+            arr_fObj__to_move = [];
+
+            const arr_fObj__inActiveSelection = activeSelection.getObjects();
+
+            const arr_affected = fabric_objects
+            .filter(fObj => !arr_fObj__inActiveSelection.includes(fObj));
+
+            arr_fObj__to_move = arr_affected;
+
+          } else  //when panning while there is no activeSelection
+          {
+            arr_fObj__to_move = [...fabric_objects];
+          }
+
+          arr_fObj__to_move.forEach((fObj, i) => {
+            this.updateFabricObject_transform_default(fObj);
+          });
+        }
+
+        updateFabricObject_transform_default(fObj) {
+          const fabricIntegration = this;
+          const infiniteCanvas    = fabricIntegration.infiniteCanvas;
+          const icCamera          = infiniteCanvas.camera; 
+
+          //icObj.transform__icObj  []--->--- camera.vpt --->--- camera.t --->---[] fObj's transform
+
+          const icObj                = fObj.icObj;
+          const transform__icObj     = icObj.getTransform();
+
+          const transform__fObj      = icCamera.toScreenTransform(transform__icObj);
+
+
+          function applyTransformToObject(object, transform) {
+            var options = fabric.util.qrDecompose(transform),
+                screenPoint__TL = new fabric.Point(options.translateX, options.translateY);
+
+            // logger.log("logFI", "applyTransformToObject", "options:",         options);
+            logger.log("logFI", "applyTransformToObject", "screenPoint__TL:", screenPoint__TL);
+
+            object.set({
+              left: screenPoint__TL.x,
+              top:  screenPoint__TL.y,
+            });
+
+            // object.set({
+            //   left: math.round(screenPoint__TL.x, 10),
+            //   top:  math.round(screenPoint__TL.y, 10),
+            // });
+
+            object.flipX = false;
+            object.flipY = false;
+            
+            logger.log("logFI", "applyTransformToObject", "scaleX:", options.scaleX);
+            logger.log("logFI", "applyTransformToObject", "scaleY:", options.scaleY);
+
+            if(options.scaleX < 16777216) //16777216 is math.pow(2,24)
+            {
+              object.set('scaleX', options.scaleX);
+            }
+
+            if(options.scaleY < 16777216) //16777216 is math.pow(2,24)
+            {
+              object.set('scaleY', options.scaleY);
+            }
+
+            // object.set('scaleX', math.round(options.scaleX, 10) );
+            // object.set('scaleY', math.round(options.scaleY, 10) );
+
+            object.skewX = options.skewX;
+            object.skewY = options.skewY;
+            object.angle = options.angle;
+
+            object.dirty = true;
+          }
+
+          applyTransformToObject(fObj, transform__fObj);
+          fObj.setCoords();
+
+          // fabricIntegration.fabricCanvas.requestRenderAll();
+        }
 
         updateFabricObjectsPosition(redrawOccasion) {
           const infiniteCanvas = this.infiniteCanvas;
@@ -55821,11 +56644,6 @@
     
                   stroke:      rgbColor,
                   opacity:     opacity,
-    
-                  // isCosmetic:  cfg.isCosmetic,   //<--\
-                                                //    |--- //SHU: these too are quite incompatible...
-                  // isAdhesive: cfg.isAdhesive,   //<--/
-                  isAdhesive: drawingBout.config__bout.isAdhesive,
                 });
     
                 // logger.log("logFD", "fObj.zIndex", fObj.zIndex);
@@ -56269,11 +57087,6 @@
     
                   stroke:      rgbColor,
                   opacity:     opacity,
-    
-                  // isCosmetic:  cfg.isCosmetic,   //<--\
-                                                //    |--- //SHU: these too are quite incompatible...
-                  // isAdhesive: cfg.isAdhesive,   //<--/
-                  isAdhesive: config__bout.isAdhesive,
                 });
     
                 // logger.log("logFD", "fObj.zIndex", fObj.zIndex);
@@ -56829,11 +57642,6 @@
     
                   stroke:      rgbColor,
                   opacity:     opacity,
-    
-                  // isCosmetic:  cfg.isCosmetic,   //<--\
-                                                //    |--- //SHU: these too are quite incompatible...
-                  // isAdhesive: cfg.isAdhesive,   //<--/
-                  isAdhesive: config__bout.isAdhesive,
                 });
     
                 // logger.log("logFD", "fObj.zIndex", fObj.zIndex);
@@ -59950,14 +60758,7 @@
         }
 
         getFCursor(isPixelRatioFixEnabled = true) {
-          const cursor              = infiniteCanvas.cursor;
-          // logger.log("logCanvas", "cursor", cursor);
-
-          const pos__cursor__ic     = infiniteCanvas.toNoOrPoint(cursor);
-          // logger.log("logCanvas", "pos__cursor__ic", pos__cursor__ic);
-
-          const pos__cursor__screen = infiniteCanvas.toScreenPoint(pos__cursor__ic);
-          // logger.log("logCanvas", "pos__cursor__screen", pos__cursor__screen);
+          const cursor              = infiniteCanvas.cursor__screen;
 
           var factor;
           if(isPixelRatioFixEnabled) {
@@ -59967,8 +60768,8 @@
           }
 
           const pos = {
-            x: Math.floor(pos__cursor__screen.x * factor),
-            y: Math.floor(pos__cursor__screen.y * factor),
+            x: Math.floor(cursor.x * factor),
+            y: Math.floor(cursor.y * factor),
           };
 
           return pos;
@@ -59983,7 +60784,7 @@
 
           const fabricCanvas   = fabricIntegration.fabricCanvas;
           const infiniteCanvas = fabricIntegration.infiniteCanvas;
-          const cursor         = infiniteCanvas.cursor;
+          const cursor         = infiniteCanvas.cursor__screen;
 
           logger.log("fabricCanvas", fabricCanvas);
 
@@ -60101,7 +60902,7 @@
 
           const fabricCanvas   = fabricIntegration.fabricCanvas;
           const infiniteCanvas = fabricIntegration.infiniteCanvas;
-          const cursor         = infiniteCanvas.cursor;
+          const cursor         = infiniteCanvas.cursor__screen;
 
           //local 1
           {
@@ -60152,7 +60953,7 @@
 
           const infiniteCanvas    = fabricIntegration.infiniteCanvas;
 
-          // const cursor = infiniteCanvas.cursor;
+          // const cursor = infiniteCanvas.cursor__screen;
           // const cursor = infiniteCanvas.getTrueCursor();
           const cursor = this.getFCursor();
 
@@ -60253,7 +61054,7 @@
 
           const infiniteCanvas = fabricIntegration.infiniteCanvas;
 
-          const cursor = infiniteCanvas.cursor;
+          const cursor = infiniteCanvas.cursor__screen;
 
           var mouseX = cursor.x, mouseY = cursor.y,
             canvas = fcanvas.lowerCanvasEl,
@@ -62116,12 +62917,17 @@
 
       class zPixelUtils {
         /*
-         *  Instantiate this class with your zPixelOrigin coords
+         *  Instantiate this class with your zPixelOrigin coords  //SHU: TODO: replace coords with transform
          */
 
-        constructor(truePoint__zPixelOrigin = {x:0, y:0}, homeScaleX__zPixelOrigin = 1.0) {
-          this.truePoint__zPixelOrigin  = truePoint__zPixelOrigin;
-          this.homeScaleX__zPixelOrigin = homeScaleX__zPixelOrigin;   //only homeScale.X is used
+        constructor(truePoint__zPixelOrigin = null, homeScale__zPixelOrigin = null, orientation__zPixelOrigin = null) {
+          //big numbers
+          this.truePoint__zPixelOrigin   = truePoint__zPixelOrigin   ? truePoint__zPixelOrigin   : {x: math.bignumber(0), y: math.bignumber(0)};
+          this.homeScale__zPixelOrigin   = homeScale__zPixelOrigin   ? homeScale__zPixelOrigin   : math.bignumber(1);   
+
+          this.orientation__zPixelOrigin = orientation__zPixelOrigin ? orientation__zPixelOrigin : math.bignumber(0);   
+
+          //numbers 
 
             //stating the obvious
           this.ix__zPixelOrigin     = 0;
@@ -62130,7 +62936,7 @@
         }
 
         getZPixelCoords__origin() {
-          return createZPixelCoords(0,0,0);
+          return this.createZPixelCoords(0,0,0);
         }
 
         createZPixelCoords(ix,iy,zLevel) {
@@ -62141,26 +62947,32 @@
           };
         }
 
-        zLevelForHomeScaleX(homeScaleX) {
-          const dScaleX = homeScaleX / this.homeScaleX__zPixelOrigin;
-          const log2__dScaleX = math.floor(math.log2(dScaleX));
-          logger.log("logZPixel", "log2__dScaleX:", log2__dScaleX);
+        zLevelForHomeScale(homeScale) {
+          logger.trace("logZPixelUtils", "zLevelForHomeScale", homeScale);
 
-          const zLevel = this.zLevel__zPixelOrigin + log2__dScaleX;
+          const dScale       = math.divide(homeScale, this.homeScale__zPixelOrigin);
+          const log2__dScale = math.floor(math.log2(dScale));
+          logger.log("logZPixel", "log2__dScale:", log2__dScale);
+
+          const log2__dScale__number = math.number(log2__dScale);
+
+          const zLevel = this.zLevel__zPixelOrigin + log2__dScale__number;
           return zLevel;
         }
 
-        zPixelCoordsForTruePointAndHomeScaleX(truePoint,homeScaleX) {
-          const zLevel = this.zLevelForHomeScaleX(homeScaleX);
+        zPixelCoordsForTruePointAndHomeScale(truePoint,homeScale) {
+          const zLevel = this.zLevelForHomeScale(homeScale);
 
           return this.zPixelCoordsForTruePointAndZLevel(truePoint, zLevel);
         }
 
         zPixelCoordsForTruePointAndZLevel(truePoint, zLevel) {
-          const dZLevel = zLevel - this.zLevel__zPixelOrigin;
+          const dZLevel        = math.bignumber(zLevel - this.zLevel__zPixelOrigin);
+          
+          const pow2__bigNumber = math.pow(math.bignumber(2), math.bignumber(dZLevel));
 
-          const ix = math.floor( (truePoint.x - this.truePoint__zPixelOrigin.x) * math.pow(2,dZLevel) );
-          const iy = math.floor( (truePoint.y - this.truePoint__zPixelOrigin.y) * math.pow(2,dZLevel) );
+          const ix = math.number( math.floor( math.multiply( math.subtract(truePoint.x, this.truePoint__zPixelOrigin.x) , pow2__bigNumber ) ) );
+          const iy = math.number( math.floor( math.multiply( math.subtract(truePoint.y, this.truePoint__zPixelOrigin.y) , pow2__bigNumber ) ) );
 
           return this.createZPixelCoords(ix,iy,zLevel);
         }
@@ -62192,37 +63004,55 @@
         // }
 
         dict_trueRectAndHomeScale_forZPixelCoords(zPixelCoords) {
-          const homeScaleX = this.homeScaleX__zPixelOrigin * math.pow(2,zPixelCoords.zLevel);
 
-          const trueRect = {
-            x: this.truePoint__zPixelOrigin.x + zPixelCoords.ix / math.pow(2,zPixelCoords.zLevel),
-            y: this.truePoint__zPixelOrigin.y + zPixelCoords.iy / math.pow(2,zPixelCoords.zLevel),
-            width:  1.0 / math.pow(2,zPixelCoords.zLevel),
-            height: 1.0 / math.pow(2,zPixelCoords.zLevel),
-          };
+          // const number_pow2 = math.pow(2,zPixelCoords.zLevel);
+          // // const number_pow2 = math.bignumber( math.pow(2,zPixelCoords.zLevel) );
+          // logger.log("logBigN", "number_pow2:", number_pow2);
 
-          const homeScale = {
-            X: homeScaleX,
-            Y: homeScaleX,
+          // const trueWidth__zPixel  = 1.0 / number_pow2;
+          // // logger.log("logBigN", "trueWidth__zPixel:", trueWidth__zPixel);
+
+
+
+          const pow2__bigNumber = math.pow(math.bignumber(2),math.bignumber(zPixelCoords.zLevel));
+
+          const trueWidth__zPixel__bignumber = math.divide( math.bignumber(1) , pow2__bigNumber);
+          // logger.log("logBigN", "trueWidth__zPixel__bignumber:", trueWidth__zPixel__bignumber);
+          // const trueWidth__zPixel__number = math.number(trueWidth__zPixel__bignumber);
+          // logger.log("logBigN", "trueWidth__zPixel__number:", trueWidth__zPixel__number);
+
+          
+          const trueWidth__zPixel  = trueWidth__zPixel__bignumber;
+          const trueHeight__zPixel = trueWidth__zPixel;
+
+          const trueRect__zPixel = {
+            x: math.add( this.truePoint__zPixelOrigin.x, math.multiply( math.bignumber(zPixelCoords.ix) , trueWidth__zPixel) ),
+            y: math.add( this.truePoint__zPixelOrigin.y, math.multiply( math.bignumber(zPixelCoords.iy) , trueHeight__zPixel) ),
+            width:  trueWidth__zPixel,
+            height: trueHeight__zPixel,
           };
+          logger.log("logBigN", "trueRect__zPixel:", trueRect__zPixel);
+
+
+          const homeScale__zPixel = math.multiply(this.homeScale__zPixelOrigin , pow2__bigNumber);
 
           const miniDict = {
-            trueRect:  trueRect,
-            homeScale: homeScale,
+            trueRect:  trueRect__zPixel,
+            homeScale: homeScale__zPixel,
           };
 
           return miniDict;
         }
 
-        dict_trueRectAndHomeScale_forTruePointAndHomeScaleX(truePoint, homeScaleX) {
+        dict_trueRectAndHomeScale_forTruePointAndHomeScale(truePoint, homeScale) {
 
-          const zLevel = Geometry.zPixelUtils.defaultInstance.zLevelForHomeScaleX(homeScaleX);
+          const zLevel = this.zLevelForHomeScale(homeScale);
           logger.log("logZPixel", "getZPixelFRect", "zLevel:", zLevel);
 
-          const zPixelCoords = Geometry.zPixelUtils.defaultInstance.zPixelCoordsForTruePointAndZLevel(truePoint, zLevel);
+          const zPixelCoords = this.zPixelCoordsForTruePointAndZLevel(truePoint, zLevel);
           logger.log("logZPixel", "getZPixelFRect", "zPixelCoords:", zPixelCoords);
 
-          const miniDict = Geometry.zPixelUtils.defaultInstance.dict_trueRectAndHomeScale_forZPixelCoords(zPixelCoords);
+          const miniDict = this.dict_trueRectAndHomeScale_forZPixelCoords(zPixelCoords);
 
           return miniDict;
         }
@@ -62232,9 +63062,9 @@
         zPixelRectCoordsForTrueRectAndZLevel(trueRect,zLevel) {
           
           const truePoint__TL    = {x: trueRect.x, y: trueRect.y};
-          const zPixelCoords__TL = Geometry.zPixelUtils.defaultInstance.zPixelCoordsForTruePointAndZLevel(truePoint__TL, zLevel);
+          const zPixelCoords__TL = this.zPixelCoordsForTruePointAndZLevel(truePoint__TL, zLevel);
           const truePoint__BR    = {x: trueRect.x + trueRect.width, y: trueRect.y + trueRect.height};
-          const zPixelCoords__BR = Geometry.zPixelUtils.defaultInstance.zPixelCoordsForTruePointAndZLevel(truePoint__BR, zLevel);
+          const zPixelCoords__BR = this.zPixelCoordsForTruePointAndZLevel(truePoint__BR, zLevel);
   
           const zPixelRectCoords = {
             zLevel:  zLevel,
@@ -62248,39 +63078,40 @@
         }
 
         dict_trueRectAndHomeScale_forZPixelRectCoords(zPixelRectCoords) {
-          const homeScaleX = this.homeScaleX__zPixelOrigin * math.pow(2,zPixelRectCoords.zLevel);
+
+          const pow2__bigNumber = math.pow(math.bignumber(2), math.bignumber(zPixelRectCoords.zLevel));
+
+          const homeScale__zPixelRect = math.multiply( this.homeScaleX__zPixelOrigin, pow2__bigNumber);
+
+          const width__zPixel  = math.divide(math.bignumber(1), pow2__bigNumber);
+          const height__zPixel = width__zPixel; 
 
           const trueRect = {
-            x: this.truePoint__zPixelOrigin.x + zPixelRectCoords.ix / math.pow(2,zPixelRectCoords.zLevel),
-            y: this.truePoint__zPixelOrigin.y + zPixelRectCoords.iy / math.pow(2,zPixelRectCoords.zLevel),
-            width:  zPixelRectCoords.iwidth  / math.pow(2,zPixelRectCoords.zLevel),
-            height: zPixelRectCoords.iheight / math.pow(2,zPixelRectCoords.zLevel),
-          };
-
-          const homeScale = {
-            X: homeScaleX,
-            Y: homeScaleX,
+            x: math.add(this.truePoint__zPixelOrigin.x, math.multiply(math.bignumber(zPixelRectCoords.ix) , width__zPixel)),
+            y: math.add(this.truePoint__zPixelOrigin.y, math.multiply(math.bignumber(zPixelRectCoords.iy) , height__zPixel)),
+            width:  math.multiply( math.bignumber(zPixelRectCoords.iwidth)  , width__zPixel),
+            height: math.multiply( math.bignumber(zPixelRectCoords.iheight) , height__zPixel),
           };
 
           const miniDict = {
             trueRect:  trueRect,
-            homeScale: homeScale,
+            homeScale: homeScale__zPixelRect,
           };
 
           return miniDict;
         }
 
-        createDict__zPixel(infiniteCanvas, truePoint, homeScaleX) {
+        createDict__zPixel(infiniteCanvas, truePoint, homeScale) {
           var outDict;
 
-          const zLevel = Geometry.zPixelUtils.defaultInstance.zLevelForHomeScaleX(homeScaleX);
+          const zLevel = this.zLevelForHomeScale(homeScale);
           logger.log("logZPixel", "getZPixelFRect", "zLevel:", zLevel);
 
-          const zPixelCoords = Geometry.zPixelUtils.defaultInstance.zPixelCoordsForTruePointAndZLevel(truePoint, zLevel);
+          const zPixelCoords = this.zPixelCoordsForTruePointAndZLevel(truePoint, zLevel);
           logger.log("logZPixel", "getZPixelFRect", "zPixelCoords:", zPixelCoords);
 
           //get trueRect
-          const miniDict = Geometry.zPixelUtils.defaultInstance.dict_trueRectAndHomeScale_forZPixelCoords(zPixelCoords);
+          const miniDict = this.dict_trueRectAndHomeScale_forZPixelCoords(zPixelCoords);
           const trueRect__zPixel  = miniDict.trueRect;
           const homeScale__zPixel = miniDict.homeScale;
           // logger.log("logZPixel", "trueRect__zPixel:",  trueRect__zPixel);
@@ -69733,6 +70564,9 @@
             } else if (event.button == 2) {
               mouseIntegration.rightMouseDown = true;
             }
+
+            infiniteCanvas.logCursor();
+
           }
 
           function onMouseMove(event) {
@@ -107214,33 +108048,64 @@
           this.infiniteCanvas = infiniteCanvas;
 
           //convenience
+          // this.trueRect1 = {
+          //   x: 100,
+          //   y: 100,
+          //   width:  100,
+          //   height: 100,
+          // }; 
+
+          // this.trueRect2 = {
+          //   x: 800,
+          //   y: 150,
+          //   width:  100,
+          //   height: 100,
+          // }; 
+
+          // this.trueRect3 = {
+          //   x: 100,
+          //   y: 800,
+          //   width:  100,
+          //   height: 100,
+          // }; 
+
+          // this.trueRect4 = {
+          //   x: 800,
+          //   y: 950,
+          //   width:  100,
+          //   height: 100,
+          // }; 
+
           this.trueRect1 = {
-            x: 100,
-            y: 100,
-            width:  100,
-            height: 100,
+            x:      math.bignumber(100),
+            y:      math.bignumber(100),
+            width:  math.bignumber(100),
+            height: math.bignumber(100),
           }; 
 
           this.trueRect2 = {
-            x: 800,
-            y: 150,
-            width:  100,
-            height: 100,
+            x:      math.bignumber(800),
+            y:      math.bignumber(150),
+            width:  math.bignumber(100),
+            height: math.bignumber(100),
           }; 
 
           this.trueRect3 = {
-            x: 100,
-            y: 800,
-            width:  100,
-            height: 100,
+            x:      math.bignumber(100),
+            y:      math.bignumber(800),
+            width:  math.bignumber(100),
+            height: math.bignumber(100),
           }; 
 
           this.trueRect4 = {
-            x: 800,
-            y: 950,
-            width:  100,
-            height: 100,
+            x:      math.bignumber(800),
+            y:      math.bignumber(950),
+            width:  math.bignumber(100),
+            height: math.bignumber(100),
           }; 
+
+
+
 
           // this.debug1();
           // this.debug2();
@@ -107443,6 +108308,8 @@
 
             this.debug_zPixel();
             // this.debug_activeSelection();
+
+            // this.debug_camera();
 
             // this.debug_construct();
 
@@ -115282,42 +116149,29 @@
         debug_zPixel() {
           const atelier = this;
 
-          function create_zPixel(zPixelCoords/*, homeScale__dst*/) {
-            // const trueRect = Geometry.zPixelUtils.defaultInstance.trueRectForZPixelCoordsAndHomeScale(zPixelCoords, homeScale__dst);
-            // const trueRect = Geometry.zPixelUtils.defaultInstance.trueRectForZPixelCoordsAndZLevel(zPixelCoords, zLevel__dst);
-            const {trueRect, homeScale} = Geometry.zPixelUtils.defaultInstance.dict_trueRectAndHomeScale_forZPixelCoords(zPixelCoords);
+          // const arr_trueRect  = [atelier.trueRect1, atelier.trueRect2];
+          // const arr_homeScale = [0.002,0.02,0.1,1.0,1.6,2.3,3.4,5.11,9.6,16,32].map((number) => math.bignumber(number));
+          // arr_trueRect.forEach((trueRect) => {
+          //   arr_homeScale.forEach((homeScale) => {
+          //     const truePoint    = {x: trueRect.x, y: trueRect.y};
+          //     const zPixelCoords = Geometry.zPixelUtils.defaultInstance.zPixelCoordsForTruePointAndHomeScale(truePoint, homeScale);
 
-            const icRect = infiniteCanvas.createIcRect(trueRect);
-            icRect.homeScale = Object.assign({}, homeScale);
-            
-            icRect.strokeWidth = 0;
-            
-            icRect.fill        = ColorUtils.randomColor();
+          //     const icRect = infiniteCanvas.createIcZPixel(zPixelCoords/*, homeScale__dst*/);
+          //     logger.log("logAtelier", "debug_zPixel", "icRect:", icRect);
 
-            icRect.zPixelCoords = zPixelCoords;
+          //     infiniteCanvas.addIcObject(icRect);
+          //   });
+          // });
 
-            return icRect;
-          }
-
-          const arr_trueRect   = [atelier.trueRect1, atelier.trueRect2];
-          const arr_homeScaleX = [0.002,0.02,0.1,1.0,1.6,2.3,3.4,5.11,9.6,16,32];
+          const arr_trueRect  = [atelier.trueRect1];
+          const arr_homeScale = [1.0,1.6,2.3,3.4,5.11,9.6,16,32].map((number) => math.bignumber(number));
           arr_trueRect.forEach((trueRect) => {
-            arr_homeScaleX.forEach((homeScaleX) => {
+            arr_homeScale.forEach((homeScale) => {
               const truePoint    = {x: trueRect.x, y: trueRect.y};
-              const zPixelCoords = Geometry.zPixelUtils.defaultInstance.zPixelCoordsForTruePointAndHomeScaleX(truePoint, homeScaleX);
-              
-              // const homeScale__dst = {
-              //   X: 1.0,
-              //   Y: 1.0,
-              // };
-              // const homeScale__dst = {
-              //   X: homeScaleX,
-              //   Y: homeScaleX,
-              // };
-
-              // const icRect = create_zPixel(zPixelCoords/*, homeScale__dst*/);
+              const zPixelCoords = Geometry.zPixelUtils.defaultInstance.zPixelCoordsForTruePointAndHomeScale(truePoint, homeScale);
 
               const icRect = infiniteCanvas.createIcZPixel(zPixelCoords/*, homeScale__dst*/);
+              logger.log("logAtelier", "debug_zPixel", "icRect:", icRect);
 
               infiniteCanvas.addIcObject(icRect);
             });
@@ -115438,6 +116292,49 @@
  
         }
 
+
+        debug_camera() {
+          const atelier = this;
+
+          function addPoint(truePoint, color = "pink") {
+            const truePoint__screenCenter = infiniteCanvas.camera.getTruePoint__center();
+            const icPoint = infiniteCanvas.createIcPoint(truePoint);
+            icPoint.fill = color;
+            logger.log("logAtelier", "debug_camera", "icPoint:", icPoint);
+  
+            infiniteCanvas.addIcObject(icPoint);
+          }
+
+          function addRect(trueRect, color = "black", homeScale = math.bignumber(1)) {
+            const icRect = infiniteCanvas.createIcRect(trueRect);
+            icRect.fill      = color;
+            icRect.homeScale = homeScale;
+            logger.log("logAtelier", "debug_camera", "icRect:", icRect);
+  
+            infiniteCanvas.addIcObject(icRect);
+          }
+
+          {
+            const trueRect = atelier.trueRect1;
+            addRect(trueRect, "yellow", math.bignumber(2.333));
+            // addPoint({x: trueRect.x, y: trueRect.y});
+          }
+
+          // {
+          //   const trueRect = atelier.trueRect2;
+          //   addRect(trueRect, "cyan", math.bignumber(0.42));
+          //   addPoint({x: trueRect.x, y: trueRect.y});
+          // }
+
+          // {
+          //   const truePoint__screenCenter = infiniteCanvas.camera.getTruePoint__center();
+          //   addPoint(truePoint__screenCenter);
+          // }
+
+
+
+
+        }
 
 
 
