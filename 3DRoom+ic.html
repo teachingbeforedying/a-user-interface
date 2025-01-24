@@ -954,23 +954,56 @@
           translateX: a[4],
           translateY: a[5]
         };
+
+      }
+
+
+      static calcTranslateMatrix(options) {
+        const trX = options.translateX ? options.translateX : 0;
+        const trY = options.translateY ? options.translateY : 0; 
+        return [1, 0, 0, 1, trX, trY];
       }
 
 
 
-
-
+      static degreesToRadians(angleInDegrees__bignumber) {
+        const pi_over_180 = math.divide( math.bignumber(math.pi) , math.bignumber(180) );
+        return math.multiply( angleInDegrees__bignumber, pi_over_180 );
+      }
 
       static calcRotateMatrix(options) {
+        var t;
+
         if (!options.angle) {
           return ICUtils.iMatrix__bigNumber();
         }
-        var theta = fabric.util.degreesToRadians(options.angle),
-            cos = fabric.util.cos(theta),                         //SHU: warning, maybe Decimal.js' precise cos will be needed at some point
-            sin = fabric.util.sin(theta);                         //SHU: warning, maybe Decimal.js' precise sin will be needed at some point
-        return [cos, sin, -sin, cos, 0, 0].map((number) => math.bignumber(number));
+
+        var theta = ICUtils.degreesToRadians(options.angle),
+              cos = math.cos( math.number(theta) ),                         //SHU: warning, maybe Decimal.js' precise cos will be needed at some point
+              sin = math.sin( math.number(theta) );                         //SHU: warning, maybe Decimal.js' precise sin will be needed at some point
+        const t__rotation = [cos, sin, -sin, cos, 0, 0].map((number) => math.bignumber(number));
+        
+
+        if(options.centerRot) {
+          logger.log("logICUtils", "options.centerRot:", options.centerRot);
+          const t__translation__enter = ICUtils.calcTranslateMatrix({translateX: options.centerRot.x, translateY: options.centerRot.y});
+          logger.log("logICUtils", "t__translation__enter:", t__translation__enter.map((bigNumber) => math.number(bigNumber)));
+
+          const t__translation__leave = ICUtils.invertTransform(t__translation__enter);
+          logger.log("logICUtils", "t__translation__leave:", t__translation__leave.map((bigNumber) => math.number(bigNumber)));
+
+          const multiply = ICUtils.multiplyTransformMatrices;
+          // t = multiply( multiply( t__translation__leave, t__rotation) , t__translation__enter);
+          t = multiply( multiply( t__translation__enter, t__rotation) , t__translation__leave);
+
+        } else {
+          t = t__rotation;
+        }
+
+        return t;
       }
 
+      
       static calcDimensionsMatrix(options) {
         var scaleX = typeof options.scaleX === 'undefined' ? math.bignumber(1) : options.scaleX,
             scaleY = typeof options.scaleY === 'undefined' ? math.bignumber(1) : options.scaleY,
@@ -996,11 +1029,10 @@
             true);
         }
         return scaleMatrix;
-      }
+      } 
+      
 
-      static degreesToRadians(angle__bignumber) {
-        return math.divide(math.multiply(angle__bignumber, math.bignumber(math.pi)), 180);
-      }
+
 
 
     }
@@ -9041,10 +9073,25 @@
 
         //the important part
         this.transform__bigNumber         = ICUtils.iMatrix__bigNumber(); //bignumber allows 'infinite' zoom
-        this.orientation                  = 0;
+        this._orientation                 = 0;
 
         //debug
         this.debug__log("constructor");
+      }
+
+      get orientation() {
+        return this._orientation;
+      }
+
+      set orientation(orientationInDegrees__bigNumber) {  //SHU: absolute orientation
+        logger.log("logIC", "IcCamera::set orientation", math.number(orientationInDegrees__bigNumber));
+        const orientation__old = this._orientation;
+        const orientation__new = orientationInDegrees__bigNumber;
+
+        const angleInDegrees__bigNumber = math.subtract( orientation__new , orientation__old );
+        const screenPoint__rotationCenter = this.getScreenPoint__center();
+
+        this.screenRotate(screenPoint__rotationCenter, angleInDegrees__bigNumber);
       }
 
       debug__log(occasion) {
@@ -9157,7 +9204,18 @@
         return t__new;
       }
 
+      createTransformWithScreenRotation(t, screenPoint__rotationCenter, angleInDegrees) {
+        var t__new = t.slice(0);
+       
+        const t__rotation = ICUtils.calcRotateMatrix({
+          angle:     math.bignumber(angleInDegrees),
+          centerRot: ICUtils.bigNumberize__point(screenPoint__rotationCenter),
+        });
+        t__new = ICUtils.multiplyTransformMatrices(t__rotation, t__new);
+        // t__new = ICUtils.multiplyTransformMatrices(t__new, t__rotation);
 
+        return t__new;
+      }
 
 
 
@@ -9239,7 +9297,7 @@
       }
 
       screenPan(screenPoint__before, screenPoint__after) {
-        const t   = this.transform__bigNumber.slice(0);
+        const t = this.transform__bigNumber.slice(0);
 
         const screenOffset = {
           dx: math.subtract(screenPoint__after.x , screenPoint__before.x),
@@ -9252,12 +9310,18 @@
 
 
 
-      trueRotate(screenPoint, angle) {
+      trueRotate(truePoint__rotationCenter, angleInDegrees) {
 
       }
 
-      screenRotate(screenPoint, angle) {
+      screenRotate(screenPoint__rotationCenter, angleInDegrees) {
+        const t = this.transform__bigNumber.slice(0);
 
+        const t__new = this.createTransformWithScreenRotation(t, screenPoint__rotationCenter, angleInDegrees);
+
+        this._orientation = math.add( this._orientation , math.bignumber(angleInDegrees) );
+
+        return this.setTransform(t__new);
       }
 
 
@@ -29835,26 +29899,16 @@
 
 
 
-      manageCursorMove_rotate(factor) {
-        const infiniteCanvas = this;
-
-        // console.log("this.cursor__screen",         this.cursor__screen);
-        // console.log("this.cursor__screen__previous", this.cursor__screen__previous);
-
-        // const screenRect   = this.getScreenRect();
-        // console.log("screenRect", screenRect);
-        const screenCenterPoint = this.getScreenCenterPoint();
-        // console.log("screenCenterPoint", screenCenterPoint);
-
+      getAngleForCursorMove(screenPoint__rotationCenter, factor) {
 
         // get rotation angle
         const v1 = {
-          x: this.cursor__screen.x - screenCenterPoint.x,
-          y: this.cursor__screen.y - screenCenterPoint.y,
+          x: this.cursor__screen.x - screenPoint__rotationCenter.x,
+          y: this.cursor__screen.y - screenPoint__rotationCenter.y,
         };
         const v2 = {
-          x: this.cursor__screen__previous.x - screenCenterPoint.x,
-          y: this.cursor__screen__previous.y - screenCenterPoint.y,
+          x: this.cursor__screen__previous.x - screenPoint__rotationCenter.x,
+          y: this.cursor__screen__previous.y - screenPoint__rotationCenter.y,
         };
 
         const norm_v1 = Geometry.norm_2d(v1);
@@ -29890,7 +29944,18 @@
         const angleInRadians = sign * angle_abs * factor;
 
         const angleInDegrees = angleInRadians * 180 / Math.PI;
-        console.log("mcr", "angleInDegrees", angleInDegrees);
+
+        return angleInDegrees;
+      }
+
+
+      manageCursorMove_rotate(factor) {
+        const infiniteCanvas = this;
+
+        const screenCenterPoint = this.getScreenCenterPoint();
+        // console.log("screenCenterPoint", screenCenterPoint);
+
+        const angleInDegrees = this.getAngleForCursorMove(screenCenterPoint, factor);
 
 
         // const rotationCenter = this.getNoOrCenterPoint();
@@ -29902,7 +29967,7 @@
 
           const icCamera = infiniteCanvas.camera;
 
-          icCamera.rotateWrtCenterPoint(screenCenterPoint, angleInDegrees);
+          icCamera.screenRotate(screenCenterPoint, angleInDegrees);
 
 
           // infiniteCanvas.updateWithDRotation(angleInDegrees, rotationCenter);
@@ -29910,6 +29975,26 @@
         }
 
       }
+
+      manageRotate90(isClockwise = true) {
+        const infiniteCanvas = this;
+
+        const screenPoint__rotationCenter = infiniteCanvas.getScreenCenterPoint();
+        const angleInDegrees = isClockwise ? -90 : 90;
+
+        const icCamera = infiniteCanvas.camera;
+        icCamera.screenRotate(screenPoint__rotationCenter, angleInDegrees);
+      }
+
+      manageRotateReset() {
+        const infiniteCanvas = this;
+
+        const icCamera = infiniteCanvas.camera;
+        icCamera.orientation = math.bignumber(0);
+      }
+
+
+
 
       manageFreeDrawingRotate(angleInDegrees, rotationCenter) {
 
@@ -69409,6 +69494,9 @@
 
               if(keyboardIntegration.keyDownToggles.digit2.isActive) {
                 keyboardIntegration.infiniteCanvas.operateOnSelected__flatten_zPixelImage();
+              } else if(keyboardIntegration.keyDownToggles.r.isActive) {
+                const isClockwise = true;
+                keyboardIntegration.infiniteCanvas.manageRotate90(isClockwise); 
               }
               else {
                 keyboardIntegration.infiniteCanvas.addNewSnapSlot();
@@ -69854,6 +69942,9 @@
               if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
                 //compose
                 fabricIntegration.composeSelectedObjects();
+              } else if(keyboardIntegration.keyDownToggles.r.isActive) {
+                const isClockwise = false;
+                keyboardIntegration.infiniteCanvas.manageRotate90(isClockwise); 
               } else if (keyboardIntegration.keyDownToggles.altLeft.isActive) {
                 //link
                 fabricIntegration.linkSelectedObjects();
@@ -70129,7 +70220,9 @@
             "Space": new KeyUpTrigger("Space", KeyUpTrigger.defaultKeyUpFunc(["Space"]), () => {
               const infiniteCanvas = keyboardIntegration.infiniteCanvas;
 
-              if(!infiniteCanvas.isDryScrolling) {
+              if(keyboardIntegration.keyDownToggles.r.isActive) {
+                keyboardIntegration.infiniteCanvas.manageRotateReset(); 
+              } else if(!infiniteCanvas.isDryScrolling) {
                 fabricIntegration.deselectAll();
               } else {
                 infiniteCanvas.isDryScrolling = false;
@@ -108309,7 +108402,7 @@
             this.debug_zPixel();
             // this.debug_activeSelection();
 
-            // this.debug_camera();
+            this.debug_camera();
 
             // this.debug_construct();
 
