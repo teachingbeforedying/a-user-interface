@@ -9312,17 +9312,52 @@
       async initialize_p() {
         const infiniteCanvas = this;
 
-        const icCamera = infiniteCanvas.createIcCamera();
-        logger.log("logIC", "initialize_p", "icCamera:", icCamera);
-
-        await infiniteCanvas.addIcObject_p(icCamera).then((rep_free) => {
-          infiniteCanvas.icCamera  = rep_free; 
-
-          const cameraEngine = rep_free.dict_engine["camera"].engine.awoken;
-          logger.log("logIC", "initialize_p", "cameraEngine:", cameraEngine);
-        });
+        if(!infiniteCanvas.icCamera) {
+          await infiniteCanvas.initializeCamera_p();
+        }
 
         return infiniteCanvas;
+      }
+
+      async initializeCamera_p() {
+        const infiniteCanvas = this;
+
+        const size__canvas = this.getCanvasSize();
+        const trueRect__camera  = {
+          x:      math.bignumber(0),
+          y:      math.bignumber(0),
+          width:  math.bignumber(size__canvas.width),
+          height: math.bignumber(size__canvas.height),
+        }
+        const homeScale__camera = math.bignumber(1);
+
+        const icCamera = infiniteCanvas.createIcCamera(trueRect__camera, homeScale__camera);
+        logger.log("logIC", "initialize_p", "icCamera:", icCamera);
+
+        //debug
+        icCamera.fill = ColorUtils.rgbaColorStringForColorAndSuperOpacity( "lime", 0.6 );
+
+        await infiniteCanvas.addIcObject_p(icCamera).then((rep_free) => {
+          infiniteCanvas.swapToCamera(icCamera);
+        });
+      }
+
+      swapToCamera(icCamera__new) {
+        const infiniteCanvas = this;
+
+        const icCamera__old = infiniteCanvas.icCamera;
+        if(icCamera__old != null) {
+          //stop the engine
+          const cameraEngine__old = icCamera__old.dict_engine["camera"].engine.awoken;
+          cameraEngine__old.stop();
+        }
+
+        infiniteCanvas.icCamera = icCamera__new;
+        //start the engine
+        const cameraEngine__new = icCamera__new.dict_engine["camera"].engine.awoken;
+        cameraEngine__new.start();
+
+        infiniteCanvas.redrawCanvas(RedrawOccasion.cameraChanged);
       }
 
 
@@ -10258,22 +10293,10 @@
 
 
 
-      createIcCamera(trueRect_in = null) {
+      createIcCamera(trueRect, homeScale__raw) {
         const infiniteCanvas = this;
 
         const size__canvas = this.getCanvasSize();
-        var trueRect;
-
-        if(trueRect_in) {
-          trueRect = trueRect_in;
-        } else {
-          trueRect = {
-            x:        math.bignumber(0),
-            y:        math.bignumber(0),
-            width:    math.bignumber(size__canvas.width),
-            height:   math.bignumber(size__canvas.height),
-          }
-        }
 
         const truePoint__TL = {
           x: trueRect.x,
@@ -10287,10 +10310,12 @@
         const scaleX__raw = math.divide( trueRect.width  , math.bignumber(size__canvas.width) );
         const scaleY__raw = math.divide( trueRect.height , math.bignumber(size__canvas.height) );
 
-        const homeScale   = math.max( scaleX__raw, scaleY__raw );
+        const factScale = math.max( scaleX__raw, scaleY__raw );
 
-        const scaleX = math.divide( scaleX__raw, homeScale );
-        const scaleY = math.divide( scaleY__raw, homeScale );
+        const scaleX = math.divide( scaleX__raw, factScale );
+        const scaleY = math.divide( scaleY__raw, factScale );
+
+        const homeScale = math.multiply( homeScale__raw , factScale); 
 
 
 
@@ -26003,6 +26028,18 @@
         this.addNewIcObject(icRect);
       }
 
+      addNewCamera() {
+        const infiniteCanvas = this;
+
+        const trueRect__camera = infiniteCanvas.icCamera.getTrueRect();
+        const icCamera = this.createIcCamera(trueRect__camera, this.scale);     //SHU: TODO: use infiniteCanvas.icCamera.deepClone()
+
+        //debug
+        icCamera.fill = ColorUtils.rgbaColorStringForColorAndSuperOpacity( ColorUtils.randomColor(), 0.6 );
+
+        this.addIcObject(icCamera);
+      }
+
       addNewText(text = "icText") {
 
         const true_cursor = this.getTrueCursor();
@@ -28070,6 +28107,35 @@
         infiniteCanvas.addIcObject(icVariable__named);
       }
 
+      operateOnSelected__use() {
+        const infiniteCanvas = this;
+
+        //get selected icObj
+        const icObj__selected = infiniteCanvas.getSelectedIcObj();
+        logger.log("logOperateOn", "icObj__selected:", icObj__selected);
+
+        const func__use = infiniteCanvas.getFunc__use(infiniteCanvas, icObj__selected);
+        if(func__use) {
+          func__use(infiniteCanvas, icObj__selected);
+        }
+      }
+
+      getFunc__use(infiniteCanvas, icObj) {
+        var outFunc;
+
+        switch(icObj.type) {
+          case "camera":
+            outFunc = function(infiniteCanvas, icCamera) {
+              infiniteCanvas.swapToCamera(icCamera);
+            };
+            break;
+          default:
+            break;
+        }
+
+        return outFunc;
+      }
+
 
       operateOnSelected__adhere() {
         const infiniteCanvas = this;
@@ -29190,36 +29256,36 @@
 
 
       // convert coordinates
-      toScreenX(xTrue) {
-        return (xTrue + this.offset.dx) * this.scale.X;
-      }
-      toScreenY(yTrue) {
-        return (yTrue + this.offset.dy) * this.scale.Y;
-      }
-      toScreenPoint(truePoint) {
-        // logger.trace("logIC", "toScreenPoint", "this.scale.X:", this.scale.X);
+      // toScreenX(xTrue) {
+      //   return (xTrue + this.offset.dx) * this.scale.X;
+      // }
+      // toScreenY(yTrue) {
+      //   return (yTrue + this.offset.dy) * this.scale.Y;
+      // }
+      // toScreenPoint(truePoint) {
+      //   // logger.trace("logIC", "toScreenPoint", "this.scale.X:", this.scale.X);
 
-        return Geometry.createPoint(this.toScreenX(truePoint.x), this.toScreenY(truePoint.y));
-      }
-      toScreenRect(trueRect) {
-        const truePointTL = Geometry.createPoint(trueRect.left, trueRect.top);
-        const truePointBR = Geometry.createPoint(trueRect.left + trueRect.width, trueRect.top + trueRect.height);
+      //   return Geometry.createPoint(this.toScreenX(truePoint.x), this.toScreenY(truePoint.y));
+      // }
+      // toScreenRect(trueRect) {
+      //   const truePointTL = Geometry.createPoint(trueRect.left, trueRect.top);
+      //   const truePointBR = Geometry.createPoint(trueRect.left + trueRect.width, trueRect.top + trueRect.height);
 
-        const screen_pointTL = this.toScreenPoint(truePointTL);
-        const screen_pointBR = this.toScreenPoint(truePointBR);
+      //   const screen_pointTL = this.toScreenPoint(truePointTL);
+      //   const screen_pointBR = this.toScreenPoint(truePointBR);
 
-        const screen_w = screen_pointBR.x - screen_pointTL.x;
-        const screen_h = screen_pointBR.y - screen_pointTL.y;
+      //   const screen_w = screen_pointBR.x - screen_pointTL.x;
+      //   const screen_h = screen_pointBR.y - screen_pointTL.y;
 
-        const screenRect = Geometry.createRect(screen_pointTL.x, screen_pointTL.y, screen_w, screen_h);
+      //   const screenRect = Geometry.createRect(screen_pointTL.x, screen_pointTL.y, screen_w, screen_h);
 
-        return screenRect;
-      }
-      toScreenSize(trueSize) {
-        const screen_w = trueSize.width / this.scale.X;
-        const screen_h = trueSize.height / this.scale.Y;
-        return Geometry.createSize(screen_w, screen_h);
-      }
+      //   return screenRect;
+      // }
+      // toScreenSize(trueSize) {
+      //   const screen_w = trueSize.width / this.scale.X;
+      //   const screen_h = trueSize.height / this.scale.Y;
+      //   return Geometry.createSize(screen_w, screen_h);
+      // }
       // toScreenLength(trueLength) {
       //   return trueLength * this.scale;
       // }
@@ -29227,37 +29293,7 @@
 
 
 
-      getOrientationBaseVectors() {
-        return this.getRotationBaseVectors(this.orientation);
-      }
 
-      getStdBaseVectors() {
-        return this.getRotationBaseVectors(-this.orientation);
-      }
-
-      getRotationBaseVectors(angle) {
-
-        const cosTheta = Math.cos(angle * (Math.PI / 180));
-        const sinTheta = Math.sin(angle * (Math.PI / 180));
-
-        const orientation_vector_u = {
-          x: cosTheta,
-          y: sinTheta,
-        };
-
-        const orientation_vector_v = {
-          x: -sinTheta,
-          y: cosTheta,
-        };
-
-        const baseVectors = {
-          u: orientation_vector_u,
-          v: orientation_vector_v,
-        };
-
-        return baseVectors;
-
-      }
 
 
       // toTrueX(xScreen) {
@@ -29344,89 +29380,40 @@
       //   return truePoint;
       // }
 
-      toTrueHomeScaleAndScale(scale__fObj) {
-
-        const scaleK__max = math.max(scale__fObj.X, scale__fObj.Y); 
-
-        const scale__fObj__homeScale = {
-          X: scaleK__max,
-          Y: scaleK__max,
-        };
-        const scale__fObj__scale = {
-          X: scale__fObj.X / scaleK__max,
-          Y: scale__fObj.Y / scaleK__max,
-        };
-
-        const dict__trueHomeScaleAndScale = {
-          homeScale: infiniteCanvas.toTrueScale(scale__fObj__homeScale),
-          scale:     scale__fObj__scale,
-        };
-
-        return dict__trueHomeScaleAndScale;
-      }
-
-      toTrueScale(scale__fObj) {
-        const trueScale = {
-          X: 1.0 / scale__fObj.X * infiniteCanvas.scale.X,
-          Y: 1.0 / scale__fObj.Y * infiniteCanvas.scale.Y,
-        };
-        return trueScale;
-      }
 
 
+      // toTrueHomeScaleAndScale(scale__fObj) {
 
-      //noOr == no orientation == almost true point (wrong axes orientation)
-      // toNoOrX(screenX) {
-      //   const noOrX = (screenX / this.scale.X) - this.offset.dx;
-      //   return noOrX;
+      //   const scaleK__max = math.max(scale__fObj.X, scale__fObj.Y); 
+
+      //   const scale__fObj__homeScale = {
+      //     X: scaleK__max,
+      //     Y: scaleK__max,
+      //   };
+      //   const scale__fObj__scale = {
+      //     X: scale__fObj.X / scaleK__max,
+      //     Y: scale__fObj.Y / scaleK__max,
+      //   };
+
+      //   const dict__trueHomeScaleAndScale = {
+      //     homeScale: infiniteCanvas.toTrueScale(scale__fObj__homeScale),
+      //     scale:     scale__fObj__scale,
+      //   };
+
+      //   return dict__trueHomeScaleAndScale;
       // }
 
-      // toNoOrY(screenY) {
-      //   const noOrY = (screenY / this.scale.Y) - this.offset.dy;
-      //   return noOrY;
+      // toTrueScale(scale__fObj) {
+      //   const trueScale = {
+      //     X: 1.0 / scale__fObj.X * infiniteCanvas.scale.X,
+      //     Y: 1.0 / scale__fObj.Y * infiniteCanvas.scale.Y,
+      //   };
+      //   return trueScale;
       // }
 
-      // toNoOrPoint(screenPoint) {
-      //   return Geometry.createPoint(this.toNoOrX(screenPoint.x), this.toNoOrY(screenPoint.y));
-      // }
 
-      // toNoOrRect(screenRect) {
-      //   const noOrTL = this.toNoOrPoint(Geometry.getPointTL(screenRect));
-      //   const noOrBR = this.toNoOrPoint(Geometry.getPointBR(screenRect));
-      //   const w = noOrBR.x - noOrTL.x;
-      //   const h = noOrBR.y - noOrTL.y;
-      //   return Geometry.createRect(noOrTL.x, noOrTL.y, w, h);
-      // }
 
-        //reverse funcs:
-        // {
-      // toOrX(trueX) {
-      //   const orX = (trueX + this.offset.dx) * this.scale.X;
-      //   return orX;
-      // }
 
-      // toOrY(trueY) {
-      //   const orY = (trueY + this.offset.dy) * this.scale.Y;
-      //   return orY;
-      // }
-
-      // toOrPoint(truePoint) {
-      //   return Geometry.createPoint(this.toOrX(truePoint.x), this.toOrY(truePoint.y));
-      // }
-
-      // toOrRect(trueRect) {
-      //   logger.log("logScreenRect", "toOrRect", "trueRect:", trueRect);
-
-      //   const truePoint__TL = Geometry.getPointTL(Geometry.createLTRect(trueRect));
-      //   const truePoint__BR = Geometry.getPointBR(Geometry.createLTRect(trueRect));
-
-      //   const orTL = this.toOrPoint(truePoint__TL);
-      //   const orBR = this.toOrPoint(truePoint__BR);
-      //   const w = orBR.x - orTL.x;
-      //   const h = orBR.y - orTL.y;
-      //   return Geometry.createRect(orTL.x, orTL.y, w, h);
-      // }      
-        // }
 
 
       getCanvasBoundingRect() {
@@ -29459,12 +29446,7 @@
         return centerPoint_true;
       }
 
-      getNoOrCenterPoint() {
-        const centerPoint_screen = this.getScreenCenterPoint();
-        // console.log("centerPoint_screen", centerPoint_screen);
-        const centerPoint_noOr = this.toNoOrPoint(centerPoint_screen);
-        return centerPoint_noOr;
-      }
+
 
 
       getShownRect() {
@@ -34108,14 +34090,14 @@
         };
       }
 
-      getTrueRect2() {
-        return {
-          x:      this.position.x, 
-          y:      this.position.y, 
-          width:  this.size.width  / this.homeScale.X, 
-          height: this.size.height / this.homeScale.Y,
-        };
-      }
+      // getTrueRect2() {
+      //   return {
+      //     x:      this.position.x, 
+      //     y:      this.position.y, 
+      //     width:  this.size.width  / this.homeScale.X, 
+      //     height: this.size.height / this.homeScale.Y,
+      //   };
+      // }
 
       // getAbsoluteTrueRect2() {
       //   var outRect;
@@ -40608,6 +40590,44 @@
           };
 
 
+
+          this.getOrientationBaseVectors = function() {
+            return this.getRotationBaseVectors(this.orientation);
+          };
+    
+          this.getStdBaseVectors = function() {
+            return this.getRotationBaseVectors(-this.orientation);
+          };
+    
+          this.getRotationBaseVectors = function(angle) {
+    
+            const cosTheta = Math.cos(angle * (Math.PI / 180));
+            const sinTheta = Math.sin(angle * (Math.PI / 180));
+    
+            const orientation_vector_u = {
+              x: cosTheta,
+              y: sinTheta,
+            };
+    
+            const orientation_vector_v = {
+              x: -sinTheta,
+              y: cosTheta,
+            };
+    
+            const baseVectors = {
+              u: orientation_vector_u,
+              v: orientation_vector_v,
+            };
+    
+            return baseVectors;
+    
+          };
+
+
+
+
+
+
           //conversion
 
           this.toTruePointForTEye = function(screenPoint, t__eye) {
@@ -40719,6 +40739,19 @@
 
           //utils
 
+          this.createCameraEyeTransformFromCameraObjTransform = function(t__camera__obj) {
+            const t__camera__eye = ICUtils.invertTransform(t__camera__obj);
+            return t__camera__eye;
+          };
+
+          this.createCameraObjTransformFromCameraEyeTransform = function(t__camera__eye) {
+            const t__camera__obj = ICUtils.invertTransform(t__camera__eye);
+            return t__camera__obj;
+          };
+
+
+
+
           this.createTransformByApplyingZoomFactor = function(t, factor) {
             // logger.log("logCameraEngine", "createTransformByApplyingZoomFactor", "factor:", math.number(factor));
 
@@ -40772,68 +40805,29 @@
           };
 
 
-          this.createCameraEyeTransformFromCameraHomeScaleFreeTransform = function(t__camera__homeScale_free) {
-            const icCamera  = this.scopeObj.engineCarrier;
 
-            const t__homeScale = icCamera.getHomeScaleTransform();
-
-            const t__camera__eye = ICUtils.multiplyTransformMatrices(t__camera__homeScale_free, t__homeScale);  
-
-            return t__camera__eye;
-          };
-
-          this.createCameraObjTransformFromCameraHomeScaleFreeTransform = function(t__camera__homeScale_free) {
-            const icCamera  = this.scopeObj.engineCarrier;
-
-            const t__homeScale            = icCamera.getHomeScaleTransform();
-            const t__inverse_of_homeScale = ICUtils.invertTransform(t__homeScale);
-    
-            const t__camera__obj = ICUtils.multiplyTransformMatrices(t__camera__homeScale_free, t__inverse_of_homeScale);  
-
-            return t__camera__obj;
-          };
 
 
 
           //control
 
-          this.getCameraTransform__homeScale_free = function() {
-            const icCamera = this.scopeObj.engineCarrier;
-            return icCamera.getTransform__homeScale_free();
-          };
-
-          // this.setCameraHomeScaleFreeTransform = function(t__homeScale_free__new) {
-          //   const icCamera = this.scopeObj.engineCarrier; 
-            
-          //   icCamera.pauseAllInnerUpdates();
-
-          //   const result = icCamera.setHomeScaleFreeTransform(t__homeScale_free__new);
-          //   this.manageCameraUpdate();
-
-          //   icCamera.resumeAllInnerUpdates();
-
-          //   return result;
-          // };
-
-
           this.getCameraEyeTransform = function() {
             const icCamera  = this.scopeObj.engineCarrier;
 
-            const t__camera__homeScale_free = icCamera.getTransform__homeScale_free();
-            
-            const t__camera__eye = this.createCameraEyeTransformFromCameraHomeScaleFreeTransform(t__camera__homeScale_free);
+            const t__camera__obj = icCamera.getTransform();
+            const t__camera__eye = this.createCameraEyeTransformFromCameraObjTransform(t__camera__obj);
             
             return t__camera__eye;
           };
 
 
           
-          this.getCameraObjectTransform = function() {
+          this.getCameraObjTransform = function() {
             const icCamera  = this.scopeObj.engineCarrier;
             return icCamera.getTransform(); 
           };
 
-          this.setCameraObjectTransform = function(t__obj__new) {
+          this.setCameraObjTransform = function(t__obj__new) {
             const icCamera = this.scopeObj.engineCarrier; 
             
             icCamera.pauseAllInnerUpdates();
@@ -40869,40 +40863,37 @@
     
           //   return this.screenZoomToPointByFactor(screenPoint, factor);
           // };
-    
+
           this.screenZoomToPointByFactor = function(screenPoint, factor) {  //SHU: the two transforms (eye and obj) must be consistent
             logger.log("logIC", "IcCamera::screenZoomToPointByFactor", screenPoint, math.number(factor));
 
             const factor__bigNumber = math.bignumber(factor);
     
-            const t__homeScale_free__old = this.getCameraTransform__homeScale_free().slice(0);
-            const t__eye__old            = this.getCameraEyeTransform().slice(0);
-
-            //manage zoom
-            const t__homeScale_free__new = this.createTransformByApplyingZoomFactor(t__homeScale_free__old, factor__bigNumber);
-
-            var   t__obj__new = this.createCameraObjTransformFromCameraHomeScaleFreeTransform(t__homeScale_free__new);
-            const t__eye__new = this.createCameraEyeTransformFromCameraHomeScaleFreeTransform(t__homeScale_free__new);
+            const t__eye__old = this.getCameraEyeTransform().slice(0);
 
             //manage offset
+            const t__eye__zoomed = this.createTransformByApplyingZoomFactor(t__eye__old, math.divide( math.bignumber(1), factor__bigNumber) );
+
             const screenPoint__before = screenPoint;
     
             const truePoint__before  = this.toTruePointForTEye(screenPoint__before, t__eye__old);
-            const screenPoint__after = this.toScreenPointForTEye(truePoint__before, t__eye__new); 
-    
-            // logger.log("logIC", "IcCamera::screenZoomToPointByFactor", "screenPoint__before:", screenPoint__before);
-            // logger.log("logIC", "IcCamera::screenZoomToPointByFactor", "screenPoint__after:",  screenPoint__after);
+            const screenPoint__after = this.toScreenPointForTEye(truePoint__before, t__eye__zoomed); 
     
             const screenOffset = {
-              dx: (screenPoint__before.x - screenPoint__after.x),
-              dy: (screenPoint__before.y - screenPoint__after.y),
+              dx: (screenPoint__after.x - screenPoint__before.x),
+              dy: (screenPoint__after.y - screenPoint__before.y),
             };
             logger.log("logIC", "IcCamera::screenZoomToPointByFactor", "screenOffset:", screenOffset);
     
-            t__obj__new = this.createTransformByApplyingScreenOffset(t__obj__new, screenOffset);
-            
-            return this.setCameraObjectTransform(t__obj__new);
+            var t__eye__new = this.createTransformByApplyingScreenOffset(t__eye__old, screenOffset);
+
+            //manage zoom
+            t__eye__new = this.createTransformByApplyingZoomFactor(t__eye__new, math.divide( math.bignumber(1), factor__bigNumber) );
+
+            const t__obj__new = this.createCameraObjTransformFromCameraEyeTransform(t__eye__new);
+            return this.setCameraObjTransform(t__obj__new);
           };
+          
 
           this.screenZoomToPoint = function(screenPoint, zoom__new) {   //absolute
             logger.log("logIC", "IcCamera::screenZoomToPoint", screenPoint, zoom__new.toString());
@@ -40926,24 +40917,25 @@
     
 
           this.screenPan = function(screenPoint__before, screenPoint__after) {
-            const t__obj__old = this.getCameraObjectTransform().slice(0);
+            const t__eye__old = this.getCameraEyeTransform().slice(0);
     
             const screenOffset = {
               dx: math.subtract(screenPoint__after.x , screenPoint__before.x),
               dy: math.subtract(screenPoint__after.y , screenPoint__before.y),
             };
-            const t__obj__new = this.createTransformByApplyingScreenOffset(t__obj__old, screenOffset);
-    
-            return this.setCameraObjectTransform(t__obj__new);
+            const t__eye__new = this.createTransformByApplyingScreenOffset(t__eye__old, screenOffset);
+
+            const t__obj__new = this.createCameraObjTransformFromCameraEyeTransform(t__eye__new);
+            return this.setCameraObjTransform(t__obj__new);
           };
     
 
           this.screenRotate = function(screenPoint__rotationCenter, angleInDegrees) {
-            const t__obj__old = this.getCameraObjectTransform().slice(0);
-    
-            const t__obj__new = this.createTransformByApplyingScreenRotation(t__obj__old, screenPoint__rotationCenter, angleInDegrees);
-    
-            return this.setCameraObjectTransform(t__obj__new);
+            const t__eye__old = this.getCameraEyeTransform().slice(0);
+            const t__eye__new = this.createTransformByApplyingScreenRotation(t__eye__old, screenPoint__rotationCenter, angleInDegrees);
+
+            const t__obj__new = this.createCameraObjTransformFromCameraEyeTransform(t__eye__new);
+            return this.setCameraObjTransform(t__obj__new);
           };
 
 
@@ -49079,11 +49071,18 @@
               }
               break;
             case "printPovRect":
-                {
-                  const fObj = this.createFabricRectWithIcObj(icObj);
-                  fObj_p = Promise.resolve(fObj);
-                }
-                break;
+              {
+                const fObj = this.createFabricRectWithIcObj(icObj);
+                fObj_p = Promise.resolve(fObj);
+              }
+              break;
+
+            case "camera":
+              {
+                const fObj = this.createFabricRectWithIcObj(icObj);
+                fObj_p = Promise.resolve(fObj);
+              }
+              break;
             case "text":
             case "tag":
               {
@@ -68777,6 +68776,8 @@
             b: new KeyDownToggle("b", KeyDownToggle.defaultKeyDownFunc(["KeyB"])),
             d: new KeyDownToggle("d", KeyDownToggle.defaultKeyDownFunc(["KeyD"])),
             n: new KeyDownToggle("n", KeyDownToggle.defaultKeyDownFunc(["KeyN"])),
+            
+            f: new KeyDownToggle("f", KeyDownToggle.defaultKeyDownFunc(["KeyF"])), 
 
             i: new KeyDownToggle("i", KeyDownToggle.defaultKeyDownFunc(["KeyI"]), (isActive) => {
               infiniteCanvas.isImportMode = isActive;
@@ -70061,13 +70062,16 @@
             }),
 
             "KeyU": new KeyUpTrigger("KeyU", KeyUpTrigger.defaultKeyUpFunc(["KeyU"]), () => {
-              // keyboardIntegration.infiniteCanvas.addNewTouchSlot();
+              const infiniteCanvas = keyboardIntegration.infiniteCanvas; 
+              // infiniteCanvas.addNewTouchSlot();
 
-              // keyboardIntegration.infiniteCanvas.addNewGMOperator();
+              // infiniteCanvas.addNewGMOperator();
 
-              // keyboardIntegration.infiniteCanvas.addNewGMOperator_editable("x (22/7)");
+              // infiniteCanvas.addNewGMOperator_editable("x (22/7)");
 
-              keyboardIntegration.infiniteCanvas.addNewP2P();
+              // infiniteCanvas.addNewP2P();
+
+              infiniteCanvas.operateOnSelected__use();
             }),
 
             "KeyY": new KeyUpTrigger("KeyY", KeyUpTrigger.defaultKeyUpFunc(["KeyY"]), () => {
@@ -70652,7 +70656,11 @@
             }),
 
             "KeyC": new KeyUpTrigger("KeyC", KeyUpTrigger.defaultKeyUpFunc(["KeyC"]), () => {
-              if(/*keyboardIntegration.keyDownToggles.backquote.isActive &&*/ keyboardIntegration.infiniteCanvas.isColorPickerAvailable) {
+              const infiniteCanvas = keyboardIntegration.infiniteCanvas;
+
+              if(keyboardIntegration.keyDownToggles.f.isActive) {
+                infiniteCanvas.addNewCamera();
+              } else if(/*keyboardIntegration.keyDownToggles.backquote.isActive &&*/ infiniteCanvas.isColorPickerAvailable) {
                 const fColor__cursor_p = fabricIntegration.getFColor__under_cursor_p();
 
                 fColor__cursor_p.then((fColor) => {
@@ -70663,7 +70671,7 @@
                   //update current brush color
                   if(fabricIntegration.fabricCanvas.isDrawingMode) {
                     const rgbaColorString = inputProperties.getActiveRgbaColorString();
-                    keyboardIntegration.infiniteCanvas.manageFreeDrawingColorPick(rgbaColorString);
+                    infiniteCanvas.manageFreeDrawingColorPick(rgbaColorString);
                   }
 
                 });
@@ -70675,12 +70683,13 @@
                 fabricIntegration.copySelection(event);
               } else if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
 
-                keyboardIntegration.infiniteCanvas.addNewIcCanvas();
+                infiniteCanvas.addNewIcCanvas();
 
               } else {
                 //coreify active object
                 // keyboardIntegration.infiniteCanvas.operateOnActiveObject__coreify();
               }
+
             }),
 
             "KeyO": new KeyUpTrigger("KeyO", KeyUpTrigger.defaultKeyUpFunc(["KeyO"]), () => {
@@ -116879,17 +116888,53 @@
             infiniteCanvas.addIcObject(icRect);
           }
 
-          {
-            const trueRect = atelier.trueRect1;
-            addRect(trueRect, "yellow", math.bignumber(2.333));
-            // addPoint({x: trueRect.x, y: trueRect.y});
+          function addCamera(trueRect, color = "black", homeScale = math.bignumber(1)) {
+            const icCamera = infiniteCanvas.createIcCamera(trueRect, homeScale);
+            icCamera.fill      = color;
+            logger.log("logAtelier", "debug_camera", "icCamera:", icCamera);
+  
+            infiniteCanvas.addIcObject(icCamera);
           }
 
-          // {
-          //   const trueRect = atelier.trueRect2;
-          //   addRect(trueRect, "cyan", math.bignumber(0.42));
-          //   addPoint({x: trueRect.x, y: trueRect.y});
-          // }
+          
+
+
+
+          {
+            const trueRect__rect1 = atelier.trueRect1;
+            addRect(trueRect__rect1, "yellow", math.bignumber(2.333));
+            // addPoint({x: trueRect.x, y: trueRect.y});
+
+            const rect_rel__cam1__wrt__rect1 = {
+              l: -10.0,
+              t: -2.0,
+              r: +3.0,
+              b: +3.0,
+            };
+            const trueRect__cam1  = ICUtils.bigNumberize__dict(Geometry.rectForRectRel(rect_rel__cam1__wrt__rect1, ICUtils.numberize__dict(trueRect__rect1)));
+            // const homeScale__cam1 = math.bignumber(2.333);
+            const homeScale__cam1 = math.bignumber(1);
+
+            addCamera(trueRect__cam1, ColorUtils.rgbaColorStringForColorAndSuperOpacity("red", 0.6), homeScale__cam1);
+          }
+
+          {
+            const trueRect__rect2 = atelier.trueRect2;
+            addRect(trueRect__rect2, "cyan", math.bignumber(0.42));
+            // addPoint({x: trueRect.x, y: trueRect.y});
+
+            const rect_rel__cam2__wrt__rect2 = {
+              l: -3.0,
+              t: -3.0,
+              r: +5.0,
+              b: +1.0,
+            };
+            // const homeScale__cam2 = math.bignumber(2.333);
+            const homeScale__cam2 = math.bignumber(1);
+
+            const trueRect__cam2 = ICUtils.bigNumberize__dict(Geometry.rectForRectRel(rect_rel__cam2__wrt__rect2, ICUtils.numberize__dict(trueRect__rect2)));
+            addCamera(trueRect__cam2, ColorUtils.rgbaColorStringForColorAndSuperOpacity("pink", 0.6), homeScale__cam2);
+          }
 
           // {
           //   const truePoint__screenCenter = infiniteCanvas.camera.getTruePoint__center();
