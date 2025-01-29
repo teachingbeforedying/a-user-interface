@@ -932,9 +932,9 @@
       }
 
       static composeMatrix(options) {
-        var matrix = ICUtils.bigNumberize__array([1, 0, 0, 1, options.translateX || 0, options.translateY || 0]),
+        var matrix   = ICUtils.bigNumberize__array([1, 0, 0, 1, options.translateX || 0, options.translateY || 0]),
             multiply = ICUtils.multiplyTransformMatrices;
-        if (options.angle) {
+        if (options.angleInDegrees || options.angleInRadians) {
           matrix = multiply(matrix, ICUtils.calcRotateMatrix(options));
         }
         if ( (options.scaleX && math.number(options.scaleX) !== 1) || (options.scaleY && math.number(options.scaleY) !== 1) ||
@@ -982,20 +982,47 @@
         //   translateY: a[5]
         // };
 
-        const PiBy180 = math.pi / 180;
-        const atan2 = Math.atan2;
+        const a__bigNumber = ICUtils.bigNumberize__array(a);
 
-        var angle  = atan2(math.number(a[1]), math.number(a[0])),  //SHU: warning, maybe Decimal.js' precise atan2 will be needed at some point
+        const translateX = a__bigNumber[4];
+        const translateY = a__bigNumber[5];
 
-            denom  = math.add( math.pow(a[0], math.bignumber(2)) , math.pow(a[1], math.bignumber(2) ) ),
-            scaleX = math.sqrt(denom),
-            scaleY = math.divide( math.subtract( math.multiply(a[0],a[3]) , math.multiply(a[2], a[1]) ) , scaleX),
+        const t__translation = ICUtils.composeMatrix({
+          translateX: translateX,
+          translateY: translateY,
+        });
+        const t__inv_translation = ICUtils.invertTransform(t__translation);
 
-            skewX  = atan2( math.number( math.add( math.multiply(a[0],a[2]) , math.multiply(a[1], a[3]) ) ) , math.number(denom) ); //SHU: warning, maybe Decimal.js' precise atan2 will be needed at some point
 
+        const angleInRadians__number    = math.atan2(math.number(a__bigNumber[1]), math.number(a__bigNumber[0]));  //SHU: warning, maybe Decimal.js' precise atan2 will be needed at some point
+        const angleInRadians__bigNumber = math.bignumber(angleInRadians__number);     //"imprecise"
+
+        const t__rotation = ICUtils.composeMatrix({
+          angleInRadians: angleInRadians__bigNumber,
+        });
+        const t__inv_rotation = ICUtils.invertTransform(t__rotation);
+
+        const multiply = ICUtils.multiplyTransformMatrices;
+        const a__tl__0_oriented = multiply( t__inv_translation, multiply(t__inv_rotation, a__bigNumber) );
+
+        const options = Object.assign({
+          translateX: translateX,
+          translateY: translateY, 
+          angle: ICUtils.radiansToDegrees(angleInRadians__bigNumber),
+        }, ICUtils.qrDecompose__derotated(a__tl__0_oriented));
+
+        return options;
+      }
+
+      static qrDecompose__derotated(a__tl__0_oriented) {
+
+        const a = a__tl__0_oriented;
+
+        var scaleX = a[0];
         const flipX = (math.number(math.sign(scaleX)) < 0);
         scaleX = math.abs(scaleX);
 
+        var scaleY = a[3];
         const flipY = (math.number(math.sign(scaleY)) < 0);
         scaleY = math.abs(scaleY);
 
@@ -1003,17 +1030,18 @@
         scaleX = math.divide(scaleX,factScale);
         scaleY = math.divide(scaleY,factScale);
 
+        const skewX__inRadians = a[1];
+        const skewX__inDegrees = ICUtils.radiansToDegrees(skewX__inRadians);
 
+        const skewY__inRadians = a[2];
+        const skewY__inDegrees = ICUtils.radiansToDegrees(skewY__inRadians);
 
         return {
-          angle: math.bignumber(angle / PiBy180),    //"imprecise"
           scaleX: scaleX,
           scaleY: scaleY,
-          skewX: math.bignumber(skewX / PiBy180),    //"imprecise"
-          skewY: math.bignumber(0),                 
-          translateX: a[4],
-          translateY: a[5],
-          
+          skewX:  skewX__inDegrees,    
+          skewY:  skewY__inDegrees,                 
+
           factScale: factScale,
           flipX: flipX,
           flipY: flipY,
@@ -1043,11 +1071,11 @@
       static calcRotateMatrix(options) {
         var t;
 
-        if (!options.angle) {
+        if (!options.angleInDegrees && !options.angleInRadians) {
           return ICUtils.iMatrix__bigNumber();
         }
 
-        var theta = ICUtils.degreesToRadians(options.angle),
+        var theta = options.angleInRadians ? options.angleInRadians : ICUtils.degreesToRadians(options.angleInDegrees),
               cos = math.cos( math.number(theta) ),                         //SHU: warning, maybe Decimal.js' precise cos will be needed at some point
               sin = math.sin( math.number(theta) );                         //SHU: warning, maybe Decimal.js' precise sin will be needed at some point
         const t__rotation = ICUtils.bigNumberize__array([cos, sin, -sin, cos, 0, 0]);
@@ -1055,14 +1083,14 @@
 
         if(options.centerRot) {
           // logger.log("logICUtils", "options.centerRot:", options.centerRot);
-          const t__translation__enter = ICUtils.calcTranslateMatrix({translateX: options.centerRot.x, translateY: options.centerRot.y});
-          // logger.log("logICUtils", "t__translation__enter:", ICUtils.numberize__array(t__translation__enter));
-
-          const t__translation__leave = ICUtils.invertTransform(t__translation__enter);
+          const t__translation__leave = ICUtils.calcTranslateMatrix({translateX: options.centerRot.x, translateY: options.centerRot.y});
           // logger.log("logICUtils", "t__translation__leave:", ICUtils.numberize__array(t__translation__leave));
 
+          const t__translation__enter = ICUtils.invertTransform(t__translation__leave);
+          // logger.log("logICUtils", "t__translation__enter:", ICUtils.numberize__array(t__translation__enter));
+
           const multiply = ICUtils.multiplyTransformMatrices;
-          t = multiply( multiply( t__translation__enter, t__rotation) , t__translation__leave);
+          t = multiply( t__translation__leave, multiply(t__rotation, t__translation__enter) );
 
         } else {
           t = t__rotation;
@@ -1111,7 +1139,21 @@
         }
         return scaleMatrix;
       } 
-      
+
+      /*
+      static calcShearMatrix(options) {
+        var shearX = typeof options.shearX === 'undefined' ? math.bignumber(0) : options.shearX,
+            shearY = typeof options.shearY === 'undefined' ? math.bignumber(0) : options.shearY,
+            shearMatrix = ICUtils.bigNumberize__array([
+              1,
+              0,
+              0,
+              1,
+              0,
+              0]);
+        return scaleMatrix;
+      } 
+      */
 
 
 
@@ -1146,8 +1188,68 @@
       static createTransform__unitSquareToParallelogram(dict_parallelogram__dst) {
         logger.log("logICUtils", "createTransform__uToP", "dict_parallelogram__dst:", ICUtils.numberize__dict(dict_parallelogram__dst));
 
-
         const dict_point__dst = dict_parallelogram__dst;
+
+
+        const dx__rotate = math.subtract( dict_point__dst.tr.x , dict_point__dst.tl.x ); 
+        const dy__rotate = math.subtract( dict_point__dst.tr.y , dict_point__dst.tl.y );
+        const angle__inRadians__number    = math.atan2( math.number(dy__rotate) , math.number(dx__rotate) );  //SHU: warning, maybe Decimal.js' precise atan2 will be needed at some point
+        const angle__inRadians__bigNumber = math.bignumber( angle__inRadians__number );
+
+        const t__rotation = ICUtils.calcRotateMatrix({
+          angleInRadians:   angle__inRadians__bigNumber,
+          // centerRot:        dict_point__dst.tl,
+          centerRot:        {x: math.bignumber(0), y: math.bignumber(0)},
+        });
+        logger.log("logICUtils", "createTransform__pToU", "t__rotation:", ICUtils.numberize__dict(t__rotation));
+
+
+        //compute skew with 0-oriented parallelogram
+        const t__inv_rotation = ICUtils.invertTransform(t__rotation);
+        const dict_point__0_oriented = ICUtils.transformDict_parallelogram(dict_point__dst, t__inv_rotation);
+
+        //skew
+        const width__kindof  = math.subtract( dict_point__0_oriented.br.x , dict_point__0_oriented.tl.x);
+        const height__kindof = math.subtract( dict_point__0_oriented.br.y , dict_point__0_oriented.tl.y);
+        // const width__kindof  = math.subtract( dict_point__0_oriented.tr.x , dict_point__0_oriented.tl.x);
+        // const height__kindof = math.subtract( dict_point__0_oriented.bl.y , dict_point__0_oriented.tl.y);
+
+        const shearX = math.subtract( dict_point__0_oriented.tl.x , dict_point__0_oriented.bl.x);
+        const shearY = math.subtract( dict_point__0_oriented.tl.y , dict_point__0_oriented.tr.y); 
+        // const shearX = math.subtract( dict_point__0_oriented.bl.x , dict_point__0_oriented.tl.x);
+        // const shearY = math.subtract( dict_point__0_oriented.tr.y , dict_point__0_oriented.tl.y); 
+        
+        const skewX = math.divide( shearX, height__kindof );
+        const skewY = math.divide( shearY, width__kindof  );
+        // const skewX = math.divide( shearX, width__kindof  );
+        // const skewY = math.divide( shearY, height__kindof );
+
+        const t__skew = ICUtils.bigNumberize__array([1, skewX, skewY, 1, 0, 0]);
+
+        //debug
+        // const t__skew = ICUtils.bigNumberize__array([1, 0, 0, 1, 0, 0]);
+        logger.log("logICUtils", "createTransform__pToU", "t__skew:", ICUtils.numberize__array(t__skew));
+
+
+        //compute scale with 0-oriented parallelogram
+        //scale
+        const dict_point__skewed = ICUtils.transformDict_parallelogram(dict_point__0_oriented, t__skew);
+
+        const scaleX = math.subtract( dict_point__skewed.br.x , dict_point__skewed.tl.x);
+        const scaleY = math.subtract( dict_point__skewed.br.y , dict_point__skewed.tl.y);
+
+        // const scaleX = math.divide( math.subtract( dict_point__dst.br.x , dict_point__dst.tl.x) , math.subtract( dict_point__skewed.br.x , dict_point__skewed.tl.x) );
+        // const scaleY = math.divide( math.subtract( dict_point__dst.br.y , dict_point__dst.tl.y) , math.subtract( dict_point__skewed.br.x , dict_point__skewed.tl.x) );
+
+        const t__scale = ICUtils.composeMatrix({
+          scaleX: scaleX,
+          scaleY: scaleY,
+        });
+
+        // const t__scale = ICUtils.bigNumberize__array([1, 0, 0, 1, 0, 0]);
+        logger.log("logICUtils", "createTransform__pToU", "t__scale:", ICUtils.numberize__array(t__scale));
+
+
 
         //translate
         const translateX = dict_point__dst.tl.x;
@@ -1160,39 +1262,10 @@
         logger.log("logICUtils", "createTransform__pToU", "t__translation:", ICUtils.numberize__dict(t__translation));
 
 
-        //scale
-        const scaleX     = math.subtract( dict_point__dst.br.x , dict_point__dst.tl.x);
-        const scaleY     = math.subtract( dict_point__dst.br.y , dict_point__dst.tl.y);
-
-        const t__scale = ICUtils.composeMatrix({
-          scaleX: scaleX,
-          scaleY: scaleY,
-        });
-        logger.log("logICUtils", "createTransform__pToU", "t__scale:", ICUtils.numberize__dict(t__scale));
 
 
-        //skewX
-        const dx__skewX = math.subtract( dict_point__dst.bl.x , dict_point__dst.tl.x);
-        const dy__skewX = math.subtract( dict_point__dst.bl.y , dict_point__dst.tl.y);
 
-        const t__skewX = ICUtils.bigNumberize__array([1, math.divide( math.number(dx__skewX) , math.number(dy__skewX)), 0, 1, 0, 0]);
 
-        //skewY
-        const point__TR__new = ICUtils.transformPoint(dict_point__dst.tr, t__skewX);
-        const dx__skewY = math.subtract( point__TR__new.x , dict_point__dst.tl.x);
-        const dy__skewY = math.subtract( point__TR__new.y , dict_point__dst.tl.y);
-
-        const t__skewY = ICUtils.bigNumberize__array([1, 0, math.divide( math.number(dy__skewY) , math.number(dx__skewY)), 1, 0, 0]);
-
-        // const dx__skewY = math.subtract( dict_point__dst.tr.x , dict_point__dst.tl.x);
-        // const dy__skewY = math.subtract( dict_point__dst.tr.y , dict_point__dst.tl.y);
-
-        // const t__skewY__raw = ICUtils.bigNumberize__array([1, 0, math.divide( math.number(dy__skewY) , math.number(dx__skewY)), 1, 0, 0];
-        
-        // const t__skewY = ICUtils.multiplyTransformMatrices(ICUtils.invertTransform(t__skewX), t__skewY__raw);
-
-        const t__skew = ICUtils.multiplyTransformMatrices(t__skewX, t__skewY);
-        logger.log("logICUtils", "createTransform__pToU", "t__skew:", ICUtils.numberize__dict(t__skew));
 
 
 
@@ -1202,22 +1275,23 @@
         //SHU: the order of transforms applied to object will be:
         //  1. t__skew
         //  2. t__scale
-        //  3. t__translation
-        const t__uToP = multiply( t__translation, multiply(t__scale, t__skew) );
+        //  3. rotation
+        //  4. t__translation
+        const t__uToP = multiply( t__translation, multiply(t__rotation, multiply(t__scale, t__skew) ) );
 
-        logger.log("logICUtils", "createTransform__uToP", "t__uToP:", ICUtils.numberize__dict(t__uToP));
+        logger.log("logICUtils", "createTransform__uToP", "t__uToP:", ICUtils.numberize__array(t__uToP));
 
-        {
-          //test
+        // {
+        //   //test
 
-          const dict_unitSquare = ICUtils.createDict_parallelogram__unitSquare();
+        //   const dict_unitSquare = ICUtils.createDict_parallelogram__unitSquare();
           
-          const point__TL__parallelogrammed = ICUtils.transformPoint(dict_unitSquare.tl, t__uToP);
-          logger.log("logICUtils", "createTransform__pToU", "point__TL__parallelogrammed:", ICUtils.numberize__dict(point__TL__parallelogrammed));
+        //   const point__TL__parallelogrammed = ICUtils.transformPoint(dict_unitSquare.tl, t__uToP);
+        //   logger.log("logICUtils", "createTransform__pToU", "point__TL__parallelogrammed:", ICUtils.numberize__dict(point__TL__parallelogrammed));
 
-          const point__BR__parallelogrammed = ICUtils.transformPoint(dict_unitSquare.br, t__uToP);
-          logger.log("logICUtils", "createTransform__pToU", "point__BR__parallelogrammed:", ICUtils.numberize__dict(point__BR__parallelogrammed));
-        }
+        //   const point__BR__parallelogrammed = ICUtils.transformPoint(dict_unitSquare.br, t__uToP);
+        //   logger.log("logICUtils", "createTransform__pToU", "point__BR__parallelogrammed:", ICUtils.numberize__dict(point__BR__parallelogrammed));
+        // }
 
 
       
@@ -1231,15 +1305,15 @@
         
         const t__pToU = ICUtils.invertTransform(t__uToP);
 
-        {
-          //test
+        // {
+        //   //test
 
-          const point__TL__unitSquared = ICUtils.transformPoint(dict_parallelogram__src.tl, t__pToU);
-          logger.log("logICUtils", "createTransform__pToU", "point__TL__unitSquared:", ICUtils.numberize__dict(point__TL__unitSquared));
+        //   const point__TL__unitSquared = ICUtils.transformPoint(dict_parallelogram__src.tl, t__pToU);
+        //   logger.log("logICUtils", "createTransform__pToU", "point__TL__unitSquared:", ICUtils.numberize__dict(point__TL__unitSquared));
 
-          const point__BR__unitSquared = ICUtils.transformPoint(dict_parallelogram__src.br, t__pToU);
-          logger.log("logICUtils", "createTransform__pToU", "point__BR__unitSquared:", ICUtils.numberize__dict(point__BR__unitSquared));
-        }
+        //   const point__BR__unitSquared = ICUtils.transformPoint(dict_parallelogram__src.br, t__pToU);
+        //   logger.log("logICUtils", "createTransform__pToU", "point__BR__unitSquared:", ICUtils.numberize__dict(point__BR__unitSquared));
+        // }
 
 
         return t__pToU;
@@ -9531,7 +9605,7 @@
         icCamera.fill = ColorUtils.rgbaColorStringForColorAndSuperOpacity( "lime", 0.6 );
 
         await infiniteCanvas.addIcObject_p(icCamera).then((rep_free) => {
-          infiniteCanvas.swapToCamera(icCamera);
+          infiniteCanvas.swapToCamera(rep_free);
         });
       }
 
@@ -10525,16 +10599,22 @@
 
 
 
-      createIcCamera_with__dict_parallelogram(dict_parallelogram, homeScale) {
-        logger.log("logIC", "createIcCamera_with__dict_parallelogram", ICUtils.numberize__dict(dict_parallelogram), homeScale);
+      createIcCamera_with__dict_parallelogram(dict_parallelogram, size_in = null) {
+        logger.log("logIC", "createIcCamera_with__dict_parallelogram", ICUtils.numberize__dict(dict_parallelogram), size_in);
 
         const infiniteCanvas = this;
 
         const type = "camera";
 
-        const size__canvas = this.getCanvasSize();
+        var size;
+        if(size_in != null) {
+          size = size_in;
+        } else {
+          const size__canvas = this.getCanvasSize();
+          size = size__canvas;
+        }
         
-        const icObj = this.createIcObject_with__dict_parallelogram(type, size__canvas, dict_parallelogram, homeScale);
+        const icObj = this.createIcObject_with__dict_parallelogram(type, size, dict_parallelogram);
         logger.log("logIC", "createIcCamera_with__dict_parallelogram", "icObj:", icObj);
 
         const icCamera_spec = {
@@ -10555,16 +10635,58 @@
         return icCamera__engined;
       }
 
-      createIcCamera__with__trueRect(trueRect) {
-        logger.log("logIC", "createIcCamera__with__trueRect", ICUtils.numberize__dict(trueRect));
+      createIcCamera__with__trueRect(trueRect, size_in = null) {
+        logger.log("logIC", "createIcCamera__with__trueRect", ICUtils.numberize__dict(trueRect), size_in);
 
         const infiniteCanvas = this;
 
         const type = "camera";
 
-        const size__canvas = this.getCanvasSize();
+        var size;
+        if(size_in != null) {
+          size = size_in;
+        } else {
+          const size__canvas = this.getCanvasSize();
+          size = size__canvas;
+        }
 
-        const icObj = this.createIcObject_with__trueRect(type, size__canvas, trueRect);
+        const icObj = this.createIcObject_with__trueRect(type, size, trueRect);
+        logger.log("logIC", "createIcCamera__with__trueRect", "icObj:", icObj);
+
+        const icCamera_spec = {
+
+        };
+
+        const icCamera = Object.assign(icObj, icCamera_spec);
+
+        
+
+        const engine = new CameraEngine();
+        const eType  = "camera";
+        
+        const icEngined = infiniteCanvas.installEngineOnIcObj(icCamera, eType, engine);
+
+        const icCamera__engined = icEngined;
+
+        return icCamera__engined;
+      }
+
+      createIcCamera_with__transform(transform, size_in = null) {
+        logger.log("logIC", "createIcCamera_with__transform", ICUtils.numberize__dict(transform), size_in);
+
+        const infiniteCanvas = this;
+
+        const type = "camera";
+
+        var size;
+        if(size_in != null) {
+          size = size_in;
+        } else {
+          const size__canvas = this.getCanvasSize();
+          size = size__canvas;
+        }
+
+        const icObj = this.createIcObject_with__transform(type, size, transform);
         logger.log("logIC", "createIcCamera__with__trueRect", "icObj:", icObj);
 
         const icCamera_spec = {
@@ -10595,14 +10717,16 @@
       }
 
       createIcCamera__clone(icCamera) {
-        const trueRect  = icCamera.getTrueRect();
-        return this.createIcCamera__with__trueRect(trueRect);
+        const t__obj__camera = icCamera.getTransform();
+        logger.log("logIC", "createIcCamera__clone", "t__obj__camera:", ICUtils.numberize__array(t__obj__camera));
+        const size__camera   = icCamera.size;
+        return this.createIcCamera_with__transform(t__obj__camera, size__camera);
       }
 
 
 
 
-
+      /*
       createIcRect_withLTWH(left, top, width, height) {
 
         const type      = "rect";
@@ -10632,6 +10756,7 @@
 
         return icRect;
       }
+      */
 
       createIcRect(trueRect, size = { width:  math.bignumber(1), height: math.bignumber(1) }) {
 
@@ -26254,16 +26379,22 @@
 
 
       addNewRect() {
+        const infiniteCanvas = this;
 
-        const true_cursor = this.getTrueCursor();
+        const size = { //"information" size
+          width:  100,   
+          height: 100,
+        };
 
-        const left = true_cursor.x;
-        const top  = true_cursor.y;
+        const screenPoint__cursor = this.cursor__screen;
+        const screenRect          = Object.assign({}, screenPoint__cursor, size);
+        logger.log("logIC", "addNewRect", "screenRect:", screenRect);
+        
+        const trueRect = infiniteCanvas.toTrueRect(screenRect);
+        logger.log("logIC", "addNewRect", "trueRect:", trueRect);
 
-        const width  = 100;   //"information" size
-        const height = 100;
 
-        const icRect = this.createIcRect_withLTWH(left, top, width, height);
+        const icRect = this.createIcRect(trueRect, size);
 
         //debug
         // icRect.stroke      = "magenta";
@@ -29500,86 +29631,32 @@
 
 
       // convert coordinates
-      // toScreenX(xTrue) {
-      //   return (xTrue + this.offset.dx) * this.scale.X;
-      // }
-      // toScreenY(yTrue) {
-      //   return (yTrue + this.offset.dy) * this.scale.Y;
-      // }
-      // toScreenPoint(truePoint) {
-      //   // logger.trace("logIC", "toScreenPoint", "this.scale.X:", this.scale.X);
+      toScreenPoint(truePoint) {
+        // logger.trace("logIC", "toScreenPoint", truePoint);
 
-      //   return Geometry.createPoint(this.toScreenX(truePoint.x), this.toScreenY(truePoint.y));
-      // }
-      // toScreenRect(trueRect) {
-      //   const truePointTL = Geometry.createPoint(trueRect.left, trueRect.top);
-      //   const truePointBR = Geometry.createPoint(trueRect.left + trueRect.width, trueRect.top + trueRect.height);
+        const infiniteCanvas = this;
+        const icCamera       = infiniteCanvas.icCamera;
+        const cameraEngine   = icCamera.dict_engine["camera"].engine.awoken; 
 
-      //   const screen_pointTL = this.toScreenPoint(truePointTL);
-      //   const screen_pointBR = this.toScreenPoint(truePointBR);
-
-      //   const screen_w = screen_pointBR.x - screen_pointTL.x;
-      //   const screen_h = screen_pointBR.y - screen_pointTL.y;
-
-      //   const screenRect = Geometry.createRect(screen_pointTL.x, screen_pointTL.y, screen_w, screen_h);
-
-      //   return screenRect;
-      // }
-      // toScreenSize(trueSize) {
-      //   const screen_w = trueSize.width / this.scale.X;
-      //   const screen_h = trueSize.height / this.scale.Y;
-      //   return Geometry.createSize(screen_w, screen_h);
-      // }
-      // toScreenLength(trueLength) {
-      //   return trueLength * this.scale;
-      // }
-
-
-
-
-
-
-
-      // toTrueX(xScreen) {
-      //     return (xScreen / this.scale.X) - this.offset.dx;
-      // }
-      // toTrueY(yScreen) {
-      //     return (yScreen / this.scale.Y) - this.offset.dy;
-      // }
-      toTrueX(screenPoint) {
-        // console.log("toTrueX", "screenPoint", screenPoint);
-        //
-        // console.log("screenPoint.x", screenPoint.x);
-        // console.log("this.scale.X", this.scale.X);
-        // console.log("this.offset.dx", this.offset.dx);
-        // console.log("this.offset", this.offset);
-
-
-        const v = this.toNoOrPoint(screenPoint);
-
-        const stdBaseVectors = this.getStdBaseVectors();
-        // console.log("stdBaseVectors", stdBaseVectors);
-
-        const trueX = Geometry.dotProduct_2d(v, stdBaseVectors.u);
-
-        return trueX;
+        return cameraEngine.toScreenPoint(truePoint);
       }
-      toTrueY(screenPoint) {
-        const v = this.toNoOrPoint(screenPoint);
+      toScreenRect(trueRect) {
+        // logger.trace("logIC", "toScreenRect", trueRect);
 
-        const stdBaseVectors = this.getStdBaseVectors();
+        const infiniteCanvas = this;
+        const icCamera       = infiniteCanvas.icCamera;
+        const cameraEngine   = icCamera.dict_engine["camera"].engine.awoken; 
 
-        return Geometry.dotProduct_2d(v, stdBaseVectors.v);
+        return cameraEngine.toScreenRect(trueRect);
       }
 
-      trueWidth() {
-        // return canvas.clientWidth / scale;
-        return this.canvas.width / this.scale.X;
-      }
-      trueHeight() {
-        // return canvas.clientHeight / scale;
-        return this.canvas.height / this.scale.Y;
-      }
+
+
+
+
+
+
+
 
       toTruePoint(screenPoint) {
         // logger.trace("logIC", "toTruePoint", screenPoint);
@@ -29591,19 +29668,13 @@
         return cameraEngine.toTruePoint(screenPoint);
       }
 
-      toTrueRect(ltRect) {
+      toTrueRect(screenRect) {
         const infiniteCanvas = this;
 
-        const screenRect = {
-          x:      ltRect.left,
-          y:      ltRect.top,
-          width:  ltRect.width,
-          height: ltRect.height,
-        };
-
-        const icCamera       = infiniteCanvas.icCamera;
-        const cameraEngine   = icCamera.dict_engine["camera"].engine.awoken; 
-        return cameraEngine.toScreenRect(screenRect);
+        const icCamera     = infiniteCanvas.icCamera;
+        const cameraEngine = icCamera.dict_engine["camera"].engine.awoken;
+        
+        return cameraEngine.toTrueRect(screenRect);
       }
 
       getTrueCursor() {
@@ -29611,49 +29682,7 @@
         return this.toTruePoint(screenPoint__cursor);
       }
 
-      // truePointFromNoOrPoint(noOrPoint) {
-
-      //   const stdBaseVectors = this.getStdBaseVectors();
-      //   // console.log("stdBaseVectors", stdBaseVectors);
-
-      //   const trueX = Geometry.dotProduct_2d(noOrPoint, stdBaseVectors.u);
-      //   const trueY = Geometry.dotProduct_2d(noOrPoint, stdBaseVectors.v);
-
-      //   const truePoint = Geometry.createPoint(trueX, trueY);
-
-      //   return truePoint;
-      // }
-
-
-
-      // toTrueHomeScaleAndScale(scale__fObj) {
-
-      //   const scaleK__max = math.max(scale__fObj.X, scale__fObj.Y); 
-
-      //   const scale__fObj__homeScale = {
-      //     X: scaleK__max,
-      //     Y: scaleK__max,
-      //   };
-      //   const scale__fObj__scale = {
-      //     X: scale__fObj.X / scaleK__max,
-      //     Y: scale__fObj.Y / scaleK__max,
-      //   };
-
-      //   const dict__trueHomeScaleAndScale = {
-      //     homeScale: infiniteCanvas.toTrueScale(scale__fObj__homeScale),
-      //     scale:     scale__fObj__scale,
-      //   };
-
-      //   return dict__trueHomeScaleAndScale;
-      // }
-
-      // toTrueScale(scale__fObj) {
-      //   const trueScale = {
-      //     X: 1.0 / scale__fObj.X * infiniteCanvas.scale.X,
-      //     Y: 1.0 / scale__fObj.Y * infiniteCanvas.scale.Y,
-      //   };
-      //   return trueScale;
-      // }
+      
 
 
 
@@ -29692,30 +29721,6 @@
 
 
 
-
-      getShownRect() {
-        const screenRect = this.getScreenRect();
-        const noOrRect   = this.toNoOrRect(screenRect);
-        const shownRect  = Geometry.createXYRect(noOrRect);
-        return shownRect;
-      }
-
-      getScreenRectForTrueRect(trueRect) {
-        const infiniteCanvas = this;
-
-        const icCamera       = infiniteCanvas.icCamera;
-        const cameraEngine   = icCamera.dict_engine["camera"].engine.awoken; 
-        return cameraEngine.toScreenRect(trueRect);
-      }
-
-      getScreenRectForTrueRectAtHomeScale(trueRect, homeScale) {
-        const screenRect = this.getScreenRectForTrueRect(trueRect);
-        const screenRect_with_scaled_w_h = Object.assign(screenRect, {
-          width:  screenRect.width  / math.number(homeScale),
-          height: screenRect.height / math.number(homeScale),
-        });
-        return screenRect_with_scaled_w_h;
-      }
 
 
 
@@ -29806,19 +29811,6 @@
         const infiniteCanvas = this;
 
         const func_update = function() {
-
-          // const noOr_cursor                   = infiniteCanvas.toNoOrPoint();
-          // const noOr_cursor__screen__previous = infiniteCanvas.toNoOrPoint();
-
-          // // move the screen
-          // const dOffsetX = (noOr_cursor.x - noOr_cursor__screen__previous.x) * infiniteCanvas.inputProperties.moveProperties.moveMultiplier;
-          // const dOffsetY = (noOr_cursor.y - noOr_cursor__screen__previous.y) * infiniteCanvas.inputProperties.moveProperties.moveMultiplier;
-
-          // const dOffset = {
-          //   dx: dOffsetX * factor,
-          //   dy: dOffsetY * factor,
-          // };
-
 
           const icCamera       = infiniteCanvas.icCamera;
           const cameraEngine   = icCamera.dict_engine["camera"].engine.awoken; 
@@ -30050,10 +30042,6 @@
 
         const angleInDegrees = this.getAngleForCursorMove(screenCenterPoint, factor);
 
-
-        // const rotationCenter = this.getNoOrCenterPoint();
-        // console.log("rotationCenter", rotationCenter);
-
         if(fabricIntegration.fabricCanvas.isDrawingMode && mouseIntegration.leftMouseDown) {
           infiniteCanvas.manageFreeDrawingRotate(angleInDegrees, rotationCenter);
         } else {
@@ -30109,14 +30097,7 @@
         infiniteCanvas.manageFreeDrawingXScroll(isBreakingBout, func_update);
 
       }
-
-      manageCenterRotation(angleInDegrees) {
-        const rotationCenter = this.getNoOrCenterPoint();
-        // console.log("rotationCenter", rotationCenter);
-
-        this.updateWithDRotation(angleInDegrees, rotationCenter);
-        this.redrawCanvas(RedrawOccasion.orientationChanged);
-      }
+      
 
       logCursor() {
         const screenPoint__cursor = this.cursor__screen;
@@ -33201,61 +33182,7 @@
         this.orientation = orientation_bounded;
       }
 
-      updateWithDRotation(angleInDegrees, noOrCenterPoint) {
-        console.log("updateWithDRotation", angleInDegrees, noOrCenterPoint);
 
-        console.log("angleInDegrees", angleInDegrees);
-
-        const radius = Geometry.norm_2d(noOrCenterPoint);
-
-        // this.addPurePoint(centerPoint);
-        // this.addPureCircle(centerPoint, radius);
-
-        // this.addPoint(noOrCenterPoint);
-        // this.addCircle(noOrCenterPoint, radius);
-
-        const orientation_new = this.orientation - angleInDegrees;
-        this.updateOrientation(orientation_new);
-
-
-        const v = {
-          x: noOrCenterPoint.x,
-          y: noOrCenterPoint.y,
-        };
-        // console.log("v.x", v.x);
-        // console.log("v.y", v.y);
-
-        const angleInRadians = angleInDegrees / 180 * Math.PI;
-
-        const ddx = Math.cos(angleInRadians) * v.x - Math.sin(angleInRadians) * v.y;
-        const ddy = Math.sin(angleInRadians) * v.x + Math.cos(angleInRadians) * v.y;
-        // console.log("ddx", ddx);
-        // console.log("ddy", ddy);
-
-        const dx = v.x - ddx
-        const dy = v.y - ddy;
-        // console.log("dx", dx);
-        // console.log("dy", dy);
-
-
-        const doffset_new = {
-          dx: dx,
-          dy: dy,
-        };
-        // console.log("doffset_new", doffset_new);
-
-        this.updateDOffset(doffset_new);
-
-
-      }
-
-
-      updateWithDOrientation(dOrientation) {
-        const orientation_new = this.orientation + dOrientation;
-        this.updateOrientation(orientation_new);
-
-        this.redrawCanvas(RedrawOccasion.orientationChanged);
-      }
 
 
       move_to_initial_position() {
@@ -33911,7 +33838,7 @@
         const t__homeScale = this.getHomeScaleTransform();  //main "infinite" mechanism
 
         const t__rotation = ICUtils.composeMatrix({
-          angle: this.orientation,
+          angleInDegrees: this.orientation,
         });
 
         const t__scaleAndOther = ICUtils.composeMatrix({
@@ -34010,7 +33937,7 @@
         return options__own;
       }
 
-      // getTrueRect() {} //not relevant, replaced by getDict_truePoint()
+      // getTrueRect() {} //not relevant (because obj can be a parallelogram and not a rect), use getDict_truePoint() instead
 
       getDict_truePoint() { //TL, TR, BR, BL
         const icObj = this;
@@ -34033,12 +33960,20 @@
       }
 
       getTruePoint__TL() {
-
-      }
+        const truePoint__TL = this.getDict_truePoint().tl;
+        return truePoint__TL;
+      };
 
       getTruePoint__center() {
-
-      }
+        const dict_truePoint = this.getDict_truePoint(); 
+        const truePoint__TL = dict_truePoint.tl;
+        const truePoint__BR = dict_truePoint.br;
+        const truePoint__center = {
+          x: math.mean( truePoint__TL.x, truePoint__BR.x ),
+          y: math.mean( truePoint__TL.y, truePoint__BR.y ),
+        };
+        return truePoint__center;
+      };
 
 
       // getTrueRect2() {
@@ -40839,28 +40774,18 @@
           };
 
 
-          this.debug__log = function(occasion) {
-
-            const trueRect  = this.getTrueRect();
-            const _trueRect = {
-              x:      math.number(trueRect.x),
-              y:      math.number(trueRect.y),
-              width:  math.number(trueRect.width),
-              height: math.number(trueRect.height),
-            };
+          this.log__debug = function(occasion) {
+            const icCamera = this.scopeObj.engineCarrier;
     
-            logger.log("logIC", "IcCamera::debug__log", {
+            logger.log("logIC", "IcCamera::log__debug", {
               "occasion":                       occasion,
     
-              "_trueRect":                      _trueRect,
+              "this.getScreenRect()":             this.getScreenRect(),
+              //"this.getScreenPoint__TL()":        this.getScreenPoint__TL(),
+              "this.getScreenPoint__center()":    this.getScreenPoint__center(),
     
-              "this.getScreenRect()":           this.getScreenRect(),
-              "this.getScreenPoint__TL()":      this.getScreenPoint__TL(),
-              "this.getScreenPoint__center()":  this.getScreenPoint__center(),
-    
-              "this.getTrueRect()":             this.getTrueRect(),
-              "this.getTruePoint__TL()":        this.getTruePoint__TL(),
-              "this.getTruePoint__center()":    this.getTruePoint__center(),
+              "icCamera.getDict_truePoint()":    ICUtils.numberize__dict(icCamera.getDict_truePoint()),
+              "icCamera.getTruePoint__center()": ICUtils.numberize__dict(icCamera.getTruePoint__center()),
             });
           }
 
@@ -40869,7 +40794,6 @@
 
           this.getScreenRect = function() {
             const infiniteCanvas = this.scopeObj.infiniteCanvas;
-            // const icCamera       = this.scopeObj.engineCarrier;
 
             return infiniteCanvas.getCanvasBoundingRect();
           };
@@ -40886,25 +40810,7 @@
             return Geometry.getCenterPoint(this.getScreenRect());
           };
     
-          this.getTrueRect = function() {
-            return this.toTrueRect(this.getScreenRect());
-          };
-    
-          this.getTruePoint__TL = function() {
-            const trueRect = this.getTrueRect();
-            return {
-              x: trueRect.x,
-              y: trueRect.y,
-            };
-          };
-    
-          this.getTruePoint__center = function() {
-            const trueRect = this.getTrueRect();
-            return {
-              x: math.add( trueRect.x, math.divide( trueRect.width,  math.bignumber(2) ) ),
-              y: math.add( trueRect.y, math.divide( trueRect.height, math.bignumber(2) ) ),
-            };
-          };
+
 
 
 
@@ -41124,8 +41030,8 @@
             var t__new = t.slice(0);
             
             const t__rotation = ICUtils.calcRotateMatrix({
-              angle:     math.bignumber(angleInDegrees),
-              centerRot: ICUtils.bigNumberize__point(screenPoint__rotationCenter),
+              angleInDegrees: math.bignumber(angleInDegrees),
+              centerRot:      ICUtils.bigNumberize__point(screenPoint__rotationCenter),
             });
 
             t__new = ICUtils.multiplyTransformMatrices(t__rotation, t__new);
@@ -48618,63 +48524,53 @@
 
 
         redrawCanvas(redrawOccasion) {
-          console.log("redrawCanvas", redrawOccasion);
+          logger.log("logFI", "redrawCanvas", redrawOccasion);
+
+          this.updateFabricObjectsTransform(redrawOccasion);
 
           switch (redrawOccasion) {
 
             case RedrawOccasion.cameraChanged:
-              this.updateFabricObjectsTransform(redrawOccasion);
+
               break;
 
 
             case RedrawOccasion.offsetChanged:
-              this.updateFabricObjectsPosition(redrawOccasion);
-              // this.updateFabricObjectsSize(redrawOccasion);
+
               break;
 
-            case RedrawOccasion.scaleChanged: //order is important here
-              this.updateFabricObjectsSize(redrawOccasion);
-              this.updateFabricObjectsPosition(redrawOccasion);
+            case RedrawOccasion.scaleChanged: 
+
               break;
 
             case RedrawOccasion.orientationChanged:
-              this.updateFabricObjectsPosition(redrawOccasion);
-              // this.updateFabricObjectsSize(redrawOccasion);
+
               break;
 
             case RedrawOccasion.objectAdded:
-              // this.updateFabricObjectsPosition(redrawOccasion);
-              // this.updateFabricObjectsSize(redrawOccasion);
-
-              this.updateFabricObjectsTransform(redrawOccasion);
 
               break;
 
             case RedrawOccasion.pureObjectAdded:
-              // this.updateFabricObjectsPosition(redrawOccasion);
-              // this.updateFabricObjectsSize(redrawOccasion);
+
               break;
 
             case RedrawOccasion.objectRemoved:
-              this.updateFabricObjectsPosition(redrawOccasion);
-              this.updateFabricObjectsSize(redrawOccasion);
+
               break;
 
 
             case RedrawOccasion.windowResize:
-              // this.updateFabricObjectsPosition(redrawOccasion);
-              // this.updateFabricObjectsSize(redrawOccasion);
+
               break;
 
-            case RedrawOccasion.animation_bounce: //order is important here
-              this.updateFabricObjectsSize(redrawOccasion);
-              this.updateFabricObjectsPosition(redrawOccasion);
+            case RedrawOccasion.animation_bounce: 
+
               break;
 
 
             case RedrawOccasion.forceRedraw:
-              // this.updateFabricObjectsPosition(redrawOccasion);
-              // this.updateFabricObjectsSize(redrawOccasion);
+
               break;
 
             default:
@@ -55784,47 +55680,49 @@
           const transform__fObj      = cameraEngine.toScreenTransform(transform__icObj);
 
 
-          function applyTransformToObject(object, transform) {
-            var options = fabric.util.qrDecompose(transform),
+          function applyTransformToObject(fObj, transform) {
+            // var options = fabric.util.qrDecompose(transform),
+            var options = ICUtils.numberize__dict(ICUtils.qrDecompose(transform)),
                 screenPoint__TL = new fabric.Point(options.translateX, options.translateY);
 
             // logger.log("logFI", "applyTransformToObject", "options:",         options);
             logger.log("logFI", "applyTransformToObject", "screenPoint__TL:", screenPoint__TL);
 
-            object.set({
+            fObj.set({
               left: screenPoint__TL.x,
               top:  screenPoint__TL.y,
             });
 
-            // object.set({
+            // fObj.set({
             //   left: math.round(screenPoint__TL.x, 10),
             //   top:  math.round(screenPoint__TL.y, 10),
             // });
 
-            object.flipX = false;
-            object.flipY = false;
+            fObj.flipX = false;
+            fObj.flipY = false;
             
             logger.log("logFI", "applyTransformToObject", "scaleX:", options.scaleX);
             logger.log("logFI", "applyTransformToObject", "scaleY:", options.scaleY);
 
             if(options.scaleX < 16777216) //16777216 is math.pow(2,24)
             {
-              object.set('scaleX', options.scaleX);
+              fObj.set('scaleX', options.scaleX);
             }
 
             if(options.scaleY < 16777216) //16777216 is math.pow(2,24)
             {
-              object.set('scaleY', options.scaleY);
+              fObj.set('scaleY', options.scaleY);
             }
 
-            // object.set('scaleX', math.round(options.scaleX, 10) );
-            // object.set('scaleY', math.round(options.scaleY, 10) );
+            // fObj.set('scaleX', math.round(options.scaleX, 10) );
+            // fObj.set('scaleY', math.round(options.scaleY, 10) );
 
-            object.skewX = options.skewX;
-            object.skewY = options.skewY;
-            object.angle = options.angle;
+            fObj.skewX = options.skewX;
+            fObj.skewY = options.skewY;
 
-            object.dirty = true;
+            fObj.angle = options.angle;
+
+            fObj.dirty = true;
           }
 
           applyTransformToObject(fObj, transform__fObj);
@@ -55832,6 +55730,13 @@
 
           // fabricIntegration.fabricCanvas.requestRenderAll();
         }
+
+        // computeScreenTransformCenterBasedWithScreenTransformTLBased(screenTransform__TL){
+        //   const fTransform__translate__leave = fabric.util.composeMatrix({
+        //     translateX:
+        //     translateY:
+        //   });
+        // }
 
         updateFabricObjectsPosition(redrawOccasion) {
           const infiniteCanvas = this.infiniteCanvas;
@@ -64036,7 +63941,7 @@
 
           //convert to screenRect
           // const screenRect__zPixel = infiniteCanvas.getScreenRectForTrueRectAtHomeScale(trueRect__zPixel, homeScale__zPixel);
-          const screenRect__zPixel = infiniteCanvas.getScreenRectForTrueRect(trueRect__zPixel);
+          const screenRect__zPixel = infiniteCanvas.toScreenRect(trueRect__zPixel);
 
           outDict = {
             //
@@ -117202,9 +117107,30 @@
         debug_camera() {
           const atelier        = this;
           const infiniteCanvas = atelier.infiniteCanvas;
+          const icCamera       = infiniteCanvas.icCamera;
+          const cameraEngine   = icCamera.dict_engine["camera"].engine.awoken;
+
+          function createDict_point_withShearing(dict_point, shearX, shearY) {
+            var dict_point__new = Object.assign({}, dict_point);
+
+            //shearX (segment at bottom)
+            const t__shearX = ICUtils.composeMatrix({
+              translateX: shearX,
+            });
+            dict_point__new.bl = ICUtils.transformPoint(dict_point__new.bl, t__shearX);
+            dict_point__new.br = ICUtils.transformPoint(dict_point__new.br, t__shearX);
+
+            //shearY (segment at right)
+            const t__shearY = ICUtils.composeMatrix({
+              translateY: shearY,
+            });
+            dict_point__new.tr = ICUtils.transformPoint(dict_point__new.tr, t__shearY);
+            dict_point__new.br = ICUtils.transformPoint(dict_point__new.br, t__shearY);
+
+            return dict_point__new;
+          }
 
           function addPoint(truePoint, color = "pink") {
-            const truePoint__screenCenter = infiniteCanvas.camera.getTruePoint__center();
             const icPoint = infiniteCanvas.createIcPoint(truePoint);
             icPoint.fill = color;
             logger.log("logAtelier", "debug_camera", "icPoint:", icPoint);
@@ -117220,9 +117146,9 @@
             infiniteCanvas.addIcObject(icRect);
           }
 
-          function addCamera(trueRect, color = "black") {
+          function addCamera(trueRect, size, color = "black") {
             logger.log("logAtelier", "debug_camera", "addCamera", "trueRect:", ICUtils.numberize__dict(trueRect));
-            const icCamera = infiniteCanvas.createIcCamera__with__trueRect(trueRect);
+            const icCamera = infiniteCanvas.createIcCamera__with__trueRect(trueRect, size);
             icCamera.fill  = color;
             logger.log("logAtelier", "debug_camera", "icCamera:", icCamera);
   
@@ -117244,7 +117170,7 @@
             // };
             const size__rect1 = {
               width:  100, 
-              height: 100,
+              height: 200,
             };
             // const size__rect1 = {
             //   width:  1, 
@@ -117269,7 +117195,7 @@
             const trueRect__cam1 = ICUtils.bigNumberize__dict(Geometry.rectForRectRel(rect_rel__cam1__wrt__rect1, ICUtils.numberize__dict(trueRect__rect1)));
             logger.log("logAtelier", "debug_camera", "trueRect__cam1:", ICUtils.numberize__dict(trueRect__cam1));
 
-            // addCamera(trueRect__cam1, ColorUtils.rgbaColorStringForColorAndSuperOpacity("red", 0.6));
+            // addCamera(trueRect__cam1, null, ColorUtils.rgbaColorStringForColorAndSuperOpacity("red", 0.6));
 
             // const icRect = infiniteCanvas.createIcRect(trueRect__cam1);
             // infiniteCanvas.addIcObject(icRect);
@@ -117277,59 +117203,137 @@
             addRect(trueRect__cam1, size__rect1, ColorUtils.rgbaColorStringForColorAndSuperOpacity("black", 0.6) );
 
 
+            //homeScale
+            // {
+            //   const size__canvas = infiniteCanvas.getCanvasSize();
+            //   const trueRect__camera__initial = ICUtils.bigNumberize__dict({
+            //     x:      0,
+            //     y:      0,
+            //     width:  size__canvas.width,
+            //     height: size__canvas.height,
+            //   });
+            //   // addRect(trueRect__camera__initial, size__canvas, ColorUtils.rgbaColorStringForColorAndSuperOpacity("pink", 0.6) );
+            //   addCamera(trueRect__camera__initial, null, ColorUtils.rgbaColorStringForColorAndSuperOpacity("pink", 0.6) );
+  
+  
+            //   const rect_rel__X3 = {
+            //     l: -1.0,
+            //     t: -1.0,
+            //     r: +2.0,
+            //     b: +2.0,
+            //   };
+            //   const trueRect__camX3 = ICUtils.bigNumberize__dict(Geometry.rectForRectRel(rect_rel__X3, ICUtils.numberize__dict(trueRect__camera__initial)));
+            //   addRect(trueRect__camX3, size__canvas, ColorUtils.rgbaColorStringForColorAndSuperOpacity("green", 0.3) );
+  
+            // }
 
+
+            //scaleX,scaleY
+            // {
+            //   const size__canvas = infiniteCanvas.getCanvasSize();
+            //   const trueRect__camera__initial = ICUtils.bigNumberize__dict({
+            //     x:      0,
+            //     y:      0,
+            //     width:  size__canvas.width,
+            //     height: size__canvas.height,
+            //   });
+
+            //   const rect_rel__thin = {
+            //     l: 0.0,
+            //     t: 0.0,
+            //     r: 0.1,
+            //     b: 1.0,
+            //   };
+            //   const trueRect__camThin = ICUtils.bigNumberize__dict(Geometry.rectForRectRel(rect_rel__thin, ICUtils.numberize__dict(trueRect__camera__initial)));
+            //   addCamera(trueRect__camThin, size__canvas, ColorUtils.rgbaColorStringForColorAndSuperOpacity("green", 0.3) );
+            // }
+
+
+            //rotation
             {
               const size__canvas = infiniteCanvas.getCanvasSize();
-              const trueRect__camera__initial = ICUtils.bigNumberize__dict({
-                x:      0,
-                y:      0,
+              const trueRect__camera = ICUtils.bigNumberize__dict({
+                x:      -260,
+                y:      -460,
                 width:  size__canvas.width,
                 height: size__canvas.height,
               });
-              addRect(trueRect__camera__initial, size__canvas, ColorUtils.rgbaColorStringForColorAndSuperOpacity("pink", 0.6) );
-  
-  
-              const rect_rel__X3 = {
-                l: -1.0,
-                t: -1.0,
-                r: +2.0,
-                b: +2.0,
-              };
-              const trueRect__camX3 = ICUtils.bigNumberize__dict(Geometry.rectForRectRel(rect_rel__X3, ICUtils.numberize__dict(trueRect__camera__initial)));
-              addRect(trueRect__camX3, size__canvas, ColorUtils.rgbaColorStringForColorAndSuperOpacity("green", 0.3) );
-  
+              const dict_point__trueRect = ICUtils.createDict_parallelogram__withRect(trueRect__camera);
+              const t__rotation = ICUtils.composeMatrix({
+                angleInDegrees: math.bignumber(-10),
+                // angleInDegrees: math.bignumber(22.5),
+                centerRot:      dict_point__trueRect.tl, 
+              })
+              const dict_point__rotated = ICUtils.transformDict_parallelogram(dict_point__trueRect, t__rotation);
+
+              Object.entries(dict_point__rotated).forEach(([_, truePoint]) => {
+                const trueRect__point = {
+                  x: truePoint.x,
+                  y: truePoint.y,
+                  width:  10, 
+                  height: 10,
+                };
+                addRect(trueRect__point, {width: 10, height: 10}, ColorUtils.rgbaColorStringForColorAndSuperOpacity("black", 0.3) );
+              });
+
+              const icCamera__rotated = infiniteCanvas.createIcCamera_with__dict_parallelogram(dict_point__rotated, null);
+              logger.log("logAtelier", "debug_camera", "icCamera__rotated:", icCamera__rotated);
+              icCamera__rotated.fill  =  ColorUtils.rgbaColorStringForColorAndSuperOpacity("orange", 0.6) ;
+              infiniteCanvas.addIcObject(icCamera__rotated);
+            }
+
+
+            //skewX,skewY (shearX,shearY)
+            {
+              const size__canvas = infiniteCanvas.getCanvasSize();
+              // const trueRect__camera = ICUtils.bigNumberize__dict({
+              //   x:      -260,
+              //   y:      -460,
+              //   width:  size__canvas.width,
+              //   height: size__canvas.height,
+              // });
+              const trueRect__camera = ICUtils.bigNumberize__dict({
+                x:      0,
+                y:      0,
+                width:  300,
+                height: 500,
+              });
+              addRect(trueRect__camera, size__canvas, ColorUtils.rgbaColorStringForColorAndSuperOpacity("cyan", 0.3) );
+
+
+              const dict_point__trueRect = ICUtils.createDict_parallelogram__withRect(trueRect__camera);
+              const shearX = math.bignumber(300);
+              // const shearY = math.bignumber(300);
+
+              // const shearX = math.bignumber(0);
+              const shearY = math.bignumber(0);
+
+              const dict_point__sheared = createDict_point_withShearing(dict_point__trueRect, shearX, shearY);
+
+              Object.entries(dict_point__sheared).forEach(([_, truePoint]) => {
+                const trueRect__point = {
+                  x: truePoint.x,
+                  y: truePoint.y,
+                  width:  10, 
+                  height: 10,
+                };
+                addRect(trueRect__point, {width: 10, height: 10}, ColorUtils.rgbaColorStringForColorAndSuperOpacity("black", 0.3) );
+              });
+
+
+              const icCamera__sheared = infiniteCanvas.createIcCamera_with__dict_parallelogram(dict_point__sheared, null);
+              icCamera__sheared.fill  =  ColorUtils.rgbaColorStringForColorAndSuperOpacity("magenta", 0.6) ;
+              infiniteCanvas.addIcObject(icCamera__sheared);
             }
 
           }
-
-          // {
-          //   // const homeScale__2 = math.bignumber(0.42);
-          //   const homeScale__2 = math.bignumber(0.42);
-
-          //   const trueRect__rect2 = atelier.trueRect2;
-          //   addRect(trueRect__rect2, "cyan", homeScale__2);
-          //   // addPoint({x: trueRect.x, y: trueRect.y});
-
-          //   const rect_rel__cam2__wrt__rect2 = {
-          //     l: -1.0,
-          //     t: -1.0,
-          //     r: +1.0,
-          //     b: +1.0,
-          //   };
-          //   const trueRect__cam2 = ICUtils.bigNumberize__dict(Geometry.rectForRectRel(rect_rel__cam2__wrt__rect2, ICUtils.numberize__dict(trueRect__rect2)));
-          //   addCamera(trueRect__cam2, ColorUtils.rgbaColorStringForColorAndSuperOpacity("pink", 0.6));
-
-          // }
-
-          // {
-          //   const truePoint__screenCenter = infiniteCanvas.camera.getTruePoint__center();
-          //   addPoint(truePoint__screenCenter);
-          // }
 
 
           setTimeout(() => {
             // const arr_trueRect = infiniteCanvas.getArr_icObj("free").map((rep_free) => ICUtils.numberize__dict(rep_free.getTrueRect()));
             // logger.log("logAtelier", "debug_camera", "arr_trueRect:", arr_trueRect);
+
+            cameraEngine.log__debug("debug_camera");
 
             const arr_dict_truePoint = infiniteCanvas.getArr_icObj("free").map((rep_free) => {
               const dict_truePoint = rep_free.getDict_truePoint();
