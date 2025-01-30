@@ -798,10 +798,10 @@
 
       //bigNumber fun {
 
-      static iMatrix__bigNumber() {
-        const iMatrix__number = [1, 0, 0, 1, 0, 0];
-        const iMatrix__bigNumber_ = ICUtils.bigNumberize__array(iMatrix__number);
-        return iMatrix__bigNumber_;
+      static iMatrix9__bigNumber() {
+        const iMatrix9__number = [1, 0, 0, 1, 0, 0,     0, 0, 0];   //usual iMatrix + [angle, skewX, skewY] for lossless decomposition
+        const iMatrix9__bigNumber_ = ICUtils.bigNumberize__array(iMatrix9__number);
+        return iMatrix9__bigNumber_;
       }
 
 
@@ -925,6 +925,10 @@
 
         r[4] = math.multiply(math.bignumber(-1), o.x);
         r[5] = math.multiply(math.bignumber(-1), o.y);
+
+        r[6] = math.multiply(math.bignumber(-1), t[6]);
+        r[7] = math.multiply(math.bignumber(-1), t[7]);
+        r[8] = math.multiply(math.bignumber(-1), t[8]);
         
         // logger.log("logICUtils", "invertTransform", "r:", r);
         
@@ -932,20 +936,20 @@
       }
 
       static composeMatrix(options) {
-        var matrix   = ICUtils.bigNumberize__array([1, 0, 0, 1, options.translateX || 0, options.translateY || 0]),
+        var matrix   = ICUtils.bigNumberize__array([1, 0, 0, 1, options.translateX || 0, options.translateY || 0,    0, 0, 0]),
             multiply = ICUtils.multiplyTransformMatrices;
         if (options.angleInDegrees || options.angleInRadians) {
           matrix = multiply(matrix, ICUtils.calcRotateMatrix(options));
         }
         if ( (options.scaleX && math.number(options.scaleX) !== 1) || (options.scaleY && math.number(options.scaleY) !== 1) ||
-            options.skewX || options.skewY || options.flipX || options.flipY) {
+            options.skewXInDegrees || options.skewXInRadians || options.skewYInDegrees || options.skewYInRadians || options.flipX || options.flipY) {
           matrix = multiply(matrix, ICUtils.calcDimensionsMatrix(options));
         }
         return matrix;
       }
 
 
-      static multiplyTransformMatrices(a, b, is2x2) {
+      static multiplyTransformMatrices(a, b) {
         // Matrix multiply a * b
         // return [
         //   a[0] * b[0] + a[2] * b[1],
@@ -960,32 +964,34 @@
           math.add( math.multiply(a[1], b[0]) , math.multiply(a[3], b[1]) ),
           math.add( math.multiply(a[0], b[2]) , math.multiply(a[2], b[3]) ),
           math.add( math.multiply(a[1], b[2]) , math.multiply(a[3], b[3]) ),
-          is2x2 ? math.bignumber(0) : math.add( math.multiply(a[0], b[4]) , math.multiply(a[2], b[5]), a[4] ),
-          is2x2 ? math.bignumber(0) : math.add( math.multiply(a[1], b[4]) , math.multiply(a[3], b[5]), a[5] ),
+
+          math.add( math.multiply(a[0], b[4]) , math.multiply(a[2], b[5]), a[4] ),
+          math.add( math.multiply(a[1], b[4]) , math.multiply(a[3], b[5]), a[5] ),
+
+          math.add( a[6] , b[6] ),
+          math.add( a[7] , b[7] ),
+          math.add( a[8] , b[8] ),
+
         ];
       }
 
 
-      static qrDecompose(a) {
-        // var angle = atan2(a[1], a[0]),
-        //     denom = pow(a[0], 2) + pow(a[1], 2),
-        //     scaleX = sqrt(denom),
-        //     scaleY = (a[0] * a[3] - a[2] * a[1]) / scaleX,
-        //     skewX = atan2(a[0] * a[2] + a[1] * a [3], denom);
-        // return {
-        //   angle: angle / PiBy180,
-        //   scaleX: scaleX,
-        //   scaleY: scaleY,
-        //   skewX: skewX / PiBy180,
-        //   skewY: 0,
-        //   translateX: a[4],
-        //   translateY: a[5]
-        // };
+      static decompose(a) {
+        logger.log("logICUtils", "decompose", "a:", ICUtils.numberize__array(a));
 
         const a__bigNumber = ICUtils.bigNumberize__array(a);
 
-        const translateX = a__bigNumber[4];
-        const translateY = a__bigNumber[5];
+        const translateX     = a__bigNumber[4];
+        const translateY     = a__bigNumber[5];
+
+        const angleInRadians = a__bigNumber[6];
+        const angleInDegrees = ICUtils.radiansToDegrees(angleInRadians);
+
+        const skewXInRadians = a__bigNumber[7];
+        const skewXInDegrees = ICUtils.radiansToDegrees(skewXInRadians);
+        const skewYInRadians = a__bigNumber[8];
+        const skewYInDegrees = ICUtils.radiansToDegrees(skewYInRadians);
+
 
         const t__translation = ICUtils.composeMatrix({
           translateX: translateX,
@@ -993,36 +999,27 @@
         });
         const t__inv_translation = ICUtils.invertTransform(t__translation);
 
-
-        const angleInRadians__number    = math.atan2(math.number(a__bigNumber[1]), math.number(a__bigNumber[0]));  //SHU: warning, maybe Decimal.js' precise atan2 will be needed at some point
-        const angleInRadians__bigNumber = math.bignumber(angleInRadians__number);     //"imprecise"
-
         const t__rotation = ICUtils.composeMatrix({
-          angleInRadians: angleInRadians__bigNumber,
+          angleInRadians: angleInRadians,
         });
         const t__inv_rotation = ICUtils.invertTransform(t__rotation);
 
+        const t__skew = ICUtils.composeMatrix({
+          skewXInRadians: skewXInRadians,
+          skewYInRadians: skewYInRadians,
+        });
+        const t__inv_skew = ICUtils.invertTransform(t__skew);
+
+
         const multiply = ICUtils.multiplyTransformMatrices;
-        const a__tl__0_oriented = multiply( t__inv_translation, multiply(t__inv_rotation, a__bigNumber) );
+        const a__simplified = multiply( t__inv_translation, multiply( t__inv_skew, multiply(t__inv_rotation, a__bigNumber) ) );
+        logger.log("logICUtils", "decompose", "a__simplified:", ICUtils.numberize__array(a__simplified));
 
-        const options = Object.assign({
-          translateX: translateX,
-          translateY: translateY, 
-          angle: ICUtils.radiansToDegrees(angleInRadians__bigNumber),
-        }, ICUtils.qrDecompose__derotated(a__tl__0_oriented));
-
-        return options;
-      }
-
-      static qrDecompose__derotated(a__tl__0_oriented) {
-
-        const a = a__tl__0_oriented;
-
-        var scaleX = a[0];
+        var scaleX  = a__simplified[0];
         const flipX = (math.number(math.sign(scaleX)) < 0);
         scaleX = math.abs(scaleX);
 
-        var scaleY = a[3];
+        var scaleY  = a__simplified[3];
         const flipY = (math.number(math.sign(scaleY)) < 0);
         scaleY = math.abs(scaleY);
 
@@ -1030,31 +1027,24 @@
         scaleX = math.divide(scaleX,factScale);
         scaleY = math.divide(scaleY,factScale);
 
-        const skewX__inRadians = a[1];
-        const skewX__inDegrees = ICUtils.radiansToDegrees(skewX__inRadians);
-
-        const skewY__inRadians = a[2];
-        const skewY__inDegrees = ICUtils.radiansToDegrees(skewY__inRadians);
-
         return {
-          scaleX: scaleX,
-          scaleY: scaleY,
-          skewX:  skewX__inDegrees,    
-          skewY:  skewY__inDegrees,                 
+          translateX: translateX,
+          translateY: translateY, 
+          angle:      angleInDegrees,
 
-          factScale: factScale,
-          flipX: flipX,
-          flipY: flipY,
+          factScale:  factScale,
+          scaleX:     scaleX,
+          scaleY:     scaleY,
+          flipX:      flipX,
+          flipY:      flipY,
+
+          skewX:      skewXInDegrees,    
+          skewY:      skewYInDegrees,                 
         };
 
+        return options;
       }
 
-
-      static calcTranslateMatrix(options) {
-        const trX = options.translateX ? options.translateX : 0;
-        const trY = options.translateY ? options.translateY : 0; 
-        return [1, 0, 0, 1, trX, trY];
-      }
 
 
 
@@ -1068,17 +1058,25 @@
         return math.divide( angleInRadians__bignumber, pi_over_180 );
       }
 
+
+
+      static calcTranslateMatrix(options) {
+        const trX = options.translateX ? options.translateX : 0;
+        const trY = options.translateY ? options.translateY : 0; 
+        return [1, 0, 0, 1, trX, trY,     0,0,0];
+      }
+
       static calcRotateMatrix(options) {
         var t;
 
         if (!options.angleInDegrees && !options.angleInRadians) {
-          return ICUtils.iMatrix__bigNumber();
+          return ICUtils.iMatrix9__bigNumber();
         }
 
         var theta = options.angleInRadians ? options.angleInRadians : ICUtils.degreesToRadians(options.angleInDegrees),
               cos = math.cos( math.number(theta) ),                         //SHU: warning, maybe Decimal.js' precise cos will be needed at some point
               sin = math.sin( math.number(theta) );                         //SHU: warning, maybe Decimal.js' precise sin will be needed at some point
-        const t__rotation = ICUtils.bigNumberize__array([cos, sin, -sin, cos, 0, 0]);
+        const t__rotation = ICUtils.bigNumberize__array([cos, sin, -sin, cos, 0, 0,     theta,0,0]);
         
 
         if(options.centerRot) {
@@ -1109,6 +1107,10 @@
               0,
               options.flipY ? math.multiply(math.bignumber(-1), scaleY) : scaleY,
               0,
+              0,
+              
+              0,
+              0,
               0]);
         return scaleMatrix;
       } 
@@ -1122,20 +1124,20 @@
               0,
               options.flipY ? math.multiply(math.bignumber(-1), scaleY) : scaleY,
               0,
+              0,
+
+              0,
+              0,
               0]),
             multiply = ICUtils.multiplyTransformMatrices,
             degreesToRadians = ICUtils.degreesToRadians;
-        if (options.skewX) {
-          scaleMatrix = multiply(
-            scaleMatrix,
-            ICUtils.bigNumberize__array([1, 0, math.tan(degreesToRadians(options.skewX)), 1]), 
-            true);
+        if (options.skewXInDegrees || options.skewXInRadians) {
+          const skewX = options.skewXInRadians ? options.skewXInRadians : degreesToRadians(options.skewXInDegrees);
+          scaleMatrix = multiply( scaleMatrix, ICUtils.bigNumberize__array([1, 0, math.tan(skewX), 1, 0, 0,     0,skewX,0]) );
         }
-        if (options.skewY) {
-          scaleMatrix = multiply(
-            scaleMatrix,
-            ICUtils.bigNumberize__array([1, math.tan(degreesToRadians(options.skewY)), 0, 1]),
-            true);
+        if (options.skewYInDegrees || options.skewYInRadians) {
+          const skewY = options.skewYInRadians ? options.skewYInRadians : degreesToRadians(options.skewYInDegrees);
+          scaleMatrix = multiply( scaleMatrix, ICUtils.bigNumberize__array([1, math.tan(skewY), 0, 1, 0, 0,     0,0,skewY]) );
         }
         return scaleMatrix;
       } 
@@ -1149,6 +1151,10 @@
               0,
               0,
               1,
+              0,
+              0,
+
+              0,
               0,
               0]);
         return scaleMatrix;
@@ -1193,11 +1199,11 @@
 
         const dx__rotate = math.subtract( dict_point__dst.tr.x , dict_point__dst.tl.x ); 
         const dy__rotate = math.subtract( dict_point__dst.tr.y , dict_point__dst.tl.y );
-        const angle__inRadians__number    = math.atan2( math.number(dy__rotate) , math.number(dx__rotate) );  //SHU: warning, maybe Decimal.js' precise atan2 will be needed at some point
-        const angle__inRadians__bigNumber = math.bignumber( angle__inRadians__number );
+        const angleInRadians__number    = math.atan2( math.number(dy__rotate) , math.number(dx__rotate) );  //SHU: warning, maybe Decimal.js' precise atan2 will be needed at some point
+        const angleInRadians__bigNumber = math.bignumber( angleInRadians__number );
 
         const t__rotation = ICUtils.calcRotateMatrix({
-          angleInRadians:   angle__inRadians__bigNumber,
+          angleInRadians:   angleInRadians__bigNumber,
           // centerRot:        dict_point__dst.tl,
           centerRot:        {x: math.bignumber(0), y: math.bignumber(0)},
         });
@@ -1214,20 +1220,23 @@
         // const width__kindof  = math.subtract( dict_point__0_oriented.tr.x , dict_point__0_oriented.tl.x);
         // const height__kindof = math.subtract( dict_point__0_oriented.bl.y , dict_point__0_oriented.tl.y);
 
-        const shearX = math.subtract( dict_point__0_oriented.tl.x , dict_point__0_oriented.bl.x);
-        const shearY = math.subtract( dict_point__0_oriented.tl.y , dict_point__0_oriented.tr.y); 
-        // const shearX = math.subtract( dict_point__0_oriented.bl.x , dict_point__0_oriented.tl.x);
-        // const shearY = math.subtract( dict_point__0_oriented.tr.y , dict_point__0_oriented.tl.y); 
+        // const shearX = math.subtract( dict_point__0_oriented.tl.x , dict_point__0_oriented.bl.x);
+        // const shearY = math.subtract( dict_point__0_oriented.tl.y , dict_point__0_oriented.tr.y); 
+        const shearX = math.subtract( dict_point__0_oriented.bl.x , dict_point__0_oriented.tl.x);
+        const shearY = math.subtract( dict_point__0_oriented.tr.y , dict_point__0_oriented.tl.y); 
         
-        const skewX = math.divide( shearX, height__kindof );
-        const skewY = math.divide( shearY, width__kindof  );
-        // const skewX = math.divide( shearX, width__kindof  );
-        // const skewY = math.divide( shearY, height__kindof );
+        const skewXInRadians = math.divide( shearX, height__kindof );
+        const skewYInRadians = math.divide( shearY, width__kindof  );
+        // const skewXInRadians = math.divide( shearX, width__kindof  );
+        // const skewYInRadians = math.divide( shearY, height__kindof );
 
-        const t__skew = ICUtils.bigNumberize__array([1, skewX, skewY, 1, 0, 0]);
+        const t__skew = ICUtils.composeMatrix({
+          skewXInRadians: skewXInRadians,
+          skewYInRadians: skewYInRadians,
+        });
 
         //debug
-        // const t__skew = ICUtils.bigNumberize__array([1, 0, 0, 1, 0, 0]);
+        // const t__skew = ICUtils.iMatrix9__bigNumber();
         logger.log("logICUtils", "createTransform__pToU", "t__skew:", ICUtils.numberize__array(t__skew));
 
 
@@ -1246,7 +1255,7 @@
           scaleY: scaleY,
         });
 
-        // const t__scale = ICUtils.bigNumberize__array([1, 0, 0, 1, 0, 0]);
+        // const t__scale = ICUtils.iMatrix9__bigNumber();
         logger.log("logICUtils", "createTransform__pToU", "t__scale:", ICUtils.numberize__array(t__scale));
 
 
@@ -33810,18 +33819,19 @@
         this.orientation = options.angle;
         
 
-
         this.scale = {
           X: options.scaleX,
           Y: options.scaleY,
         };
-        this.skew = {
-          X: options.skewX,
-          Y: options.skewY,
-        };
         this.flip = {
           X: options.flipX,
           Y: options.flipY,
+        };
+
+
+        this.skew = {
+          X: options.skewX,
+          Y: options.skewY,
         };
 
         // this.didUpdate();
@@ -33833,25 +33843,26 @@
 
 
       getTransform() {
-        logger.log("logIC", "ICObject::getTransform__homeScale_free", "this:", this);
-
-        const t__homeScale = this.getHomeScaleTransform();  //main "infinite" mechanism
+        logger.log("logIC", "ICObject::getTransform", "this:", this);
 
         const t__rotation = ICUtils.composeMatrix({
           angleInDegrees: this.orientation,
         });
 
-        const t__scaleAndOther = ICUtils.composeMatrix({
+        const t__skew = ICUtils.composeMatrix({
+          skewXInDegrees: this.skew.X,
+          skewYInDegrees: this.skew.Y,
+        });
+
+        const t__scale = ICUtils.composeMatrix({
           scaleX: this.scale.X,
           scaleY: this.scale.Y,
-
-          skewX: math.bignumber(this.skew.X),
-          skewY: math.bignumber(this.skew.Y),
           
           flipX: this.flip.X,
           flipY: this.flip.Y,
         });
-        logger.log("logIC", "ICObject::getTransform__icObj", "t__scaleAndOther:", ICUtils.numberize__array(t__scaleAndOther));
+
+        const t__homeScale = this.getHomeScaleTransform();  //main "infinite" mechanism
 
         const t__translation = ICUtils.composeMatrix({
           translateX: this.position.x,
@@ -33859,13 +33870,14 @@
         });
 
         //SHU: the order of transforms applied to object will be:
-        //  1. t__inverse_of_homeScale
         //  1. t__rotation
-        //  2. t__scaleAndOther
-        //  3. t__translation
+        //  2. t__skew
+        //  2. t__scale
+        //  3. t__homeScale
+        //  4. t__translation
         const multiply = ICUtils.multiplyTransformMatrices; 
 
-        const t__obj = multiply(t__translation, multiply(t__homeScale, multiply( t__scaleAndOther , t__rotation ) ) );
+        const t__obj = multiply(t__translation, multiply(t__homeScale, multiply( t__scale, multiply( t__skew , t__rotation ) ) ) );
 
         return t__obj;
       }
@@ -33877,7 +33889,7 @@
           throw new Error("t__obj__new is not bignumber-based");
         }
 
-        const options = ICUtils.qrDecompose(t__obj__new);
+        const options = ICUtils.decompose(t__obj__new);
         return this.configureWithOptionsDict(options);
       }
 
@@ -33890,21 +33902,21 @@
         const t__homeScale            = this.getHomeScaleTransform();
         const t__inverse_of_homeScale = ICUtils.invertTransform(t__homeScale);
 
-        const t__obj__homeScaleFree = ICUtils.multiplyTransformMatrices(t__inverse_of_homeScale, t__obj);
+        const t__obj__homeScaleFree   = ICUtils.multiplyTransformMatrices(t__inverse_of_homeScale, t__obj);
 
         return t__obj__homeScaleFree;
       }
 
       setHomeScaleFreeTransform(t__obj__homeScaleFree__new) {
-        logger.trace("logIC", "ICObject::setTransform", ICUtils.numberize__array(t__obj__new));
+        logger.trace("logIC", "ICObject::setHomeScaleFreeTransform", ICUtils.numberize__array(t__obj__homeScaleFree__new));
 
-        if(t__obj__new.filter((elt) => !math.isBigNumber(elt)).length > 0) {
+        if(t__obj__homeScaleFree__new.filter((elt) => !math.isBigNumber(elt)).length > 0) {
           throw new Error("t__obj__new is not bignumber-based");
         }
 
         const t__homeScale = this.getHomeScaleTransform();
 
-        const t__obj__new = ICUtils.multiplyTransformMatrices(t__obj__homeScaleFree__new, t__homeScale);
+        const t__obj__new  = ICUtils.multiplyTransformMatrices(t__obj__homeScaleFree__new, t__homeScale);
 
         return this.setTransform(t__obj__new);
       }
@@ -33914,27 +33926,13 @@
 
 
 
-      getOwnOptions() {
-        // const t__obj    = this.getTransform();
-        // const t__ownEye = ICUtils.invertTransform(t__obj);
+      getHomeScaleFreeOptions() {
+        const t__homeScale_free = this.getHomeScaleFreeTransform();
 
-        // const options__own = ICUtils.qrDecompose(t__ownEye);
-        // logger.log("logICObject", "getOwnOptions", "options__own:", ICUtils.numberize__dict(options__own));
+        const options__homeScaleFree = ICUtils.decompose(t__homeScale_free);
+        logger.log("logICObject", "getHomeScaleFreeOptions", "options__homeScaleFree:", ICUtils.numberize__dict(options__homeScaleFree));
 
-
-        // const t__homeScale_free = this.getTransform__homeScale_free();
-        // const t__ownEye = ICUtils.invertTransform(t__homeScale_free);
-
-        // const options__own = ICUtils.qrDecompose(t__ownEye);
-        // logger.log("logICObject", "getOwnOptions", "options__own:", ICUtils.numberize__dict(options__own));
-
-
-        const t__homeScale_free = this.getTransform__homeScale_free();
-
-        const options__own = ICUtils.qrDecompose(t__homeScale_free);
-        logger.log("logICObject", "getOwnOptions", "options__own:", ICUtils.numberize__dict(options__own));
-
-        return options__own;
+        return options__homeScaleFree;
       }
 
       // getTrueRect() {} //not relevant (because obj can be a parallelogram and not a rect), use getDict_truePoint() instead
@@ -40888,7 +40886,6 @@
             return trueRect;
           };
 
-
           this.toTrueTransform = function(screenTransform) {
             const screenTransform__bigNumber = ICUtils.bigNumberize__array(screenTransform);
 
@@ -40901,6 +40898,7 @@
 
             return trueTransform;
           };
+
 
 
 
@@ -40937,26 +40935,6 @@
 
             return screenRect;
           };
-
-          // this.toScreenTransform = function(trueTransform) {
-          //   // logger.log("logIC", "IcCamera::toScreenTransform", "{");
-          //   // logger.log("logIC", "IcCamera::toScreenTransform", "trueTransform:",    trueTransform.map((bn) => math.number(bn)) );
-          //   const multiply = ICUtils.multiplyTransformMatrices;
-
-          //   const vpt = this.viewportTransform__bigNumber;
-          //   const t   = this.transform__bigNumber;
-          //   // logger.log("logIC", "IcCamera::toScreenTransform", "t:",                t.map((bn) => math.number(bn)) );
-
-
-          //   // const screenTransform = multiply( multiply(trueTransform, vpt) , t);
-          //   const screenTransform = multiply( multiply(t, vpt) , trueTransform);    //SHU: une journée de perdue
-
-          //   // logger.log("logIC", "IcCamera::toScreenTransform", "screenTransform:",  screenTransform.map((bn) => math.number(bn)) );
-          //   // logger.log("logIC", "IcCamera::toScreenTransform", "}");
-
-
-          //   return ICUtils.numberize__array(screenTransform);
-          // };
 
           this.toScreenTransform = function(trueTransform) {
             const t__eye = this.getCameraEyeTransform();
@@ -55672,71 +55650,68 @@
           const icCamera          = infiniteCanvas.icCamera;
           const cameraEngine      = icCamera.dict_engine["camera"].engine.awoken;
 
-          //icObj.transform__icObj  []--->--- camera.vpt --->--- camera.t --->---[] fObj's transform
+          //icObj.transform__icObj  * [camera] --> fObj's transform
 
           const icObj                = fObj.icObj;
           const transform__icObj     = icObj.getTransform();
+          logger.log("logFI", "updateFabricObject_transform_default", "transform__icObj:", ICUtils.numberize__array(transform__icObj));
 
-          const transform__fObj      = cameraEngine.toScreenTransform(transform__icObj);
+          const screenTransform      = cameraEngine.toScreenTransform(transform__icObj);
+          logger.log("logFI", "updateFabricObject_transform_default", "screenTransform:", ICUtils.numberize__array(screenTransform));
 
 
-          function applyTransformToObject(fObj, transform) {
-            // var options = fabric.util.qrDecompose(transform),
-            var options = ICUtils.numberize__dict(ICUtils.qrDecompose(transform)),
-                screenPoint__TL = new fabric.Point(options.translateX, options.translateY);
+          function applyScreenTransformToFObj(fObj, screenTransform) {
 
-            // logger.log("logFI", "applyTransformToObject", "options:",         options);
-            logger.log("logFI", "applyTransformToObject", "screenPoint__TL:", screenPoint__TL);
+            const options = ICUtils.numberize__dict(ICUtils.decompose(screenTransform));
+            logger.log("logFI", "applyTransformToFObj", "options:",         options);
 
-            fObj.set({
-              left: screenPoint__TL.x,
-              top:  screenPoint__TL.y,
-            });
+            const screenPoint__TL = new fabric.Point(options.translateX, options.translateY);
+            logger.log("logFI", "applyTransformToFObj", "screenPoint__TL:", screenPoint__TL);
 
-            // fObj.set({
-            //   left: math.round(screenPoint__TL.x, 10),
-            //   top:  math.round(screenPoint__TL.y, 10),
-            // });
 
-            fObj.flipX = false;
-            fObj.flipY = false;
+            fObj.left = screenPoint__TL.x;
+            fObj.top  = screenPoint__TL.y;
+            // fObj.left = math.round(screenPoint__TL.x, 10);
+            // fObj.top  = math.round(screenPoint__TL.y, 10);
+
+
+            const scaleX = options.scaleX * options.factScale;    //SHU: don't miss that step
+            const scaleY = options.scaleY * options.factScale;    //SHU: don't miss that step
             
-            logger.log("logFI", "applyTransformToObject", "scaleX:", options.scaleX);
-            logger.log("logFI", "applyTransformToObject", "scaleY:", options.scaleY);
+            logger.log("logFI", "applyTransformToFObj", "scaleX:", options.scaleX);
+            logger.log("logFI", "applyTransformToFObj", "scaleY:", options.scaleY);
 
-            if(options.scaleX < 16777216) //16777216 is math.pow(2,24)
+            if(scaleX < 16777216) //16777216 is math.pow(2,24)
             {
-              fObj.set('scaleX', options.scaleX);
+              fObj.scaleX = scaleX;
             }
 
-            if(options.scaleY < 16777216) //16777216 is math.pow(2,24)
+            if(scaleY < 16777216) //16777216 is math.pow(2,24)
             {
-              fObj.set('scaleY', options.scaleY);
+              fObj.scaleY = scaleY;
             }
-
             // fObj.set('scaleX', math.round(options.scaleX, 10) );
             // fObj.set('scaleY', math.round(options.scaleY, 10) );
+
+            fObj.flipX = options.flipX;
+            fObj.flipY = options.flipY;
+
+
 
             fObj.skewX = options.skewX;
             fObj.skewY = options.skewY;
 
             fObj.angle = options.angle;
 
-            fObj.dirty = true;
+
+            fObj.setCoords();
           }
 
-          applyTransformToObject(fObj, transform__fObj);
-          fObj.setCoords();
+          applyScreenTransformToFObj(fObj, screenTransform);
 
           // fabricIntegration.fabricCanvas.requestRenderAll();
         }
 
-        // computeScreenTransformCenterBasedWithScreenTransformTLBased(screenTransform__TL){
-        //   const fTransform__translate__leave = fabric.util.composeMatrix({
-        //     translateX:
-        //     translateY:
-        //   });
-        // }
 
         updateFabricObjectsPosition(redrawOccasion) {
           const infiniteCanvas = this.infiniteCanvas;
@@ -117250,37 +117225,37 @@
 
 
             //rotation
-            {
-              const size__canvas = infiniteCanvas.getCanvasSize();
-              const trueRect__camera = ICUtils.bigNumberize__dict({
-                x:      -260,
-                y:      -460,
-                width:  size__canvas.width,
-                height: size__canvas.height,
-              });
-              const dict_point__trueRect = ICUtils.createDict_parallelogram__withRect(trueRect__camera);
-              const t__rotation = ICUtils.composeMatrix({
-                angleInDegrees: math.bignumber(-10),
-                // angleInDegrees: math.bignumber(22.5),
-                centerRot:      dict_point__trueRect.tl, 
-              })
-              const dict_point__rotated = ICUtils.transformDict_parallelogram(dict_point__trueRect, t__rotation);
+            // {
+            //   const size__canvas = infiniteCanvas.getCanvasSize();
+            //   const trueRect__camera = ICUtils.bigNumberize__dict({
+            //     x:      -260,
+            //     y:      -460,
+            //     width:  size__canvas.width,
+            //     height: size__canvas.height,
+            //   });
+            //   const dict_point__trueRect = ICUtils.createDict_parallelogram__withRect(trueRect__camera);
+            //   const t__rotation = ICUtils.composeMatrix({
+            //     angleInDegrees: math.bignumber(-10),
+            //     // angleInDegrees: math.bignumber(22.5),
+            //     centerRot:      dict_point__trueRect.tl, 
+            //   })
+            //   const dict_point__rotated = ICUtils.transformDict_parallelogram(dict_point__trueRect, t__rotation);
 
-              Object.entries(dict_point__rotated).forEach(([_, truePoint]) => {
-                const trueRect__point = {
-                  x: truePoint.x,
-                  y: truePoint.y,
-                  width:  10, 
-                  height: 10,
-                };
-                addRect(trueRect__point, {width: 10, height: 10}, ColorUtils.rgbaColorStringForColorAndSuperOpacity("black", 0.3) );
-              });
+            //   Object.entries(dict_point__rotated).forEach(([_, truePoint]) => {
+            //     const trueRect__point = {
+            //       x: truePoint.x,
+            //       y: truePoint.y,
+            //       width:  10, 
+            //       height: 10,
+            //     };
+            //     addRect(trueRect__point, {width: 10, height: 10}, ColorUtils.rgbaColorStringForColorAndSuperOpacity("black", 0.3) );
+            //   });
 
-              const icCamera__rotated = infiniteCanvas.createIcCamera_with__dict_parallelogram(dict_point__rotated, null);
-              logger.log("logAtelier", "debug_camera", "icCamera__rotated:", icCamera__rotated);
-              icCamera__rotated.fill  =  ColorUtils.rgbaColorStringForColorAndSuperOpacity("orange", 0.6) ;
-              infiniteCanvas.addIcObject(icCamera__rotated);
-            }
+            //   const icCamera__rotated = infiniteCanvas.createIcCamera_with__dict_parallelogram(dict_point__rotated, null);
+            //   logger.log("logAtelier", "debug_camera", "icCamera__rotated:", icCamera__rotated);
+            //   icCamera__rotated.fill  =  ColorUtils.rgbaColorStringForColorAndSuperOpacity("orange", 0.6) ;
+            //   infiniteCanvas.addIcObject(icCamera__rotated);
+            // }
 
 
             //skewX,skewY (shearX,shearY)
