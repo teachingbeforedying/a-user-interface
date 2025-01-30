@@ -814,7 +814,15 @@
 
       static bigNumberize__dict(dict__number) {
         return Object.fromEntries(Object.entries(dict__number).reduce((acc, [k,v]) => {
-          const arr_entry = [k, math.bignumber(v)];
+          
+          var v__bigNumberized;
+          try {
+            v__bigNumberized = math.bignumber(v);
+          } catch(e) {
+            v__bigNumberized = ICUtils.bigNumberize__dict(v);
+          }
+
+          const arr_entry = [k, v__bigNumberized];
           acc.push(arr_entry);
           return acc;
         }, []));
@@ -935,20 +943,6 @@
         return r;
       }
 
-      static composeMatrix(options) {
-        var matrix   = ICUtils.bigNumberize__array([1, 0, 0, 1, options.translateX || 0, options.translateY || 0,    0, 0, 0]),
-            multiply = ICUtils.multiplyTransformMatrices;
-        if (options.angleInDegrees || options.angleInRadians) {
-          matrix = multiply(matrix, ICUtils.calcRotateMatrix(options));
-        }
-        if ( (options.scaleX && math.number(options.scaleX) !== 1) || (options.scaleY && math.number(options.scaleY) !== 1) ||
-            options.skewXInDegrees || options.skewXInRadians || options.skewYInDegrees || options.skewYInRadians || options.flipX || options.flipY) {
-          matrix = multiply(matrix, ICUtils.calcDimensionsMatrix(options));
-        }
-        return matrix;
-      }
-
-
       static multiplyTransformMatrices(a, b) {
         // Matrix multiply a * b
         // return [
@@ -1060,106 +1054,184 @@
 
 
 
+      static composeMatrix(options) {
+        var outMatrix;
+
+        outMatrix = ICUtils.iMatrix9__bigNumber();
+
+        const multiply = ICUtils.multiplyTransformMatrices;
+
+        if(options.translateX || options.translateY) {
+          outMatrix = multiply(outMatrix, ICUtils.calcTranslateMatrix(options));
+        }
+
+        if ( (options.scaleX && math.number(options.scaleX) !== 1) || (options.scaleY && math.number(options.scaleY) !== 1) || options.flipX || options.flipY) {
+          outMatrix = multiply(outMatrix, ICUtils.calcScaleMatrix(options));
+        }
+
+        if(options.skewXInDegrees || options.skewXInRadians || options.skewYInDegrees || options.skewYInRadians) {
+          outMatrix = multiply(outMatrix, ICUtils.calcSkewMatrix(options));
+        }
+
+        if (options.angleInDegrees || options.angleInRadians) {
+          outMatrix = multiply(outMatrix, ICUtils.calcRotateMatrix(options));
+        }
+
+        return outMatrix;
+      }
+
+
       static calcTranslateMatrix(options) {
-        const trX = options.translateX ? options.translateX : 0;
-        const trY = options.translateY ? options.translateY : 0; 
-        return [1, 0, 0, 1, trX, trY,     0,0,0];
+        var outMatrix;
+
+        const options__bigNumber = ICUtils.bigNumberize__dict(options);
+
+        outMatrix = ICUtils.iMatrix9__bigNumber();
+
+        outMatrix[4] = math.bignumber( options__bigNumber.translateX ? options__bigNumber.translateX : 0 );
+        outMatrix[5] = math.bignumber( options__bigNumber.translateY ? options__bigNumber.translateY : 0 ); 
+
+        return outMatrix;
       }
 
       static calcRotateMatrix(options) {
-        var t;
+        logger.log("logICUtils", "calcRotateMatrix", "options:", options);
+        var outMatrix;
 
-        if (!options.angleInDegrees && !options.angleInRadians) {
-          return ICUtils.iMatrix9__bigNumber();
+        const options__bigNumber = ICUtils.bigNumberize__dict(options);
+        const multiply           = ICUtils.multiplyTransformMatrices;
+
+        outMatrix = ICUtils.iMatrix9__bigNumber();
+
+        if (options__bigNumber.angleInDegrees && options__bigNumber.angleInRadians) {
+
+          const angleInRadians = options__bigNumber.angleInRadians ? options__bigNumber.angleInRadians : ICUtils.degreesToRadians(options__bigNumber.angleInDegrees);
+          const cos = math.bignumber( math.cos( math.number(angleInRadians) ) );  //SHU: warning, maybe Decimal.js' precise cos will be needed at some point
+          const sin = math.bignumber( math.sin( math.number(angleInRadians) ) );  //SHU: warning, maybe Decimal.js' precise sin will be needed at some point
+
+          outMatrix[0] = cos;
+          outMatrix[1] = sin;
+          outMatrix[2] = math.multiply( math.bignumber(-1), sin );
+          outMatrix[3] = cos;
+          outMatrix[6] = angleInRadians;
+
+          if(options.centerRot) {
+            // logger.log("logICUtils", "options.centerRot:", options.centerRot);
+            const t__translation__leave = ICUtils.calcTranslateMatrix({translateX: options.centerRot.x, translateY: options.centerRot.y});
+            // logger.log("logICUtils", "t__translation__leave:", ICUtils.numberize__array(t__translation__leave));
+
+            const t__translation__enter = ICUtils.invertTransform(t__translation__leave);
+            // logger.log("logICUtils", "t__translation__enter:", ICUtils.numberize__array(t__translation__enter));
+
+            const multiply = ICUtils.multiplyTransformMatrices;
+            outMatrix = multiply( t__translation__leave, multiply(outMatrix, t__translation__enter) );
+
+          }
+          
         }
 
-        var theta = options.angleInRadians ? options.angleInRadians : ICUtils.degreesToRadians(options.angleInDegrees),
-              cos = math.cos( math.number(theta) ),                         //SHU: warning, maybe Decimal.js' precise cos will be needed at some point
-              sin = math.sin( math.number(theta) );                         //SHU: warning, maybe Decimal.js' precise sin will be needed at some point
-        const t__rotation = ICUtils.bigNumberize__array([cos, sin, -sin, cos, 0, 0,     theta,0,0]);
-        
-
-        if(options.centerRot) {
-          // logger.log("logICUtils", "options.centerRot:", options.centerRot);
-          const t__translation__leave = ICUtils.calcTranslateMatrix({translateX: options.centerRot.x, translateY: options.centerRot.y});
-          // logger.log("logICUtils", "t__translation__leave:", ICUtils.numberize__array(t__translation__leave));
-
-          const t__translation__enter = ICUtils.invertTransform(t__translation__leave);
-          // logger.log("logICUtils", "t__translation__enter:", ICUtils.numberize__array(t__translation__enter));
-
-          const multiply = ICUtils.multiplyTransformMatrices;
-          t = multiply( t__translation__leave, multiply(t__rotation, t__translation__enter) );
-
-        } else {
-          t = t__rotation;
-        }
-
-        return t;
+        return outMatrix;
       }
 
 
       static calcScaleMatrix(options) {
-        var scaleX = typeof options.scaleX === 'undefined' ? math.bignumber(1) : options.scaleX,
-            scaleY = typeof options.scaleY === 'undefined' ? math.bignumber(1) : options.scaleY,
-            scaleMatrix = ICUtils.bigNumberize__array([
-              options.flipX ? math.multiply(math.bignumber(-1), scaleX) : scaleX,
-              0,
-              0,
-              options.flipY ? math.multiply(math.bignumber(-1), scaleY) : scaleY,
-              0,
-              0,
-              
-              0,
-              0,
-              0]);
-        return scaleMatrix;
+        var outMatrix;
+
+        const options__bigNumber = ICUtils.bigNumberize__dict(options);
+
+        outMatrix = ICUtils.iMatrix9__bigNumber();
+
+        const scaleX = options__bigNumber.scaleX ? options__bigNumber.scaleX : math.bignumber(1);
+        const scaleY = options__bigNumber.scaleY ? options__bigNumber.scaleY : math.bignumber(1);
+
+        outMatrix[0] = options.flipX ? math.multiply(math.bignumber(-1), scaleX) : scaleX;
+        outMatrix[3] = options.flipY ? math.multiply(math.bignumber(-1), scaleY) : scaleY;
+
+        return outMatrix;
+      } 
+
+      static calcSkewMatrix(options) {
+        var outMatrix;
+
+        const options__bigNumber = ICUtils.bigNumberize__dict(options);
+
+        outMatrix = ICUtils.iMatrix9__bigNumber();
+
+        if (options__bigNumber.skewXInDegrees || options__bigNumber.skewXInRadians) {
+          const skewX = options__bigNumber.skewXInRadians ? options__bigNumber.skewXInRadians : ICUtils.degreesToRadians(options__bigNumber.skewXInDegrees);
+          outMatrix[2] = math.tan(skewX);
+          outMatrix[7] = skewX;
+        }
+        if (options__bigNumber.skewYInDegrees || options__bigNumber.skewYInRadians) {
+          const skewY = options__bigNumber.skewYInRadians ? options__bigNumber.skewYInRadians : ICUtils.degreesToRadians(options__bigNumber.skewYInDegrees);
+          outMatrix[1] = math.tan(skewY);
+          outMatrix[8] = skewY;
+        }
+
+        return outMatrix;
+      }
+
+      
+      static calcShearMatrix(options) {
+        var outMatrix;
+
+        const options__bigNumber = ICUtils.bigNumberize__dict(options);
+        const multiply           = ICUtils.multiplyTransformMatrices;
+
+        outMatrix = ICUtils.iMatrix9__bigNumber();
+
+        if (options__bigNumber.shearX) {
+          const skewXInRadians__number    = math.atan2( math.number(options__bigNumber.shearX) , math.number(1) );  //SHU: warning, maybe Decimal.js' precise atan2 will be needed at some point
+          const skewXInRadians__bigNumber = math.bignumber( skewXInRadians__number );
+
+          const skewXInDegrees__number = math.number(ICUtils.radiansToDegrees(skewXInRadians__bigNumber));
+          logger.log("logICUtils", "calcShearMatrix", "skewXInDegrees__number:", skewXInDegrees__number);
+          
+          const t__skewX = ICUtils.calcSkewMatrix({
+            skewXInRadians: skewXInRadians__bigNumber,
+          });
+          outMatrix = multiply(outMatrix, t__skewX);
+        }
+        if (options__bigNumber.shearY) {
+          const skewYInRadians__number    = math.atan2( math.number(options__bigNumber.shearY) , math.number(1) );  //SHU: warning, maybe Decimal.js' precise atan2 will be needed at some point
+          const skewYInRadians__bigNumber = math.bignumber( skewYInRadians__number );
+
+          const skewYInDegrees__number = math.number(ICUtils.radiansToDegrees(skewYInRadians__bigNumber));
+          logger.log("logICUtils", "calcShearMatrix", "skewYInDegrees__number:", skewYInDegrees__number);
+
+          const t__skewY = ICUtils.calcSkewMatrix({
+            skewYInRadians: skewYInRadians__bigNumber,
+          });
+          outMatrix = multiply(outMatrix, t__skewY);
+        }
+
+
+        //scale correction
+        // const t__shear = outMatrix;
+
+        // const dict_unitSquare                 = ICUtils.createDict_parallelogram__unitSquare();
+        // const dict_boundingRect__before_shear = dict_unitSquare;
+        
+        // const dict_unitSquare__after_shear    = ICUtils.transformDict_parallelogram(dict_unitSquare, t__shear);
+        // logger.log("logICUtils", "calcShearMatrix", "dict_unitSquare__after_shear:", ICUtils.numberize__dict(dict_unitSquare__after_shear));
+
+        // const dict_boundingRect__after_shear  = ICUtils.createDict_boundingRect(dict_unitSquare__after_shear);
+        // logger.log("logICUtils", "calcShearMatrix", "dict_boundingRect__after_shear:", ICUtils.numberize__dict(dict_boundingRect__after_shear));
+
+        // const dict_boundingRect__0_oriented__after_shear  = ICUtils.createDict_boudingRect__0_oriented(dict_unitSquare__after_shear);
+        // logger.log("logICUtils", "calcShearMatrix", "dict_boundingRect__0_oriented__after_shear:", ICUtils.numberize__dict(dict_boundingRect__0_oriented__after_shear));
+
+        // const t__scale__from_shear = ICUtils.composeMatrix({
+        //   scaleX: math.subtract( dict_boundingRect__0_oriented__after_shear.br.x , dict_boundingRect__0_oriented__after_shear.tl.x ),
+        //   scaleY: math.subtract( dict_boundingRect__0_oriented__after_shear.br.y , dict_boundingRect__0_oriented__after_shear.tl.y ),
+        // });
+        // const t__scale__correction = ICUtils.invertTransform(t__scale__from_shear);
+        // outMatrix = multiply(outMatrix, t__scale__correction);
+
+
+        return outMatrix;
       } 
       
-      static calcDimensionsMatrix(options) {
-        var scaleX = typeof options.scaleX === 'undefined' ? math.bignumber(1) : options.scaleX,
-            scaleY = typeof options.scaleY === 'undefined' ? math.bignumber(1) : options.scaleY,
-            scaleMatrix = ICUtils.bigNumberize__array([
-              options.flipX ? math.multiply(math.bignumber(-1), scaleX) : scaleX,
-              0,
-              0,
-              options.flipY ? math.multiply(math.bignumber(-1), scaleY) : scaleY,
-              0,
-              0,
-
-              0,
-              0,
-              0]),
-            multiply = ICUtils.multiplyTransformMatrices,
-            degreesToRadians = ICUtils.degreesToRadians;
-        if (options.skewXInDegrees || options.skewXInRadians) {
-          const skewX = options.skewXInRadians ? options.skewXInRadians : degreesToRadians(options.skewXInDegrees);
-          scaleMatrix = multiply( scaleMatrix, ICUtils.bigNumberize__array([1, 0, math.tan(skewX), 1, 0, 0,     0,skewX,0]) );
-        }
-        if (options.skewYInDegrees || options.skewYInRadians) {
-          const skewY = options.skewYInRadians ? options.skewYInRadians : degreesToRadians(options.skewYInDegrees);
-          scaleMatrix = multiply( scaleMatrix, ICUtils.bigNumberize__array([1, math.tan(skewY), 0, 1, 0, 0,     0,0,skewY]) );
-        }
-        return scaleMatrix;
-      } 
-
-      /*
-      static calcShearMatrix(options) {
-        var shearX = typeof options.shearX === 'undefined' ? math.bignumber(0) : options.shearX,
-            shearY = typeof options.shearY === 'undefined' ? math.bignumber(0) : options.shearY,
-            shearMatrix = ICUtils.bigNumberize__array([
-              1,
-              0,
-              0,
-              1,
-              0,
-              0,
-
-              0,
-              0,
-              0]);
-        return scaleMatrix;
-      } 
-      */
 
 
 
@@ -1190,120 +1262,140 @@
         return ICUtils.createDict_parallelogram__withRect(rect__unitSquare);
       } 
 
-
-      static createTransform__unitSquareToParallelogram(dict_parallelogram__dst) {
-        logger.log("logICUtils", "createTransform__uToP", "dict_parallelogram__dst:", ICUtils.numberize__dict(dict_parallelogram__dst));
+      static createIntrinsicRotationTransform(dict_parallelogram__dst) {
 
         const dict_point__dst = dict_parallelogram__dst;
 
-
         const dx__rotate = math.subtract( dict_point__dst.tr.x , dict_point__dst.tl.x ); 
         const dy__rotate = math.subtract( dict_point__dst.tr.y , dict_point__dst.tl.y );
-        const angleInRadians__number    = math.atan2( math.number(dy__rotate) , math.number(dx__rotate) );  //SHU: warning, maybe Decimal.js' precise atan2 will be needed at some point
+        const angleInRadians__number = math.atan2( math.number(dy__rotate) , math.number(dx__rotate) );  //SHU: warning, maybe Decimal.js' precise atan2 will be needed at some point
+        logger.log("logICUtils", "createTransform__uToP", "angleInRadians__number:", angleInRadians__number);
+
         const angleInRadians__bigNumber = math.bignumber( angleInRadians__number );
+        logger.log("logICUtils", "createTransform__uToP", "angleInRadians__bigNumber:", angleInRadians__bigNumber);
 
         const t__rotation = ICUtils.calcRotateMatrix({
           angleInRadians:   angleInRadians__bigNumber,
           // centerRot:        dict_point__dst.tl,
           centerRot:        {x: math.bignumber(0), y: math.bignumber(0)},
         });
-        logger.log("logICUtils", "createTransform__pToU", "t__rotation:", ICUtils.numberize__dict(t__rotation));
 
+        return t__rotation;
+      }
 
-        //compute skew with 0-oriented parallelogram
+      static createDict_boundingRect(dict_parallelogram__dst) {
+
+        const t__rotation     = ICUtils.createIntrinsicRotationTransform(dict_parallelogram__dst);
         const t__inv_rotation = ICUtils.invertTransform(t__rotation);
-        const dict_point__0_oriented = ICUtils.transformDict_parallelogram(dict_point__dst, t__inv_rotation);
-
-        //skew
-        const width__kindof  = math.subtract( dict_point__0_oriented.br.x , dict_point__0_oriented.tl.x);
-        const height__kindof = math.subtract( dict_point__0_oriented.br.y , dict_point__0_oriented.tl.y);
-        // const width__kindof  = math.subtract( dict_point__0_oriented.tr.x , dict_point__0_oriented.tl.x);
-        // const height__kindof = math.subtract( dict_point__0_oriented.bl.y , dict_point__0_oriented.tl.y);
-
-        // const shearX = math.subtract( dict_point__0_oriented.tl.x , dict_point__0_oriented.bl.x);
-        // const shearY = math.subtract( dict_point__0_oriented.tl.y , dict_point__0_oriented.tr.y); 
-        const shearX = math.subtract( dict_point__0_oriented.bl.x , dict_point__0_oriented.tl.x);
-        const shearY = math.subtract( dict_point__0_oriented.tr.y , dict_point__0_oriented.tl.y); 
         
-        const skewXInRadians = math.divide( shearX, height__kindof );
-        const skewYInRadians = math.divide( shearY, width__kindof  );
-        // const skewXInRadians = math.divide( shearX, width__kindof  );
-        // const skewYInRadians = math.divide( shearY, height__kindof );
+        const dict_point__0_oriented        = ICUtils.transformDict_parallelogram(dict_parallelogram__dst, t__inv_rotation);
 
-        const t__skew = ICUtils.composeMatrix({
-          skewXInRadians: skewXInRadians,
-          skewYInRadians: skewYInRadians,
-        });
+        const dict_boundingRect__0_oriented = ICUtils.createDict_boudingRect__0_oriented(dict_point__0_oriented);
 
-        //debug
-        // const t__skew = ICUtils.iMatrix9__bigNumber();
-        logger.log("logICUtils", "createTransform__pToU", "t__skew:", ICUtils.numberize__array(t__skew));
+        const dict_boundingRect             = ICUtils.transformDict_parallelogram(dict_boundingRect__0_oriented, t__rotation);
 
+        return dict_boundingRect;
+      }
 
-        //compute scale with 0-oriented parallelogram
-        //scale
-        const dict_point__skewed = ICUtils.transformDict_parallelogram(dict_point__0_oriented, t__skew);
+      static createDict_boudingRect__0_oriented(dict_parallelogram__0_oriented) {
 
-        const scaleX = math.subtract( dict_point__skewed.br.x , dict_point__skewed.tl.x);
-        const scaleY = math.subtract( dict_point__skewed.br.y , dict_point__skewed.tl.y);
+        const x   = math.min( dict_parallelogram__0_oriented.tl.x, dict_parallelogram__0_oriented.bl.x );
+        const xpw = math.max( dict_parallelogram__0_oriented.tr.x, dict_parallelogram__0_oriented.br.x );
 
-        // const scaleX = math.divide( math.subtract( dict_point__dst.br.x , dict_point__dst.tl.x) , math.subtract( dict_point__skewed.br.x , dict_point__skewed.tl.x) );
-        // const scaleY = math.divide( math.subtract( dict_point__dst.br.y , dict_point__dst.tl.y) , math.subtract( dict_point__skewed.br.x , dict_point__skewed.tl.x) );
+        const y   = math.min( dict_parallelogram__0_oriented.tl.y, dict_parallelogram__0_oriented.tr.y );
+        const yph = math.max( dict_parallelogram__0_oriented.bl.y, dict_parallelogram__0_oriented.br.y );
 
-        const t__scale = ICUtils.composeMatrix({
-          scaleX: scaleX,
-          scaleY: scaleY,
-        });
+        const dict_boundingRect__0_oriented = { 
+          tl: {x: x,   y: y   },
+          tr: {x: xpw, y: y   },
+          br: {x: xpw, y: yph },
+          bl: {x: x,   y: yph },
+        };
 
-        // const t__scale = ICUtils.iMatrix9__bigNumber();
-        logger.log("logICUtils", "createTransform__pToU", "t__scale:", ICUtils.numberize__array(t__scale));
+        return dict_boundingRect__0_oriented;
+      }
 
 
+      static createTransform__unitSquareToBoundingRect__0_oriented(dict_boundingRect__0_oriented) {
+        logger.log("logICUtils", "createTransform__uToBR", "dict_boundingRect__0_oriented:", ICUtils.numberize__dict(dict_boundingRect__0_oriented));
 
         //translate
-        const translateX = dict_point__dst.tl.x;
-        const translateY = dict_point__dst.tl.y;
-
         const t__translation = ICUtils.composeMatrix({
-          translateX: translateX,
-          translateY: translateY,
+          translateX: dict_boundingRect__0_oriented.tl.x,
+          translateY: dict_boundingRect__0_oriented.tl.y,
         });
-        logger.log("logICUtils", "createTransform__pToU", "t__translation:", ICUtils.numberize__dict(t__translation));
+        logger.log("logICUtils", "createTransform__uToBR", "t__translation:", ICUtils.numberize__dict(t__translation));
 
-
-
-
-
-
-
+        //scale
+        const width__boundingRect  = math.subtract( dict_boundingRect__0_oriented.br.x , dict_boundingRect__0_oriented.tl.x ); 
+        const height__boundingRect = math.subtract( dict_boundingRect__0_oriented.br.y , dict_boundingRect__0_oriented.tl.y ); 
+        const t__scale = ICUtils.composeMatrix({
+          scaleX: width__boundingRect,
+          scaleY: height__boundingRect,
+        });
+        logger.log("logICUtils", "createTransform__uToBR", "t__scale:", ICUtils.numberize__dict(t__scale));
 
 
         const multiply = ICUtils.multiplyTransformMatrices;
 
+        var matrix = t__translation;
+        matrix = multiply(matrix, t__scale);
 
-        //SHU: the order of transforms applied to object will be:
-        //  1. t__skew
-        //  2. t__scale
-        //  3. rotation
-        //  4. t__translation
-        const t__uToP = multiply( t__translation, multiply(t__rotation, multiply(t__scale, t__skew) ) );
+        const t__uToBR0 = matrix;
+        logger.log("logICUtils", "createTransform__uToBR", "t__uToBR0:", ICUtils.numberize__array(t__uToBR0));
 
-        logger.log("logICUtils", "createTransform__uToP", "t__uToP:", ICUtils.numberize__array(t__uToP));
-
-        // {
-        //   //test
-
-        //   const dict_unitSquare = ICUtils.createDict_parallelogram__unitSquare();
-          
-        //   const point__TL__parallelogrammed = ICUtils.transformPoint(dict_unitSquare.tl, t__uToP);
-        //   logger.log("logICUtils", "createTransform__pToU", "point__TL__parallelogrammed:", ICUtils.numberize__dict(point__TL__parallelogrammed));
-
-        //   const point__BR__parallelogrammed = ICUtils.transformPoint(dict_unitSquare.br, t__uToP);
-        //   logger.log("logICUtils", "createTransform__pToU", "point__BR__parallelogrammed:", ICUtils.numberize__dict(point__BR__parallelogrammed));
-        // }
+        return t__uToBR0;
+      }
 
 
-      
+      static createTransform__unitSquareToParallelogram(dict_parallelogram__dst) {
+        logger.log("logICUtils", "createTransform__uToP", "dict_parallelogram__dst:", ICUtils.numberize__dict(dict_parallelogram__dst));
+
+        const t__rotation     = ICUtils.createIntrinsicRotationTransform(dict_parallelogram__dst);
+        const t__inv_rotation = ICUtils.invertTransform(t__rotation);
+        
+        const dict_point__0_oriented        = ICUtils.transformDict_parallelogram(dict_parallelogram__dst, t__inv_rotation);
+        const dict_boundingRect__0_oriented = ICUtils.createDict_boudingRect__0_oriented(dict_point__0_oriented);
+
+        //compute shear with 0-oriented parallelogram
+        const shear_dX = math.subtract( dict_point__0_oriented.bl.x , dict_point__0_oriented.tl.x);
+        const shear_dY = math.subtract( dict_point__0_oriented.tr.y , dict_point__0_oriented.tl.y); 
+
+        const width__boundingRect  = math.subtract( dict_boundingRect__0_oriented.br.x , dict_boundingRect__0_oriented.tl.x);
+        const height__boundingRect = math.subtract( dict_boundingRect__0_oriented.br.y , dict_boundingRect__0_oriented.tl.y);
+
+        const shearX = math.divide( shear_dX , height__boundingRect );
+        const shearY = math.divide( shear_dY , width__boundingRect  );
+
+        logger.log("logICUtils", "createTransform__uToP", "dict_info:", ICUtils.numberize__dict({
+          dict_point__0_oriented: dict_point__0_oriented,
+
+          shear_dX: shear_dX,
+          shear_dY: shear_dY,
+
+          width__boundingRect:  width__boundingRect,
+          height__boundingRect: height__boundingRect,
+
+          shearX: shearX,
+          shearY: shearY,
+        }));
+        
+        
+        const t__shear = ICUtils.calcShearMatrix({
+          shearX: shearX,
+          shearY: shearY,
+        });
+        logger.log("logICUtils", "createTransform__uToP", "t__shear:", ICUtils.numberize__array(t__shear));
+
+
+        const multiply = ICUtils.multiplyTransformMatrices;
+
+        var matrix = ICUtils.createTransform__unitSquareToBoundingRect__0_oriented(dict_boundingRect__0_oriented);
+        matrix = multiply(matrix, t__shear);
+        matrix = multiply(matrix, t__rotation);
+
+        const t__uToP = matrix;
+
         return t__uToP;
       }
 
@@ -1311,7 +1403,7 @@
         logger.log("logICUtils", "createTransform__pToU", "dict_parallelogram__src:", ICUtils.numberize__dict(dict_parallelogram__src));
 
         const t__uToP = ICUtils.createTransform__unitSquareToParallelogram(dict_parallelogram__src);
-        
+
         const t__pToU = ICUtils.invertTransform(t__uToP);
 
         // {
@@ -33844,15 +33936,18 @@
 
       getTransform() {
         logger.log("logIC", "ICObject::getTransform", "this:", this);
+        var outMatrix;
 
-        const t__rotation = ICUtils.composeMatrix({
-          angleInDegrees: this.orientation,
-        });
+        const multiply = ICUtils.multiplyTransformMatrices; 
 
-        const t__skew = ICUtils.composeMatrix({
-          skewXInDegrees: this.skew.X,
-          skewYInDegrees: this.skew.Y,
+        const t__translation = ICUtils.composeMatrix({
+          translateX: this.position.x,
+          translateY: this.position.y,
         });
+        outMatrix = t__translation;
+
+        const t__homeScale = this.getHomeScaleTransform();  //main "infinite" mechanism
+        outMatrix = multiply(outMatrix, t__homeScale);
 
         const t__scale = ICUtils.composeMatrix({
           scaleX: this.scale.X,
@@ -33861,25 +33956,20 @@
           flipX: this.flip.X,
           flipY: this.flip.Y,
         });
+        outMatrix = multiply(outMatrix, t__scale);
 
-        const t__homeScale = this.getHomeScaleTransform();  //main "infinite" mechanism
-
-        const t__translation = ICUtils.composeMatrix({
-          translateX: this.position.x,
-          translateY: this.position.y,
+        const t__skew = ICUtils.composeMatrix({
+          skewXInDegrees: this.skew.X,
+          skewYInDegrees: this.skew.Y,
         });
+        outMatrix = multiply(outMatrix, t__skew);
 
-        //SHU: the order of transforms applied to object will be:
-        //  1. t__rotation
-        //  2. t__skew
-        //  2. t__scale
-        //  3. t__homeScale
-        //  4. t__translation
-        const multiply = ICUtils.multiplyTransformMatrices; 
+        const t__rotation = ICUtils.composeMatrix({
+          angleInDegrees: this.orientation,
+        });
+        outMatrix = multiply(outMatrix, t__rotation);
 
-        const t__obj = multiply(t__translation, multiply(t__homeScale, multiply( t__scale, multiply( t__skew , t__rotation ) ) ) );
-
-        return t__obj;
+        return outMatrix;
       }
 
       setTransform(t__obj__new) {
@@ -40970,8 +41060,7 @@
 
             var t__new = t.slice(0);
 
-            const t__scale = ICUtils.calcDimensionsMatrix({
-            // const t__scale = ICUtils.calcScaleMatrix({
+            const t__scale = ICUtils.calcScaleMatrix({
               scaleX: factor,
               scaleY: factor,
             });
@@ -117267,20 +117356,29 @@
               //   width:  size__canvas.width,
               //   height: size__canvas.height,
               // });
+
+              // const size__canvas = {
+              //   width:  666,
+              //   height: 666,
+              // };
+
               const trueRect__camera = ICUtils.bigNumberize__dict({
                 x:      0,
                 y:      0,
                 width:  300,
-                height: 500,
+                height: 300,
               });
               addRect(trueRect__camera, size__canvas, ColorUtils.rgbaColorStringForColorAndSuperOpacity("cyan", 0.3) );
 
 
               const dict_point__trueRect = ICUtils.createDict_parallelogram__withRect(trueRect__camera);
-              const shearX = math.bignumber(300);
-              // const shearY = math.bignumber(300);
-
+              // const shearX = math.bignumber(-1000);
+              // const shearX = math.bignumber(100);
+              const shearX = math.bignumber(-300);
               // const shearX = math.bignumber(0);
+
+              // const shearY = math.bignumber(300);
+              // const shearY = math.bignumber(100);
               const shearY = math.bignumber(0);
 
               const dict_point__sheared = createDict_point_withShearing(dict_point__trueRect, shearX, shearY);
