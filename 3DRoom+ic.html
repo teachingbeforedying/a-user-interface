@@ -1150,6 +1150,7 @@
         return outMatrix;
       } 
 
+
       static calcSkewMatrix(options) {
         var outMatrix;
 
@@ -1172,65 +1173,7 @@
       }
 
       
-      static calcShearMatrix(options) {
-        var outMatrix;
 
-        const options__bigNumber = ICUtils.bigNumberize__dict(options);
-        const multiply           = ICUtils.multiplyTransformMatrices;
-
-        outMatrix = ICUtils.iMatrix9__bigNumber();
-
-        if (options__bigNumber.shearX) {
-          const skewXInRadians__number    = math.atan2( math.number(options__bigNumber.shearX) , math.number(1) );  //SHU: warning, maybe Decimal.js' precise atan2 will be needed at some point
-          const skewXInRadians__bigNumber = math.bignumber( skewXInRadians__number );
-
-          const skewXInDegrees__number = math.number(ICUtils.radiansToDegrees(skewXInRadians__bigNumber));
-          logger.log("logICUtils", "calcShearMatrix", "skewXInDegrees__number:", skewXInDegrees__number);
-          
-          const t__skewX = ICUtils.calcSkewMatrix({
-            skewXInRadians: skewXInRadians__bigNumber,
-          });
-          outMatrix = multiply(outMatrix, t__skewX);
-        }
-        if (options__bigNumber.shearY) {
-          const skewYInRadians__number    = math.atan2( math.number(options__bigNumber.shearY) , math.number(1) );  //SHU: warning, maybe Decimal.js' precise atan2 will be needed at some point
-          const skewYInRadians__bigNumber = math.bignumber( skewYInRadians__number );
-
-          const skewYInDegrees__number = math.number(ICUtils.radiansToDegrees(skewYInRadians__bigNumber));
-          logger.log("logICUtils", "calcShearMatrix", "skewYInDegrees__number:", skewYInDegrees__number);
-
-          const t__skewY = ICUtils.calcSkewMatrix({
-            skewYInRadians: skewYInRadians__bigNumber,
-          });
-          outMatrix = multiply(outMatrix, t__skewY);
-        }
-
-
-        //scale correction
-        // const t__shear = outMatrix;
-
-        // const dict_unitSquare                 = ICUtils.createDict_parallelogram__unitSquare();
-        // const dict_boundingRect__before_shear = dict_unitSquare;
-        
-        // const dict_unitSquare__after_shear    = ICUtils.transformDict_parallelogram(dict_unitSquare, t__shear);
-        // logger.log("logICUtils", "calcShearMatrix", "dict_unitSquare__after_shear:", ICUtils.numberize__dict(dict_unitSquare__after_shear));
-
-        // const dict_boundingRect__after_shear  = ICUtils.createDict_boundingRect(dict_unitSquare__after_shear);
-        // logger.log("logICUtils", "calcShearMatrix", "dict_boundingRect__after_shear:", ICUtils.numberize__dict(dict_boundingRect__after_shear));
-
-        // const dict_boundingRect__0_oriented__after_shear  = ICUtils.createDict_boudingRect__0_oriented(dict_unitSquare__after_shear);
-        // logger.log("logICUtils", "calcShearMatrix", "dict_boundingRect__0_oriented__after_shear:", ICUtils.numberize__dict(dict_boundingRect__0_oriented__after_shear));
-
-        // const t__scale__from_shear = ICUtils.composeMatrix({
-        //   scaleX: math.subtract( dict_boundingRect__0_oriented__after_shear.br.x , dict_boundingRect__0_oriented__after_shear.tl.x ),
-        //   scaleY: math.subtract( dict_boundingRect__0_oriented__after_shear.br.y , dict_boundingRect__0_oriented__after_shear.tl.y ),
-        // });
-        // const t__scale__correction = ICUtils.invertTransform(t__scale__from_shear);
-        // outMatrix = multiply(outMatrix, t__scale__correction);
-
-
-        return outMatrix;
-      } 
       
 
 
@@ -1290,14 +1233,26 @@
         
         const dict_point__0_oriented        = ICUtils.transformDict_parallelogram(dict_parallelogram__dst, t__inv_rotation);
 
-        const dict_boundingRect__0_oriented = ICUtils.createDict_boudingRect__0_oriented(dict_point__0_oriented);
+        const dict_boundingRect__0_oriented = ICUtils.createDict_boudingRect__0_oriented__for__dict_parallelogram__0_oriented(dict_point__0_oriented);
 
         const dict_boundingRect             = ICUtils.transformDict_parallelogram(dict_boundingRect__0_oriented, t__rotation);
 
         return dict_boundingRect;
       }
 
-      static createDict_boudingRect__0_oriented(dict_parallelogram__0_oriented) {
+      static createDict_boudingRect__0_oriented(dict_parallelogram__dst) {
+
+        const t__rotation     = ICUtils.createIntrinsicRotationTransform(dict_parallelogram__dst);
+        const t__inv_rotation = ICUtils.invertTransform(t__rotation);
+
+        const dict_point__0_oriented        = ICUtils.transformDict_parallelogram(dict_parallelogram__dst, t__inv_rotation);
+
+        const dict_boundingRect__0_oriented = ICUtils.createDict_boudingRect__0_oriented__for__dict_parallelogram__0_oriented(dict_point__0_oriented);
+
+        return dict_boundingRect__0_oriented;
+      }
+
+      static createDict_boudingRect__0_oriented__for__dict_parallelogram__0_oriented(dict_parallelogram__0_oriented) {
 
         const x   = math.min( dict_parallelogram__0_oriented.tl.x, dict_parallelogram__0_oriented.bl.x );
         const xpw = math.max( dict_parallelogram__0_oriented.tr.x, dict_parallelogram__0_oriented.br.x );
@@ -1316,15 +1271,45 @@
       }
 
 
-      static createTransform__unitSquareToBoundingRect__0_oriented(dict_boundingRect__0_oriented) {
-        logger.log("logICUtils", "createTransform__uToBR", "dict_boundingRect__0_oriented:", ICUtils.numberize__dict(dict_boundingRect__0_oriented));
+
+      static createTransform__unitSquareToParallelogram00(dict_parallelogram__dst) {
+        logger.log("logICUtils", "createTransform__uToP", "dict_parallelogram__dst:", ICUtils.numberize__dict(dict_parallelogram__dst));
+
+        const t__pToU = ICUtils.createTransform__parallelogramToUnitSquare(dict_parallelogram__dst);
+        
+        const t__uToP = ICUtils.invertTransform(t__pToU);
+
+        {
+          //test
+          const dict_unitSquare = ICUtils.createDict_parallelogram__unitSquare();
+
+          const dict_unitSquare__after_uToP = ICUtils.transformDict_parallelogram(dict_unitSquare, t__uToP);
+          logger.log("logICUtils", "createTransform__uToP", "dict_unitSquare__after_uToP:", ICUtils.numberize__dict(dict_unitSquare__after_uToP));
+
+          logger.log("logICUtils", "createTransform__uToP", "dict_parallelogram__dst:", ICUtils.numberize__dict(dict_parallelogram__dst));
+        }
+        
+        return t__uToP;        
+      }
+
+      static createTransform__parallelogramToUnitSquare00(dict_parallelogram__src) {
+        logger.log("logICUtils", "createTransform__pToU", "dict_parallelogram__src:", ICUtils.numberize__dict(dict_parallelogram__src));
+
+        //rotate
+        const t__rotation     = ICUtils.createIntrinsicRotationTransform(dict_parallelogram__src);
+        const t__inv_rotation = ICUtils.invertTransform(t__rotation);
+        
+        const dict_point__0_oriented = ICUtils.transformDict_parallelogram(dict_parallelogram__src, t__inv_rotation);
+
 
         //translate
         const t__translation = ICUtils.composeMatrix({
           translateX: dict_boundingRect__0_oriented.tl.x,
           translateY: dict_boundingRect__0_oriented.tl.y,
         });
-        logger.log("logICUtils", "createTransform__uToBR", "t__translation:", ICUtils.numberize__dict(t__translation));
+        logger.log("logICUtils", "createTransform__pToU", "t__translation:", ICUtils.numberize__dict(t__translation));
+        const t__inv_translation = ICUtils.invertTransform(t__translation);
+
 
         //scale
         const width__boundingRect  = math.subtract( dict_boundingRect__0_oriented.br.x , dict_boundingRect__0_oriented.tl.x ); 
@@ -1333,19 +1318,199 @@
           scaleX: width__boundingRect,
           scaleY: height__boundingRect,
         });
-        logger.log("logICUtils", "createTransform__uToBR", "t__scale:", ICUtils.numberize__dict(t__scale));
+        logger.log("logICUtils", "createTransform__pToU", "t__scale:", ICUtils.numberize__dict(t__scale));
+        const t__inv_scale = ICUtils.invertTransform(t__scale);
+
+
+        //shear
+        function createShearTransform(dict_point__0_oriented, dict_boundingRect__0_oriented) {
+
+          const shear_dX = math.subtract( dict_point__0_oriented.bl.x , dict_point__0_oriented.tl.x);
+          const shear_dY = math.subtract( dict_point__0_oriented.tr.y , dict_point__0_oriented.tl.y); 
+  
+          const width__boundingRect  = math.subtract( dict_boundingRect__0_oriented.br.x , dict_boundingRect__0_oriented.tl.x);
+          const height__boundingRect = math.subtract( dict_boundingRect__0_oriented.br.y , dict_boundingRect__0_oriented.tl.y);
+  
+          const shearX = math.divide( math.divide( shear_dX , math.bignumber(2) ) , height__boundingRect );
+          const shearY = math.divide( math.divide( shear_dY , math.bignumber(2) ) , width__boundingRect  );
+  
+          logger.log("logICUtils", "createTransform__pToU", "dict_info:", ICUtils.numberize__dict({
+            dict_point__0_oriented: dict_point__0_oriented,
+  
+            shear_dX: shear_dX,
+            shear_dY: shear_dY,
+  
+            width__boundingRect:  width__boundingRect,
+            height__boundingRect: height__boundingRect,
+  
+            shearX: shearX,
+            shearY: shearY,
+          }));
+          
+          
+          const t__shear__center_based = ICUtils.calcShearMatrix({
+            shearX: shearX,
+            shearY: shearY,
+          });
+          logger.log("logICUtils", "createTransform__pToU", "t__shear__center_based:", ICUtils.numberize__array(t__shear__center_based));
+
+          return t__shear__center_based;
+
+
+
+
+
+          // const point__center = {
+          //   x: math.mean( dict_boundingRect__0_oriented.br.x , dict_boundingRect__0_oriented.tl.x ),
+          //   y: math.mean( dict_boundingRect__0_oriented.br.y , dict_boundingRect__0_oriented.tl.y ),
+          // };
+
+          // const t__translation = ICUtils.calcTranslateMatrix({
+          //   translateX: point__center.x, 
+          //   translateY: point__center.y,
+          // });
+          // const t__inv_translation = ICUtils.invertTransform(t__translation);
+          // logger.log("logICUtils", "createTransform__pToU", "createShearTransform:", "t__inv_translation:", ICUtils.numberize__array(t__inv_translation));
+  
+
+          // const point__center = {
+          //   x: math.mean( dict_boundingRect__0_oriented.br.x , dict_boundingRect__0_oriented.tl.x ),
+          //   y: math.mean( dict_boundingRect__0_oriented.br.y , dict_boundingRect__0_oriented.tl.y ),
+          // };
+
+          // const t__translation = ICUtils.calcTranslateMatrix({
+          //   translateX: point__center.x, 
+          //   translateY: point__center.y,
+          // });
+          // const t__inv_translation = ICUtils.invertTransform(t__translation);
+          // logger.log("logICUtils", "createTransform__pToU", "createShearTransform:", "t__inv_translation:", ICUtils.numberize__array(t__inv_translation));
+  
+
+          const t__translation = ICUtils.calcTranslateMatrix({
+            translateX: shear_dX, 
+            translateY: shear_dY,
+          });
+          const t__inv_translation = ICUtils.invertTransform(t__translation);
+          logger.log("logICUtils", "createTransform__pToU", "createShearTransform:", "t__inv_translation:", ICUtils.numberize__array(t__inv_translation));
+  
+
+
+
+          // const t__scale = ICUtils.calcScaleMatrix({
+          //   scaleX: math.divide( math.add(width__boundingRect,  math.abs(shear_dX) ) , width__boundingRect  ), 
+          //   scaleY: math.divide( math.add(height__boundingRect, math.abs(shear_dY) ) , height__boundingRect ),
+          // });
+          // const t__inv_scale = ICUtils.invertTransform(t__scale);
+          // logger.log("logICUtils", "createTransform__pToU", "createShearTransform:", "t__inv_scale:", ICUtils.numberize__array(t__inv_scale));
+          
+
+          // const t__scale = ICUtils.calcScaleMatrix({
+          //   scaleX: math.divide( math.add(width__boundingRect,  math.multiply( math.bignumber(2), math.abs(shear_dX)) ) , width__boundingRect  ), 
+          //   scaleY: math.divide( math.add(height__boundingRect, math.multiply( math.bignumber(2), math.abs(shear_dY)) ), height__boundingRect ),
+          // });
+          // const t__inv_scale = ICUtils.invertTransform(t__scale);
+          // logger.log("logICUtils", "createTransform__pToU", "createShearTransform:", "t__inv_scale:", ICUtils.numberize__array(t__inv_scale));
+
+
+          //debug
+          // const t__scale = ICUtils.calcScaleMatrix({
+          //   scaleX: math.bignumber(0.5), 
+          //   scaleY: math.bignumber(1),
+          // });
+          // const t__inv_scale = ICUtils.invertTransform(t__scale);
+          // logger.log("logICUtils", "createTransform__pToU", "createShearTransform:", "t__inv_scale:", ICUtils.numberize__array(t__inv_scale));
+          
+
+
+          
+          
+          
+          const multiply = ICUtils.multiplyTransformMatrices;
+          
+          // var matrix = t__inv_translation;
+          // matrix = multiply(matrix, t__shear__center_based);
+          // matrix = multiply(matrix, t__translation);
+
+          var matrix = t__shear__center_based;
+          matrix = multiply(matrix, t__inv_translation);
+
+
+
+
+          const dict_unitSquare                             = ICUtils.createDict_parallelogram__unitSquare();
+          const dict_boundingRect__0_oriented__before_shear = dict_unitSquare;
+          
+          const dict_unitSquare__after_shear = ICUtils.transformDict_parallelogram(dict_unitSquare, matrix);
+          logger.log("logICUtils", "createTransform__pToU", "createShearTransform:", "dict_unitSquare__after_shear:", ICUtils.numberize__dict(dict_unitSquare__after_shear));
+
+          const t__rotation     = ICUtils.createIntrinsicRotationTransform(dict_unitSquare__after_shear);
+          const t__inv_rotation = ICUtils.invertTransform(t__rotation);          
+          const dict_unitSquare__0_oriented__after_shear    = ICUtils.transformDict_parallelogram(dict_unitSquare__after_shear, t__inv_rotation);
+          const dict_boundingRect__0_oriented__after_shear  = ICUtils.createDict_boudingRect__0_oriented__for__dict_parallelogram__0_oriented(dict_unitSquare__0_oriented__after_shear);
+          logger.log("logICUtils", "createTransform__pToU", "createShearTransform:", "dict_boundingRect__0_oriented__after_shear:", ICUtils.numberize__dict(dict_boundingRect__0_oriented__after_shear));
+
+
+          const width__bR0__before_shear  = math.subtract( dict_boundingRect__0_oriented__before_shear.br.x , dict_boundingRect__0_oriented__before_shear.tl.x )
+          const height__bR0__before_shear = math.subtract( dict_boundingRect__0_oriented__before_shear.br.y , dict_boundingRect__0_oriented__before_shear.tl.y );
+
+          const width__bR0__after_shear  = math.subtract( dict_boundingRect__0_oriented__after_shear.br.x , dict_boundingRect__0_oriented__after_shear.tl.x );
+          const height__bR0__after_shear = math.subtract( dict_boundingRect__0_oriented__after_shear.br.y , dict_boundingRect__0_oriented__after_shear.tl.y );
+
+          const t__scale__from_shear = ICUtils.composeMatrix({
+            scaleX: math.divide( width__bR0__after_shear  , width__bR0__before_shear),
+            scaleY: math.divide( height__bR0__after_shear , height__bR0__before_shear),
+          });
+          const t__scale__correction = ICUtils.invertTransform(t__scale__from_shear);
+          logger.log("logICUtils", "createTransform__pToU", "createShearTransform:", "t__scale__correction:", ICUtils.numberize__array(t__scale__correction));
+
+
+
+
+
+
+
+          matrix = multiply(matrix, t__scale__correction);
+
+
+          const t__shear__tl_based = matrix;
+
+          return t__shear__tl_based;
+        }
+
+        const t__shear__tl_based = createShearTransform(dict_point__0_oriented, dict_boundingRect__0_oriented);
+
+        const t__inv_shear = ICUtils.invertTransform(t__shear__tl_based);
+
+
 
 
         const multiply = ICUtils.multiplyTransformMatrices;
 
-        var matrix = t__translation;
-        matrix = multiply(matrix, t__scale);
+        var matrix = t__inv_rotation;
+        // matrix = multiply(matrix, t__inv_translation);   //SHU: /!\ beware
+        // matrix = multiply(matrix, t__inv_scale);
+        // matrix = multiply(matrix, t__inv_shear);
+        matrix = multiply(t__inv_translation, matrix);
+        matrix = multiply(t__inv_scale, matrix);
+        matrix = multiply(t__inv_shear, matrix);
 
-        const t__uToBR0 = matrix;
-        logger.log("logICUtils", "createTransform__uToBR", "t__uToBR0:", ICUtils.numberize__array(t__uToBR0));
+        const t__pToU = matrix;
 
-        return t__uToBR0;
+        {
+          //test
+        
+          const point__TL__unitSquared = ICUtils.transformPoint(dict_parallelogram__src.tl, t__pToU);
+          logger.log("logICUtils", "createTransform__pToU", "point__TL__unitSquared:", ICUtils.numberize__dict(point__TL__unitSquared));
+        
+          const point__BR__unitSquared = ICUtils.transformPoint(dict_parallelogram__src.br, t__pToU);
+          logger.log("logICUtils", "createTransform__pToU", "point__BR__unitSquared:", ICUtils.numberize__dict(point__BR__unitSquared));
+        }
+
+        return t__pToU;
+
       }
+
+
 
 
       static createTransform__unitSquareToParallelogram(dict_parallelogram__dst) {
@@ -1355,44 +1520,75 @@
         const t__inv_rotation = ICUtils.invertTransform(t__rotation);
         
         const dict_point__0_oriented        = ICUtils.transformDict_parallelogram(dict_parallelogram__dst, t__inv_rotation);
-        const dict_boundingRect__0_oriented = ICUtils.createDict_boudingRect__0_oriented(dict_point__0_oriented);
 
-        //compute shear with 0-oriented parallelogram
-        const shear_dX = math.subtract( dict_point__0_oriented.bl.x , dict_point__0_oriented.tl.x);
-        const shear_dY = math.subtract( dict_point__0_oriented.tr.y , dict_point__0_oriented.tl.y); 
 
-        const width__boundingRect  = math.subtract( dict_boundingRect__0_oriented.br.x , dict_boundingRect__0_oriented.tl.x);
-        const height__boundingRect = math.subtract( dict_boundingRect__0_oriented.br.y , dict_boundingRect__0_oriented.tl.y);
+        const width__top   = math.subtract( dict_point__0_oriented.tr.x , dict_point__0_oriented.tl.x);
+        const height__left = math.subtract( dict_point__0_oriented.bl.y , dict_point__0_oriented.tl.y);
+        //scale
+        const t__scale = ICUtils.composeMatrix({
+          scaleX: width__top,
+          scaleY: height__left,
+        });
+        logger.log("logICUtils", "createTransform__uToP", "t__scale:", ICUtils.numberize__dict(t__scale));
+        const t__inv_scale = ICUtils.invertTransform(t__scale);
 
-        const shearX = math.divide( shear_dX , height__boundingRect );
-        const shearY = math.divide( shear_dY , width__boundingRect  );
+
+        //compute skew with 0-oriented unscaled parallelogram
+        const dict_point__0_oriented__unscaled = ICUtils.transformDict_parallelogram(dict_point__0_oriented, t__inv_scale);
+
+        const shear_dX = math.subtract( dict_point__0_oriented__unscaled.bl.x , dict_point__0_oriented__unscaled.tl.x);
+        const shear_dY = math.subtract( dict_point__0_oriented__unscaled.tr.y , dict_point__0_oriented__unscaled.tl.y); 
+
+        const width__top__unscaled   = math.subtract( dict_point__0_oriented__unscaled.tr.x , dict_point__0_oriented__unscaled.tl.x);
+        const height__left__unscaled = math.subtract( dict_point__0_oriented__unscaled.bl.y , dict_point__0_oriented__unscaled.tl.y);
+
+        const skewXInRadians__number    = math.atan2( math.number(shear_dX) , math.number(height__left__unscaled) );  //SHU: warning, maybe Decimal.js' precise atan2 will be needed at some point
+        const skewXInRadians__bigNumber = math.bignumber( skewXInRadians__number );
+
+        const skewYInRadians__number    = math.atan2( math.number(shear_dY) , math.number(width__top__unscaled) );  //SHU: warning, maybe Decimal.js' precise atan2 will be needed at some point
+        const skewYInRadians__bigNumber = math.bignumber( skewYInRadians__number );
 
         logger.log("logICUtils", "createTransform__uToP", "dict_info:", ICUtils.numberize__dict({
-          dict_point__0_oriented: dict_point__0_oriented,
+          dict_point__0_oriented__unscaled: dict_point__0_oriented__unscaled,
 
           shear_dX: shear_dX,
           shear_dY: shear_dY,
 
-          width__boundingRect:  width__boundingRect,
-          height__boundingRect: height__boundingRect,
+          width__top__unscaled:   width__top__unscaled,
+          height__left__unscaled: height__left__unscaled,
 
-          shearX: shearX,
-          shearY: shearY,
+          skewXInDegrees__number: math.number(ICUtils.radiansToDegrees(skewXInRadians__bigNumber)),
+          skewYInDegrees__number: math.number(ICUtils.radiansToDegrees(skewYInRadians__bigNumber)),
         }));
         
         
-        const t__shear = ICUtils.calcShearMatrix({
-          shearX: shearX,
-          shearY: shearY,
+        const t__skew = ICUtils.calcSkewMatrix({
+          skewXInRadians: skewXInRadians__bigNumber,
+          skewYInRadians: skewYInRadians__bigNumber,
         });
-        logger.log("logICUtils", "createTransform__uToP", "t__shear:", ICUtils.numberize__array(t__shear));
+        logger.log("logICUtils", "createTransform__uToP", "t__skew:", ICUtils.numberize__array(t__skew));
+
+
+
+        //translate
+        const t__translation = ICUtils.composeMatrix({
+          translateX: dict_point__0_oriented.tl.x,
+          translateY: dict_point__0_oriented.tl.y,
+        });
+        logger.log("logICUtils", "createTransform__uToP", "t__translation:", ICUtils.numberize__dict(t__translation));
+
+
+
+
+
 
 
         const multiply = ICUtils.multiplyTransformMatrices;
 
-        var matrix = ICUtils.createTransform__unitSquareToBoundingRect__0_oriented(dict_boundingRect__0_oriented);
-        matrix = multiply(matrix, t__shear);
+        var matrix = t__translation;
         matrix = multiply(matrix, t__rotation);
+        matrix = multiply(matrix, t__scale);
+        matrix = multiply(matrix, t__skew);
 
         const t__uToP = matrix;
 
@@ -1419,6 +1615,11 @@
 
         return t__pToU;
       }
+
+
+
+
+
 
 
       static createTransform__parallelogramToParallelogram(dict_parallelogram__src, dict_parallelogram__dst) {
@@ -109184,7 +109385,8 @@
             // this.debug_zPixel();
             // this.debug_activeSelection();
 
-            this.debug_camera();
+            // this.debug_camera();
+            this.debug_shear();
 
             // this.debug_construct();
 
@@ -117373,7 +117575,7 @@
 
               const dict_point__trueRect = ICUtils.createDict_parallelogram__withRect(trueRect__camera);
               // const shearX = math.bignumber(-1000);
-              // const shearX = math.bignumber(100);
+              // const shearX = math.bignumber(200);
               const shearX = math.bignumber(-300);
               // const shearX = math.bignumber(0);
 
@@ -117413,6 +117615,201 @@
               return ICUtils.numberize__dict(dict_truePoint);
             });
             logger.log("logAtelier", "debug_camera", "arr_dict_truePoint:", arr_dict_truePoint);
+            
+          }, 500);
+
+        }
+
+
+        debug_shear() {
+          const atelier        = this;
+          const infiniteCanvas = atelier.infiniteCanvas;
+          const icCamera       = infiniteCanvas.icCamera;
+          const cameraEngine   = icCamera.dict_engine["camera"].engine.awoken;
+
+          function createDict_point_withShearing(dict_point, shear_dX, shear_dY) {
+            var dict_point__new = Object.assign({}, dict_point);
+
+            //shear_dX (segment at bottom)
+            const t__shearX = ICUtils.composeMatrix({
+              translateX: shear_dX,
+            });
+            dict_point__new.bl = ICUtils.transformPoint(dict_point__new.bl, t__shearX);
+            dict_point__new.br = ICUtils.transformPoint(dict_point__new.br, t__shearX);
+
+            //shear_dY (segment at right)
+            const t__shearY = ICUtils.composeMatrix({
+              translateY: shear_dY,
+            });
+            dict_point__new.tr = ICUtils.transformPoint(dict_point__new.tr, t__shearY);
+            dict_point__new.br = ICUtils.transformPoint(dict_point__new.br, t__shearY);
+
+            return dict_point__new;
+          }
+
+          function addRect(trueRect, size, color = "black") {
+            const icRect = infiniteCanvas.createIcRect(trueRect, size);
+            icRect.fill = color;
+            logger.log("logAtelier", "debug_camera", "icRect:", icRect);
+  
+            infiniteCanvas.addIcObject(icRect);
+          }
+
+          {
+            const dict_uS = ICUtils.createDict_parallelogram__unitSquare();
+
+            const t__skew = ICUtils.calcSkewMatrix({
+              skewXInDegrees: 45,
+              skewYInDegrees: 0,
+            });
+
+            const dict_uS__skewed = ICUtils.transformDict_parallelogram(dict_uS, t__skew);
+            logger.log("logAtelier", "debug_shear", "dict_point__result001:", ICUtils.numberize__dict(dict_uS__skewed));
+
+
+            const t__scale = ICUtils.calcScaleMatrix({
+              scaleX: 3,
+              scaleY: 5,
+            });
+
+            const dict_uS__skewed__scaled = ICUtils.transformDict_parallelogram(dict_uS__skewed, t__scale);
+            logger.log("logAtelier", "debug_shear", "dict_point__result002:", ICUtils.numberize__dict(dict_uS__skewed__scaled));
+          }
+
+          {
+            const dict_uS = ICUtils.createDict_parallelogram__unitSquare();
+            const t__scale = ICUtils.calcScaleMatrix({
+              scaleX: 1,
+              scaleY: 2,
+            });
+            const dict_2S = ICUtils.transformDict_parallelogram(dict_uS, t__scale);
+
+            const t__skew = ICUtils.calcSkewMatrix({
+              skewXInDegrees: 45,
+              skewYInDegrees: 0,
+            });
+
+            const dict_2S__skewed = ICUtils.transformDict_parallelogram(dict_2S, t__skew);
+            logger.log("logAtelier", "debug_shear", "dict_point__result011:", ICUtils.numberize__dict(dict_2S__skewed));
+          }
+
+          {
+            const dict_uS = ICUtils.createDict_parallelogram__unitSquare();
+            const t__translation = ICUtils.calcTranslateMatrix({
+              translateX: 20,
+              translateY: 300,
+            });
+            const dict_uST = ICUtils.transformDict_parallelogram(dict_uS, t__translation);
+            logger.log("logAtelier", "debug_shear", "dict_point__result021:", ICUtils.numberize__dict(dict_uST));
+
+            const t__skew = ICUtils.calcSkewMatrix({
+              skewXInDegrees: 45,
+              skewYInDegrees: 0,
+            });
+
+            const dict_uST__skewed = ICUtils.transformDict_parallelogram(dict_uST, t__skew);
+            logger.log("logAtelier", "debug_shear", "dict_point__result022:", ICUtils.numberize__dict(dict_uST__skewed));
+          }
+
+
+
+          {
+            const size = infiniteCanvas.getCanvasSize();
+            // const size = {
+            //   width:  666,
+            //   height: 666,
+            // };
+  
+            // const trueRect = ICUtils.bigNumberize__dict({
+            //   x:      -260,
+            //   y:      -460,
+            //   width:  size.width,
+            //   height: size.height,
+            // });
+            // const trueRect = ICUtils.bigNumberize__dict({
+            //   x:      0,
+            //   y:      0,
+            //   width:  300,
+            //   height: 300,
+            // });
+            const trueRect = ICUtils.bigNumberize__dict({
+              x:      100,
+              y:      100,
+              width:  300,
+              height: 600,
+            });
+            addRect(trueRect, size, ColorUtils.rgbaColorStringForColorAndSuperOpacity("cyan", 0.3) );
+
+
+            const dict_point__trueRect = ICUtils.createDict_parallelogram__withRect(trueRect);
+            // const shear_dX = math.bignumber(-1000);
+            // const shear_dX = math.bignumber(200);
+            const shear_dX = math.bignumber(-400);
+            // const shear_dX = math.bignumber(0);
+
+            // const shear_dY = math.bignumber(300);
+            // const shear_dY = math.bignumber(100);
+            const shear_dY = math.bignumber(100);
+
+            const dict_point__sheared = createDict_point_withShearing(dict_point__trueRect, shear_dX, shear_dY);
+            logger.log("logAtelier", "debug_shear", "dict_point__sheared:", ICUtils.numberize__dict(dict_point__sheared));
+
+
+            {
+              const t__pToU = ICUtils.createTransform__parallelogramToUnitSquare(dict_point__sheared);
+              logger.log("logAtelier", "debug_shear", "t__pToU:", ICUtils.numberize__array(t__pToU));
+  
+              const dict_point__result1 = ICUtils.transformDict_parallelogram(dict_point__sheared, t__pToU);
+              logger.log("logAtelier", "debug_shear", "dict_point__result1:", ICUtils.numberize__dict(dict_point__result1));
+            }
+
+            {
+              const dict_point__unitSquare = ICUtils.createDict_parallelogram__unitSquare();
+              logger.log("logAtelier", "debug_shear", "dict_point__unitSquare:", ICUtils.numberize__dict(dict_point__unitSquare));
+  
+              const t__uToP = ICUtils.createTransform__unitSquareToParallelogram(dict_point__sheared);
+              logger.log("logAtelier", "debug_shear", "t__uToP:", ICUtils.numberize__array(t__uToP));
+  
+              const dict_point__result2 = ICUtils.transformDict_parallelogram(dict_point__unitSquare, t__uToP);
+              logger.log("logAtelier", "debug_shear", "dict_point__result2:", ICUtils.numberize__dict(dict_point__result2));
+            }
+
+
+
+
+
+
+
+
+
+
+
+            // Object.entries(dict_point__sheared).forEach(([_, truePoint]) => {
+            //   const trueRect__point = {
+            //     x: truePoint.x,
+            //     y: truePoint.y,
+            //     width:  10, 
+            //     height: 10,
+            //   };
+            //   addRect(trueRect__point, {width: 10, height: 10}, ColorUtils.rgbaColorStringForColorAndSuperOpacity("black", 0.3) );
+            // });
+
+            const icCamera__sheared = infiniteCanvas.createIcCamera_with__dict_parallelogram(dict_point__sheared, null);
+            icCamera__sheared.fill  =  ColorUtils.rgbaColorStringForColorAndSuperOpacity("magenta", 0.6) ;
+            infiniteCanvas.addIcObject(icCamera__sheared);
+
+
+          }
+
+          setTimeout(() => {
+
+            cameraEngine.log__debug("debug_shear");
+
+            const arr_dict_truePoint = infiniteCanvas.getArr_icObj("free").map((rep_free) => {
+              const dict_truePoint = rep_free.getDict_truePoint();
+              return ICUtils.numberize__dict(dict_truePoint);
+            });
+            logger.log("logAtelier", "debug_shear", "arr_dict_truePoint:", arr_dict_truePoint);
             
           }, 500);
 
