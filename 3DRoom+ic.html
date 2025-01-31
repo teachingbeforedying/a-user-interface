@@ -10070,11 +10070,11 @@
         // return this.createRepresentedIcObject(icObj);
       }
 
-      createIcObject_with__transform(type, size, transform) {
-        logger.log("logIC", "createIcObject_with__transform", type, size, ICUtils.numberize__array(transform));
+      createIcObject_with__transform(type, size, t__ic) {
+        logger.log("logIC", "createIcObject_with__transform", type, size, ICUtils.numberize__array(t__ic));
         const id = this.generateIcObjectId();
         const icObj = new IcObject(id, type, size);
-        icObj.setTransform(transform);
+        icObj.setIcTransform(t__ic);
 
         logger.log("logIC", "createIcObject_with__transform", "icObj:", icObj);
 
@@ -10086,18 +10086,9 @@
 
         const infiniteCanvas = this;
 
-        const rect__src = {
-          x:      0,
-          y:      0,
-          width:  size.width,
-          height: size.height,
-        };
-        // logger.log("logIC", "createIcObject_with__dict_parallelogram", "rect__src:", rect__src);
-        const rect__src__bigNumber    = ICUtils.bigNumberize__dict(rect__src);
-        const dict_parallelogram__src = ICUtils.createDict_parallelogram__withRect(rect__src__bigNumber);
-        const transform = ICUtils.createTransform__parallelogramToParallelogram(dict_parallelogram__src, dict_parallelogram__dst);
+        const t__ic = ICUtils.createTransform__unitSquareToParallelogram(dict_parallelogram__dst);
         
-        return this.createIcObject_with__transform(type, size, transform);
+        return this.createIcObject_with__transform(type, size, t__ic);
       }
 
       createIcObject_with__trueRect(type, size, trueRect) {
@@ -11019,7 +11010,7 @@
       }
 
       createIcCamera__clone(icCamera) {
-        const t__obj__camera = icCamera.getTransform();
+        const t__obj__camera = icCamera.getIcTransform();
         logger.log("logIC", "createIcCamera__clone", "t__obj__camera:", ICUtils.numberize__array(t__obj__camera));
         const size__camera   = icCamera.size;
         return this.createIcCamera_with__transform(t__obj__camera, size__camera);
@@ -33908,7 +33899,9 @@
         this.id        = id;
         this.type      = type;
 
-        this.size      = size;        //"information" size    //gives an idea of the sharpness/heavyness of the object
+        this.size      = size;        //"information" size    //gives an idea of the "real" sharpness/heavyness of the object
+
+
 
         this._position  = null;
         this.position  = position;    //{x: BigNumber, y: BigNumber}
@@ -34013,15 +34006,6 @@
         this.counter__path = 0;
       }
 
-      //_calcRotateMatrix() {
-      //  return util.calcRotateMatrix(this);
-      //}
-
-      //_calcTranslateMatrix() {
-      //  var center = this.getCenterPoint();
-      //  return [1, 0, 0, 1, center.x, center.y];
-      //}
-
 
       //debug
       get position() {
@@ -34080,6 +34064,15 @@
       }
 
 
+
+      getSizeTransform() {
+        const t__size = ICUtils.calcScaleMatrix({
+          scaleX: this.size.width,
+          scaleY: this.size.height,
+        });
+        return t__size;
+      }
+
       
       getHomeScaleTransform() {
         const t__homeScale__naive = ICUtils.composeMatrix({
@@ -34129,14 +34122,17 @@
 
         // this.didUpdate();
 
+        logger.log("logIC", "IcObject::configureWithOptionsDict", "this.skew:", ICUtils.numberize__dict(this.skew));
+
+
         return this;
       }
 
 
 
 
-      getTransform() {
-        logger.log("logIC", "ICObject::getTransform", "this:", this);
+      getIcTransform() { //not taking care of icObj.size
+        logger.log("logIC", "ICObject::getIcTransform", "this:", this);
         var outMatrix;
 
         const multiply = ICUtils.multiplyTransformMatrices; 
@@ -34170,11 +34166,14 @@
         });
         outMatrix = multiply(outMatrix, t__rotation);
 
+        // logger.log("logIC", "ICObject::getIcTransform", "outMatrix:", ICUtils.numberize__array(outMatrix) );
+
+
         return outMatrix;
       }
 
-      setTransform(t__obj__new) {
-        logger.trace("logIC", "ICObject::setTransform", ICUtils.numberize__array(t__obj__new));
+      setIcTransform(t__obj__new) {
+        logger.trace("logIC", "ICObject::setIcTransform", ICUtils.numberize__array(t__obj__new));
 
         if(t__obj__new.filter((elt) => !math.isBigNumber(elt)).length > 0) {
           throw new Error("t__obj__new is not bignumber-based");
@@ -34185,10 +34184,10 @@
       }
 
 
-      getHomeScaleFreeTransform() {    
+      getHomeScaleFreeIcTransform() {    
         logger.log("logIC", "ICObject::getHomeScaleFreeTransformTransform", "this:", this);
 
-        const t__obj = this.getTransform();
+        const t__obj = this.getIcTransform();
 
         const t__homeScale            = this.getHomeScaleTransform();
         const t__inverse_of_homeScale = ICUtils.invertTransform(t__homeScale);
@@ -34198,7 +34197,7 @@
         return t__obj__homeScaleFree;
       }
 
-      setHomeScaleFreeTransform(t__obj__homeScaleFree__new) {
+      setHomeScaleFreeIcTransform(t__obj__homeScaleFree__new) {
         logger.trace("logIC", "ICObject::setHomeScaleFreeTransform", ICUtils.numberize__array(t__obj__homeScaleFree__new));
 
         if(t__obj__homeScaleFree__new.filter((elt) => !math.isBigNumber(elt)).length > 0) {
@@ -34209,7 +34208,24 @@
 
         const t__obj__new  = ICUtils.multiplyTransformMatrices(t__obj__homeScaleFree__new, t__homeScale);
 
-        return this.setTransform(t__obj__new);
+        return this.setIcTransform(t__obj__new);
+      }
+
+
+      getFullTransform() {  //taking care of icObj.size
+        // logger.log("logIC", "ICObject::getFullTransform", "this:", this);
+
+        const t__icObj__size     = this.getSizeTransform();
+        const t__icObj__inv_size = ICUtils.invertTransform(t__icObj__size);
+
+        const t__icObj__ic       = this.getIcTransform();
+        logger.log("logIC", "ICObject::getFullTransform", "t__icObj__ic:", ICUtils.numberize__array(t__icObj__ic));
+
+        
+        const t__full = ICUtils.multiplyTransformMatrices(t__icObj__ic, t__icObj__inv_size);
+        // const t__full = ICUtils.multiplyTransformMatrices(t__icObj__inv_size, t__icObj__ic);
+
+        return t__full;
       }
 
 
@@ -34217,33 +34233,25 @@
 
 
 
-      getHomeScaleFreeOptions() {
-        const t__homeScale_free = this.getHomeScaleFreeTransform();
+      // getHomeScaleFreeOptions() {
+      //   const t__homeScale_free = this.getHomeScaleFreeTransform();
 
-        const options__homeScaleFree = ICUtils.decompose(t__homeScale_free);
-        logger.log("logICObject", "getHomeScaleFreeOptions", "options__homeScaleFree:", ICUtils.numberize__dict(options__homeScaleFree));
+      //   const options__homeScaleFree = ICUtils.decompose(t__homeScale_free);
+      //   logger.log("logICObject", "getHomeScaleFreeOptions", "options__homeScaleFree:", ICUtils.numberize__dict(options__homeScaleFree));
 
-        return options__homeScaleFree;
-      }
+      //   return options__homeScaleFree;
+      // }
+
 
       // getTrueRect() {} //not relevant (because obj can be a parallelogram and not a rect), use getDict_truePoint() instead
-
       getDict_truePoint() { //TL, TR, BR, BL
         const icObj = this;
 
-        const t__obj = icObj.getTransform();
+        const t__obj = icObj.getIcTransform();
 
-        const rect__naive = {
-          x:      0,
-          y:      0,
-          width:  icObj.size.width,
-          height: icObj.size.height,
-        };
-        const rect__naive__bigNumber = ICUtils.bigNumberize__dict(rect__naive);
+        const dict_unitSquare = ICUtils.createDict_parallelogram__unitSquare();
 
-        const dict_point__naive = ICUtils.createDict_parallelogram__withRect(rect__naive__bigNumber);
-
-        const dict_truePoint = ICUtils.transformDict_parallelogram(dict_point__naive, t__obj);
+        const dict_truePoint  = ICUtils.transformDict_parallelogram(dict_unitSquare, t__obj);
 
         return dict_truePoint;
       }
@@ -41227,13 +41235,13 @@
             return screenRect;
           };
 
-          this.toScreenTransform = function(trueTransform) {
+          this.toScreenTransform = function(t__full) {
             const t__eye = this.getCameraEyeTransform();
 
             //the order will be:
-            // 1. trueTransform
+            // 1. t__full
             // 2. t__eye
-            const screenTransform = ICUtils.multiplyTransformMatrices( t__eye , trueTransform);
+            const screenTransform = ICUtils.multiplyTransformMatrices( t__eye , t__full );
 
             return ICUtils.numberize__array(screenTransform);
           };
@@ -41243,14 +41251,25 @@
 
           //utils
 
-          this.createCameraEyeTransformFromCameraObjTransform = function(t__camera__obj) {
-            const t__camera__eye = ICUtils.invertTransform(t__camera__obj);
-            return t__camera__eye;
+          this.createCameraEyeTransformFromCameraObjTransform = function(t__obj__camera) {
+            const t__size__camera     = this.getCameraSizeTransform();
+            const t__inv_size__camera = ICUtils.invertTransform(t__size__camera);
+
+            const t__full__camera     = ICUtils.multiplyTransformMatrices(t__obj__camera, t__inv_size__camera);
+            
+            const t__eye = ICUtils.invertTransform(t__full__camera);
+            return t__eye;
           };
 
           this.createCameraObjTransformFromCameraEyeTransform = function(t__camera__eye) {
-            const t__camera__obj = ICUtils.invertTransform(t__camera__eye);
-            return t__camera__obj;
+            
+            const t__full__camera = ICUtils.invertTransform(t__camera__eye);
+            
+            const t__size__camera     = this.getCameraSizeTransform();
+
+            const t__obj = ICUtils.multiplyTransformMatrices(t__full__camera, t__size__camera);
+
+            return t__obj;
           };
 
 
@@ -41314,6 +41333,11 @@
 
           //control
 
+          this.getCameraSizeTransform = function() {
+            const icCamera  = this.scopeObj.engineCarrier;
+            return icCamera.getSizeTransform(); 
+          };
+
           this.getCameraEyeTransform = function() {
             const t__camera__obj = this.getCameraObjTransform();
             const t__camera__eye = this.createCameraEyeTransformFromCameraObjTransform(t__camera__obj);
@@ -41325,7 +41349,7 @@
           
           this.getCameraObjTransform = function() {
             const icCamera  = this.scopeObj.engineCarrier;
-            return icCamera.getTransform(); 
+            return icCamera.getIcTransform(); 
           };
 
           this.setCameraObjTransform = function(t__obj__new) {
@@ -41333,7 +41357,7 @@
             
             icCamera.pauseAllInnerUpdates();
 
-            const result = icCamera.setTransform(t__obj__new);
+            const result = icCamera.setIcTransform(t__obj__new);
             this.manageCameraUpdate();
 
             icCamera.resumeAllInnerUpdates();
@@ -55942,11 +55966,12 @@
 
           //icObj.transform__icObj  * [camera] --> fObj's transform
 
-          const icObj                = fObj.icObj;
-          const transform__icObj     = icObj.getTransform();
-          logger.log("logFI", "updateFabricObject_transform_default", "transform__icObj:", ICUtils.numberize__array(transform__icObj));
+          const icObj   = fObj.icObj;
+          const t__full = icObj.getFullTransform();   
+          
+          logger.log("logFI", "updateFabricObject_transform_default", "t__full:", ICUtils.numberize__array(t__full));
 
-          const screenTransform      = cameraEngine.toScreenTransform(transform__icObj);
+          const screenTransform = cameraEngine.toScreenTransform(t__full);
           logger.log("logFI", "updateFabricObject_transform_default", "screenTransform:", ICUtils.numberize__array(screenTransform));
 
 
@@ -117714,11 +117739,15 @@
 
 
           {
-            const size = infiniteCanvas.getCanvasSize();
+            // const size = infiniteCanvas.getCanvasSize();
             // const size = {
             //   width:  666,
             //   height: 666,
             // };
+            const size = {
+              width:  100,
+              height: 1000,
+            };
   
             // const trueRect = ICUtils.bigNumberize__dict({
             //   x:      -260,
@@ -117744,12 +117773,12 @@
             const dict_point__trueRect = ICUtils.createDict_parallelogram__withRect(trueRect);
             // const shear_dX = math.bignumber(-1000);
             // const shear_dX = math.bignumber(200);
-            const shear_dX = math.bignumber(-400);
+            const shear_dX = math.bignumber(300);
             // const shear_dX = math.bignumber(0);
 
             // const shear_dY = math.bignumber(300);
             // const shear_dY = math.bignumber(100);
-            const shear_dY = math.bignumber(100);
+            const shear_dY = math.bignumber(0);
 
             const dict_point__sheared = createDict_point_withShearing(dict_point__trueRect, shear_dX, shear_dY);
             logger.log("logAtelier", "debug_shear", "dict_point__sheared:", ICUtils.numberize__dict(dict_point__sheared));
@@ -117794,9 +117823,20 @@
             //   addRect(trueRect__point, {width: 10, height: 10}, ColorUtils.rgbaColorStringForColorAndSuperOpacity("black", 0.3) );
             // });
 
-            const icCamera__sheared = infiniteCanvas.createIcCamera_with__dict_parallelogram(dict_point__sheared, null);
+            // const icCamera__sheared = infiniteCanvas.createIcCamera_with__dict_parallelogram(dict_point__sheared, size);
+            const icCamera__sheared = infiniteCanvas.createIcCamera_with__dict_parallelogram(dict_point__trueRect, size);
             icCamera__sheared.fill  =  ColorUtils.rgbaColorStringForColorAndSuperOpacity("magenta", 0.6) ;
-            infiniteCanvas.addIcObject(icCamera__sheared);
+            infiniteCanvas.addIcObject_p(icCamera__sheared).then((rep_free) => {
+
+              setTimeout(() => {
+                const t__uToP = ICUtils.createTransform__unitSquareToParallelogram(dict_point__sheared);
+
+                rep_free.setIcTransform(t__uToP);
+  
+                infiniteCanvas.redrawCanvas(RedrawOccasion.forceRedraw);
+              }, 500);
+
+            });
 
 
           }
