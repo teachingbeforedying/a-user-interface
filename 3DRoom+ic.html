@@ -34065,13 +34065,13 @@
 
 
 
-      getSizeTransform() {
-        const t__size = ICUtils.calcScaleMatrix({
-          scaleX: this.size.width,
-          scaleY: this.size.height,
-        });
-        return t__size;
-      }
+      // getSizeTransform() {
+      //   const t__size = ICUtils.calcScaleMatrix({
+      //     scaleX: this.size.width,
+      //     scaleY: this.size.height,
+      //   });
+      //   return t__size;
+      // }
 
       
       getHomeScaleTransform() {
@@ -34212,23 +34212,28 @@
       }
 
 
-      getFullTransform() {  //taking care of icObj.size
-        // logger.log("logIC", "ICObject::getFullTransform", "this:", this);
+      // getFullTransform() {  //taking care of icObj.size
+      //   // logger.log("logIC", "ICObject::getFullTransform", "this:", this);
 
-        const t__icObj__size     = this.getSizeTransform();
-        const t__icObj__inv_size = ICUtils.invertTransform(t__icObj__size);
+      //   const t__icObj__size     = this.getSizeTransform();
+      //   const t__icObj__inv_size = ICUtils.invertTransform(t__icObj__size);
 
-        const t__icObj__ic       = this.getIcTransform();
-        logger.log("logIC", "ICObject::getFullTransform", "t__icObj__ic:", ICUtils.numberize__array(t__icObj__ic));
+      //   const t__icObj__ic       = this.getIcTransform();
+      //   logger.log("logIC", "ICObject::getFullTransform", "t__icObj__ic:", ICUtils.numberize__array(t__icObj__ic));
 
         
-        const t__full = ICUtils.multiplyTransformMatrices(t__icObj__ic, t__icObj__inv_size);
-        // const t__full = ICUtils.multiplyTransformMatrices(t__icObj__inv_size, t__icObj__ic);
+      //   const t__full = ICUtils.multiplyTransformMatrices(t__icObj__ic, t__icObj__inv_size);
+      //   // const t__full = ICUtils.multiplyTransformMatrices(t__icObj__inv_size, t__icObj__ic);
 
-        return t__full;
+      //   return t__full;
+      // }
+
+
+      updateWithTrueTransform(t__update) {
+        const t__ic__old = this.getIcTransform();
+        const t__ic__new = ICUtils.multiplyTransformMatrices(t__update, t__ic__old);
+        this.setIcTransform(t__ic__new);
       }
-
-
 
 
 
@@ -41151,9 +41156,11 @@
           //conversion
 
           this.toTruePointForTEye = function(screenPoint, t__eye) {
+            const t__inv_eye = ICUtils.invertTransform(t__eye);
+            
             const screenPoint__bigNumber = ICUtils.bigNumberize__point(screenPoint);
 
-            const truePoint  = ICUtils.transformPoint(screenPoint__bigNumber, ICUtils.invertTransform(t__eye));
+            const truePoint  = ICUtils.transformPoint(screenPoint__bigNumber, t__inv_eye);
             return truePoint;
           };
 
@@ -41186,17 +41193,19 @@
           };
 
           this.toTrueTransform = function(screenTransform) {
-            const screenTransform__bigNumber = ICUtils.bigNumberize__array(screenTransform);
+            const t__eye     = this.getCameraEyeTransform();
+            const t__inv_eye = ICUtils.invertTransform(t__eye);
 
-            const t__camera__obj = this.getCameraObjTransform();
+            const multiply = ICUtils.multiplyTransformMatrices;
 
-            //the order will be:
-            // 1. screenTransform__bigNumber
-            // 2. t__camera__obj
-            const trueTransform = ICUtils.multiplyTransformMatrices( t__camera__obj , screenTransform__bigNumber);
-
+            const trueTransform = multiply( t__inv_eye , multiply( screenTransform , ICUtils.invertTransform(t__inv_eye) ) );
+  
             return trueTransform;
           };
+
+
+
+
 
 
 
@@ -41235,98 +41244,26 @@
             return screenRect;
           };
 
-          this.toScreenTransform = function(t__full) {
+          this.toScreenTransform = function(trueTransform) {
+            const t__eye     = this.getCameraEyeTransform();
+            
+            const multiply = ICUtils.multiplyTransformMatrices;
+
+            const screenTransform = multiply( t__eye, multiply( trueTransform , ICUtils.invertTransform(t__eye) ) );
+
+            return screenTransform;
+          };
+
+
+
+
+          this.createTransformByApplyingCameraEyeTransform = function(trueTransform) {
             const t__eye = this.getCameraEyeTransform();
 
-            //the order will be:
-            // 1. t__full
-            // 2. t__eye
-            const screenTransform = ICUtils.multiplyTransformMatrices( t__eye , t__full );
+            const screenTransform = ICUtils.multiplyTransformMatrices( t__eye, trueTransform );
 
-            return ICUtils.numberize__array(screenTransform);
+            return screenTransform;
           };
-
-
-
-
-          //utils
-
-          this.createCameraEyeTransformFromCameraObjTransform = function(t__obj__camera) {
-            const t__size__camera     = this.getCameraSizeTransform();
-            const t__inv_size__camera = ICUtils.invertTransform(t__size__camera);
-
-            const t__full__camera     = ICUtils.multiplyTransformMatrices(t__obj__camera, t__inv_size__camera);
-            
-            const t__eye = ICUtils.invertTransform(t__full__camera);
-            return t__eye;
-          };
-
-          this.createCameraObjTransformFromCameraEyeTransform = function(t__camera__eye) {
-            
-            const t__full__camera = ICUtils.invertTransform(t__camera__eye);
-            
-            const t__size__camera     = this.getCameraSizeTransform();
-
-            const t__obj = ICUtils.multiplyTransformMatrices(t__full__camera, t__size__camera);
-
-            return t__obj;
-          };
-
-
-
-
-          this.createTransformByApplyingZoomFactor = function(t, factor) {
-            // logger.log("logCameraEngine", "createTransformByApplyingZoomFactor", "factor:", math.number(factor));
-
-            var t__new = t.slice(0);
-
-            const t__scale = ICUtils.calcScaleMatrix({
-              scaleX: factor,
-              scaleY: factor,
-            });
-
-            t__new = ICUtils.multiplyTransformMatrices(t__scale, t__new);
-            
-            return t__new;
-          };
-            
-          this.createTransformByApplyingScreenOffset = function(t, screenOffset) {
-            // logger.log("logCameraEngine", "createTransformByApplyingScreenOffset", "screenOffset:", {
-            //   dx: math.number(screenOffset.dx),
-            //   dy: math.number(screenOffset.dy),
-            // });
-            
-            var t__new = t.slice(0);
-
-            const t__translation = ICUtils.calcTranslateMatrix({
-              translateX: math.bignumber(screenOffset.dx),
-              translateY: math.bignumber(screenOffset.dy),
-            });
-
-            t__new = ICUtils.multiplyTransformMatrices(t__translation, t__new);
-            
-            return t__new;
-          };
-          
-          this.createTransformByApplyingScreenRotation = function(t, screenPoint__rotationCenter, angleInDegrees) {
-            // logger.log("logCameraEngine", "createTransformByApplyingScreenRotation", {
-            //   screenPoint__rotationCenter:  ICUtils.numberize__point(screenPoint__rotationCenter),
-            //   angleInDegrees:               math.number(angleInDegrees),
-            // });
-
-            var t__new = t.slice(0);
-            
-            const t__rotation = ICUtils.calcRotateMatrix({
-              angleInDegrees: math.bignumber(angleInDegrees),
-              centerRot:      ICUtils.bigNumberize__point(screenPoint__rotationCenter),
-            });
-
-            t__new = ICUtils.multiplyTransformMatrices(t__rotation, t__new);
-            
-            return t__new;
-          };
-
-
 
 
 
@@ -41334,15 +41271,30 @@
           //control
 
           this.getCameraSizeTransform = function() {
-            const icCamera  = this.scopeObj.engineCarrier;
+            const icCamera = this.scopeObj.engineCarrier;
             return icCamera.getSizeTransform(); 
           };
 
           this.getCameraEyeTransform = function() {
-            const t__camera__obj = this.getCameraObjTransform();
-            const t__camera__eye = this.createCameraEyeTransformFromCameraObjTransform(t__camera__obj);
+            const icCamera       = this.scopeObj.engineCarrier;
+            const infiniteCanvas = this.scopeObj.infiniteCanvas;
+
+            // canvas.getContext("2d").getTransform();
+            const size__canvas = infiniteCanvas.getCanvasSize();
+            const rect__canvas = ICUtils.bigNumberize__dict({
+              x:      0,
+              y:      0,
+              width:  size__canvas.width,
+              height: size__canvas.height, 
+            });
+            const dict_parallelogram__canvas = ICUtils.createDict_parallelogram__withRect(rect__canvas);
+            const dict_parallelogram__camera = icCamera.getDict_truePoint();
+            // logger.log("logCameraEngine", "getCameraEyeTransform", "dict_parallelogram__camera:", ICUtils.numberize__dict(dict_parallelogram__camera) );
+
+            const t__eye = ICUtils.createTransform__parallelogramToParallelogram(dict_parallelogram__camera, dict_parallelogram__canvas);
+            // logger.log("logCameraEngine", "getCameraEyeTransform", "t__eye:", ICUtils.numberize__array(t__eye) );
             
-            return t__camera__eye;
+            return t__eye;
           };
 
 
@@ -41358,6 +41310,20 @@
             icCamera.pauseAllInnerUpdates();
 
             const result = icCamera.setIcTransform(t__obj__new);
+            this.manageCameraUpdate();
+
+            icCamera.resumeAllInnerUpdates();
+
+            return result;
+          };
+
+          this.updateCameraObjTransform = function(trueTransform__update) {
+            logger.log("logCameraEngine", "updateCameraObjTransform", "trueTransform__update:", ICUtils.numberize__array(trueTransform__update));
+            const icCamera = this.scopeObj.engineCarrier; 
+            
+            icCamera.pauseAllInnerUpdates();
+
+            const result = icCamera.updateWithTrueTransform(trueTransform__update);
             this.manageCameraUpdate();
 
             icCamera.resumeAllInnerUpdates();
@@ -41389,15 +41355,21 @@
           //   return this.screenZoomToPointByFactor(screenPoint, factor);
           // };
 
-          this.screenZoomToPointByFactor = function(screenPoint, factor) {   //SHU: mystery: it works, but it's a mystery
+          this.screenZoomToPointByFactor = function(screenPoint, factor) {   
             logger.log("logIC", "IcCamera::screenZoomToPointByFactor", screenPoint, math.number(factor));
 
-            const factor__bigNumber = math.bignumber(factor);
+            const multiply = ICUtils.multiplyTransformMatrices;
     
             const t__eye__old = this.getCameraEyeTransform().slice(0);
 
             //manage zoom
-            var t__eye__new = this.createTransformByApplyingZoomFactor(t__eye__old, factor__bigNumber);
+            const t__scale = ICUtils.calcScaleMatrix(ICUtils.bigNumberize__dict({
+              scaleX: factor,
+              scaleY: factor,
+            }));
+            const t__inv_scale = ICUtils.invertTransform(t__scale);
+
+            var t__eye__new = multiply(t__scale, t__eye__old);
 
             //manage offset
             const screenPoint__before = screenPoint;
@@ -41406,15 +41378,20 @@
             const screenPoint__after = this.toScreenPointForTEye(truePoint__before, t__eye__new); 
     
             const screenOffset = {
-              dx: (screenPoint__before.x - screenPoint__after.x),
-              dy: (screenPoint__before.y - screenPoint__after.y),
+              dx: (screenPoint__after.x - screenPoint__before.x),
+              dy: (screenPoint__after.y - screenPoint__before.y),
             };
             // logger.log("logIC", "IcCamera::screenZoomToPointByFactor", "screenOffset:", screenOffset);
+            
+            const t__translation = ICUtils.calcTranslateMatrix(ICUtils.bigNumberize__dict({
+              translateX: screenOffset.dx,
+              translateY: screenOffset.dy,
+            }));
     
-            t__eye__new = this.createTransformByApplyingScreenOffset(t__eye__new, screenOffset);
+            const screenTransform = multiply( t__inv_scale, t__translation );
+            const t__ic__update   = this.toTrueTransform(screenTransform);  
 
-            const t__obj__new = this.createCameraObjTransformFromCameraEyeTransform(t__eye__new);
-            return this.setCameraObjTransform(t__obj__new);
+            return this.updateCameraObjTransform(t__ic__update);
           };
           
 
@@ -41440,25 +41417,33 @@
     
 
           this.screenPan = function(screenPoint__before, screenPoint__after) {
-            const t__eye__old = this.getCameraEyeTransform().slice(0);
-    
             const screenOffset = {
-              dx: math.subtract(screenPoint__after.x , screenPoint__before.x),
-              dy: math.subtract(screenPoint__after.y , screenPoint__before.y),
+              dx: math.subtract(screenPoint__before.x , screenPoint__after.x),
+              dy: math.subtract(screenPoint__before.y , screenPoint__after.y),
             };
-            const t__eye__new = this.createTransformByApplyingScreenOffset(t__eye__old, screenOffset);
 
-            const t__obj__new = this.createCameraObjTransformFromCameraEyeTransform(t__eye__new);
-            return this.setCameraObjTransform(t__obj__new);
+            const t__translation = ICUtils.calcTranslateMatrix(ICUtils.bigNumberize__dict({
+              translateX: screenOffset.dx,
+              translateY: screenOffset.dy,
+            }));
+    
+            const screenTransform = t__translation;
+            const t__ic__update   = this.toTrueTransform(screenTransform);  
+
+            return this.updateCameraObjTransform(t__ic__update);
           };
     
 
           this.screenRotate = function(screenPoint__rotationCenter, angleInDegrees) {
-            const t__eye__old = this.getCameraEyeTransform().slice(0);
-            const t__eye__new = this.createTransformByApplyingScreenRotation(t__eye__old, screenPoint__rotationCenter, angleInDegrees);
+            const t__rotation = ICUtils.calcRotateMatrix(ICUtils.bigNumberize__dict({
+              angleInDegrees: angleInDegrees,
+              centerRot:      screenPoint__rotationCenter,
+            }));
+    
+            const screenTransform = t__rotation;
+            const t__ic__update   = this.toTrueTransform(screenTransform);  
 
-            const t__obj__new = this.createCameraObjTransformFromCameraEyeTransform(t__eye__new);
-            return this.setCameraObjTransform(t__obj__new);
+            return this.updateCameraObjTransform(t__ic__update);
           };
 
 
@@ -50279,7 +50264,7 @@
             const position_screen = icObj.getScreenPositionWithoutOffset();
             // console.log("position_screen", position_screen);
             const homeSize_screen = icObj.getHomeScreenSize();
-            // console.log("homeSize_screen", homeSize_screen);
+            logger.log("homeSize_screen", homeSize_screen);
   
             fObj.set({
               left: position_screen.x,    //SHU: ??? where is infiniteCanvas.offset taking part ???
@@ -50761,6 +50746,7 @@
 
             width:  homeSize_screen.width,
             height: homeSize_screen.height,
+
 
             scaleX: icObj.scale.X,
             scaleY: icObj.scale.Y,
@@ -54728,20 +54714,18 @@
           const fabricIntegration = this;
 
           const infiniteCanvas = fabricIntegration.infiniteCanvas;
-          const fabricCanvas = fabricIntegration.fabricCanvas;
+          const fabricCanvas   = fabricIntegration.fabricCanvas;
 
-          var isScaling = false;
+          var isScaling          = false;
           var original_homeScale = null;
-          var original_scale = null;
+          var original_scale     = null;
 
           function doResize(fObj, options) {
 
             const original = options.transform.original;
-            const target = options.transform.target;
+            const target   = options.transform.target;
 
             if (!isScaling) {
-              original_homeScale = Object.assign({}, target.icObj.homeScale);
-              // console.log("original_homeScale", original_homeScale);
               original_scale = Object.assign({}, target.icObj.scale);
 
               isScaling = true;
@@ -54750,165 +54734,175 @@
             const scaleFactorX = target.scaleX / original.scaleX;
             const scaleFactorY = target.scaleY / original.scaleY;
 
+            const t__scale = ICUtils.calcScaleMatrix({
+              scaleX: scaleFactorX,
+              scaleY: scaleFactorY,
+            });
+
+            icObj.updateWithTrueTransform(t__scale);
+
+
+
+
             const scaleFactor = {
               X: scaleFactorX,
               Y: scaleFactorY,
             };
             console.log("scaleFactor", scaleFactor);
 
-            switch (options.transform.action) {
-
-              case "scale":
-                handle_proportionnal_scale();
-                break;
-
-              case "scaleX":
-              case "scaleY":
-                handle_axis_scale();
-                // handle_proportionnal_scale();
 
 
-                break;
-            }
+            // switch (options.transform.action) {
 
-            function handle_proportionnal_scale() {
+            //   case "scale":
+            //     handle_proportionnal_scale();
+            //     break;
 
-              const icObj = fObj.icObj;
+            //   case "scaleX":
+            //   case "scaleY":
+            //     handle_axis_scale();
 
-              var homeScale_new;
+            //     break;
+            // }
 
-              // if(fObj instanceof fabric.Text) {
+            // function handle_proportionnal_scale() {
 
-              // const fontSize_fObj = fObj.fontSize;
-              // const scaleFactor__fontSize = fObj.fontSize / icObj.fontSize;
-              //
-              // homeScale_new = {
-              //   X: original_homeScale.X,
-              //   Y: scale.Y / scale_fObj.Y / scaleFactor__fontSize,
-              // };
+            //   const icObj = fObj.icObj;
 
-              // } else {
+            //   var homeScale_new;
 
-              homeScale_new = {
-                X: original_homeScale.X / scaleFactor.X,
-                Y: original_homeScale.Y / scaleFactor.Y,
-              };
+            //   // if(fObj instanceof fabric.Text) {
 
-              // }
-              console.log("homeScale_new", homeScale_new);
+            //   // const fontSize_fObj = fObj.fontSize;
+            //   // const scaleFactor__fontSize = fObj.fontSize / icObj.fontSize;
+            //   //
+            //   // homeScale_new = {
+            //   //   X: original_homeScale.X,
+            //   //   Y: scale.Y / scale_fObj.Y / scaleFactor__fontSize,
+            //   // };
 
-              const icObj_update = {
-                homeScale: homeScale_new,
-              };
+            //   // } else {
 
-              const icObj_new = Object.assign({}, icObj);
-              Object.assign(icObj_new, icObj_update);
+            //   homeScale_new = {
+            //     X: original_homeScale.X / scaleFactor.X,
+            //     Y: original_homeScale.Y / scaleFactor.Y,
+            //   };
 
-              icObj.update(icObj_new, false);
+            //   // }
+            //   console.log("homeScale_new", homeScale_new);
 
+            //   const icObj_update = {
+            //     homeScale: homeScale_new,
+            //   };
 
+            //   const icObj_new = Object.assign({}, icObj);
+            //   Object.assign(icObj_new, icObj_update);
 
-              //update position
-              {
-
-                const fObj_pos = {
-                  x: fObj.left,
-                  y: fObj.top,
-                };
-
-                const position_update = infiniteCanvas.toTruePoint(fObj_pos);
-
-                const icObj_new = Object.assign({}, icObj);
-                Object.assign(icObj_new.position, position_update);
-
-                icObj.update(icObj_new, false);
-
-              }
-
-              // //update flipX
-              // {
-              //   const flipX_update = fObj.flipX;
-              //
-              //   const icObj_new = Object.assign({}, icObj);
-              //   Object.assign(icObj_new.flipX, flipX_update);
-              //
-              //   icObj.update(icObj_new, false);
-              // }
-
-
-            }
-
-            function handle_axis_scale() {
-
-              const icObj = fObj.icObj;
-
-              var scale_new;
-
-              // if(fObj instanceof fabric.Text) {
-
-              // const fontSize_fObj = fObj.fontSize;
-              // const scaleFactor__fontSize = fObj.fontSize / icObj.fontSize;
-              //
-              // homeScale_new = {
-              //   X: original_homeScale.X,
-              //   Y: scale.Y / scale_fObj.Y / scaleFactor__fontSize,
-              // };
-
-              // } else {
-
-              scale_new = {
-                X: original_scale.X * scaleFactor.X,
-                Y: original_scale.Y * scaleFactor.Y,
-              };
-
-              // }
-              console.log("scale_new", scale_new);
-
-              const icObj_update = {
-                scale: scale_new,
-              };
-
-              const icObj_new = Object.assign({}, icObj);
-              Object.assign(icObj_new, icObj_update);
-
-              icObj.update(icObj_new, false);
+            //   icObj.update(icObj_new, false);
 
 
 
+            //   //update position
+            //   {
 
-              //update position
-              {
+            //     const fObj_pos = {
+            //       x: fObj.left,
+            //       y: fObj.top,
+            //     };
 
-                const fObj_pos = {
-                  x: fObj.left,
-                  y: fObj.top,
-                };
+            //     const position_update = infiniteCanvas.toTruePoint(fObj_pos);
 
-                const position_update = infiniteCanvas.toTruePoint(fObj_pos);
+            //     const icObj_new = Object.assign({}, icObj);
+            //     Object.assign(icObj_new.position, position_update);
 
-                const icObj_new = Object.assign({}, icObj);
-                Object.assign(icObj_new.position, position_update);
+            //     icObj.update(icObj_new, false);
 
-                icObj.update(icObj_new, false);
+            //   }
 
-              }
-
-              //update flipX
-              {
-                const flip_update = {
-                  X: (fObj.flipX != null) ? fObj.flipX : false,
-                  Y: (fObj.flipY != null) ? fObj.flipY : false,
-                };
-
-                const icObj_new = Object.assign({}, icObj);
-                Object.assign(icObj_new.flip, flip_update);
-
-                icObj.update(icObj_new, false);
-              }
+            //   // //update flipX
+            //   // {
+            //   //   const flipX_update = fObj.flipX;
+            //   //
+            //   //   const icObj_new = Object.assign({}, icObj);
+            //   //   Object.assign(icObj_new.flipX, flipX_update);
+            //   //
+            //   //   icObj.update(icObj_new, false);
+            //   // }
 
 
+            // }
 
-            }
+            // function handle_axis_scale() {
+
+            //   const icObj = fObj.icObj;
+
+            //   var scale_new;
+
+            //   // if(fObj instanceof fabric.Text) {
+
+            //   // const fontSize_fObj = fObj.fontSize;
+            //   // const scaleFactor__fontSize = fObj.fontSize / icObj.fontSize;
+            //   //
+            //   // homeScale_new = {
+            //   //   X: original_homeScale.X,
+            //   //   Y: scale.Y / scale_fObj.Y / scaleFactor__fontSize,
+            //   // };
+
+            //   // } else {
+
+            //   scale_new = {
+            //     X: original_scale.X * scaleFactor.X,
+            //     Y: original_scale.Y * scaleFactor.Y,
+            //   };
+
+            //   // }
+            //   console.log("scale_new", scale_new);
+
+            //   const icObj_update = {
+            //     scale: scale_new,
+            //   };
+
+            //   const icObj_new = Object.assign({}, icObj);
+            //   Object.assign(icObj_new, icObj_update);
+
+            //   icObj.update(icObj_new, false);
+
+
+
+
+            //   //update position
+            //   {
+
+            //     const fObj_pos = {
+            //       x: fObj.left,
+            //       y: fObj.top,
+            //     };
+
+            //     const position_update = infiniteCanvas.toTruePoint(fObj_pos);
+
+            //     const icObj_new = Object.assign({}, icObj);
+            //     Object.assign(icObj_new.position, position_update);
+
+            //     icObj.update(icObj_new, false);
+
+            //   }
+
+            //   //update flipX
+            //   {
+            //     const flip_update = {
+            //       X: (fObj.flipX != null) ? fObj.flipX : false,
+            //       Y: (fObj.flipY != null) ? fObj.flipY : false,
+            //     };
+
+            //     const icObj_new = Object.assign({}, icObj);
+            //     Object.assign(icObj_new.flip, flip_update);
+
+            //     icObj.update(icObj_new, false);
+            //   }
+
+
+
+            // }
 
           }
 
@@ -55967,17 +55961,26 @@
           //icObj.transform__icObj  * [camera] --> fObj's transform
 
           const icObj   = fObj.icObj;
-          const t__full = icObj.getFullTransform();   
-          
-          logger.log("logFI", "updateFabricObject_transform_default", "t__full:", ICUtils.numberize__array(t__full));
 
-          const screenTransform = cameraEngine.toScreenTransform(t__full);
+          const t__ic = icObj.getIcTransform();   
+          logger.log("logFI", "updateFabricObject_transform_default", "t__ic:", ICUtils.numberize__array(t__ic));
+
+          const screenTransform = cameraEngine.createTransformByApplyingCameraEyeTransform(t__ic);
           logger.log("logFI", "updateFabricObject_transform_default", "screenTransform:", ICUtils.numberize__array(screenTransform));
 
+          const t__size__fObj = ICUtils.calcScaleMatrix({
+            scaleX: fObj.width,
+            scaleY: fObj.height,
+          });
+          const t__inv_size__fObj = ICUtils.invertTransform(t__size__fObj);
+          const fTransform        = ICUtils.numberize__array(ICUtils.multiplyTransformMatrices(screenTransform, t__inv_size__fObj));
+          logger.log("logFI", "updateFabricObject_transform_default", "fTransform:", ICUtils.numberize__array(fTransform));
 
-          function applyScreenTransformToFObj(fObj, screenTransform) {
 
-            const options = ICUtils.numberize__dict(ICUtils.decompose(screenTransform));
+
+          function applyFTransformToFObj(fObj, fTransform) {
+
+            const options = ICUtils.numberize__dict(ICUtils.decompose(fTransform));
             logger.log("logFI", "applyTransformToFObj", "options:",         options);
 
             const screenPoint__TL = new fabric.Point(options.translateX, options.translateY);
@@ -56022,7 +56025,8 @@
             fObj.setCoords();
           }
 
-          applyScreenTransformToFObj(fObj, screenTransform);
+          applyFTransformToFObj(fObj, fTransform);
+
 
           // fabricIntegration.fabricCanvas.requestRenderAll();
         }
@@ -109410,8 +109414,8 @@
             // this.debug_zPixel();
             // this.debug_activeSelection();
 
-            // this.debug_camera();
-            this.debug_shear();
+            this.debug_camera();
+            // this.debug_shear();
 
             // this.debug_construct();
 
@@ -117628,6 +117632,21 @@
 
           }
 
+          {
+            const trueTransform__1 = ICUtils.composeMatrix({
+              translateX: 1,
+              translateY: 1,
+            });
+            const screenTransform__1 = cameraEngine.toScreenTransform(trueTransform__1);
+            logger.log("logAtelier", "debug_camera", {
+              trueTransform__1:   ICUtils.numberize__array(trueTransform__1),
+              screenTransform__1: ICUtils.numberize__array(screenTransform__1),
+            });
+            
+            
+            
+          }
+
 
           setTimeout(() => {
             // const arr_trueRect = infiniteCanvas.getArr_icObj("free").map((rep_free) => ICUtils.numberize__dict(rep_free.getTrueRect()));
@@ -117637,9 +117656,20 @@
 
             const arr_dict_truePoint = infiniteCanvas.getArr_icObj("free").map((rep_free) => {
               const dict_truePoint = rep_free.getDict_truePoint();
-              return ICUtils.numberize__dict(dict_truePoint);
+              return dict_truePoint;
             });
-            logger.log("logAtelier", "debug_camera", "arr_dict_truePoint:", arr_dict_truePoint);
+            logger.log("logAtelier", "debug_camera", "arr_dict_truePoint:", arr_dict_truePoint.map(ICUtils.numberize__dict));
+
+
+            const arr_dict_screenPoint = arr_dict_truePoint.map((dict_truePoint) => {
+              const t__eye            = cameraEngine.getCameraEyeTransform();
+              const t__true_to_screen = ICUtils.invertTransform(t__eye);
+
+              const dict_screenPoint  = ICUtils.transformDict_parallelogram(dict_truePoint, t__true_to_screen);
+              return dict_screenPoint;
+            });
+            logger.log("logAtelier", "debug_camera", "arr_dict_screenPoint:", arr_dict_screenPoint.map(ICUtils.numberize__dict));
+
             
           }, 500);
 
@@ -117847,9 +117877,19 @@
 
             const arr_dict_truePoint = infiniteCanvas.getArr_icObj("free").map((rep_free) => {
               const dict_truePoint = rep_free.getDict_truePoint();
-              return ICUtils.numberize__dict(dict_truePoint);
+              return dict_truePoint;
             });
-            logger.log("logAtelier", "debug_shear", "arr_dict_truePoint:", arr_dict_truePoint);
+            logger.log("logAtelier", "debug_shear", "arr_dict_truePoint:", arr_dict_truePoint.map(ICUtils.numberize__dict));
+
+            const arr_dict_screenPoint = arr_dict_truePoint.map((dict_truePoint) => {
+              const t__eye            = cameraEngine.getCameraEyeTransform();
+              const t__true_to_screen = ICUtils.invertTransform(t__eye);
+
+              const dict_screenPoint  = ICUtils.transformDict_parallelogram(dict_truePoint, t__true_to_screen);
+              return dict_screenPoint;
+            });
+            logger.log("logAtelier", "debug_shear", "arr_dict_screenPoint:", arr_dict_screenPoint.map(ICUtils.numberize__dict));
+
             
           }, 500);
 
