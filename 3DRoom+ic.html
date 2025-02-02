@@ -1103,7 +1103,7 @@
 
         outMatrix = ICUtils.iMatrix9__bigNumber();
 
-        if (options__bigNumber.angleInDegrees && options__bigNumber.angleInRadians) {
+        if (options__bigNumber.angleInDegrees || options__bigNumber.angleInRadians) {
 
           const angleInRadians = options__bigNumber.angleInRadians ? options__bigNumber.angleInRadians : ICUtils.degreesToRadians(options__bigNumber.angleInDegrees);
           const cos = math.bignumber( math.cos( math.number(angleInRadians) ) );  //SHU: warning, maybe Decimal.js' precise cos will be needed at some point
@@ -1117,7 +1117,10 @@
 
           if(options.centerRot) {
             // logger.log("logICUtils", "options.centerRot:", options.centerRot);
-            const t__translation__leave = ICUtils.calcTranslateMatrix({translateX: options.centerRot.x, translateY: options.centerRot.y});
+            const t__translation__leave = ICUtils.calcTranslateMatrix({
+              translateX: options__bigNumber.centerRot.x, 
+              translateY: options__bigNumber.centerRot.y,
+            });
             // logger.log("logICUtils", "t__translation__leave:", ICUtils.numberize__array(t__translation__leave));
 
             const t__translation__enter = ICUtils.invertTransform(t__translation__leave);
@@ -33923,14 +33926,20 @@
 
 
         //refinement using controls
-        this.scale = {
+        this._scale = null;
+        this._scale__debug = null;
+        this.scale = ICUtils.bigNumberize__dict({
           X: 1.0,
           Y: 1.0,
-        };
-        this.skew = {
+        });
+
+        this._skew = null;
+        this._skew__debug = null;
+        this.skew = ICUtils.bigNumberize__dict({
           X: 0,
           Y: 0,
-        };
+        });
+
         this.flip = {
           X: false,
           Y: false,
@@ -33967,6 +33976,7 @@
         this.canBeMoved    = true;
         this.canBeRotated  = true;
         this.canBeResized  = true;
+        this.canBeSkewed   = true;
         this.canBeSelected = true;
 
         this.canBeHeld = true;
@@ -34061,6 +34071,34 @@
         this._orientation        = orientation__new;
 
         this._orientation__debug = math.number(orientation__new);
+      }
+
+
+
+      get scale() {
+        return this._scale;
+      }
+
+      set scale(scale__new) {  
+        logger.log("logIC", "ICObject::set scale", "scale__new:", ICUtils.numberize__dict(scale__new));
+
+        this._scale = scale__new;
+
+        this._scale__debug = ICUtils.numberize__dict(scale__new);
+      }
+
+
+
+      get skew() {
+        return this._skew;
+      }
+
+      set skew(skew__new) {  
+        logger.log("logIC", "ICObject::set skew", "skew__new:", ICUtils.numberize__dict(skew__new));
+
+        this._skew = skew__new;
+
+        this._skew__debug = ICUtils.numberize__dict(skew__new);
       }
 
 
@@ -41435,13 +41473,25 @@
     
 
           this.screenRotate = function(screenPoint__rotationCenter, angleInDegrees) {
-            const t__rotation = ICUtils.calcRotateMatrix(ICUtils.bigNumberize__dict({
+            const options__bigNumber = ICUtils.bigNumberize__dict({
               angleInDegrees: angleInDegrees,
               centerRot:      screenPoint__rotationCenter,
-            }));
+            });
+            logger.log("logIC", "IcCamera::screenRotate", "options:", ICUtils.numberize__dict(options__bigNumber));
+
+            const t__rotation = ICUtils.calcRotateMatrix(options__bigNumber);
+            logger.log("logIC", "IcCamera::screenRotate", "t__rotation:", ICUtils.numberize__dict(t__rotation));
     
             const screenTransform = t__rotation;
-            const t__ic__update   = this.toTrueTransform(screenTransform);  
+            const t__ic__update   = this.toTrueTransform(screenTransform); 
+
+            // const t__rotation = ICUtils.calcRotateMatrix(ICUtils.bigNumberize__dict({
+            //   angleInDegrees: angleInDegrees,
+            //   centerRot:      this.toTruePoint(screenPoint__rotationCenter),
+            // }));
+            // logger.log("logIC", "IcCamera::screenRotate", "t__rotation:", ICUtils.numberize__dict(t__rotation));
+
+            // const t__ic__update   = t__rotation; 
 
             return this.updateCameraObjTransform(t__ic__update);
           };
@@ -47821,6 +47871,34 @@
             };
           };
 
+          // fabric.Object.prototype._calcTranslateMatrix__TL = function() {
+          //   // var center = this.getCenterPoint();
+          //   // return [1, 0, 0, 1, center.x, center.y];
+          //   return [1, 0, 0, 1, this.left, this.top];
+          // };
+
+          // fabric.Object.prototype.calcOwnMatrix = function() {
+          //   var key = this.transformMatrixKey(true), cache = this.ownMatrixCache || (this.ownMatrixCache = {});
+          //   if (cache.key === key) {
+          //     return cache.value;
+          //   }
+          //   var tMatrix = this._calcTranslateMatrix__TL(),
+          //       options = {
+          //         angle: this.angle,
+          //         translateX: tMatrix[4],
+          //         translateY: tMatrix[5],
+          //         scaleX: this.scaleX,
+          //         scaleY: this.scaleY,
+          //         skewX: this.skewX,
+          //         skewY: this.skewY,
+          //         flipX: this.flipX,
+          //         flipY: this.flipY,
+          //       };
+          //   cache.key = key;
+          //   cache.value = fabric.util.composeMatrix(options);
+          //   return cache.value;
+          // };
+
 
           // // fabricjs group - always show border
           // fabric.Group.prototype.initialize = (function (initialize) {
@@ -49527,6 +49605,9 @@
           if (icObj.canBeRotated) {
             this.addInteraction_rotate(fObj);
           }
+          if (icObj.canBeSkewed) {
+            this.addInteraction_skew(fObj);
+          }
 
           this.addInteraction_select(fObj);
           // this.addListeners(fObj);
@@ -50341,7 +50422,9 @@
             if (icObj.canBeRotated) {
               this.addInteraction_rotate(fObj);
             }
-  
+            if (icObj.canBeSkewed) {
+              this.addInteraction_skew(fObj);
+            }
   
             this.addInteraction_select(fObj);
             // this.addListeners(fObj);
@@ -54750,160 +54833,6 @@
             };
             console.log("scaleFactor", scaleFactor);
 
-
-
-            // switch (options.transform.action) {
-
-            //   case "scale":
-            //     handle_proportionnal_scale();
-            //     break;
-
-            //   case "scaleX":
-            //   case "scaleY":
-            //     handle_axis_scale();
-
-            //     break;
-            // }
-
-            // function handle_proportionnal_scale() {
-
-            //   const icObj = fObj.icObj;
-
-            //   var homeScale_new;
-
-            //   // if(fObj instanceof fabric.Text) {
-
-            //   // const fontSize_fObj = fObj.fontSize;
-            //   // const scaleFactor__fontSize = fObj.fontSize / icObj.fontSize;
-            //   //
-            //   // homeScale_new = {
-            //   //   X: original_homeScale.X,
-            //   //   Y: scale.Y / scale_fObj.Y / scaleFactor__fontSize,
-            //   // };
-
-            //   // } else {
-
-            //   homeScale_new = {
-            //     X: original_homeScale.X / scaleFactor.X,
-            //     Y: original_homeScale.Y / scaleFactor.Y,
-            //   };
-
-            //   // }
-            //   console.log("homeScale_new", homeScale_new);
-
-            //   const icObj_update = {
-            //     homeScale: homeScale_new,
-            //   };
-
-            //   const icObj_new = Object.assign({}, icObj);
-            //   Object.assign(icObj_new, icObj_update);
-
-            //   icObj.update(icObj_new, false);
-
-
-
-            //   //update position
-            //   {
-
-            //     const fObj_pos = {
-            //       x: fObj.left,
-            //       y: fObj.top,
-            //     };
-
-            //     const position_update = infiniteCanvas.toTruePoint(fObj_pos);
-
-            //     const icObj_new = Object.assign({}, icObj);
-            //     Object.assign(icObj_new.position, position_update);
-
-            //     icObj.update(icObj_new, false);
-
-            //   }
-
-            //   // //update flipX
-            //   // {
-            //   //   const flipX_update = fObj.flipX;
-            //   //
-            //   //   const icObj_new = Object.assign({}, icObj);
-            //   //   Object.assign(icObj_new.flipX, flipX_update);
-            //   //
-            //   //   icObj.update(icObj_new, false);
-            //   // }
-
-
-            // }
-
-            // function handle_axis_scale() {
-
-            //   const icObj = fObj.icObj;
-
-            //   var scale_new;
-
-            //   // if(fObj instanceof fabric.Text) {
-
-            //   // const fontSize_fObj = fObj.fontSize;
-            //   // const scaleFactor__fontSize = fObj.fontSize / icObj.fontSize;
-            //   //
-            //   // homeScale_new = {
-            //   //   X: original_homeScale.X,
-            //   //   Y: scale.Y / scale_fObj.Y / scaleFactor__fontSize,
-            //   // };
-
-            //   // } else {
-
-            //   scale_new = {
-            //     X: original_scale.X * scaleFactor.X,
-            //     Y: original_scale.Y * scaleFactor.Y,
-            //   };
-
-            //   // }
-            //   console.log("scale_new", scale_new);
-
-            //   const icObj_update = {
-            //     scale: scale_new,
-            //   };
-
-            //   const icObj_new = Object.assign({}, icObj);
-            //   Object.assign(icObj_new, icObj_update);
-
-            //   icObj.update(icObj_new, false);
-
-
-
-
-            //   //update position
-            //   {
-
-            //     const fObj_pos = {
-            //       x: fObj.left,
-            //       y: fObj.top,
-            //     };
-
-            //     const position_update = infiniteCanvas.toTruePoint(fObj_pos);
-
-            //     const icObj_new = Object.assign({}, icObj);
-            //     Object.assign(icObj_new.position, position_update);
-
-            //     icObj.update(icObj_new, false);
-
-            //   }
-
-            //   //update flipX
-            //   {
-            //     const flip_update = {
-            //       X: (fObj.flipX != null) ? fObj.flipX : false,
-            //       Y: (fObj.flipY != null) ? fObj.flipY : false,
-            //     };
-
-            //     const icObj_new = Object.assign({}, icObj);
-            //     Object.assign(icObj_new.flip, flip_update);
-
-            //     icObj.update(icObj_new, false);
-            //   }
-
-
-
-            // }
-
           }
 
           const icObj = fObj.icObj;
@@ -54911,76 +54840,37 @@
           fObj.on('scaling', function (options) {
             console.log("scaling", "options", options);
 
-            switch (icObj.type) {
-              case "composite":
-                doResize(fObj, options);
-                Object.values(icObj.parts).forEach((icObj__part, i) => {
-                  const fObj__part = fabricIntegration.getFObjForIcObj(icObj__part);
-                  doResize(fObj__part, options);
-                });
-                break;
-              default:
-                doResize(fObj, options);
-                break;
-            }
+            // switch (icObj.type) {
+            //   case "composite":
+            //     doResize(fObj, options);
+            //     Object.values(icObj.parts).forEach((icObj__part, i) => {
+            //       const fObj__part = fabricIntegration.getFObjForIcObj(icObj__part);
+            //       doResize(fObj__part, options);
+            //     });
+            //     break;
+            //   default:
+            //     doResize(fObj, options);
+            //     break;
+            // }
 
           });
-          fObj.on('scaled', function (options) {
-            console.log("scaled", "options", options);
-            isScaling = false;
+          // fObj.on('modified', function (options) {
+          //   logger.log("scaled", "options:", options);
 
-            /*
-            const original = options.transform.original;
-            const target   = options.transform.target;
+          //   const original = options.transform.original;
+          //   const target   = options.transform.target;
 
-            const scaleFactorX = target.scaleX / original.scaleX;
-            const scaleFactorY = target.scaleY / original.scaleY;
+          //   const scaleFactorX = target.scaleX / original.scaleX;
+          //   const scaleFactorY = target.scaleY / original.scaleY;
 
-            const scaleFactor = {
-              X: scaleFactorX,
-              Y: scaleFactorY,
-            };
-            console.log("scaleFactor", scaleFactor);
+          //   const t__scale = ICUtils.calcScaleMatrix({
+          //     scaleX: scaleFactorX,
+          //     scaleY: scaleFactorY,
+          //   });
 
+          //   icObj.updateWithTrueTransform(t__scale);
 
-            const icObj = fObj.icObj;
-
-            var homeScale_new;
-
-            if(fObj instanceof fabric.Text) {
-
-              // const fontSize_fObj = fObj.fontSize;
-              // const scaleFactor__fontSize = fObj.fontSize / icObj.fontSize;
-              //
-              // homeScale_new = {
-              //   X: scale.X / scale_fObj.X / scaleFactor__fontSize,
-              //   Y: scale.Y / scale_fObj.Y / scaleFactor__fontSize,
-              // };
-
-            } else {
-
-              homeScale_new = {
-                X: original_homeScale.X / scaleFactor.X,
-                Y: original_homeScale.Y / scaleFactor.Y,
-              };
-
-            }
-            console.log("homeScale_new", homeScale_new);
-
-
-            const icObj_update = {
-              homeScale: homeScale_new,
-            };
-
-            const icObj_new = Object.assign({}, icObj);
-            Object.assign(icObj_new, icObj_update);
-
-            icObj.update(icObj_new, false);
-            */
-
-            original_homeScale = null;
-
-          });
+          // });
 
         }
 
@@ -55060,6 +54950,34 @@
 
         }
 
+        addInteraction_skew(fObj) {
+          logger.log("logFI", "addInteraction_skew", "fObj:", fObj);
+
+          fObj.on('skewing', function (options) {
+            logger.log("logFI", "addInteraction_skew", "'skewing'", "options:", options);
+
+          });
+
+          fObj.on('modified', function (options) {
+            logger.log("logFI", "addInteraction_skew", "'modified'", "options:", options);
+
+            // const original = options.transform.original;
+            const target   = options.transform.target;
+
+            const skew__new = ICUtils.bigNumberize__dict({
+              X: target.skewX,
+              Y: target.skewY,
+            });
+
+            const icObj = fObj.icObj;
+
+            icObj.skew = skew__new;
+
+          });
+
+
+        }
+
 
         addInteraction_select(fObj) {
 
@@ -55106,6 +55024,8 @@
           // });
 
         }
+
+        
 
         addInteraction_hold(fObj) {
           // logger.trace("addInteraction_hold", fObj);
@@ -56015,9 +55935,13 @@
             fObj.flipY = options.flipY;
 
 
+            //fabric's skew are relative to canvas's size
+            {
+              fObj.skewX = options.skewX;
+              fObj.skewY = options.skewY;
+            }
 
-            fObj.skewX = options.skewX;
-            fObj.skewY = options.skewY;
+
 
             fObj.angle = options.angle;
 

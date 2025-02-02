@@ -15867,6 +15867,7 @@ transform: function(ctx) {
 				0 lib/fabric+controls.js
 
 01 février 2025:
+la foi dans les maths
 				1 try to resize skewed object using controls and see what happens
 
 ****			1 /!\ /!\ toScreenTransform is not the same as applyCameraEyeTransform... /!\ /!\
@@ -15876,7 +15877,118 @@ transform: function(ctx) {
 
 **	0 sometimes screenPoint__bigNumber could be used (no need to lose precision)
 
+https://fabric5.fabricjs.com/events
 
+				0 bug: skewing "born with a skew" fObj does not trigger event:skewing or event modified
+				1 icObj._skew (debug)
+>>>				0 bug: screenPan, screenRotate, screenZoom: screenPan is bizarre after a slight rotation (quelque chose de pas clair encore)
+					1X maybe rotation somehow is not "taken" by icObj__camera
+					
+				0! fabric's skew takes viewport into account, it's not absolute
+>>>					//fabric's skew are relative to canvas's size
+				0 lib/fabric+mySkew.js
+					0 compensateScaleForSkew
+					0  if (totalSkewSize < 2) {...} -> ' '
+
+<) fabric also had its hard time with skew:
+
+  /**
+   * Utility function to compensate the scale factor when skew is applied on both axes
+   * @private
+   */
+  function compensateScaleForSkew(target, oppositeSkew, scaleToCompensate, axis, reference) {
+    if (target[oppositeSkew] !== 0) {
+      var newDim = target._getTransformedDimensions()[axis];
+      var newValue = reference / newDim * target[scaleToCompensate];
+      target.set(scaleToCompensate, newValue);
+    }
+  }
+
+  /**
+   * Action handler for skewing on the X axis
+   * @private
+   */
+  function skewObjectX(eventData, transform, x, y) {
+    var target = transform.target,
+        // find how big the object would be, if there was no skewX. takes in account scaling
+        dimNoSkew = target._getTransformedDimensions(0, target.skewY),
+        localPoint = getLocalPoint(transform, transform.originX, transform.originY, x, y),
+        // the mouse is in the center of the object, and we want it to stay there.
+        // so the object will grow twice as much as the mouse.
+        // this makes the skew growth to localPoint * 2 - dimNoSkew.
+        totalSkewSize = Math.abs(localPoint.x * 2) - dimNoSkew.x,
+        currentSkew = target.skewX, newSkew;
+    if (totalSkewSize < 2) {
+      // let's make it easy to go back to position 0.
+      newSkew = 0;
+    }
+    else {
+      newSkew = radiansToDegrees(
+        Math.atan2((totalSkewSize / target.scaleX), (dimNoSkew.y / target.scaleY))
+      );
+      // now we have to find the sign of the skew.
+      // it mostly depend on the origin of transformation.
+      if (transform.originX === LEFT && transform.originY === BOTTOM) {
+        newSkew = -newSkew;
+      }
+      if (transform.originX === RIGHT && transform.originY === TOP) {
+        newSkew = -newSkew;
+      }
+      if (targetHasOneFlip(target)) {
+        newSkew = -newSkew;
+      }
+    }
+    var hasSkewed = currentSkew !== newSkew;
+    if (hasSkewed) {
+      var dimBeforeSkewing = target._getTransformedDimensions().y;
+      target.set('skewX', newSkew);
+      compensateScaleForSkew(target, 'skewY', 'scaleY', 'y', dimBeforeSkewing);
+    }
+    return hasSkewed;
+  }
+
+  /**
+   * Action handler for skewing on the Y axis
+   * @private
+   */
+  function skewObjectY(eventData, transform, x, y) {
+    var target = transform.target,
+        // find how big the object would be, if there was no skewX. takes in account scaling
+        dimNoSkew = target._getTransformedDimensions(target.skewX, 0),
+        localPoint = getLocalPoint(transform, transform.originX, transform.originY, x, y),
+        // the mouse is in the center of the object, and we want it to stay there.
+        // so the object will grow twice as much as the mouse.
+        // this makes the skew growth to localPoint * 2 - dimNoSkew.
+        totalSkewSize = Math.abs(localPoint.y * 2) - dimNoSkew.y,
+        currentSkew = target.skewY, newSkew;
+    if (totalSkewSize < 2) {
+      // let's make it easy to go back to position 0.
+      newSkew = 0;
+    }
+    else {
+      newSkew = radiansToDegrees(
+        Math.atan2((totalSkewSize / target.scaleY), (dimNoSkew.x / target.scaleX))
+      );
+      // now we have to find the sign of the skew.
+      // it mostly depend on the origin of transformation.
+      if (transform.originX === LEFT && transform.originY === BOTTOM) {
+        newSkew = -newSkew;
+      }
+      if (transform.originX === RIGHT && transform.originY === TOP) {
+        newSkew = -newSkew;
+      }
+      if (targetHasOneFlip(target)) {
+        newSkew = -newSkew;
+      }
+    }
+    var hasSkewed = currentSkew !== newSkew;
+    if (hasSkewed) {
+      var dimBeforeSkewing = target._getTransformedDimensions().x;
+      target.set('skewY', newSkew);
+      compensateScaleForSkew(target, 'skewX', 'scaleX', 'x', dimBeforeSkewing);
+    }
+    return hasSkewed;
+  }
 
 .	
 
