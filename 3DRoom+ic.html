@@ -1050,6 +1050,61 @@
         return options;
       }
 
+      /*
+      static qrDecompose(a) {
+        // var angle = atan2(a[1], a[0]),
+        //     denom = pow(a[0], 2) + pow(a[1], 2),
+        //     scaleX = sqrt(denom),
+        //     scaleY = (a[0] * a[3] - a[2] * a[1]) / scaleX,
+        //     skewX = atan2(a[0] * a[2] + a[1] * a [3], denom);
+        // return {
+        //   angle: angle / PiBy180,
+        //   scaleX: scaleX,
+        //   scaleY: scaleY,
+        //   skewX: skewX / PiBy180,
+        //   skewY: 0,
+        //   translateX: a[4],
+        //   translateY: a[5]
+        // };
+
+        const PiBy180 = math.pi / 180;
+        const atan2 = math.atan2;
+
+        var angle  = atan2(math.number(a[1]), math.number(a[0])),  //SHU: warning, maybe Decimal.js' precise atan2 will be needed at some point
+
+            denom  = math.add( math.pow(a[0], math.bignumber(2)) , math.pow(a[1], math.bignumber(2) ) ),
+            scaleX = math.sqrt(denom),
+            scaleY = math.divide( math.subtract( math.multiply(a[0],a[3]) , math.multiply(a[2], a[1]) ) , scaleX),
+
+            skewX  = atan2( math.number( math.add( math.multiply(a[0],a[2]) , math.multiply(a[1], a[3]) ) ) , math.number(denom) ); //SHU: warning, maybe Decimal.js' precise atan2 will be needed at some point
+
+        var flipX = (math.number(math.sign(scaleX)) < 0);
+        scaleX    = math.abs(scaleX);
+
+        var flipY = (math.number(math.sign(scaleY)) < 0);
+        scaleY    = math.abs(scaleY);
+
+        const factScale = math.max(scaleX, scaleY);
+        scaleX = math.divide(scaleX,factScale);
+        scaleY = math.divide(scaleY,factScale);
+
+
+        return {
+          angle: ICUtils.radiansToDegrees(math.bignumber(angle)),    //"imprecise"
+          scaleX: scaleX,
+          scaleY: scaleY,
+          skewX: ICUtils.radiansToDegrees(math.bignumber(skewX)),    //"imprecise"
+          skewY: math.bignumber(0),                 
+          translateX: a[4],
+          translateY: a[5],
+          
+          factScale: factScale,
+          flipX: flipX,
+          flipY: flipY,
+        };
+
+      }
+      */
 
 
 
@@ -30170,7 +30225,9 @@
 
         const icCamera       = infiniteCanvas.icCamera;
         const cameraEngine   = icCamera.dict_engine["camera"].engine.awoken; 
-        cameraEngine.reset__rotate();
+
+        const screenPoint__rotationCenter = infiniteCanvas.getScreenCenterPoint();
+        cameraEngine.screenRotate__reset(screenPoint__rotationCenter);
       }
 
 
@@ -34029,6 +34086,8 @@
         }
 
         const options = ICUtils.decompose(t__obj__new);
+        // const options = ICUtils.qrDecompose(t__obj__new);
+
         return this.configureWithOptionsDict(options);
       }
 
@@ -41080,23 +41139,6 @@
             return t_ic;
           };
 
-          this.transferCanvasToTrue = function(canvasTransform) {
-            const icCamera = this.scopeObj.engineCarrier;
-            const infiniteCanvas = this.scopeObj.infiniteCanvas;
-
-            const size__canvas = ICUtils.bigNumberize__dict(infiniteCanvas.getCanvasSize());
-            const t__canvas = ICUtils.calcScaleMatrix({
-              scaleX: size__canvas.width,
-              scaleY: size__canvas.height,
-            });
-
-            const t_ic__cam = icCamera.getIcTransform();
- 
-            const t_ic = this.transferTransform(canvasTransform, ICUtils.invertTransform(t__canvas), t_ic__cam);
-  
-            return t_ic;
-          };
-
 
 
 
@@ -41241,35 +41283,20 @@
 
 
 
-
-            // const angleInRadians = t_f__obj[6];
-            // const angleInDegrees = ICUtils.radiansToDegrees(angleInRadians);
-            // const angleInDegrees__bounded = math.mod(angleInDegrees , math.bignumber(360));
-            // const angleInDegrees__bounded__number = math.number(angleInDegrees__bounded);
-            // // logger.log("logCameraEngine", "getFTransform", "angleInDegrees__bounded__number:", angleInDegrees__bounded__number);
-
-
-            // if( (0 <= math.number(angleInDegrees__bounded__number)) && (math.number(angleInDegrees__bounded__number) < 90) ) {
-
-            // } else if( (90 <= math.number(angleInDegrees__bounded__number)) && (math.number(angleInDegrees__bounded__number) < 180) ) {
-            //   const t__rotation = ICUtils.calcRotateMatrix(ICUtils.bigNumberize__dict({
-            //     angle: -90,
-            //   }));
-            //   t_f__obj = multiply( t__rotation , t_f__obj );
-
-            // } else if( (180 <= math.number(angleInDegrees__bounded__number)) && (math.number(angleInDegrees__bounded__number) < 270) ) {
-
-            // } else if( (270 <= math.number(angleInDegrees__bounded__number)) && (math.number(angleInDegrees__bounded__number) < 360) ) {
-            //   const t__rotation = ICUtils.calcRotateMatrix(ICUtils.bigNumberize__dict({
-            //     angle: -270,
-            //   }));
-            //   t_f__obj = multiply( t__rotation , t_f__obj );
-            // }
+            // const t_ic__camera = icCamera.getIcTransform();
+            // const options_icu__camera = ICUtils.decompose(t_ic__camera);
+            
+            // const angleInDegrees_icu__camera = options_icu__camera.angle;
+            // logger.log("logCameraEngine", "getFTransform", "angleInDegrees_icu__camera:", math.number(angleInDegrees_icu__camera) );
+            
+            // const angleInRadians_icu__camera = ICUtils.degreesToRadians(angleInDegrees_icu__camera);
+            // logger.log("logCameraEngine", "getFTransform", "angleInRadians_icu__camera:", math.number(angleInRadians_icu__camera) );
 
 
+            // t_f__obj[4] = math.bignumber( math.multiply( math.sign( math.cos(angleInRadians_icu__camera) ) , t_f__obj[4] ));
+            // // t_f__obj[5] = math.bignumber( math.multiply( math.sign( math.cos(angleInRadians_icu__camera) ) , t_f__obj[5] ));
 
 
-            // t_f__obj = 
             
             return t_f__obj;
           };
@@ -41373,9 +41400,56 @@
             return icCamera.homeScale;
           };
     
-          // this.screenZoomToPointByAmount = function(screenPoint, amount) {
-          //   logger.log("logIC", "IcCamera::screenZoomToPointByAmount", screenPoint, amount);
+          this.screenZoomToPointByAmount = function(screenPoint, amount) {
+            const truePoint = this.toTruePoint(screenPoint);
+            return this.trueZoomToPointByAmount(truePoint, amount);
+          };
 
+          this.screenZoomToPointByFactor = function(screenPoint, factor) {   
+            const truePoint = this.toTruePoint(screenPoint);
+            return this.trueZoomToPointByFactor(truePoint, factor);
+          };
+          
+          this.screenZoomToPoint = function(screenPoint, zoom__new) {   //absolute
+            const truePoint = this.toTruePoint(screenPoint);
+            return this.trueZoomToPoint(truePoint, zoom__new);
+          };
+
+          this.screenZoomToScreenPointTLByFactor = function(factor) {
+            return this.screenZoomToPointByFactor(this.getScreenPoint__TL(), factor);
+          };
+    
+          this.screenZoomToScreenPointCenterByFactor = function(factor) {
+            return this.screenZoomToPointByFactor(this.getScreenPoint__center(), factor);
+          };
+    
+
+          this.screenPan = function(screenPoint__before, screenPoint__after) {
+            const truePoint__before = this.toTruePoint(screenPoint__before);
+            const truePoint__after  = this.toTruePoint(screenPoint__after);
+            return this.truePan(truePoint__before, truePoint__after);
+          };
+
+
+          this.screenRotate = function(screenPoint__rotationCenter, angleInDegrees) {
+            logger.log("logIC", "IcCamera::screenRotate", "screenPoint__rotationCenter:", ICUtils.numberize__dict(screenPoint__rotationCenter));
+
+            const icCamera                  = this.scopeObj.engineCarrier;
+            const truePoint__rotationCenter = this.toTruePoint(screenPoint__rotationCenter);
+            const angleInDegrees__bigNumber = math.bignumber(angleInDegrees);
+
+            return this.trueRotate(truePoint__rotationCenter, angleInDegrees__bigNumber);
+          };
+
+          this.screenRotate__reset = function(screenPoint__rotationCenter) {
+            const truePoint__rotationCenter = this.toTruePoint(screenPoint__rotationCenter);
+            return this.trueRotate__reset(truePoint__rotationCenter);
+          };
+
+
+
+
+          // this.trueZoomToPointByAmount = function(truePoint, amount) {
           //   const amount__bigNumber = math.bignumber(amount);
             
           //   const zoom__old = this.getZoom__bigNumber();
@@ -41383,11 +41457,10 @@
 
           //   const factor    = math.divide( zoom__new, zoom__old );
     
-          //   return this.screenZoomToPointByFactor(screenPoint, factor);
+          //   return this.trueZoomToPointByFactor(truePoint, factor);
           // };
-
-          this.screenZoomToPointByFactor = function(screenPoint, factor) {   
-            logger.log("logIC", "IcCamera::screenZoomToPointByFactor", screenPoint, math.number(factor));
+    
+          this.trueZoomToPointByFactor = function(truePoint, factor) {
 
             const multiply = ICUtils.multiplyTransformMatrices;
 
@@ -41404,152 +41477,58 @@
             var t_ic__cam__new = multiply(t__inv_scale, t_ic__cam__old);
 
             //manage offset
-            const screenPoint__before = screenPoint;
-    
-            const truePoint__before  = this.toTruePointFor__t_ic__cam(screenPoint__before, t_ic__cam__old);
-            const screenPoint__after = this.toScreenPointFor__t_ic__cam(truePoint__before, t_ic__cam__new); 
-    
-            const screenOffset = {
-              dx: (screenPoint__after.x - screenPoint__before.x),
-              dy: (screenPoint__after.y - screenPoint__before.y),
-            };
-            // logger.log("logIC", "IcCamera::screenZoomToPointByFactor", "screenOffset:", screenOffset);
+            const truePoint__before = truePoint;
             
-            const t__translation = ICUtils.calcTranslateMatrix(ICUtils.bigNumberize__dict({
-              translateX: screenOffset.dx,
-              translateY: screenOffset.dy,
+            const screenPoint__before = this.toScreenPointFor__t_ic__cam(truePoint__before, t_ic__cam__old);
+            const truePoint__after    = this.toTruePointFor__t_ic__cam(screenPoint__before, t_ic__cam__new);
+            
+            const t_ic__translation = ICUtils.calcTranslateMatrix(ICUtils.bigNumberize__dict({
+              translateX: math.subtract(truePoint__before.x, truePoint__after.x),
+              translateY: math.subtract(truePoint__before.y, truePoint__after.y),
             }));
     
-            const t_screen = multiply( t__inv_scale, t__translation );
-            const t_ic     = this.transferScreenToTrue(t_screen);
+            const t_ic = multiply( t_ic__translation, t__inv_scale );
 
             return this.updateCameraObjTransform(t_ic);
           };
-          
-
-          this.screenZoomToPoint = function(screenPoint, zoom__new) {   //absolute
-            logger.log("logIC", "IcCamera::screenZoomToPoint", screenPoint, zoom__new.toString());
-    
-            const zoom__old = this.getZoom__bigNumber();
-
-            const factor    = math.divide( zoom__new, zoom__old );
-
-            return this.screenZoomToPointByFactor(screenPoint, factor);
-          };
-
-
-    
-          this.screenZoomToScreenPointTLByFactor = function(factor) {
-            return this.screenZoomToPointByFactor(this.getScreenPoint__TL(), factor);
-          };
-    
-          this.screenZoomToScreenPointCenterByFactor = function(factor) {
-            return this.screenZoomToPointByFactor(this.getScreenPoint__center(), factor);
-          };
-    
-
-          this.screenPan = function(screenPoint__before, screenPoint__after) {
-            const screenOffset = {
-              dx: math.subtract(screenPoint__before.x , screenPoint__after.x),
-              dy: math.subtract(screenPoint__before.y , screenPoint__after.y),
-            };
-
-            const t_screen__translation = ICUtils.calcTranslateMatrix(ICUtils.bigNumberize__dict({
-              translateX: screenOffset.dx,
-              translateY: screenOffset.dy,
-            }));
-            logger.log("logIC", "IcCamera::screenPan", "t_screen__translation:", ICUtils.numberize__array(t_screen__translation));
-    
-            const t_ic__translation = this.transferScreenToTrue(t_screen__translation);
-            logger.log("logIC", "IcCamera::screenPan", "t_ic__translation:", ICUtils.numberize__array(t_ic__translation));
-
-            return this.updateCameraObjTransform(t_ic__translation);
-          };
-    
-
-          this.screenRotate = function(screenPoint__rotationCenter, angleInDegrees) {
-            const icCamera  = this.scopeObj.engineCarrier;
-
-            // const options__bigNumber = ICUtils.bigNumberize__dict({
-            //   angleInDegrees: angleInDegrees,
-            //   centerRot:      screenPoint__rotationCenter,
-            //   // centerRot: {
-            //   //   x: math.divide( icCamera.size.width ,  math.bignumber(2) ),
-            //   //   y: math.divide( icCamera.size.height , math.bignumber(2) ),
-            //   // },
-            // });
-            // logger.log("logIC", "IcCamera::screenRotate", "options:", ICUtils.numberize__dict(options__bigNumber));
-
-            // const t_screen__rotation = ICUtils.calcRotateMatrix(options__bigNumber);
-            // logger.log("logIC", "IcCamera::screenRotate", "t_screen__rotation:", ICUtils.numberize__dict(t_screen__rotation));
-    
-            // const t__ic_rotation  = this.transferScreenToTrue(t_screen__rotation);
-            // // const t__ic_rotation  = this.transferCanvasToTrue(t_screen__rotation);
-            // logger.log("logIC", "IcCamera::screenRotate", "t__ic_rotation:", ICUtils.numberize__dict(t__ic_rotation));
-
-
-            //debug
-            const options__icu = ICUtils.decompose(icCamera.getIcTransform());
-            logger.log("logIC", "IcCamera::screenRotate", "options__icu:", ICUtils.numberize__dict(options__icu));
-
-            //debug
-            const truePoint__center = icCamera.getTruePoint__center();
-            logger.log("logIC", "IcCamera::screenRotate", "truePoint__center:", ICUtils.numberize__dict(truePoint__center));
-
-            const t__ic_rotation = ICUtils.calcRotateMatrix(ICUtils.bigNumberize__dict({
-              angleInDegrees: angleInDegrees,
-              centerRot:      icCamera.getTruePoint__center(),
-              // centerRot:      icCamera.getTruePoint__TL(),
-            }));
-            logger.log("logIC", "IcCamera::screenRotate", "t__ic_rotation:", ICUtils.numberize__dict(t__ic_rotation));
-
-
-            return this.updateCameraObjTransform(t__ic_rotation);
-          };
-
-
-
-
-
-          // this.trueZoomToPointByAmount = function(truePoint, amount) {
-          //   const screenPoint = this.toScreenPoint(truePoint);
-          //   return this.screenZoomToPointByAmount(screenPoint, amount);
-          // };
-    
-          this.trueZoomToPointByFactor = function(truePoint, factor) {
-            const screenPoint = this.toScreenPoint(truePoint);
-            return this.screenZoomToPointByFactor(screenPoint, factor);
-          };
 
           this.trueZoomToPoint = function(truePoint, zoom__new) {
-            const screenPoint = this.toScreenPoint(truePoint);
-            return this.screenZoomToPoint(screenPoint, zoom__new);
+            const zoom__old = this.getZoom__bigNumber();
+            const factor    = math.divide( zoom__new, zoom__old );
+            return this.trueZoomToPointByFactor(screenPoint, factor);
           };
 
 
           this.truePan = function(truePoint__before, truePoint__after) {
-            const screenPoint__before = this.toScreenPoint(truePoint__before);
-            const screenPoint__after  = this.toScreenPoint(truePoint__after);
-    
-            return this.screenPan(screenPoint__before, screenPoint__after);
+            const t_ic__translation = ICUtils.calcTranslateMatrix(ICUtils.bigNumberize__dict({
+              translateX: math.subtract(truePoint__before.x, truePoint__after.x),
+              translateY: math.subtract(truePoint__before.y, truePoint__after.y),
+            }));
+            logger.log("logIC", "IcCamera::truePan", "t_ic__translation:", ICUtils.numberize__array(t_ic__translation));
+
+            return this.updateCameraObjTransform(t_ic__translation);
           };
+
 
           this.trueRotate = function(truePoint__rotationCenter, angleInDegrees) {
-            const screenPoint__rotationCenter = this.toScreenPoint(truePoint__rotationCenter);
-            return this.screenRotate(screenPoint__rotationCenter, angleInDegrees);
+            const t_ic__rotation  = ICUtils.calcRotateMatrix(ICUtils.bigNumberize__dict({
+              angleInDegrees: angleInDegrees,
+              centerRot:      truePoint__rotationCenter,
+            }));
+            logger.log("logIC", "IcCamera::trueRotate", "t_ic__rotation:", ICUtils.numberize__dict(t_ic__rotation));
+
+            return this.updateCameraObjTransform(t_ic__rotation);
           };
 
-
-          this.reset__rotate = function() {
+          this.trueRotate__reset = function(truePoint__rotationCenter) {
             const icCamera       = this.scopeObj.engineCarrier;
 
             const orientation__old = icCamera.orientation;
             const orientation__new = 0;
 
             const angleInDegrees__bigNumber   = math.subtract( orientation__new , orientation__old );
-            const screenPoint__rotationCenter = this.getScreenPoint__center();
 
-            this.screenRotate(screenPoint__rotationCenter, angleInDegrees__bigNumber);
+            this.trueRotate(truePoint__rotationCenter, angleInDegrees__bigNumber);
           }
 
 
@@ -55899,7 +55878,7 @@
           const t_f__icObj = ICUtils.numberize__array(cameraEngine.getFTransform(icObj));
           // logger.log("logFI", "updateFabricObject_transform_default", "t_f__icObj:", ICUtils.numberize__array(t_f__icObj));
 
-          function applyTransformToFObj3(fObj, t_f) {
+          function applyTransformToFObj(fObj, t_f) {
 
             const options = fabric.util.qrDecompose(t_f);
             const pointTL = new fabric.Point(options.translateX, options.translateY);
@@ -55916,7 +55895,7 @@
 
             fObj.setCoords();
           }
-          applyTransformToFObj3(fObj, t_f__icObj);
+          applyTransformToFObj(fObj, t_f__icObj);
 
         }
 
