@@ -9756,6 +9756,16 @@
 
 
         const icCamera = infiniteCanvas.createIcCamera__with__trueRect(trueRect__cam1, size__camera);
+
+
+        // const dict_parallelogram__cam = ICUtils.bigNumberize__dict({
+        //   tl: {x: -200, y: -200},
+        //   tr: {x: 800, y: -200},
+          
+        //   bl: {x: -400, y: 1000},
+        //   br: {x: 600,  y: 1000},
+        // });
+        // const icCamera = infiniteCanvas.createIcCamera_with__dict_parallelogram(dict_parallelogram__cam, size__camera);
         
         
         logger.log("logIC", "initialize_p", "icCamera:", icCamera);
@@ -33755,28 +33765,28 @@
 
     class IcObject {
 
-      constructor(id, type, size, position = {x: math.bignumber(0), y: math.bignumber(0)} , homeScale = math.bignumber(1), orientation = math.bignumber(0)) {
+      constructor(id, type, size, position__center = {x: math.bignumber(0), y: math.bignumber(0)} , homeScale = math.bignumber(1), orientation = math.bignumber(0)) {
         logger.log("logIC", "IcObject::constructor", {
           id:   id,
           type: type,
           size: size,
 
-          position:     position,     //SHU: absolute
-          homeScale:    homeScale,    //SHU: absolute
-          orientation:  orientation,  //SHU: absolute
+          position__center: position__center, //SHU: absolute
+          homeScale:        homeScale,        //SHU: absolute
+          orientation:      orientation,      //SHU: absolute
         });
         this.id        = id;
         this.type      = type;
 
-        this.size      = size;        //"information" size    //gives an idea of the "real" sharpness/heavyness of the object
+        this.size      = size;                //"information" size    //gives an idea of the "real" sharpness/heavyness of the object
 
 
 
-        this._position  = null;
-        this.position  = position;    //{x: BigNumber, y: BigNumber}
-        this._position__debug = {
-          x: math.number(position.x),
-          y: math.number(position.y),
+        this._position__center = null;
+        this.position__center  = position__center;    //{x: BigNumber, y: BigNumber}
+        this._position__center__debug = {
+          x: math.number(position__center.x),
+          y: math.number(position__center.y),
         };
 
         this._homeScale = null;
@@ -33882,28 +33892,37 @@
         this.counter__path = 0;
       }
 
+      //debug
+      // get position() {
+      //   return this.position__center;
+      // }
+
+      // set position(position__new) {
+      //   return (this.position__center = position__new);
+      // }
+
 
       //debug
-      get position() {
-        return this._position;
+      get position__center() {
+        return this._position__center;
       }
 
-      set position(position__new) {
-        // logger.log("logIC", "ICObject::set position", "position__new:", ICUtils.numberize__point(position__new));
-        // if(!math.isBigNumber(position__new.x) || !math.isBigNumber(position__new.y)) {
-        //   throw new Error("setting non-BigNumber-based position");
+      set position__center(position__center__new) {
+        // logger.log("logIC", "ICObject::set position__center", "position__center__new:", ICUtils.numberize__point(position__center__new));
+        // if(!math.isBigNumber(position__center__new.x) || !math.isBigNumber(position__center__new.y)) {
+        //   throw new Error("setting non-BigNumber-based position__center");
         // }
 
         // //check if object is ok
-        // const x__number = math.number(position__new.x);
-        // const y__number = math.number(position__new.y);
+        // const x__number = math.number(position__center__new.x);
+        // const y__number = math.number(position__center__new.y);
 
 
-        this._position = position__new;
+        this._position__center = position__center__new;
 
-        this._position__debug  = {
-          x: math.number(position__new.x),
-          y: math.number(position__new.y),
+        this._position__center__debug  = {
+          x: math.number(position__center__new.x),
+          y: math.number(position__center__new.y),
         };
       }
 
@@ -33998,7 +34017,7 @@
       configureWithOptionsDict(options) {
         // logger.log("logIC", "IcObject::configureWithOptionsDict", ICUtils.numberize__dict(options));
 
-        this.position = {
+        this.position__center = {
           x: options.translateX,
           y: options.translateY,
         };
@@ -34028,22 +34047,113 @@
 
         // logger.log("logIC", "IcObject::configureWithOptionsDict", "this.skew:", ICUtils.numberize__dict(this.skew));
 
-
         return this;
       }
 
+      getPositionByOrigin(originX, originY) {
+        var outPoint;
+
+        if( (originX != "center") || (originY != "center") ) {
+
+          const dict_truePoint = this.getDict_truePoint();
+          const vX = math.divide( math.subtract( dict_truePoint.tr.x, dict_truePoint.tl.x ) , math.bignumber(2) );
+          const vY = math.divide( math.subtract( dict_truePoint.bl.y, dict_truePoint.tl.y ) , math.bignumber(2) );
+  
+          var factorX = (function() {
+            switch(originX) {
+              case "left":
+                return -1;
+              case "center":
+                  return 0;
+              case "right":
+                  return +1;
+            }
+          })();
+  
+          var factorY = (function() {
+            switch(originY) {
+              case "top":
+                return -1;
+              case "center":
+                  return 0;
+              case "bottom":
+                  return +1;
+            }
+          })();
+  
+          const pos__wrt_center = this.position__center;
+  
+          outPoint = ({
+            x: math.add( pos__wrt_center.x , math.multiply( math.bignumber(factorX), vX ) ), 
+            y: math.add( pos__wrt_center.x , math.multiply( math.bignumber(factorX), vX ) ),
+          });
+
+        } else {
+          outPoint = this.position__center;
+        }
+
+        return outPoint;
+      }
+
+      setPositionByOrigin(pos__wrt_originX_originY, originX, originY) {
+        var outResult;
+
+        if( (originX != "center") || (originY != "center") ) { 
+
+          const t__obj = this.getIcTransform();
+
+          const dict_truePoint = this.getDict_truePoint();
+          const vX = math.divide( math.subtract( dict_truePoint.tr.x, dict_truePoint.tl.x ) , math.bignumber(2) );
+          const vY = math.divide( math.subtract( dict_truePoint.bl.y, dict_truePoint.tl.y ) , math.bignumber(2) );
+  
+          var factorX = (function() {
+            switch(originX) {
+              case "left":
+                return 1;
+              case "center":
+                  return 0;
+              case "right":
+                  return -1;
+            }
+          })();
+  
+          var factorY = (function() {
+            switch(originY) {
+              case "top":
+                return 1;
+              case "center":
+                  return 0;
+              case "bottom":
+                  return -1;
+            }
+          })();
+  
+          const position__center__new = ({
+            x: math.add( pos__wrt_originX_originY.x , math.multiply( math.bignumber(factorX), vX ) ), 
+            y: math.add( pos__wrt_originX_originY.x , math.multiply( math.bignumber(factorX), vX ) ),
+          });
+  
+          outResult = (this.position__center = position__center__new);
+
+        } else {
+          outResult = (this.position__center = pos__wrt_originX_originY);
+        }
+
+        return outResult;
+      }
 
 
-
-      getIcTransform() { //not taking care of icObj.size
+          //t_ic does not care about icObj.size, 
+          //t_ic is center-based
+      getIcTransform() { 
         // logger.log("logIC", "ICObject::getIcTransform", "this:", this);
         var outMatrix;
 
-        const multiply = ICUtils.multiplyTransformMatrices; 
+        const multiply = ICUtils.multiplyTransformMatrices;
 
         const t__translation = ICUtils.composeMatrix({
-          translateX: this.position.x,
-          translateY: this.position.y,
+          translateX: this.position__center.x,
+          translateY: this.position__center.y,
         });
         outMatrix = t__translation;
 
@@ -41314,15 +41424,20 @@
               y: math.divide( size__canvas.height , math.bignumber(2) ),
             };
 
-            const size__camera = icCamera.size;
-            const pointCenter__camera = {
-              x: math.divide( size__camera.width ,  math.bignumber(2) ),
-              y: math.divide( size__camera.height , math.bignumber(2) ),
-            };
+            // const size__camera = icCamera.size;
+            // const pointCenter__camera = {
+            //   x: math.divide( size__camera.width ,  math.bignumber(2) ),
+            //   y: math.divide( size__camera.height , math.bignumber(2) ),
+            // };
+
+            // const t__translation = ICUtils.calcTranslateMatrix({
+            //   translateX: math.subtract( pointCenter__canvas.x, pointCenter__camera.x ),
+            //   translateY: math.subtract( pointCenter__canvas.y, pointCenter__camera.y ),
+            // });
 
             const t__translation = ICUtils.calcTranslateMatrix({
-              translateX: math.subtract( pointCenter__canvas.x, pointCenter__camera.x ),
-              translateY: math.subtract( pointCenter__canvas.y, pointCenter__camera.y ),
+              translateX: pointCenter__canvas.x,
+              translateY: pointCenter__canvas.y,
             });
 
             const t__size__cam = ICUtils.calcScaleMatrix({
@@ -47863,6 +47978,95 @@
             };
           };
 
+          fabric.util.qrDecompose = function(a) {
+
+            var angle    = math.atan2(a[1], a[0]);
+            const denom  = math.pow(a[0], 2) + math.pow(a[1], 2);
+            var scaleX   = math.sqrt(denom);
+            const scaleY = (a[0] * a[3] - a[2] * a[1]) / scaleX;
+            // const scaleY = math.pow(a[2], 2) + math.pow(a[3], 2);
+            var skewX    = math.atan2(a[0] * a[2] + a[1] * a [3], denom);
+
+            //magic
+            // function isMagic(t) {
+            //   var outBool = false; 
+
+            //   var a = t[0];
+            //   var b = t[1];
+            //   var c = t[2];
+            //   var d = t[3];
+            //   var e = t[4];
+            //   var f = t[5];
+
+            //   var scaleX = math.sqrt(a * a + b * b);
+            //   a /= scaleX;
+            //   b /= scaleX;
+            //   var shear = a * c + b * d;
+            //   c -= a * shear;
+            //   d -= b * shear;
+            //   var scaleY = math.sqrt(c * c + d * d);
+            //   c /= scaleY;
+            //   d /= scaleY;
+            //   shear /= scaleY;
+            //   if (a * d < b * c) {
+            //     // a = -a;
+            //     // b = -b;
+            //     // shear = -shear;
+            //     // scaleX = -scaleX;
+
+            //     outBool = true;
+            //   }
+
+            //   return outBool;
+            // }
+
+            function isMagic(t) {
+              var outBool = false; 
+
+              var a = t[0];
+              var b = t[1];
+              var c = t[2];
+              var d = t[3];
+              var e = t[4];
+              var f = t[5];
+
+              if (a * d < b * c) {
+                // a = -a;
+                // b = -b;
+                // shear = -shear;
+                // scaleX = -scaleX;
+
+                outBool = true;
+              }
+
+              return outBool;
+            }
+
+            if(isMagic(a)) {
+              logger.log("logFI", "qrDecompose", "isMagic(a)");
+              angle  = angle + math.pi;
+              skewX  = -skewX;
+              scaleX = -scaleX;
+            }
+
+            const PiBy180 = math.pi / 180;
+
+            const angleInDegrees = angle / PiBy180;
+
+            logger.log("logFI", "qrDecompose", "angleInDegrees:", angleInDegrees);
+
+            return {
+              angle:  angleInDegrees,
+              scaleX: scaleX,
+              scaleY: scaleY,
+              skewX:  skewX / PiBy180,
+              skewY:  0,
+              translateX: a[4],
+              translateY: a[5],
+            };
+
+          };
+
           // fabric.Object.prototype._calcTranslateMatrix__TL = function() {
           //   // var center = this.getCenterPoint();
           //   // return [1, 0, 0, 1, center.x, center.y];
@@ -50112,34 +50316,7 @@
           var fObj = new fabric.Rect();
           // logger.log("logZPixel", "createFabricRectWithIcObj", "fObj:", fObj);
 
-          // const position_screen = this.infiniteCanvas.toScreenPoint(icObj.position);
-          // console.log("position_screen", position_screen);
-          // const size_screen     = this.infiniteCanvas.toScreenSize(icObj.size);
-          // console.log("size_screen", size_screen);
-
-          // if(icObj.homeScale != null) {
-          const position_screen = icObj.getScreenPositionWithoutOffset();
-          // console.log("position_screen", position_screen);
-          const homeSize_screen = icObj.getHomeScreenSize();
-          // console.log("homeSize_screen", homeSize_screen);
-
           fObj.set({
-            left: position_screen.x,    //SHU: ??? where is infiniteCanvas.offset taking part ???
-            top:  position_screen.y,
-
-            width:  homeSize_screen.width,
-            height: homeSize_screen.height,
-
-            scaleX: icObj.scale.X,
-            scaleY: icObj.scale.Y,
-
-            flipX: icObj.flip.X,
-            flipY: icObj.flip.Y,
-
-            angle: icObj.orientation,
-
-            originX: "left",
-            originY: "top",
 
 
             stroke:      icObj.stroke,
@@ -50151,8 +50328,6 @@
 
             // opacity: 0.7,
 
-            // icObjId  : icObj.id,
-            // trueRect : trueRect,
             icObj: icObj,
           });
           // } else {
@@ -50163,24 +50338,6 @@
             rx: icObj.rx,
             ry: icObj.ry,
           });
-
-          if (icObj.originX != null) {
-            fObj.set({
-              originX: icObj.originX,
-            });
-          }
-          if (icObj.originY != null) {
-            fObj.set({
-              originY: icObj.originY,
-            });
-          }
-
-          if (icObj.isUsingCenterPosition != null && icObj.isUsingCenterPosition) {
-            fObj.set({
-              originX: icObj.originX,
-              originY: icObj.originY,
-            });
-          }
 
           // console.log("----", "fObj", fObj);
 
@@ -50325,36 +50482,10 @@
           // return fObj_p;
 
           fObj_p.then((fObj) => {
-
-          // const position_screen = this.infiniteCanvas.toScreenPoint(icObj.position);
-          // console.log("position_screen", position_screen);
-          // const size_screen     = this.infiniteCanvas.toScreenSize(icObj.size);
-          // console.log("size_screen", size_screen);
-
-          // if(icObj.homeScale != null) {
-            const position_screen = icObj.getScreenPositionWithoutOffset();
-            // console.log("position_screen", position_screen);
-            const homeSize_screen = icObj.getHomeScreenSize();
-            logger.log("homeSize_screen", homeSize_screen);
   
             fObj.set({
-              left: position_screen.x,    //SHU: ??? where is infiniteCanvas.offset taking part ???
-              top:  position_screen.y,
-  
-              width:  homeSize_screen.width,
-              height: homeSize_screen.height,
-  
-              scaleX: icObj.scale.X,
-              scaleY: icObj.scale.Y,
-  
-              flipX: icObj.flip.X,
-              flipY: icObj.flip.Y,
-  
-  
-              angle: icObj.orientation,
-
-              // originX: "center",
-              // originY: "center",
+              width:  icObj.size.width,
+              height: icObj.size.height,
   
   
               stroke:      icObj.stroke,
@@ -50365,9 +50496,7 @@
               fill: icObj.fill,
   
               // opacity: 0.7,
-  
-              // icObjId  : icObj.id,
-              // trueRect : trueRect,
+
               icObj: icObj,
             });
             // } else {
@@ -50380,24 +50509,7 @@
               ry: icObj.ry,
             });
 
-  
-            if (icObj.originX != null) {
-              fObj.set({
-                originX: icObj.originX,
-              });
-            }
-            if (icObj.originY != null) {
-              fObj.set({
-                originY: icObj.originY,
-              });
-            }
-  
-            if (icObj.isUsingCenterPosition != null && icObj.isUsingCenterPosition) {
-              fObj.set({
-                originX: icObj.originX,
-                originY: icObj.originY,
-              });
-            }
+
   
             // console.log("----", "fObj", fObj);
   
@@ -55875,27 +55987,84 @@
 
           const icObj = fObj.icObj;
 
-          const t_f__icObj = ICUtils.numberize__array(cameraEngine.getFTransform(icObj));
-          // logger.log("logFI", "updateFabricObject_transform_default", "t_f__icObj:", ICUtils.numberize__array(t_f__icObj));
+          var t_f__icObj = ICUtils.numberize__array(cameraEngine.getFTransform(icObj));
+          logger.log("logFI", "updateFabricObject_transform_default", "t_f__icObj__1:", ICUtils.numberize__array(t_f__icObj));
+          fabric.util.applyTransformToObject(fObj, t_f__icObj);
 
-          function applyTransformToFObj(fObj, t_f) {
+          // const options = fabric.util.qrDecompose(ICUtils.numberize__array(t_f__icObj));
+          // if( ((- 90 <= options.angle) && (options.angle < 0)) || ((90 <= options.angle) && (options.angle < 180)) ) {
+          //   logger.log("logFI", "updateFabricObject_transform_default", "use opposite", "options.angle:", options.angle);
 
-            const options = fabric.util.qrDecompose(t_f);
-            const pointTL = new fabric.Point(options.translateX, options.translateY);
+          //   //get transform with opposite orientation
+          //   icCamera.pauseAllInnerUpdates();
 
-            fObj.flipX = false;
-            fObj.flipY = false;
-            fObj.set('scaleX', options.scaleX);
-            fObj.set('scaleY', options.scaleY);
-            fObj.skewX = options.skewX;
-            fObj.skewY = options.skewY;
-            fObj.angle = options.angle;
+          //   icCamera.orientation = math.multiply( math.bignumber(-1), icCamera.orientation ); 
 
-            fObj.setPositionByOrigin(pointTL, 'left', 'top');
+          //   t_f__icObj = cameraEngine.getFTransform(icObj);
+          //   logger.log("logFI", "updateFabricObject_transform_default", "t_f__icObj__2:", ICUtils.numberize__array(t_f__icObj));
 
-            fObj.setCoords();
-          }
-          applyTransformToFObj(fObj, t_f__icObj);
+          //   icCamera.orientation = math.multiply( math.bignumber(-1), icCamera.orientation ); 
+
+          //   icCamera.resumeAllInnerUpdates();
+
+
+          //   t_f__icObj = ICUtils.numberize__array(t_f__icObj);
+
+          //   function applyTransformToFObj(fObj, t_f) {
+  
+          //     const options = fabric.util.qrDecompose(t_f);
+  
+          //     const pointTR = new fabric.Point(-options.translateX, options.translateY);
+          //     logger.log("logFI", "updateFabricObject_transform_default", "pointTR:", pointTR);
+
+          //     const pointBR = new fabric.Point(-options.translateX, -options.translateY);
+          //     logger.log("logFI", "updateFabricObject_transform_default", "pointBR:", pointBR);
+  
+          //     fObj.flipX = false;
+          //     fObj.flipY = false;
+          //     fObj.set('scaleX', -options.scaleX);
+          //     fObj.set('scaleY', -options.scaleY);
+          //     fObj.skewX = -options.skewX;
+          //     fObj.skewY = options.skewY;
+          //     fObj.angle = -options.angle;
+  
+          //     // fObj.setPositionByOrigin(pointTR, 'top', 'right');
+          //     fObj.setPositionByOrigin(pointBR, 'bottom', 'right');
+
+  
+          //     fObj.setCoords();
+          //   }
+          //   applyTransformToFObj(fObj, t_f__icObj);
+
+          // } else {
+
+          //   t_f__icObj = ICUtils.numberize__array(t_f__icObj);
+
+          //   function applyTransformToFObj(fObj, t_f) {
+  
+          //     const options = fabric.util.qrDecompose(t_f);
+  
+          //     const pointTL = new fabric.Point(options.translateX, options.translateY);
+          //     logger.log("logFI", "updateFabricObject_transform_default", "pointTL:", pointTL);
+
+  
+          //     fObj.flipX = false;
+          //     fObj.flipY = false;
+          //     fObj.set('scaleX', options.scaleX);
+          //     fObj.set('scaleY', options.scaleY);
+          //     fObj.skewX = options.skewX;
+          //     fObj.skewY = options.skewY;
+          //     fObj.angle = options.angle;
+  
+          //     fObj.setPositionByOrigin(pointTL, 'left', 'top');
+  
+          //     fObj.setCoords();
+          //   }
+          //   applyTransformToFObj(fObj, t_f__icObj);
+
+          // }
+
+
 
         }
 
