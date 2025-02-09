@@ -10943,6 +10943,26 @@
         return icRect;
       }
 
+      createIcRect_with__dict_parallelogram(dict_parallelogram, size = { width:  math.bignumber(1), height: math.bignumber(1) }) {
+
+        const type      = "rect";
+
+        const icObj = this.createIcObject_with__dict_parallelogram(type, size, dict_parallelogram);
+
+        const icRect_spec = {
+          // left:   left,
+          // top:    top,
+          // width:  width,
+          // height: height,
+
+          strokeWidth: 0,
+        };
+
+        const icRect = Object.assign(icObj, icRect_spec);
+
+        return icRect;
+      }
+
       createIcRect__backingPov(pov) {
 
         // const trueRect   = pov.getTrueRect2();
@@ -26451,11 +26471,6 @@
 
       configureNewIcObject(icObj) {
 
-        // icObj.orientation = this.orientation;
-        // icObj.orientation = math.bignumber(0);
-        icObj.orientation = math.multiply( math.bignumber(-1) , this.orientation );
-
-
         const inputProperties = this.inputProperties;
 
         const activeColor = inputProperties.getActiveColor();
@@ -26553,21 +26568,25 @@
           height: 100,
         };
 
+        const screenSize = {
+          width:  150,
+          height: 100,
+        };
+
         const screenPoint__cursor = this.cursor__screen;
-        const screenRect          = Object.assign({}, screenPoint__cursor, size);
+        const screenRect          = Object.assign({}, screenPoint__cursor, screenSize);
         logger.log("logIC", "addNewRect", "screenRect:", screenRect);
-        
-        const trueRect = infiniteCanvas.toTrueRect(screenRect);
-        logger.log("logIC", "addNewRect", "trueRect:", trueRect);
+        const dict_screenPoint    = ICUtils.createDict_parallelogram__withRect(ICUtils.bigNumberize__dict(screenRect));
 
+        const dict_truePoint = infiniteCanvas.toTrueDict_parallelogram(dict_screenPoint);
+  
+        const icRect = this.createIcRect_with__dict_parallelogram(dict_truePoint, size);
 
-        const icRect = this.createIcRect(trueRect, size);
+        this.addNewIcObject(icRect);
 
         //debug
         // icRect.stroke      = "magenta";
         // icRect.strokeWidth = 2.0;
-
-        this.addNewIcObject(icRect);
       }
 
       addNewCamera() {
@@ -29807,6 +29826,8 @@
 
         return cameraEngine.toScreenPoint(truePoint);
       }
+
+      /*
       toScreenRect(trueRect) {
         // logger.trace("logIC", "toScreenRect", trueRect);
 
@@ -29816,9 +29837,15 @@
 
         return cameraEngine.toScreenRect(trueRect);
       }
+      */
 
+      toScreenDict_parallelogram(dict_truePoint) {
+        const infiniteCanvas = this;
+        const icCamera       = infiniteCanvas.icCamera;
+        const cameraEngine   = icCamera.dict_engine["camera"].engine.awoken; 
 
-
+        return cameraEngine.toScreenDict_parallelogram(dict_truePoint);
+      }
 
 
 
@@ -29835,6 +29862,7 @@
         return cameraEngine.toTruePoint(screenPoint);
       }
 
+      /*
       toTrueRect(screenRect) {
         const infiniteCanvas = this;
 
@@ -29842,6 +29870,15 @@
         const cameraEngine = icCamera.dict_engine["camera"].engine.awoken;
         
         return cameraEngine.toTrueRect(screenRect);
+      }
+      */
+
+      toTrueDict_parallelogram(dict_screenPoint) {
+        const infiniteCanvas = this;
+        const icCamera       = infiniteCanvas.icCamera;
+        const cameraEngine   = icCamera.dict_engine["camera"].engine.awoken; 
+
+        return cameraEngine.toTrueDict_parallelogram(dict_screenPoint);
       }
 
       getTrueCursor() {
@@ -30227,6 +30264,8 @@
         const infiniteCanvas = this;
 
         const screenPoint__rotationCenter = infiniteCanvas.getScreenCenterPoint();
+        // const screenPoint__rotationCenter = infiniteCanvas.cursor__screen;
+
         const angleInDegrees = isClockwise ? -90 : 90;
 
         const icCamera       = infiniteCanvas.icCamera;
@@ -30237,10 +30276,11 @@
       manageRotateReset() {
         const infiniteCanvas = this;
 
+        const screenPoint__rotationCenter = infiniteCanvas.getScreenCenterPoint();
+        // const screenPoint__rotationCenter = infiniteCanvas.cursor__screen;
+
         const icCamera       = infiniteCanvas.icCamera;
         const cameraEngine   = icCamera.dict_engine["camera"].engine.awoken; 
-
-        const screenPoint__rotationCenter = infiniteCanvas.getScreenCenterPoint();
         cameraEngine.screenRotate__reset(screenPoint__rotationCenter);
       }
 
@@ -41173,22 +41213,28 @@
 
 
           //conversion
-          this.screenPointToCamPoint = function(screenPoint) {
+
+          this.getTransform__screenToTrue__for__t_ic__cam = function(t_ic__cam) {
             const t_screen__cam = this.screenTransform__camera();
             const t__inv_screen = ICUtils.invertTransform(t_screen__cam);
 
-            const camPoint = ICUtils.transformPoint(screenPoint, t__inv_screen);
-            return camPoint;
+            const t__screenToTrue = ICUtils.multiplyTransformMatrices(t_ic__cam, t__inv_screen);
+
+            return t__screenToTrue;
           };
 
+          this.getTransform__screenToTrue = function() {
+            const icCamera = this.scopeObj.engineCarrier;
+
+            const t_ic__cam = icCamera.getIcTransform();
+
+            return this.getTransform__screenToTrue__for__t_ic__cam(t_ic__cam);
+          };
 
           this.toTruePointFor__t_ic__cam = function(screenPoint, t_ic__cam) {
             const screenPoint__bigNumber = ICUtils.bigNumberize__point(screenPoint);
 
-            const t_screen__cam = this.screenTransform__camera();
-            const t__inv_screen = ICUtils.invertTransform(t_screen__cam);
-
-            const t__screenToTrue = ICUtils.multiplyTransformMatrices(t_ic__cam, t__inv_screen)
+            const t__screenToTrue = this.getTransform__screenToTrue__for__t_ic__cam(t_ic__cam);
 
             const truePoint  = ICUtils.transformPoint(screenPoint__bigNumber, t__screenToTrue);
             return truePoint;
@@ -41201,6 +41247,7 @@
             return this.toTruePointFor__t_ic__cam(screenPoint, t_ic__cam);
           };
 
+          /*
           this.toTrueRect = function(screenRect) {
             const screenPoint__TL = {
               x: screenRect.x,
@@ -41223,6 +41270,12 @@
 
             return trueRect;
           };
+          */
+
+          this.toTrueDict_parallelogram = function(dict_truePoint) {
+            const t__screenToTrue = this.getTransform__screenToTrue();
+            return ICUtils.transformDict_parallelogram(dict_truePoint, t__screenToTrue);
+          };
 
           this.toTrueTransform = function(screenTransform) {
             return this.transferScreenToTrue(screenTransform);
@@ -41231,10 +41284,9 @@
           this.transferScreenToTrue = function(screenTransform) {
             const icCamera = this.scopeObj.engineCarrier;
 
-            const t_ic__cam     = icCamera.getIcTransform();
-            const t_screen__cam = this.screenTransform__camera();
+            const t__screenToTrue = this.getTransform__screenToTrue();
  
-            const t_ic = this.transferTransform(screenTransform, ICUtils.invertTransform(t_screen__cam), t_ic__cam);
+            const t_ic = this.transferTransform(screenTransform, t__screenToTrue);
   
             return t_ic;
           };
@@ -41244,14 +41296,39 @@
 
 
 
-          this.toScreenPointFor__t_ic__cam = function(truePoint, t_ic__cam) {
+
+          this.screenPointToCamPoint = function(screenPoint) {
+            const t_screen__cam = this.screenTransform__camera();
+            const t__inv_screen = ICUtils.invertTransform(t_screen__cam);
+
+            const camPoint = ICUtils.transformPoint(screenPoint, t__inv_screen);
+            return camPoint;
+          };
+
+
+          
+
+
+
+
+
+          this.getTransform__trueToScreen__for__t_ic__cam = function(t_ic__cam) {
+            const t__screenToTrue = this.getTransform__screenToTrue__for__t_ic__cam(t_ic__cam);
+            const t__trueToScreen = ICUtils.invertTransform(t__screenToTrue);
+            return t__trueToScreen;
+          };
+
+          this.getTransform__trueToScreen = function() {
             const icCamera = this.scopeObj.engineCarrier;
 
-            const t__inv_true = ICUtils.invertTransform(t_ic__cam);
+            const t_ic__cam = icCamera.getIcTransform();
 
-            const t_screen__cam = this.screenTransform__camera();
+            return this.getTransform__trueToScreen__for__t_ic__cam(t_ic__cam);
+          };
 
-            const t__trueToScreen = ICUtils.multiplyTransformMatrices(t_screen__cam, t__inv_true);
+
+          this.toScreenPointFor__t_ic__cam = function(truePoint, t_ic__cam) {
+            const t__trueToScreen = this.getTransform__trueToScreen__for__t_ic__cam(t_ic__cam);
             
             const screenPoint__bigNumber = ICUtils.transformPoint(truePoint, t__trueToScreen);
 
@@ -41263,9 +41340,11 @@
             const icCamera = this.scopeObj.engineCarrier;
 
             const t_ic__cam = icCamera.getIcTransform();
+
             return this.toScreenPointFor__t_ic__cam(truePoint, t_ic__cam);
           };
 
+          /*
           this.toScreenRect = function(trueRect) {
             const truePoint__TL = {
               x: trueRect.x,
@@ -41287,6 +41366,12 @@
             };
 
             return screenRect;
+          };
+          */
+
+          this.toScreenDict_parallelogram = function(dict_screenPoint) {
+            const t__trueToScreen = this.getTransform__trueToScreen();
+            return ICUtils.transformDict_parallelogram(dict_screenPoint, t__trueToScreen);
           };
 
           this.toScreenTransform = function(trueTransform) {
@@ -41379,7 +41464,7 @@
             const t__size = icObj.getSizeTransform();
             const t__inv_size = ICUtils.invertTransform(t__size);
             var t_f__obj = multiply( t_screen__obj, t__inv_size );
-            // logger.log("logCameraEngine", "getFTransform", "t_f__obj:",      ICUtils.numberize__array(t_f__obj));
+            logger.log("logCameraEngine", "getFTransform", "t_f__obj:",      ICUtils.numberize__array(t_f__obj));
 
             return t_f__obj;
           };
@@ -41514,7 +41599,7 @@
             const truePoint__rotationCenter = this.toTruePoint(screenPoint__rotationCenter);
             const angleInDegrees__bigNumber = math.bignumber(angleInDegrees);
 
-            return this.trueRotate(truePoint__rotationCenter, angleInDegrees__bigNumber);
+            return this.trueRotate(truePoint__rotationCenter, -angleInDegrees__bigNumber);
           };
 
           this.screenRotate__reset = function(screenPoint__rotationCenter) {
@@ -117472,58 +117557,56 @@
             // }
 
 
-            // //skewX,skewY (shearX,shearY)
-            //   {
-            //     const size__canvas = infiniteCanvas.getCanvasSize();
-            //     // const trueRect__camera = ICUtils.bigNumberize__dict({
-            //     //   x:      -260,
-            //     //   y:      -460,
-            //     //   width:  size__canvas.width,
-            //     //   height: size__canvas.height,
-            //     // });
+            //skewX,skewY (shearX,shearY)
+            // {
+            //   const size__canvas = infiniteCanvas.getCanvasSize();
+            //   // const trueRect__camera = ICUtils.bigNumberize__dict({
+            //   //   x:      -260,
+            //   //   y:      -460,
+            //   //   width:  size__canvas.width,
+            //   //   height: size__canvas.height,
+            //   // });
 
-            //     // const size__canvas = {
-            //     //   width:  666,
-            //     //   height: 666,
-            //     // };
+            //   // const size__canvas = {
+            //   //   width:  666,
+            //   //   height: 666,
+            //   // };
 
-            //     const trueRect__camera = ICUtils.bigNumberize__dict({
-            //       x:      0,
-            //       y:      0,
-            //       width:  300,
-            //       height: 300,
-            //     });
-            //     addRect(trueRect__camera, size__canvas, ColorUtils.rgbaColorStringForColorAndSuperOpacity("cyan", 0.3) );
-
-
-            //     const dict_point__trueRect = ICUtils.createDict_parallelogram__withRect(trueRect__camera);
-            //     // const shearX = math.bignumber(-1000);
-            //     // const shearX = math.bignumber(200);
-            //     const shearX = math.bignumber(-300);
-            //     // const shearX = math.bignumber(0);
-
-            //     // const shearY = math.bignumber(300);
-            //     // const shearY = math.bignumber(100);
-            //     const shearY = math.bignumber(0);
-
-            //     const dict_point__sheared = createDict_point_withShearing(dict_point__trueRect, shearX, shearY);
-
-            //     Object.entries(dict_point__sheared).forEach(([_, truePoint]) => {
-            //       const trueRect__point = {
-            //         x: truePoint.x,
-            //         y: truePoint.y,
-            //         width:  10, 
-            //         height: 10,
-            //       };
-            //       addRect(trueRect__point, {width: 10, height: 10}, ColorUtils.rgbaColorStringForColorAndSuperOpacity("black", 0.3) );
-            //     });
+            //   const trueRect__camera = ICUtils.bigNumberize__dict({
+            //     x:      0,
+            //     y:      0,
+            //     width:  300,
+            //     height: 300,
+            //   });
+            //   addRect(trueRect__camera, size__canvas, ColorUtils.rgbaColorStringForColorAndSuperOpacity("cyan", 0.3) );
 
 
-            //     const icCamera__sheared = infiniteCanvas.createIcCamera_with__dict_parallelogram(dict_point__sheared, null);
-            //     icCamera__sheared.fill  =  ColorUtils.rgbaColorStringForColorAndSuperOpacity("magenta", 0.6) ;
-            //     infiniteCanvas.addIcObject(icCamera__sheared);
-            //   }
+            //   const dict_point__trueRect = ICUtils.createDict_parallelogram__withRect(trueRect__camera);
+            //   // const shearX = math.bignumber(-1000);
+            //   // const shearX = math.bignumber(200);
+            //   const shearX = math.bignumber(-300);
+            //   // const shearX = math.bignumber(0);
 
+            //   // const shearY = math.bignumber(300);
+            //   // const shearY = math.bignumber(100);
+            //   const shearY = math.bignumber(0);
+
+            //   const dict_point__sheared = createDict_point_withShearing(dict_point__trueRect, shearX, shearY);
+
+            //   Object.entries(dict_point__sheared).forEach(([_, truePoint]) => {
+            //     const trueRect__point = {
+            //       x: truePoint.x,
+            //       y: truePoint.y,
+            //       width:  10, 
+            //       height: 10,
+            //     };
+            //     addRect(trueRect__point, {width: 10, height: 10}, ColorUtils.rgbaColorStringForColorAndSuperOpacity("black", 0.3) );
+            //   });
+
+
+            //   const icCamera__sheared = infiniteCanvas.createIcCamera_with__dict_parallelogram(dict_point__sheared, null);
+            //   icCamera__sheared.fill  =  ColorUtils.rgbaColorStringForColorAndSuperOpacity("magenta", 0.6) ;
+            //   infiniteCanvas.addIcObject(icCamera__sheared);
             // }
 
             //transfer transform
