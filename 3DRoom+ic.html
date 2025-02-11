@@ -864,7 +864,7 @@
           var v__numberized;
           try {
             // v__numberized = math.number(v);
-            v__numberized = v.toString();
+            v__numberized = v.toPrecision(4).toString();
 
           } catch(e) {
             v__numberized = ICUtils.stringify__dict(v);
@@ -879,7 +879,7 @@
       static stringify__array(arr__bigNumber) {
         return arr__bigNumber.map((bigNumber) => {
           // return math.number(bigNumber);
-          return bigNumber.toString();
+          return bigNumber.toPrecision(4).toString();
         });
       }
 
@@ -3342,8 +3342,9 @@
 
   <script src='lib/decimal.min.js'  type='text/javascript'></script>
   <script>
-    Decimal.set({ precision: 100, rounding: 1 });   //one of the key elements for infiniteCanvas
+    //Decimal.set({ precision: 100, rounding: 1 });   //one of the key elements for infiniteCanvas
                                                     //SHU: TODO: make it dynamic (precision grows with canvas depth)
+    Decimal.set({ precision: 20, rounding: 0 });
   </script>
   <script>
     //discovery
@@ -9861,11 +9862,17 @@
         //   width:  1000,
         //   height: 500,
         // });
+        // const trueRect__cam1 = {
+        //   x:      math.bignumber(0),
+        //   y:      math.bignumber(0),
+        //   width:  math.bignumber("1e500"),
+        //   height: math.bignumber("1e500"),
+        // };
         const trueRect__cam1 = {
           x:      math.bignumber(0),
           y:      math.bignumber(0),
-          width:  math.bignumber("1e500"),
-          height: math.bignumber("1e500"),
+          width:  math.bignumber("1e20"),
+          height: math.bignumber("1e20"),
         };
         // const trueRect__cam1 = trueRect__camera__initial;
 
@@ -9913,10 +9920,21 @@
 
         infiniteCanvas.redrawCanvas_p(RedrawOccasion.cameraChanged).then(async () => {
           var fObj__camera = fabricIntegration.getFObjForIcObj(icCamera__new);
-          if(!fObj__camera) {
+          const isAddingCameraFObj = !fObj__camera;
+          if(isAddingCameraFObj) {
             fObj__camera = await fabricIntegration.addFabricObjectWithIcObj_p(icCamera__new);
           }
           // fabricIntegration.setActiveCameraFObj(fObj__camera);
+
+          //passthrough
+          fObj__camera.evented    = false;
+          fObj__camera.selectable = false;
+
+
+          if(isAddingCameraFObj) {
+            infiniteCanvas.redrawCanvas_p(RedrawOccasion.cameraChanged);
+          }
+
         });
 
       }
@@ -30546,7 +30564,7 @@
         logger.log("logCursor", "truePoint__cursor:", ICUtils.stringify__dict(truePoint__cursor));
 
         const scale = infiniteCanvas.scale;
-        logger.log("logCursor", "scale:", scale.toString());
+        logger.log("logCursor", "scale:", scale.toPrecision(2).toString());
       }
 
 
@@ -34179,11 +34197,11 @@
           scaleY: this.homeScale,                   
         });
 
-        // //use this if you choose: homeScale = options.factScale
-        // const t__homeScale = t__homeScale__naive;
+        //use this if you choose: homeScale = options.factScale
+        const t__homeScale = t__homeScale__naive;
 
         //use this if you choose: homeScale = 1 / options.factScale
-        const t__homeScale = ICUtils.invertTransform(t__homeScale__naive);
+        // const t__homeScale = ICUtils.invertTransform(t__homeScale__naive);
 
         return t__homeScale;
       }
@@ -34198,8 +34216,8 @@
           y: options.translateY,
         };
 
-        // this.homeScale = options.factScale;
-        this.homeScale = math.divide( math.bignumber(1), options.factScale );
+        this.homeScale = options.factScale;
+        // this.homeScale = math.divide( math.bignumber(1), options.factScale );
 
         this.orientation = options.angle;
         
@@ -49931,7 +49949,7 @@
 
             }
 
-            standardRedraw(fObj);
+            //standardRedraw(fObj);   //SHU: is it still necessary ?
 
           }
 
@@ -55914,11 +55932,14 @@
 
           const fabricIntegration = this;
 
+          const icObj = fObj.icObj;
+          if(fabricIntegration.fObjForIcObj_dict[icObj.id] != null) {
+            throw new Error("fabricIntegration.fObjForIcObj_dict[icObj.id] != null");
+          }
+          fabricIntegration.fObjForIcObj_dict[icObj.id] = fObj;
+
           // this.outer_fabric_objects.push(fObj);
           fabricIntegration.fabric_objects.push(fObj);
-
-          const icObj = fObj.icObj;
-          fabricIntegration.fObjForIcObj_dict[icObj.id] = fObj;
 
           fabricIntegration.fabricCanvas.add(fObj);
 
@@ -55941,10 +55962,13 @@
 
           const fabricIntegration = this;
 
-          fabricIntegration.fabric_objects.push(fObj);
-
           const icObj = fObj.icObj;
+          if(fabricIntegration.fObjForIcObj_dict[icObj.id] != null) {
+            throw new Error("fabricIntegration.fObjForIcObj_dict[icObj.id] != null");
+          }
           fabricIntegration.fObjForIcObj_dict[icObj.id] = fObj;
+
+          fabricIntegration.fabric_objects.push(fObj);
 
           // fabricIntegration.fabricCanvas.add(fObj);
 
@@ -56080,6 +56104,7 @@
           var t_f__icObj = ICUtils.numberize__array(cameraEngine.getFTransform(icObj));
           // logger.log("logFI", "updateFabricObject_transform_default", "t_f__icObj__1:", ICUtils.stringify__array(t_f__icObj));
           fabric.util.applyTransformToObject(fObj, t_f__icObj);
+          fObj.setCoords(); //SHU: common gotcha
         }
 
 
