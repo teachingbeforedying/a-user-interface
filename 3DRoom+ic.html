@@ -9894,7 +9894,9 @@
 
 
         //debug
-        icCamera.fill = ColorUtils.rgbaColorStringForColorAndSuperOpacity( "lime", 0.3 );
+        // icCamera.fill = ColorUtils.rgbaColorStringForColorAndSuperOpacity( "lime", 0.3 );
+        icCamera.stroke = ColorUtils.rgbaColorStringForColorAndSuperOpacity( "lime", 0.3 );
+        icCamera.fill = "transparent";
 
         await infiniteCanvas.addIcObject_p(icCamera).then((rep_free) => {
           infiniteCanvas.swapToCamera(rep_free, fabricIntegration);
@@ -13072,36 +13074,18 @@
         // logger.trace("createIcFreeDrawing_from_freeDrawingFObj", fObj);
         // console.log("createIcFreeDrawing_from_freeDrawingFObj", fObj.constructor.name);
         const infiniteCanvas = this;
-
+        const icCamera       = infiniteCanvas.icCamera;
+        const cameraEngine   = icCamera.dict_engine["camera"].engine.awoken;
 
         const type = "freeDrawing";
+        const size = {
+          width:  fObj.width, 
+          height: fObj.height,
+        };
 
-        // const trueRect = this.toTrueRect(fObj);
-        // const position = Geometry.getPointTL(trueRect);
+        const t_ic = cameraEngine.getIcTransform(fObj);
 
-        // const screenPointTL = {
-        //   x: fObj.left,
-        //   y: fObj.top,
-        // };
-        // const truePointTL = infiniteCanvas.getTruePointForHomeScale(screenPointTL, fObj.__homeScale);
-        // const position = Object.assign({}, truePointTL);
-
-        const position = Object.assign({}, fObj.__truePointTL);
-
-
-        // const size     = Geometry.createSize(trueRect.width, trueRect.height);
-        const size     = Geometry.createSize(fObj.width, fObj.height);
-
-
-        var homeScale;
-        // if(fObj.__homeScale != null) {
-          homeScale = Object.assign({}, fObj.__homeScale);
-        // } else {
-        //   homeScale = Object.assign({}, this.scale);
-        // }
-        logger.log("logZIndexBrush", "createIcFreeDrawing_from_freeDrawingFObj", "homeScale:", homeScale);
-
-        const icObj = this.createIcObject(type, position, size, homeScale);
+        const icObj = this.createIcObject_with__transform(type, size, t_ic);
 
 
         const exoObject = Object.assign({}, fObj);
@@ -18273,17 +18257,20 @@
       }
 
 
-      createIcComposite(trueRect, parts, compositeConfig, content = null, config_in = {}) {
-        console.log("createIcComposite", trueRect);
+      // createIcComposite(trueRect, parts, compositeConfig, content = null, config_in = {}) {
+      createIcComposite(dict_parallelogram, parts, compositeConfig, content = null, config_in = {}) {
+        console.log("createIcComposite", dict_parallelogram);
 
         const infiniteCanvas = this;
 
         const type = "composite";
 
-        const position  = Geometry.createPoint(trueRect.x, trueRect.y);
-        const size      = Geometry.createSize(trueRect.width, trueRect.height);
-        const homeScale = Object.assign({}, this.scale);
-        const icObj     = this.createIcObject(type, position, size, homeScale);
+        const size = {
+          width:  1,
+          height: 1,
+        };
+
+        const icObj = this.createIcObject_with__dict_parallelogram(type, size, dict_parallelogram);
 
         const icComposite_spec = {
           isSnappable: false,
@@ -26060,17 +26047,13 @@
           //promote icObj__support to composite
 
             //create composite form
-            const trueRect__support__as_composite = {
-            x:      icObj__support.position.x -  0 / (icObj__support.homeScale.X * icObj__support.scale.X),
-            y:      icObj__support.position.y - 50 / (icObj__support.homeScale.Y * icObj__support.scale.Y),
-            width:  30 / (icObj__support.homeScale.X * icObj__support.scale.X),
-            height: 30 / (icObj__support.homeScale.Y * icObj__support.scale.Y),
-          };
+          const dict_truePoint__composite = icObj__support.getDict_truePoint__topleft10();
+
           const content         = icObj__support;
           const parts           = Utils.dictFromArr([icObj]);
           const contentAndParts = Object.assign({"content": content}, parts); 
           const compositeConfig = Compositer.defaultCompositeConfig(contentAndParts, false);
-          const icObj__support__as_composite = infiniteCanvas.createIcComposite(trueRect__support__as_composite, parts, compositeConfig, content);
+          const icObj__support__as_composite = infiniteCanvas.createIcComposite(dict_truePoint__composite, parts, compositeConfig, content);
           icObj__support__as_composite.cType = "support";
 
           //SHU: illusion
@@ -30479,21 +30462,34 @@
       manageCursorMove_rotate(factor) {
         const infiniteCanvas = this;
 
-        const screenCenterPoint = this.getScreenCenterPoint();
-        // logger.log("logIC", "manageCursorMove_rotate", "screenCenterPoint:", screenCenterPoint);
-
-        const angleInDegrees = this.getAngleForCursorMove(screenCenterPoint, factor);
-
-        if(fabricIntegration.fabricCanvas.isDrawingMode && mouseIntegration.leftMouseDown) {
-          infiniteCanvas.manageFreeDrawingRotate(angleInDegrees, rotationCenter);
-        } else {
-
+        function func_update() {
+          const screenCenterPoint = infiniteCanvas.getScreenCenterPoint();
+  
+          const angleInDegrees = infiniteCanvas.getAngleForCursorMove(screenCenterPoint, factor);
+  
           const screenPoint__rotationCenter = screenCenterPoint;
-
+  
           const icCamera       = infiniteCanvas.icCamera;
           const cameraEngine   = icCamera.dict_engine["camera"].engine.awoken; 
-
+  
           cameraEngine.screenRotate(screenPoint__rotationCenter, angleInDegrees);
+
+          const dict_update = {};
+          return dict_update;
+        }
+
+        if(fabricIntegration.fabricCanvas.isDrawingMode) {
+
+          if(mouseIntegration.leftMouseDown) {
+            const isBreakingBout = true;
+            infiniteCanvas.manageFreeDrawingXScroll(isBreakingBout, func_update);
+          } else {
+            const isBreakingBout = false;
+            infiniteCanvas.manageFreeDrawingXScroll(isBreakingBout, func_update);
+          }
+
+        } else {
+          func_update();
         }
 
       }
@@ -30525,25 +30521,7 @@
 
 
 
-      manageFreeDrawingRotate(angleInDegrees, rotationCenter) {
 
-        const infiniteCanvas = this;
-
-        const isBreakingBout = true;
-        const func_update = async function() {
-          /*await*/ infiniteCanvas.updateWithDRotation(angleInDegrees, rotationCenter);
-          /*await*/ infiniteCanvas.redrawCanvas(RedrawOccasion.orientationChanged);
-
-          const dict_update = {
-            //orientation: ???, 
-          };
-
-          return dict_update;
-        };
-
-        infiniteCanvas.manageFreeDrawingXScroll(isBreakingBout, func_update);
-
-      }
       
 
       logCursor() {
@@ -30589,16 +30567,22 @@
 
         const infiniteCanvas = this;
 
-        // zoom the page based on where the cursor is
-        const cursor__screen = this.cursor__screen;        //the only point that does not move on screen 
+        function func_update__zoom() {
+          // zoom the page based on where the cursor is
+          const cursor__screen = infiniteCanvas.cursor__screen;        //the only point that does not move on screen 
 
-        const icCamera       = infiniteCanvas.icCamera;
-        const cameraEngine   = icCamera.dict_engine["camera"].engine.awoken; 
+          const icCamera       = infiniteCanvas.icCamera;
+          const cameraEngine   = icCamera.dict_engine["camera"].engine.awoken; 
 
-        // cameraEngine.screenZoomToPointByAmount(cursor__screen, scaleAmount);
+          // cameraEngine.screenZoomToPointByAmount(cursor__screen, scaleAmount);
 
-        const factor = 1 + scaleAmount;
-        cameraEngine.screenZoomToPointByFactor(cursor__screen, factor);
+          const factor = 1 + scaleAmount;
+          cameraEngine.screenZoomToPointByFactor(cursor__screen, factor);
+
+          const dict_update = {};
+          return dict_update;
+        }
+
 
 
         // logger.log("logFreeDrawing", "manageScaleUpdateWithScaleAmount", "fabricCanvas.isDrawingMode:", fabricIntegration.fabricCanvas.isDrawingMode);
@@ -30606,25 +30590,28 @@
         const arr_rep_free_selected = infiniteCanvas.getArr_selected_rep_free();
         const isSomethingSelected = (arr_rep_free_selected.length > 0);
 
-        if(fabricIntegration.fabricCanvas.isDrawingMode && mouseIntegration.leftMouseDown) {
-          infiniteCanvas.manageFreeDrawingZScroll(scale_new, dOffset);
-        } else if(fabricIntegration.fabricCanvas.isDrawingMode) {
-          infiniteCanvas.manageFreeDrawingZoomScroll(scale_new, dOffset);
-        } 
-        else 
-        {
-          if(isSomethingSelected && mouseIntegration.leftMouseDown) {
+        if(fabricIntegration.fabricCanvas.isDrawingMode) {
+          
+          if(mouseIntegration.leftMouseDown) {
+            //freeDrawingZScroll
+            const isBreakingBout = true;
+            infiniteCanvas.manageFreeDrawingXScroll(isBreakingBout, func_update__zoom);
+          } else {
+            //freeDrawingZoomScroll
+            const isBreakingBout = false;
+            infiniteCanvas.manageFreeDrawingXScroll(isBreakingBout, func_update__zoom);
+          }
 
-            if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
-              infiniteCanvas.manageZPixelZScroll(scale_new, dOffset, arr_rep_free_selected, scaleAmount);
-            } else {
-              infiniteCanvas.manageZScroll(scale_new, dOffset, arr_rep_free_selected, scaleAmount);
-            }
+        } else if(isSomethingSelected && mouseIntegration.leftMouseDown) {
 
-          } 
+          if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+            infiniteCanvas.manageZPixelZScroll(scale_new, dOffset, arr_rep_free_selected, scaleAmount);
+          } else {
+            infiniteCanvas.manageZScroll(scale_new, dOffset, arr_rep_free_selected, scaleAmount);
+          }
 
-          // this.updateScaleAndDOffset(scale_new, dOffset);
-          // this.redrawCanvas(RedrawOccasion.scaleChanged);
+        } else {
+          func_update__zoom();
         }
 
       }
@@ -30879,45 +30866,9 @@
 
 
 
-      manageFreeDrawingZScroll(scale_new, dOffset) {
-        // logger.log("logDrawingMode", "manageFreeDrawingZScroll", scale_new, dOffset);
-        logger.log("logIC", "manageFreeDrawingZScroll", scale_new, dOffset);
 
-        const infiniteCanvas = this;
 
-        const isBreakingBout = true;
-        const func_update = async function() {
-          /*await*/ infiniteCanvas.updateScaleAndDOffset(scale_new, dOffset);
 
-          const dict_update = {
-            homeScale: Object.assign({}, infiniteCanvas.scale), 
-          };
-
-          return dict_update;
-        };
-
-        infiniteCanvas.manageFreeDrawingXScroll(isBreakingBout, func_update);
-      }
-
-      manageFreeDrawingZoomScroll(scale_new, dOffset) {
-        // logger.log("logDrawingMode", "manageFreeDrawingZoomScroll", scale_new, dOffset);
-        logger.log("logIC", "manageFreeDrawingZoomScroll", scale_new, dOffset);
-
-        const infiniteCanvas = this;
-
-        const isBreakingBout = false;
-        const func_update = async function() {
-          /*await*/ infiniteCanvas.updateScaleAndDOffset(scale_new, dOffset);
-
-          const dict_update = {
-            homeScale: Object.assign({}, infiniteCanvas.scale), 
-          };
-
-          return dict_update;
-        }
-
-        infiniteCanvas.manageFreeDrawingXScroll(isBreakingBout, func_update);
-      }
 
 
       manageUpdate__color(rgbaColorString) {
@@ -33349,10 +33300,8 @@
 
       createInfinishute_p() {
 
-        const counter     = this.counter;
-        const offset      = this.offset;
-        const scale       = this.scale;
-        const orientation = this.orientation;
+        const counter      = this.counter;
+        const id__icCamera = this.icCamera.id;
 
         const arr_fObjImage = Object.values(fabricIntegration.fabric_objects).filter((fObj) => fObj instanceof fabric.Image);
 
@@ -33374,11 +33323,8 @@
         const infinishute_p = all_official_serial_p.then((arr_official_serial) => {
           const infinishute = {};
 
-          infinishute.offset      = offset;
-          infinishute.scale       = scale;
-          infinishute.orientation = orientation;
-
-          infinishute.counter = counter;
+          infinishute.counter      = counter;
+          infinishute.id__icCamera = id__icCamera;
 
           infinishute.official = arr_official_serial.reduce((acc, official) => {
             console.log("official",)
@@ -33442,14 +33388,15 @@
 
         const json = dict__infinishute["infinishute.json"];
 
-        this.offset      = json.offset;
-        this.scale       = json.scale;
-        this.orientation = json.orientation;
+        const counter__infinishute = json.counter;
+        const id__icCamera         = json.id__icCamera;
 
-        // this.counter = json.counter;
-        this.counter = Math.max(this.counter, json.counter);
+
 
         const infiniteCanvas = this;
+
+        infiniteCanvas.counter = Math.max(this.counter, counter__infinishute);
+
 
         const arr_official = Object.values(json.official);
 
@@ -33969,42 +33916,40 @@
           homeScale:        homeScale,        //SHU: absolute
           orientation:      orientation,      //SHU: absolute
         });
+
+
         this.id        = id;
         this.type      = type;
 
         this.size      = size;                //"information" size    //gives an idea of the "real" sharpness/heavyness of the object
 
 
-
-        this._position__center = null;
+        // this._position__center        = null;
+        // this._position__center__debug = null;
         this.position__center  = position__center;    //{x: BigNumber, y: BigNumber}
-        this._position__center__debug = {
-          x: position__center.x.toString(),
-          y: position__center.y.toString(),
-        };
 
-        this._homeScale = null;
+        // this._homeScale        = null;
+        // this._homeScale__debug = null;
         this.homeScale = homeScale;   //BigNumber
-        this._homeScale__debug = homeScale.toString();
 
-        this._orientation = null;
+        // this._orientation        = null;
+        // this._orientation__debug = null;
         this.orientation = orientation;
-        this._orientation__debug = orientation.toString();
 
 
         this.zIndex      = 0;
 
 
         //refinement using controls
-        this._scale = null;
-        this._scale__debug = null;
+        // this._scale = null;
+        // this._scale__debug = null;
         this.scale = ICUtils.bigNumberize__dict({
           X: 1.0,
           Y: 1.0,
         });
 
-        this._skew = null;
-        this._skew__debug = null;
+        // this._skew = null;
+        // this._skew__debug = null;
         this.skew = ICUtils.bigNumberize__dict({
           X: 0,
           Y: 0,
@@ -34049,15 +33994,17 @@
         this.canBeSkewed   = true;
         this.canBeSelected = true;
 
-        this.canBeHeld = true;
+        this.canBeHeld     = true;
+        this.isHeld        = false;
+        // this.addInteraction_hold();
 
         // this.isSnapped     = false;
-        this.isSnappable = true;
-        this.snapState = SnapState.Unsnapped;
-        this.snappedTo = -1;
+        this.isSnappable   = true;
+        this.snapState     = SnapState.Unsnapped;
+        this.snappedTo     = -1;
 
         // this.isTouchable    = true;
-        this.isTouchable = false;
+        this.isTouchable    = false;
         // this.touchState    = TouchState.Untouched;
         this.touchStateDict = {};
         //debug
@@ -34065,14 +34012,10 @@
 
 
         // this.cType = "";
-        this.cType = null;
-        this.isMobile = false;
+        this.cType       = null;
+        this.isMobile    = false;
         this.compositeId = -1;
 
-        this.isHeld = false;
-        // this.addInteraction_hold();
-
-        this.isUsingCenterPosition = false;
 
         this.isSelected = false;
 
@@ -34086,99 +34029,92 @@
         this.counter__path = 0;
       }
 
-      //debug
-      // get position() {
-      //   return this.position__center;
-      // }
-
-      // set position(position__new) {
-      //   return (this.position__center = position__new);
-      // }
-
 
       //debug
-      get position__center() {
-        return this._position__center;
-      }
+      // get position__center() {
+      //   return this._position__center;
+      // }
 
-      set position__center(position__center__new) {
-        // logger.log("logIC", "ICObject::set position__center", "position__center__new:", ICUtils.stringify__dict(position__center__new));
-        // if(!math.isBigNumber(position__center__new.x) || !math.isBigNumber(position__center__new.y)) {
-        //   throw new Error("setting non-BigNumber-based position__center");
-        // }
+      // set position__center(position__center__new) {
+      //   // logger.log("logIC", "ICObject::set position__center", "position__center__new:", ICUtils.stringify__dict(position__center__new));
+      //   // if(!math.isBigNumber(position__center__new.x) || !math.isBigNumber(position__center__new.y)) {
+      //   //   throw new Error("setting non-BigNumber-based position__center");
+      //   // }
 
-        // //check if object is ok
-        // const x__number = math.number(position__center__new.x);
-        // const y__number = math.number(position__center__new.y);
-
-
-        this._position__center = position__center__new;
-
-        this._position__center__debug  = ICUtils.stringify__dict({
-          x: position__center__new.x,
-          y: position__center__new.y,
-        });
-      }
+      //   // //check if object is ok
+      //   // const x__number = math.number(position__center__new.x);
+      //   // const y__number = math.number(position__center__new.y);
 
 
+      //   this._position__center = position__center__new;
 
-      get homeScale() {
-        return this._homeScale;
-      }
+      //   this._position__center__debug  = ICUtils.stringify__dict({
+      //     x: position__center__new.x,
+      //     y: position__center__new.y,
+      //   });
+      // }
 
-      set homeScale(homeScale__new) {
-        // logger.log("logIC", "ICObject::set homeScale", "homeScale__new:", math.number(homeScale__new));
-        // if(!math.isBigNumber(homeScale__new)) {
-        //   throw new Error("setting non-BigNumber-based homeScale");
-        // }
 
-        // //check if object is ok
-        // const homeScale__number = math.number(homeScale__new);
+      //debug
+      // get homeScale() {
+      //   return this._homeScale;
+      // }
 
-        this._homeScale = homeScale__new;
+      // set homeScale(homeScale__new) {
+      //   // logger.log("logIC", "ICObject::set homeScale", "homeScale__new:", math.number(homeScale__new));
+      //   // if(!math.isBigNumber(homeScale__new)) {
+      //   //   throw new Error("setting non-BigNumber-based homeScale");
+      //   // }
 
-        this._homeScale__debug = homeScale__new.toString();
-      }
+      //   // //check if object is ok
+      //   // const homeScale__number = math.number(homeScale__new);
+
+      //   this._homeScale = homeScale__new;
+
+      //   this._homeScale__debug = homeScale__new.toString();
+      // }
       
-      get orientation() {
-        return this._orientation;
-      }
+      //debug
+      // get orientation() {
+      //   return this._orientation;
+      // }
 
-      set orientation(orientation__new) {  
-        // logger.log("logIC", "ICObject::set orientation", "orientation__new:", math.number(orientation__new));
+      // set orientation(orientation__new) {  
+      //   // logger.log("logIC", "ICObject::set orientation", "orientation__new:", math.number(orientation__new));
 
-        this._orientation        = orientation__new;
+      //   this._orientation        = orientation__new;
 
-        this._orientation__debug = orientation__new.toString();
-      }
-
-
-
-      get scale() {
-        return this._scale;
-      }
-
-      set scale(scale__new) {  
-        // logger.log("logIC", "ICObject::set scale", "scale__new:", ICUtils.stringify__dict(scale__new));
-
-        this._scale = scale__new;
-
-        this._scale__debug = ICUtils.stringify__dict(scale__new);
-      }
+      //   this._orientation__debug = orientation__new.toString();
+      // }
 
 
+      //debug
+      // get scale() {
+      //   return this._scale;
+      // }
 
-      get skew() {
-        return this._skew;
-      }
+      // set scale(scale__new) {  
+      //   // logger.log("logIC", "ICObject::set scale", "scale__new:", ICUtils.stringify__dict(scale__new));
 
-      set skew(skew__new) {  
-        // logger.log("logIC", "ICObject::set skew", "skew__new:", ICUtils.stringify__dict(skew__new));
+      //   this._scale = scale__new;
 
-        this._skew = skew__new;
+      //   this._scale__debug = ICUtils.stringify__dict(scale__new);
+      // }
 
-        this._skew__debug = ICUtils.stringify__dict(skew__new);
-      }
+
+
+      //debug
+      // get skew() {
+      //   return this._skew;
+      // }
+
+      // set skew(skew__new) {  
+      //   // logger.log("logIC", "ICObject::set skew", "skew__new:", ICUtils.stringify__dict(skew__new));
+
+      //   this._skew = skew__new;
+
+      //   this._skew__debug = ICUtils.stringify__dict(skew__new);
+      // }
 
 
 
@@ -34216,7 +34152,7 @@
           y: options.translateY,
         };
 
-        this.homeScale = options.factScale;
+        this.homeScale   = options.factScale;
         // this.homeScale = math.divide( math.bignumber(1), options.factScale );
 
         this.orientation = options.angle;
@@ -34442,15 +34378,6 @@
 
 
       updateWithTrueTransform(t__update) {
-
-        // const truePoint__center = this.getTruePoint__center();
-        // const t__translation = ICUtils.calcTranslateMatrix(ICUtils.bigNumberize__dict({
-        //   translateX: truePoint__center.x,
-        //   translateY: truePoint__center.y,
-        // }));
-
-        // const t__update__centered = ICUtils.multiplyManyTransformMatricesInThatOrder(ICUtils.invertTransform(t__translation),t__update, t__translation);
-
         const t__ic__old = this.getIcTransform();
         const t__ic__new = ICUtils.multiplyTransformMatrices(t__update, t__ic__old);
         // const t__ic__new = ICUtils.multiplyTransformMatrices(t__update__centered, t__ic__old);
@@ -34484,6 +34411,28 @@
         const dict_truePoint  = ICUtils.transformDict_parallelogram(dict_unitSquare, t__obj);
 
         return dict_truePoint;
+      }
+
+      getDict_truePoint__topleft10() { //this parallelogram's .br is icObj's .tl, and it is 10 times smaller (for composite handles)
+        const icObj = this;
+
+        const dict_truePoint = icObj.getDict_truePoint();
+
+        const t__scale = ICUtils.calcScaleMatrix({
+          scaleX: new Decimal(0.1),
+          scaleY: new Decimal(0.1),
+        });
+
+        const dict_truePoint__small = ICUtils.transformDict_parallelogram(dict_truePoint, t__scale);
+
+        const t__translation = ICUtils.calcTranslateMatrix({
+          translateX: Decimal.sub( dict_truePoint.br.x , dict_truePoint__small.br.x ),
+          translateY: Decimal.sub( dict_truePoint.br.y , dict_truePoint__small.br.y ),
+        });
+
+        const dict_truePoint__small__translated = ICUtils.transformDict_parallelogram(dict_truePoint__small, t__translation);
+
+        return dict_truePoint__small__translated;
       }
 
 
@@ -34582,96 +34531,108 @@
       static fromJson_p(json_icObject) {
         logger.log("log2", "fromJson_p", json_icObject);
 
-        const id        = json_icObject.id;
-        const type      = json_icObject.type;
+        const id                = json_icObject.id;
+        const type              = json_icObject.type;
+        const size              = json_icObject.size;
 
-        const position  = json_icObject.position;
-        const size      = json_icObject.size;
+        const position__center__string  = json_icObject.position__center;
+        const position__center  = {
+          x: new Decimal(position__center__string.x),
+          y: new Decimal(position__center__string.y),
+        };
+        const homeScale__string         = json_icObject.homeScale;
+        const homeScale         = new Decimal(homeScale__string);
 
-        const homeScale = json_icObject.homeScale;
-
-
-        const icObj = new IcObject(id, type, position, size, homeScale);
-
-
-        const scale = json_icObject.scale;
-        icObj.scale = scale;
-
-        const orientation = json_icObject.orientation;
-        icObj.orientation = orientation;
-
-        const flip = json_icObject.flip;
-        icObj.flip = flip;
-
-        const zIndex = json_icObject.zIndex;
-        icObj.zIndex = zIndex;
+        const orientation__string       = json_icObject.orientation;
+        const orientation       = new Decimal(orientation__string);
 
 
-        const fill = json_icObject.fill;
-        icObj.fill = fill;
-        const stroke = json_icObject.stroke;
-        icObj.stroke = stroke;
+        const scale__string             = json_icObject.scale;
+        const scale             = {
+          X: new Decimal(scale__string.X),
+          Y: new Decimal(scale__string.Y),
+        };
+        const skew__string             = json_icObject.skew;
+        const skew              = {
+          X: new Decimal(skew__string.X),
+          Y: new Decimal(skew__string.Y),
+        };
+        const flip              = json_icObject.flip;
 
-        const backgroundColor = json_icObject.backgroundColor;
-        icObj.backgroundColor = backgroundColor;
+        const zIndex            = json_icObject.zIndex;
 
-        const borderColor = json_icObject.borderColor;
-        icObj.borderColor = borderColor;
+        const fill              = json_icObject.fill;
+        const stroke            = json_icObject.stroke;
+        const opacity           = json_icObject.opacity;
+        const strokeWidth       = json_icObject.strokeWidth;
+        const backgroundColor   = json_icObject.backgroundColor;
+        const borderColor       = json_icObject.borderColor;
+        const rx                = json_icObject.rx;
+        const ry                = json_icObject.ry;
 
-        const opacity = json_icObject.opacity;
-        icObj.opacity = opacity;
+        const canBeMoved        = json_icObject.canBeMoved;
+        const canBeRotated      = json_icObject.canBeRotated;
+        const canBeResized      = json_icObject.canBeResized;
+        const canBeSkewed       = json_icObject.canBeSkewed;
+        const canBeSelected     = json_icObject.canBeSelected;
+        const canBeHeld         = json_icObject.canBeHeld;
 
+        const isSnappable       = json_icObject.isSnappable;
+        const snapState         = json_icObject.snapState;
+        const snappedTo         = json_icObject.snappedTo;
 
-        const isSnappable = json_icObject.isSnappable;
-        icObj.isSnappable = isSnappable;
-        const snapState = json_icObject.snapState;
-        icObj.snapState = snapState;
-        const snappedTo = json_icObject.snappedTo;
-        icObj.snappedTo = snappedTo;
-
-
-        const isTouchable = json_icObject.isTouchable;
-        icObj.isTouchable = isTouchable;
-        // const touchState = json_icObject.touchState;
-        // icObj.touchState = touchState;
-        const touchStateDict = json_icObject.touchStateDict;
-        icObj.touchStateDict = touchStateDict;
-
-        const isLocked = json_icObject.isLocked;
-        icObj.isLocked = isLocked;
-
-        const cType = json_icObject.cType;
-        icObj.cType = cType;
-        const isMobile = json_icObject.isMobile;
-        icObj.isMobile = isMobile;
-        const compositeId = json_icObject.compositeId;
-        icObj.compositeId = compositeId;
-
-        const isUsingCenterPosition = json_icObject.isUsingCenterPosition;
-        icObj.isUsingCenterPosition = isUsingCenterPosition;
-
-        // if(json_icObject.engine_serial != null) {
-        //   const eType           = json_icObject.eType;
-        //   icObj.eType           = eType;
-        //   const engine_serial   = json_icObject.engine_serial;
-
-        //   // const engine          = deserialize(engine_serial);
-        //   // console.log("rehydrated engine", engine);
-        //   // // engine.initialize()
-        //   // icObj.engine          = engine;
-
-        //   const virgin          = deserialize(engine_serial);
-
-        //   icObj.engine            = {};
-        //   icObj.engine.initialize = virgin.initialize.bind(icObj.engine);
-        //   icObj.engine.virgin     = virgin;
-
-        //   console.log("rehydrated engine", icObj.engine);
+        const isTouchable       = json_icObject.isTouchable;
+        const touchStateDict    = json_icObject.touchStateDict;
 
 
-        //   const getScopeObj = deserialize(json_icObject.getScopeObj);
-        //   icObj.getScopeObj = getScopeObj;
-        // }
+        const cType             = json_icObject.cType;
+        const isMobile          = json_icObject.isMobile;
+        // const isAlterable       = json_icObject.isAlterable;
+        const compositeId       = json_icObject.compositeId;
+
+
+
+        const icObj = new IcObject(id, type, size, position__center, homeScale, orientation);
+
+        icObj.scale             = scale;
+        icObj.skew              = skew;
+        icObj.flip              = flip;
+
+        icObj.zIndex            = zIndex;
+
+
+        icObj.fill              = fill;
+        icObj.stroke            = stroke;
+        icObj.opacity           = opacity;
+        icObj.strokeWidth       = strokeWidth;
+        icObj.backgroundColor   = backgroundColor;
+        icObj.borderColor       = borderColor;
+        icObj.rx                = rx;
+        icObj.ry                = ry;
+
+        icObj.canBeMoved        = canBeMoved;
+        icObj.canBeRotated      = canBeRotated;
+        icObj.canBeResized      = canBeResized;
+        icObj.canBeSkewed       = canBeSkewed;
+        icObj.canBeSelected     = canBeSelected;
+        icObj.canBeHeld         = canBeHeld;
+
+        icObj.isSnappable       = isSnappable;
+        icObj.snapState         = snapState;
+        icObj.snappedTo         = snappedTo;
+
+        icObj.isTouchable       = isTouchable;
+        icObj.touchStateDict    = touchStateDict;
+
+
+        icObj.cType             = cType;
+        icObj.isMobile          = isMobile;
+        // icObj.isAlterable       = isAlterable;
+        icObj.compositeId       = compositeId;
+
+
+
+
         if(json_icObject.dict_engine != null) {
 
           const dict_engine = Object.entries(json_icObject.dict_engine).reduce((acc, [eType, engineMiniDict_serial] ) => {
@@ -34727,12 +34688,14 @@
 
           case "text":
           case "tag":
-            const text = json_icObject.text;
-            icObj.text = text;
+            const text      = json_icObject.text;
+            icObj.text      = text;
+
             const textColor = json_icObject.textColor;
             icObj.textColor = textColor;
-            const fontSize = json_icObject.fontSize;
-            icObj.fontSize = fontSize;
+            
+            const fontSize  = json_icObject.fontSize;
+            icObj.fontSize  = fontSize;
 
             break;
           case "image":
@@ -35387,53 +35350,53 @@
 
 
 
-      getScreenPositionWithoutOffset() {
-        const screenX = this.position.x * this.homeScale.X;
-        const screenY = this.position.y * this.homeScale.Y;
-        return Geometry.createPoint(screenX, screenY);
-      }
+      // getScreenPositionWithoutOffset() {
+      //   const screenX = this.position.x * this.homeScale.X;
+      //   const screenY = this.position.y * this.homeScale.Y;
+      //   return Geometry.createPoint(screenX, screenY);
+      // }
 
-      getScreenPointBRWithoutOffset() {       //SHU TODO: take orientation into account
-        const screenX = (this.position.x + this.size.width) * this.homeScale.X;
-        const screenY = (this.position.y + this.size.height) * this.homeScale.Y;
-        return Geometry.createPoint(screenX, screenY);
-      }
+      // getScreenPointBRWithoutOffset() {       //SHU TODO: take orientation into account
+      //   const screenX = (this.position.x + this.size.width) * this.homeScale.X;
+      //   const screenY = (this.position.y + this.size.height) * this.homeScale.Y;
+      //   return Geometry.createPoint(screenX, screenY);
+      // }
 
-      getScreenRect(/*isPixelRatioFixEnabled = true*/) {
-        const screenPointTL = this.getScreenPositionWithoutOffset();
-        const screenPointBR = this.getScreenPointBRWithoutOffset();
+      // getScreenRect(/*isPixelRatioFixEnabled = true*/) {
+      //   const screenPointTL = this.getScreenPositionWithoutOffset();
+      //   const screenPointBR = this.getScreenPointBRWithoutOffset();
 
-        const left   = screenPointTL.x;
-        const top    = screenPointTL.y;
-        const width  = screenPointBR.x - screenPointTL.x;
-        const height = screenPointBR.y - screenPointTL.y;
-        const rect__screen__raw = Geometry.createRect(left, top, width, height);
+      //   const left   = screenPointTL.x;
+      //   const top    = screenPointTL.y;
+      //   const width  = screenPointBR.x - screenPointTL.x;
+      //   const height = screenPointBR.y - screenPointTL.y;
+      //   const rect__screen__raw = Geometry.createRect(left, top, width, height);
 
-        return rect__screen__raw;
+      //   return rect__screen__raw;
 
-        // var factor;
-        // if(isPixelRatioFixEnabled) {
-        //   factor = window.devicePixelRatio;
-        // } else {
-        //   factor = 1.0;
-        // }
+      //   // var factor;
+      //   // if(isPixelRatioFixEnabled) {
+      //   //   factor = window.devicePixelRatio;
+      //   // } else {
+      //   //   factor = 1.0;
+      //   // }
   
-        // const rect__screen__fixed = {
-        //   left:   rect__screen__raw.left   * factor,
-        //   top:    rect__screen__raw.top    * factor,
-        //   width:  rect__screen__raw.width  * factor,
-        //   height: rect__screen__raw.height * factor,
-        // };
+      //   // const rect__screen__fixed = {
+      //   //   left:   rect__screen__raw.left   * factor,
+      //   //   top:    rect__screen__raw.top    * factor,
+      //   //   width:  rect__screen__raw.width  * factor,
+      //   //   height: rect__screen__raw.height * factor,
+      //   // };
 
-        // return rect__screen__fixed;
-      }
-
-
+      //   // return rect__screen__fixed;
+      // }
 
 
-      getHomeScreenSize() {
-        return this.size;
-      }
+
+
+      // getHomeScreenSize() {
+      //   return this.size;
+      // }
 
       
 
@@ -35446,55 +35409,55 @@
       //   return trueSize;
       // }
 
-      getRect() {
-        const rect = Geometry.createRect(this.position.x, this.position.y, this.size.width, this.size.height);
-        return rect;
-      }
+      // getRect() {
+      //   const rect = Geometry.createRect(this.position.x, this.position.y, this.size.width, this.size.height);
+      //   return rect;
+      // }
 
-      getRect2() {
-        const trueSize = this.getTrueSize();
-        const rect2 = Geometry.createRect(this.position.x, this.position.y, trueSize.width, trueSize.height);
-        return rect2;
-      }
-
-
-
-      update(icObj_new, requestCanvasRedraw) {
-        logger.log("icObj.update", "icObj_new", icObj_new);
-
-        const icObj = this;
-
-        if (icObj_new.type != icObj.type) {
-          // console.log("invalid type for icObj_new", "icObj", icObj, "icObj_new", icObj_new);
-          throw new Error("invalid type for icObj_new" + "icObj" + icObj + "icObj_new" + icObj_new);
-        }
-
-        this.position = Object.assign({}, icObj_new.position);
-        this.size     = Object.assign({}, icObj_new.size);
-
-        this.homeScale = Object.assign({}, icObj_new.homeScale);
-
-        this.scale       = Object.assign({}, icObj_new.scale);
-        this.orientation = icObj_new.orientation;
-        this.flip        = Object.assign({}, icObj_new.flip);
-
-        // this.fill        = icObj_new.fill;
-        // this.stroke      = icObj_new.stroke;
+      // getRect2() {
+      //   const trueSize = this.getTrueSize();
+      //   const rect2 = Geometry.createRect(this.position.x, this.position.y, trueSize.width, trueSize.height);
+      //   return rect2;
+      // }
 
 
-        // this.perceptionScale = Object.assign({}, icObj_new.perceptionScale);
 
-        if (this.type == "text") {
-          this.text     = icObj_new.text;
-          this.fontSize = icObj_new.fontSize;
-        }
+      // update(icObj_new, requestCanvasRedraw) {
+      //   logger.log("icObj.update", "icObj_new", icObj_new);
 
-        if (this.type == "toggleRect") {
-          this.isActive = icObj_new.isActive;
-        }
+      //   const icObj = this;
 
-        this.didUpdate(requestCanvasRedraw);
-      }
+      //   if (icObj_new.type != icObj.type) {
+      //     // console.log("invalid type for icObj_new", "icObj", icObj, "icObj_new", icObj_new);
+      //     throw new Error("invalid type for icObj_new" + "icObj" + icObj + "icObj_new" + icObj_new);
+      //   }
+
+      //   this.position = Object.assign({}, icObj_new.position);
+      //   this.size     = Object.assign({}, icObj_new.size);
+
+      //   this.homeScale = Object.assign({}, icObj_new.homeScale);
+
+      //   this.scale       = Object.assign({}, icObj_new.scale);
+      //   this.orientation = icObj_new.orientation;
+      //   this.flip        = Object.assign({}, icObj_new.flip);
+
+      //   // this.fill        = icObj_new.fill;
+      //   // this.stroke      = icObj_new.stroke;
+
+
+      //   // this.perceptionScale = Object.assign({}, icObj_new.perceptionScale);
+
+      //   if (this.type == "text") {
+      //     this.text     = icObj_new.text;
+      //     this.fontSize = icObj_new.fontSize;
+      //   }
+
+      //   if (this.type == "toggleRect") {
+      //     this.isActive = icObj_new.isActive;
+      //   }
+
+      //   this.didUpdate(requestCanvasRedraw);
+      // }
 
       updateWithDict(dict__update, requestCanvasRedraw) {
         Object.entries(dict__update).forEach(([propName, prop]) => {
@@ -35529,15 +35492,15 @@
       }
 
       clone() {
-        const id       = this.id;
-        const type     = this.type;
-        const size     = this.size;
+        const id               = this.id;
+        const type             = this.type;
+        const size             = this.size;
 
-        const position    = this.position;
-        const homeScale   = this.homeScale;
-        const orientation = this.orientation;
+        const position__center = this.position__center;
+        const homeScale        = this.homeScale;
+        const orientation      = this.orientation;
 
-        const icObj_clone = new IcObject(id, type, size, position, homeScale, orientation);
+        const icObj_clone = new IcObject(id, type, size, position__center, homeScale, orientation);
 
         Object.assign(icObj_clone, this);
         console.log("icObj_clone", icObj_clone);
@@ -35552,24 +35515,22 @@
 
         // const id   = this.id;
         const id   = infiniteCanvas.getId__fresh();
-
         const type = this.type;
-
-        const position = {
-          x: this.position.x,
-          y: this.position.y,
-        };
         const size = {
-          width:  this.size.width,
-          height: this.size.height,
+          width:  new Decimal(this.size.width),
+          height: new Decimal(this.size.height),
         };
 
-        const homeScale = {
-          X: this.homeScale.X,
-          Y: this.homeScale.Y,
-        };
 
-        const icObj__deepClone = new IcObject(id, type, size, position, homeScale, orientation);
+        const position__center = {
+          x: new Decimal(this.position__center.x),
+          y: new Decimal(this.position__center.y),
+        };
+        const homeScale   = new Decimal(this.homeScale);
+        const orientation = new Decimal(this.orientation);
+
+
+        const icObj__deepClone = new IcObject(id, type, size, position__center, homeScale, orientation);
         // logger.log("logCP", "deepClone", "icObj__deepClone:", icObj__deepClone);
         
         const arr_method = Utils.getMethods(icObj__deepClone);
@@ -35579,9 +35540,10 @@
           ...arr_method,
           "id",
           "type",
-          "position",
           "size",
+          "position__center",
           "homeScale",
+          "orientation",
         ];
 
         const arr_ignored = [
@@ -35607,8 +35569,31 @@
               case "scale":
                 {
                   const scale = value;
-                  const scale__deepClone = Object.assign({}, scale);
+                  const scale__deepClone = {
+                    X: new Decimal(scale.X),
+                    Y: new Decimal(scale.Y),
+                  };
                   icObj__deepClone[key] = scale__deepClone;
+                }
+                break;
+              case "skew":
+                  {
+                    const skew = value;
+                    const skew__deepClone = {
+                      X: new Decimal(skew.X),
+                      Y: new Decimal(skew.Y),
+                    };
+                    icObj__deepClone[key] = skew__deepClone;
+                  }
+                  break;
+              case "flip":
+                {
+                  const flip = value;
+                  const flip__deepClone = {
+                    X: flip.X,
+                    Y: flip.Y,
+                  };
+                  icObj__deepClone[key] = flip__deepClone;
                 }
                 break;
               case "img":
@@ -41772,6 +41757,17 @@
             return result;
           };
 
+          this.updateCameraObj = function(dict_update) {
+            const icCamera = this.scopeObj.engineCarrier; 
+            
+            icCamera.pauseAllInnerUpdates();
+
+            icCamera.updateWithDict(dict_update);
+
+            icCamera.resumeAllInnerUpdates();
+
+            return result;
+          };
 
 
 
@@ -41830,6 +41826,11 @@
           };
 
 
+          this.screenSkew = function(screenPoint__before, screenPoint__after) {
+            const truePoint__before = this.toTruePoint(screenPoint__before);
+            const truePoint__after  = this.toTruePoint(screenPoint__after);
+            return this.trueSkew(truePoint__before, truePoint__after);
+          };
 
 
           // this.trueZoomToPointByAmount = function(truePoint, amount) {
@@ -41912,9 +41913,51 @@
             const angleInDegrees__bigNumber   = math.subtract( orientation__new , orientation__old );
 
             this.trueRotate(truePoint__rotationCenter, angleInDegrees__bigNumber);
-          }
+          };
 
 
+          this.trueSkew = function(truePoint__before, truePoint__after) {
+            const icCamera = this.scopeObj.engineCarrier;
+            
+            function createDict_point_withShearing(dict_point, shearX, shearY) {
+              var dict_point__new = Object.assign({}, dict_point);
+  
+              //shearX (segment at bottom)
+              const t__shearX = ICUtils.composeMatrix({
+                translateX: shearX,
+              });
+              dict_point__new.bl = ICUtils.transformPoint(dict_point__new.bl, t__shearX);
+              dict_point__new.br = ICUtils.transformPoint(dict_point__new.br, t__shearX);
+  
+              //shearY (segment at right)
+              const t__shearY = ICUtils.composeMatrix({
+                translateY: shearY,
+              });
+              dict_point__new.tr = ICUtils.transformPoint(dict_point__new.tr, t__shearY);
+              dict_point__new.br = ICUtils.transformPoint(dict_point__new.br, t__shearY);
+  
+              return dict_point__new;
+            }
+
+            const shearX = Decimal.sub( truePoint__after.x , truePoint__before.x );
+            const shearY = Decimal.sub( truePoint__after.y , truePoint__before.y );
+
+            const dict_point__before = icCamera.getDict_truePoint();
+            const dict_point__after  = createDict_point_withShearing(dict_point__before, shearX, shearY);
+
+            const t_ic__shear = ICUtils.createTransform__parallelogramToParallelogram(dict_point__before, dict_point__after);
+
+            return this.updateCameraObjTransform(t_ic__shear);
+          };
+
+          this.trueSkew__reset = function(truePoint__rotationCenter) {
+            this.updateCameraObj({
+              skew: {
+                X: new Decimal(0),
+                Y: new Decimal(0),
+              },
+            });
+          };
 
           
 
@@ -54268,32 +54311,7 @@
 
           var fObj = new fabric.Path(exoObject.path);
 
-          // const position_screen = this.infiniteCanvas.toScreenPoint(icObj.position);
-          // console.log("position_screen", position_screen);
-          // const size_screen     = this.infiniteCanvas.toScreenSize(icObj.size);
-          // console.log("size_screen", size_screen);
-
-          const position_screen = icObj.getScreenPositionWithoutOffset();
-          // console.log("position_screen", position_screen);
-          const homeSize_screen = icObj.getHomeScreenSize();
-          // console.log("homeSize_screen", homeSize_screen);
-
           fObj.set({
-            left: position_screen.x,    //SHU: ??? where is infiniteCanvas.offset taking part ???
-            top:  position_screen.y,
-
-            // width:  homeSize_screen.width,
-            // height: homeSize_screen.height,
-            //
-            // scaleX:  icObj.scale.X,
-            // scaleY:  icObj.scale.Y,
-            //
-            // flipX:   icObj.flip.X,
-            // flipY:   icObj.flip.Y,
-
-
-            angle: icObj.orientation,
-
 
             stroke:           exoObject.stroke,
             strokeDashArray:  exoObject.strokeDashArray,
@@ -54306,8 +54324,6 @@
 
             opacity: icObj.opacity,
 
-            // icObjId  : icObj.id,
-            // trueRect : trueRect,
             icObj: icObj,
           });
 
@@ -54389,43 +54405,10 @@
 
           fObj_p.then((fObj) => {
 
-            fObj.set({
-              left:   dict_zPixel.screenRect.x,    
-              top:    dict_zPixel.screenRect.y,
-  
-              scaleX: dict_zPixel.homeScale.X,     
-              scaleY: dict_zPixel.homeScale.Y,     
-   
-              angle: infiniteCanvas.orientation,
-  
-              // icObj: icObj,
-            });
-  
-
-              //will be set when recycling
-  
-            // //event listeners
-            // if (icObj.canBeHeld) {
-            //   this.addInteraction_hold(fObj);
-            // }
-  
-            // if (icObj.canBeMoved) {
-            //   this.addInteraction_move(fObj);
-            // }
-            // if (icObj.canBeResized) {
-            //   this.addInteraction_resize2(fObj);
-            // }
-            // if (icObj.canBeRotated) {
-            //   this.addInteraction_rotate(fObj);
-            // }
-  
-            // this.addInteraction_select(fObj);
-            // // this.addListeners(fObj);
-  
-  
-            // fObj.hasControls = false;
-            // fObj.hasBorders = true;
-  
+            const dict_screenPoint = dict_zPixel.dict_screenPoint;
+            const t_f = ICUtils.createTransform__unitSquareToParallelogram(dict_screenPoint);
+            fabric.util.applyTransformToObject(fObj, t_f);
+            fObj.setCoords();
   
             return fObj;
           });
@@ -57982,19 +57965,15 @@
     
                 //create composite
                 const icFreeDrawing0 = arr_icObj__created.find(e => true);
-                const trueRect__composite = {
-                  x: icFreeDrawing0.position.x,
-                  y: icFreeDrawing0.position.y,
-                  width:  10,
-                  height: 10,
-                };
+                
+                const dict_truePoint__composite = icFreeDrawing0.getDict_truePoint__topleft10();
                 const parts = arr_icObj__created.reduce((acc, icFreeDrawing) => {
                   const partName = "freeDrawing__" + icFreeDrawing.id;
                   acc[partName] = icFreeDrawing;
                   return acc;
                 }, {});
                 const compositeConfig = Compositer.defaultCompositeConfig(parts, false, false);
-                const icComposite     = infiniteCanvas.createIcComposite(trueRect__composite, parts, compositeConfig); 
+                const icComposite     = infiniteCanvas.createIcComposite(dict_truePoint__composite, parts, compositeConfig); 
                 icComposite.cType = "freeDrawingObj";
                 icComposite.isEntity = true;
                 // icComposite.fillColor = "green";
@@ -59740,18 +59719,15 @@
 
         getHomeScale__zPixel__default() {
           const infiniteCanvas = this.infiniteCanvas;
-          const homeScale = {
-            X: infiniteCanvas.scale.X / 16.0, 
-            Y: infiniteCanvas.scale.Y / 16.0,
-          };
-          return homeScale;
+          const homeScale__zPixel = Decimal.div(infiniteCanvas.scale , new Decimal(16.0));
+          return homeScale__zPixel;
         }
 
         // createDict__zPixel__forZPixelBrushPointer(pointer) {
         //   return this.createDict__zPixel__forZPixelBrushPointerAndHomeScale(pointer, null);
         // }
 
-        createDict__zPixel__forZPixelBrushPointerAndHomeScale(pointer, homeScale_in = null) {
+        createDict__zPixel__forZPixelBrushPointerAndHomeScale(pointer, homeScale) {
           // logger.log("logZPixel", "createDict__zPixel__forZPixelBrushPointer", "pointer:", pointer);
           var outDict;
 
@@ -59763,17 +59739,8 @@
           //get truePoint
           const truePoint = infiniteCanvas.toTruePoint(screenPoint);
 
-          var homeScale;
-          if(homeScale_in != null) {
-            homeScale = homeScale_in;
-          } else {
-            homeScale = fabricIntegration.getHomeScale__zPixel__default();
-          }
-
-          const homeScaleX = homeScale.X;
-
           //get dict_zPixel
-          outDict = Geometry.zPixelUtils.defaultInstance.createDict__zPixel(infiniteCanvas, truePoint, homeScaleX);
+          outDict = Geometry.zPixelUtils.defaultInstance.createDict__zPixel(infiniteCanvas, truePoint, homeScale);
 
           outDict.screenPoint = screenPoint;
 
@@ -64110,29 +64077,54 @@
 
       class zPixelUtils {
         /*
-         *  Instantiate this class with your zPixelOrigin coords  //SHU: TODO: replace coords with transform
+         *  Instantiate this class with your zPixelUnit's dict_parallelogram
          */
 
-        constructor(truePoint__zPixelOrigin = null, homeScale__zPixelOrigin = null, orientation__zPixelOrigin = null) {
-          //big numbers
-          this.truePoint__zPixelOrigin   = truePoint__zPixelOrigin   ? truePoint__zPixelOrigin   : {x: math.bignumber(0), y: math.bignumber(0)};
-          this.homeScale__zPixelOrigin   = homeScale__zPixelOrigin   ? homeScale__zPixelOrigin   : math.bignumber(1);   
+        constructor(dict_truePoint__zPixelUnit, zPixelCoords__zPixelUnit = zPixelUtils.createZPixelCoords(new Decimal(0),new Decimal(0),new Decimal(0))) {
 
-          this.orientation__zPixelOrigin = orientation__zPixelOrigin ? orientation__zPixelOrigin : math.bignumber(0);   
+          this.dict_truePoint__zPixelOrigin = zPixelUtils.createDict_truePoint__zPixelOrigin_with__zPixelUnit(dict_truePoint__zPixelUnit, zPixelCoords__zPixelUnit);
+          this.homeScale__zPixelOrigin      = zPixelUtils.createHomeScale__zPixelOrigin_with__zPixelUnit(dict_truePoint__zPixelUnit, zPixelCoords__zPixelUnit);
 
-          //numbers 
-
-            //stating the obvious
-          this.ix__zPixelOrigin     = 0;
-          this.iy__zPixelOrigin     = 0; 
-          this.zLevel__zPixelOrigin = 0; 
+          //stating the obvious
+          this.zPixelCoords__zPixelOrigin   = zPixelUtils.createZPixelCoords(new Decimal(0),new Decimal(0),new Decimal(0));
         }
 
-        getZPixelCoords__origin() {
-          return this.createZPixelCoords(0,0,0);
+        static createDict_truePoint__zPixelOrigin_with__zPixelUnit(dict_truePoint__zPixelUnit, zPixelCoords__zPixelUnit) {
+
+          const width__top   = Decimal.sub( dict_truePoint__zPixelUnit.tr.x , dict_truePoint__zPixelUnit.tl.x ); 
+          const height__left = Decimal.sub( dict_truePoint__zPixelUnit.bl.y , dict_truePoint__zPixelUnit.tl.y );
+
+          const t__translation = ICUtils.calcTranslateMatrix({
+            translateX: Decimal.mul( Decimal.mul(new Decimal(-1), zPixelCoords__zPixelUnit.ix), width__top),
+            translateY: Decimal.mul( Decimal.mul(new Decimal(-1), zPixelCoords__zPixelUnit.iy), height__left),
+          });
+          
+          const factor__pow2ZLevel = Decimal.pow(new Decimal(2), zPixelCoords__zPixelUnit.zLevel);
+          
+          const t__scale = ICUtils.calcScaleMatrix({
+            scaleX: factor__pow2ZLevel,
+            scaleY: factor__pow2ZLevel,
+          });
+
+          const t__toZPixelUnit = ICUtils.multiplyTransformMatrices(t__scale, t__translation);
+
+          const dict_truePoint__zPixelOrigin = ICUtils.transformDict_parallelogram(dict_truePoint__zPixelUnit, t__toZPixelUnit);
+
+          return dict_truePoint__zPixelOrigin; 
         }
 
-        createZPixelCoords(ix,iy,zLevel) {
+        static createHomeScale__zPixelOrigin_with__zPixelUnit(dict_truePoint__zPixelUnit, zPixelCoords__zPixelUnit) {
+          const t_ic = ICUtils.createTransform__unitSquareToParallelogram(dict_truePoint__zPixelUnit);
+          const options = ICUtils.decompose(t_ic);
+          const homeScale__zPixelUnit = options.factScale;
+          
+          const factor__pow2ZLevel = Decimal.pow(new Decimal(2), zPixelCoords__zPixelUnit.zLevel);
+          
+          const homeScale__zPixelOrigin = Decimal.div( homeScale__zPixelUnit, factor__pow2ZLevel );
+          return homeScale__zPixelOrigin;
+        }
+
+        static createZPixelCoords(ix,iy,zLevel) {
           return {
             ix:       ix,
             iy:       iy,
@@ -64143,13 +64135,11 @@
         zLevelForHomeScale(homeScale) {
           logger.trace("logZPixelUtils", "zLevelForHomeScale", homeScale);
 
-          const dScale       = math.divide(homeScale, this.homeScale__zPixelOrigin);
-          const log2__dScale = math.floor(math.log2(dScale));
+          const dScale       = Decimal.div(homeScale, this.homeScale__zPixelOrigin);
+          const log2__dScale = Decimal.floor(Decimal.log2(dScale));
           logger.log("logZPixel", "log2__dScale:", log2__dScale);
 
-          const log2__dScale__number = math.number(log2__dScale);
-
-          const zLevel = this.zLevel__zPixelOrigin + log2__dScale__number;
+          const zLevel = log2__dScale;
           return zLevel;
         }
 
@@ -64160,84 +64150,40 @@
         }
 
         zPixelCoordsForTruePointAndZLevel(truePoint, zLevel) {
-          const dZLevel        = math.bignumber(zLevel - this.zLevel__zPixelOrigin);
-          
-          const pow2__bigNumber = math.pow(math.bignumber(2), math.bignumber(dZLevel));
+          const factor__pow2ZLevel = Decimal.pow( new Decimal(2), zLevel );
 
-          const ix = math.number( math.floor( math.multiply( math.subtract(truePoint.x, this.truePoint__zPixelOrigin.x) , pow2__bigNumber ) ) );
-          const iy = math.number( math.floor( math.multiply( math.subtract(truePoint.y, this.truePoint__zPixelOrigin.y) , pow2__bigNumber ) ) );
+          const ix = Decimal.floor( Decimal.mul( Decimal.sub(truePoint.x, this.dict_truePoint__zPixelOrigin.tl.x) , factor__pow2ZLevel ) );
+          const iy = Decimal.floor( Decimal.mul( Decimal.sub(truePoint.y, this.dict_truePoint__zPixelOrigin.tl.y) , factor__pow2ZLevel ) );
 
           return this.createZPixelCoords(ix,iy,zLevel);
         }
 
-        // trueRectForZPixelCoordsAndHomeScale(zPixelCoords, homeScale__dst) {
-        //   const homeScaleX = this.homeScaleX__zPixelOrigin + math.pow(2,zPixelCoords.zLevel);
 
-        //   const trueRect = {
-        //     x: this.truePoint__zPixelOrigin.x + zPixelCoords.ix * homeScaleX,
-        //     y: this.truePoint__zPixelOrigin.y + zPixelCoords.iy * homeScaleX,
-        //     width:  1 * homeScale__dst.X,
-        //     height: 1 * homeScale__dst.Y,
-        //   };
+        dict_truePoint_forZPixelCoords(zPixelCoords) {
 
-        //   return trueRect;
-        // }
+          const width__top   = Decimal.sub( dict_truePoint__zPixelOrigin.tr.x , dict_truePoint__zPixelOrigin.tl.x ); 
+          const height__left = Decimal.sub( dict_truePoint__zPixelOrigin.bl.y , dict_truePoint__zPixelOrigin.tl.y );
 
-        // trueRectForZPixelCoordsAndZLevel(zPixelCoords, zLevel__dst) {
-        //   const homeScaleX = this.homeScaleX__zPixelOrigin + math.pow(2,zPixelCoords.zLevel);
-
-        //   const trueRect = {
-        //     x: this.truePoint__zPixelOrigin.x + zPixelCoords.ix * homeScaleX,
-        //     y: this.truePoint__zPixelOrigin.y + zPixelCoords.iy * homeScaleX,
-        //     width:  1 * zLevel__dst,
-        //     height: 1 * zLevel__dst,
-        //   };
-
-        //   return trueRect;
-        // }
-
-        dict_trueRectAndHomeScale_forZPixelCoords(zPixelCoords) {
-
-          // const number_pow2 = math.pow(2,zPixelCoords.zLevel);
-          // // const number_pow2 = math.bignumber( math.pow(2,zPixelCoords.zLevel) );
-          // logger.log("logBigN", "number_pow2:", number_pow2);
-
-          // const trueWidth__zPixel  = 1.0 / number_pow2;
-          // // logger.log("logBigN", "trueWidth__zPixel:", trueWidth__zPixel);
-
-
-
-          const pow2__bigNumber = math.pow(math.bignumber(2),math.bignumber(zPixelCoords.zLevel));
-
-          const trueWidth__zPixel__bignumber = math.divide( math.bignumber(1) , pow2__bigNumber);
-          // logger.log("logBigN", "trueWidth__zPixel__bignumber:", trueWidth__zPixel__bignumber);
-          // const trueWidth__zPixel__number = math.number(trueWidth__zPixel__bignumber);
-          // logger.log("logBigN", "trueWidth__zPixel__number:", trueWidth__zPixel__number);
-
+          const t__translation = ICUtils.calcTranslateMatrix({
+            translateX: Decimal.mul( zPixelCoords.ix, width__top   ),
+            translateY: Decimal.mul( zPixelCoords.iy, height__left ),
+          });
           
-          const trueWidth__zPixel  = trueWidth__zPixel__bignumber;
-          const trueHeight__zPixel = trueWidth__zPixel;
+          const factor__pow2ZLevel = Decimal.pow(new Decimal(2), zPixelCoords.zLevel);
+          
+          const t__scale = ICUtils.calcScaleMatrix({
+            scaleX: factor__pow2ZLevel,
+            scaleY: factor__pow2ZLevel,
+          });
 
-          const trueRect__zPixel = {
-            x: math.add( this.truePoint__zPixelOrigin.x, math.multiply( math.bignumber(zPixelCoords.ix) , trueWidth__zPixel) ),
-            y: math.add( this.truePoint__zPixelOrigin.y, math.multiply( math.bignumber(zPixelCoords.iy) , trueHeight__zPixel) ),
-            width:  trueWidth__zPixel,
-            height: trueHeight__zPixel,
-          };
-          logger.log("logBigN", "trueRect__zPixel:", trueRect__zPixel);
+          const t__toZPixelCoords = ICUtils.multiplyTransformMatrices(t__scale, t__translation);
 
+          const dict_truePoint__zPixelCoords = ICUtils.transformDict_parallelogram(dict_truePoint__zPixelOrigin, t__toZPixelCoords);
 
-          const homeScale__zPixel = math.multiply(this.homeScale__zPixelOrigin , pow2__bigNumber);
-
-          const miniDict = {
-            trueRect:  trueRect__zPixel,
-            homeScale: homeScale__zPixel,
-          };
-
-          return miniDict;
+          return dict_truePoint__zPixelCoords; 
         }
 
-        dict_trueRectAndHomeScale_forTruePointAndHomeScale(truePoint, homeScale) {
+        dict_truePoint_forTruePointAndHomeScale(truePoint, homeScale) {
 
           const zLevel = this.zLevelForHomeScale(homeScale);
           logger.log("logZPixel", "getZPixelFRect", "zLevel:", zLevel);
@@ -64245,9 +64191,9 @@
           const zPixelCoords = this.zPixelCoordsForTruePointAndZLevel(truePoint, zLevel);
           logger.log("logZPixel", "getZPixelFRect", "zPixelCoords:", zPixelCoords);
 
-          const miniDict = this.dict_trueRectAndHomeScale_forZPixelCoords(zPixelCoords);
+          const dict_truePoint = this.dict_truePoint_forZPixelCoords(zPixelCoords);
 
-          return miniDict;
+          return dict_truePoint;
         }
 
 
@@ -64303,29 +64249,16 @@
           const zPixelCoords = this.zPixelCoordsForTruePointAndZLevel(truePoint, zLevel);
           logger.log("logZPixel", "getZPixelFRect", "zPixelCoords:", zPixelCoords);
 
-          //get trueRect
-          const miniDict = this.dict_trueRectAndHomeScale_forZPixelCoords(zPixelCoords);
-          const trueRect__zPixel  = miniDict.trueRect;
-          const homeScale__zPixel = miniDict.homeScale;
-          // logger.log("logZPixel", "trueRect__zPixel:",  trueRect__zPixel);
-          // logger.log("logZPixel", "homeScale__zPixel:", homeScale__zPixel);
+          const dict_truePoint   = this.dict_truePoint_forZPixelCoords(zPixelCoords);
 
-          //convert to screenRect
-          // const screenRect__zPixel = infiniteCanvas.getScreenRectForTrueRectAtHomeScale(trueRect__zPixel, homeScale__zPixel);
-          const screenRect__zPixel = infiniteCanvas.toScreenRect(trueRect__zPixel);
+          //convert to dict_screenPoint
+          const dict_screenPoint = infiniteCanvas.toScreenDict_parallelogram(dict_truePoint);
 
           outDict = {
-            //
-            screenRect:   screenRect__zPixel,
-
-            // screenPoint:  screenPoint,
-            truePoint:    truePoint,
-
-            //
             zPixelCoords: zPixelCoords,
 
-            trueRect:     trueRect__zPixel,
-            homeScale:    homeScale__zPixel,
+            dict_truePoint:   dict_truePoint,
+            dict_screenPoint: dict_screenPoint,
           };
 
           return outDict;
@@ -64334,7 +64267,7 @@
 
       }
       Geometry.zPixelUtils = zPixelUtils;
-      Geometry.zPixelUtils.defaultInstance = new Geometry.zPixelUtils();
+      // Geometry.zPixelUtils.defaultInstance = new Geometry.zPixelUtils();
 
 
 
@@ -67695,7 +67628,7 @@
           // FileIntegration.save_to_file__zipped(infiniShute);
 
           {
-            const arr_fObjImage     = infiniShute.arr_fObjImage;
+            const arr_fObjImage = infiniShute.arr_fObjImage;
             delete infiniShute.arr_fObjImage;
 
             const json__infiniShute = JSON.stringify(infiniShute);
@@ -71823,15 +71756,26 @@
 
               // logger.log("logComb", "infiniteCanvas.isCombSetup:", infiniteCanvas.isCombSetup);
               if(!infiniteCanvas.isCombSetup) {
-                var factor;
-                // if (mouseIntegration.leftMouseDown) {
-                //   //reverse pan
-                //   factor = -1;
-                // } else 
-                {
-                  factor = +1;
+
+                if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+                  const icCamera       = infiniteCanvas.icCamera;
+                  const cameraEngine   = icCamera.dict_engine["camera"].engine.awoken; 
+        
+                  cameraEngine.screenSkew(infiniteCanvas.cursor__screen__previous, infiniteCanvas.cursor__screen);
+                } else {
+
+                  var factor;
+                  // if (mouseIntegration.leftMouseDown) {
+                  //   //reverse pan
+                  //   factor = -1;
+                  // } else 
+                  {
+                    factor = +1;
+                  }
+                  infiniteCanvas.manageCursorMove_offset(factor);
+
                 }
-                infiniteCanvas.manageCursorMove_offset(factor);
+
               }
 
 
