@@ -9822,12 +9822,18 @@
         const size__canvas = this.getCanvasSize();
         logger.log("logIC", "initializeCamera_p", "size__canvas:", size__canvas);
 
-        const trueRect__camera__initial = ICUtils.bigNumberize__dict({
-          x:      0,
-          y:      0,
-          width:  size__canvas.width,
-          height: size__canvas.height,
-        });
+        // const trueRect__camera__initial = ICUtils.bigNumberize__dict({
+        //   x:      0,
+        //   y:      0,
+        //   width:  size__canvas.width,
+        //   height: size__canvas.height,
+        // });
+        const trueRect__camera__initial = {
+          x:      new Decimal(0),
+          y:      new Decimal(0),
+          width:  Decimal.mul( new Decimal(size__canvas.width),  new Decimal("1e20")),
+          height: Decimal.mul( new Decimal(size__canvas.height), new Decimal("1e20")),
+        };
 
         // const icCamera = infiniteCanvas.createIcCamera__with__trueRect(trueRect__camera__initial, size__canvas);
         
@@ -10055,7 +10061,7 @@
         return id;
       }
 
-      createIcObject(type, size, position, homeScale, orientation = 0) {
+      createIcObject(type, size, position = {x: 0, y: 0}, homeScale = 1, orientation = 0) {
         logger.log("logIC", "createIcObject", {
           type: type,
           size: size, 
@@ -11351,35 +11357,17 @@
         return icSelectionOutput;
       }
 
-      createIcZPixelImage(zPixelRectCoords, img) {
-        logger.log("logZPixel", "createIcZPixelImage", zPixelRectCoords, img);
-        logger.log("logZPixel", "createIcZPixelImage", {
-          "img.width":         img.width,
-          "img.height":        img.height,
-          "img.naturalWidth":  img.naturalWidth,
-          "img.naturalHeight": img.naturalHeight,
-        });
+      createIcZPixelImage(dict_truePoint, img) {
+        logger.log("logZPixel", "createIcZPixelImage", dict_truePoint, img);
 
-        if(zPixelRectCoords.iwidth != img.width) {
-          logger.log("logZPixel", "createIcZPixelImage", "zPixelRectCoords.iwidth != img.width");
-        }
-        if(zPixelRectCoords.iwidth != img.naturalWidth) {
-          logger.log("logZPixel", "createIcZPixelImage", "zPixelRectCoords.iwidth != img.naturalWidth");
-        }
         // const type = "zPixelImage";
 
-        //get trueRect and homeScale
-        const zPixelCoords__TL = Object.assign({}, zPixelRectCoords);
-        const miniDict = Geometry.zPixelUtils.defaultInstance.dict_trueRectAndHomeScale_forZPixelCoords(zPixelCoords__TL);
-        const trueRect__zPixel__TL  = miniDict.trueRect;
-        const homeScale__zPixel__TL = miniDict.homeScale;
-
         //create icImage
-        const icImage = infiniteCanvas.createIcImage(trueRect__zPixel__TL.x, trueRect__zPixel__TL.y , img);
-        icImage.homeScale = Object.assign({}, homeScale__zPixel__TL);
-        
-          //just for fun
-        icImage.size = {width: zPixelRectCoords.iwidth, height: zPixelRectCoords.iheight}; 
+        const icImage = infiniteCanvas.createIcImage(new Decimal(0), new Decimal(0) , img);
+
+        //set ic transform
+        const t_ic = ICUtils.createTransform__unitSquareToParallelogram(dict_truePoint);
+        icImage.setIcTransform(t_ic);
 
         return icImage;
       }
@@ -11399,10 +11387,9 @@
 
         
         //create icImage from intersection rect
-        // const homeScale = icObj.homeScale;
-        const homeScale = dict_zPixelSelectionRect.homeScale;
+        const dict_truePoint = dict_zPixelSelectionRect.dict_truePoint;
 
-        const canvasEl_p = infiniteCanvas.getCanvasElement_p(icObj, trueRect__intersection, homeScale);
+        const canvasEl_p = infiniteCanvas.getCanvasElement_p(icObj, dict_truePoint);
         const img_p = canvasEl_p.then((canvasEl) => {
           logger.log("logZPixelSel", "canvasEl:", canvasEl);
           const imgSrc = canvasEl.toDataURL();
@@ -11425,7 +11412,7 @@
         return icZPixelImage_p;
       }
 
-      getCanvasElement_p(icObj, trueRect__cropping, homeScale) {
+      getCanvasElement_p(icObj, dict_truePoint) {
         logger.log("logZPixelSel", "getCanvasElement_p", {
           icObj: icObj, 
           trueRect__cropping: trueRect__cropping,
@@ -12804,21 +12791,19 @@
         }
 
         const type = "image";
-        const position = Geometry.createPoint(left, top);
-
-        // const size      = Geometry.createSize(img.width, img.height);
+        
+        // const size = Geometry.createSize(img.width, img.height);
         const size = Geometry.createSize(img.naturalWidth, img.naturalHeight);
 
-        const homeScale = Object.assign({}, this.scale);
 
-        const icObj = this.createIcObject(type, position, size, homeScale);
+        // const position = Geometry.createPoint(left, top);
+        // const homeScale = this.scale;
+        // const orientation = this.orientation;
 
-
+        const icObj = this.createIcObject(type, size);
 
         const icImage_spec = {
           img: img,
-          force_width:  false,
-          force_height: false,
         };
 
         const icImage = Object.assign(icObj, icImage_spec);
@@ -13176,45 +13161,17 @@
 
         const infiniteCanvas = this;
 
-        const arr_dict_zPixel = fObj.arr_dict_zPixel;
+        const dict_zPixelRect  = fObj.dict_zPixelRect;
+        const zPixelRectCoords = dict_zPixelRect.zPixelRectCoords;  
+        const dict_truePoint   = dict_zPixelRect.dict_truePoint;
 
-        //create zPixelRectCoords
-        const arr_truePointTL = arr_dict_zPixel.map((dict_zPixel) => {
-          return {x: dict_zPixel.zPixelCoords.ix, y: dict_zPixel.zPixelCoords.iy};
-        });
-        const arr_truePointBR = arr_dict_zPixel.map((dict_zPixel) => {
-          return {x: (dict_zPixel.zPixelCoords.ix + 1), y: (dict_zPixel.zPixelCoords.iy + 1)};
-        });
-        const zPixelRect__enveloppe = Geometry.getEnveloppeRect([...arr_truePointTL, ...arr_truePointBR]);
-        const dict_zPixel__first = arr_dict_zPixel.find((e) => true);
-        const zPixelRectCoords = {
-          zLevel:  dict_zPixel__first.zPixelCoords.zLevel,
-          ix:      zPixelRect__enveloppe.x,
-          iy:      zPixelRect__enveloppe.y,
-          iwidth:  zPixelRect__enveloppe.width,
-          iheight: zPixelRect__enveloppe.height,
-        };
-
+        const arr_dict_zPixel  = fObj.arr_dict_zPixel;
 
         //create img
         const size__img  = {
           width:  zPixelRectCoords.iwidth,
           height: zPixelRectCoords.iheight,
         };
-
-        // const dict_pixel = arr_dict_zPixel.reduce((acc,x) => {
-        //   const dict_zPixel = x;
-
-        //   const position = {
-        //     x: dict_zPixel.ix, 
-        //     y: dict_zPixel.iy,
-        //   };
-
-        //   acc[position] = dict_zPixel.color;
-
-        //   return acc;
-        // }, {});
-        // const img = ImageUtils.imageForDictPixelAndSize(dict_pixel, size__img);
 
         const map_pixel = arr_dict_zPixel.reduce((acc,x) => {
           const dict_zPixel = x;
@@ -13231,11 +13188,25 @@
         }, new Map());
         const img_p = ImageUtils.imageForMapPixelAndSize_p(map_pixel, size__img);
 
-
         out_p = img_p.then((img) => {
           // logger.log("createIcZPixelImage_from_zPixelFreeDrawingFObj", "img:", img);
+
+          logger.log("logZPixel", "createIcZPixelImage", {
+            "img.width":         img.width,
+            "img.height":        img.height,
+            "img.naturalWidth":  img.naturalWidth,
+            "img.naturalHeight": img.naturalHeight,
+          });
+  
+          if(zPixelRectCoords.iwidth != img.width) {
+            logger.log("logZPixel", "createIcZPixelImage", "zPixelRectCoords.iwidth != img.width");
+          }
+          if(zPixelRectCoords.iwidth != img.naturalWidth) {
+            logger.log("logZPixel", "createIcZPixelImage", "zPixelRectCoords.iwidth != img.naturalWidth");
+          }
+
           //create zPixelImage
-          const icZPixelImage = infiniteCanvas.createIcZPixelImage(zPixelRectCoords, img);
+          const icZPixelImage = infiniteCanvas.createIcZPixelImage(dict_truePoint, img);
 
           return icZPixelImage;
         });
@@ -29853,6 +29824,7 @@
         console.log("**reps]]]]]");
         */
 
+        
         if( (infiniteCanvas.icCamera != null) && (fabricIntegration != null) ) {
 
           const dict_displayable = infiniteCanvas.getDict_displayable();
@@ -29882,6 +29854,8 @@
           }
 
         } 
+        
+
 
         const nbDisplayedRepresentations = Object.values(this.representations).length;
         debug.setNbObjects(nbDisplayedRepresentations);
@@ -34433,6 +34407,32 @@
         const dict_truePoint__small__translated = ICUtils.transformDict_parallelogram(dict_truePoint__small, t__translation);
 
         return dict_truePoint__small__translated;
+      }
+
+      getDict_truePoint__zPixelUnit() { //same .tl, and it is .size times smaller (for zPixels)
+        const icObj = this;
+
+        const dict_truePoint = icObj.getDict_truePoint();
+        logger.log("logIcObject", "getDict_truePoint__zPixelUnit", "dict_truePoint:", ICUtils.stringify__dict(dict_truePoint));
+
+        //scale
+        const t__scale = ICUtils.calcScaleMatrix({
+          scaleX: Decimal.div( new Decimal(1), new Decimal(this.size.width) ),
+          scaleY: Decimal.div( new Decimal(1), new Decimal(this.size.height) ),
+        });
+
+        const dict_truePoint__scaled = ICUtils.transformDict_parallelogram(dict_truePoint, t__scale);
+
+        //translate
+        const t__translation = ICUtils.calcTranslateMatrix({
+          translateX: Decimal.sub( dict_truePoint.tl.x , dict_truePoint__scaled.tl.x ),
+          translateY: Decimal.sub( dict_truePoint.tl.y , dict_truePoint__scaled.tl.y ),
+        });
+
+        const dict_truePoint__zPixelUnit = ICUtils.transformDict_parallelogram(dict_truePoint__scaled, t__translation);
+        logger.log("logIcObject", "getDict_truePoint__zPixelUnit", "dict_truePoint__zPixelUnit:", ICUtils.stringify__dict(dict_truePoint__zPixelUnit));
+
+        return dict_truePoint__zPixelUnit;
       }
 
 
@@ -50927,25 +50927,6 @@
           var fObj = new fabric.Image(icObj.img);
 
           fObj.set({
-            left: icObj.position.x,
-            top:  icObj.position.y,
-
-            // width:  icObj.img.width,
-            // height: icObj.img.height,
-
-            // width:  icObj.size.width,
-            // height: icObj.size.height,
-
-            width:  100,
-            height: 100,
-
-            scaleX: icObj.scale.X,
-            scaleY: icObj.scale.Y,
-
-            flipX: icObj.flip.X,
-            flipY: icObj.flip.Y,
-
-            angle: icObj.orientation,
 
             //for zPixelImage 
             imageSmoothing: false,
@@ -50953,19 +50934,6 @@
             icObj: icObj,
           });
 
-
-          if (icObj.force_width) {
-            const factor__force_width = icObj.width / icObj.img.width;
-            fObj.set({
-              scaleX: fObj.scaleX * factor__force_width,
-            });
-          }
-          if (icObj.force_height) {
-            const factor__force_height = icObj.height / icObj.img.height;
-            fObj.set({
-              scaleY: fObj.scaleY * factor__force_height,
-            });
-          }
 
           //event listeners
           if (icObj.canBeHeld) {
@@ -58193,6 +58161,9 @@
             //specific
 
             createDict__zPixel__forZPixelBrushPointer: function(pointer) {
+              logger.log("logFD", "DrawingBout__zPixelFreeDrawing", "createDict__zPixel__forZPixelBrushPointer", this); 
+              var outDict;
+
               const drawingBout       = this;
               const drawingSession    = drawingBout.session;
               const drawingMode       = drawingSession.drawingMode;
@@ -58200,7 +58171,24 @@
 
               const homeScale__bout   = drawingBout.config__bout.homeScale;
 
-              return fabricIntegration.createDict__zPixel__forZPixelBrushPointerAndHomeScale(pointer, homeScale__bout);
+              // return drawingSession.createDict__zPixel__forZPixelBrushPointerAndHomeScale(pointer, homeScale__bout);
+
+
+
+              const screenPoint = Object.assign({}, pointer);
+              
+              //get truePoint
+              const truePoint = infiniteCanvas.toTruePoint(screenPoint);
+    
+              //get dict_zPixel
+              // outDict = Geometry.zPixelUtils.defaultInstance.createDict__zPixel(infiniteCanvas, truePoint, homeScale);
+              
+              const zPixelUtils = drawingSession.config__session.zPixelUtils;
+              outDict = zPixelUtils.createDict__zPixel(infiniteCanvas, truePoint, homeScale__bout);
+    
+              outDict.screenPoint = screenPoint;
+    
+              return outDict;
             },
 
             createFabricZPixelWith__dict_zPixel_p: async function(dict_zPixel) {
@@ -58321,6 +58309,28 @@
           // class DrawingSession__zPixelFreeDrawing extends DecorationUtils.createAbusiveDecoratorClass(DrawingSession, {
           class DrawingSession__zPixelFreeDrawing extends DecorationUtils.createAbusiveTopDownDecoratorClass(DrawingSession, {
 
+            initializeConfiguration: function() {
+              logger.log("logZPixelFD", "DrawingSession__zPixelFreeDrawing", "initializeConfiguration");
+              DecorationUtils.getWrappedObj(this).initializeConfiguration();
+
+              //configure zPixelUtils
+              {
+                const drawingSession    = this;
+                const drawingMode       = drawingSession.drawingMode;
+                const fabricIntegration = drawingMode.fabricIntegration;
+                const infiniteCanvas    = fabricIntegration.infiniteCanvas;
+                const icCamera          = infiniteCanvas.icCamera;
+  
+                const dict_truePoint__zPixelUnit = icCamera.getDict_truePoint__zPixelUnit();
+                logger.log("logZPixelFD", "DrawingSession__zPixelFreeDrawing", "dict_truePoint__zPixelUnit:", ICUtils.stringify__dict(dict_truePoint__zPixelUnit));
+  
+                const zPixelUtils__session = new Geometry.zPixelUtils(dict_truePoint__zPixelUnit);
+  
+                this.config__session.zPixelUtils = zPixelUtils__session;
+              }
+
+            },
+
             _createDrawingBout: function(id__drawingBout, drawingSession) {
               // try {
                 logger.log("logZPixelFD", "_createDrawingBout", id__drawingBout, drawingSession);
@@ -58332,7 +58342,7 @@
               // }
             },
 
-            configure__bout(drawingBout__new) {
+            configure__bout: function(drawingBout__new) {
               logger.log("logZPixelFD", "configure__bout", drawingBout__new);
 
               DecorationUtils.getWrappedObj(this).configure__bout(drawingBout__new);
@@ -58357,21 +58367,24 @@
 
                 const step_width = 5;   //SHU: TODO: remove this magic value, use inputProperties.step_brushWidthScroll
                 
-                const dZLevel__widthWise = math.floor((width - width__std) / step_width);
+                const dZLevel__widthWise = Decimal.floor( Decimal.div ( Decimal.sub(width , width__std) , step_width) );
 
   
                 const dZLevel__std = 4;
   
-                const dZLevel = dZLevel__std + dZLevel__widthWise;
+                const dZLevel = Decimal.add(dZLevel__std , dZLevel__widthWise);
    
-                const number_pow2 = math.pow(2, dZLevel);
+                const number_pow2 = Decimal.pow(new Decimal(2), dZLevel);
                 // logger.log("logZPixelFD", "configure__bout", "number_pow2:", number_pow2);
   
-                const homeScale__iC     = Object.assign({}, infiniteCanvas.scale);
-                const homeScale__bout = {
-                  X: infiniteCanvas.scale.X / number_pow2,
-                  Y: infiniteCanvas.scale.Y / number_pow2,
-                };
+                const homeScale__iC   = new Decimal(infiniteCanvas.scale);
+                const homeScale__bout = Decimal.div(infiniteCanvas.scale , number_pow2);
+
+                logger.log("logZPixelFD", "configure__bout", {
+                  homeScale__iC:   homeScale__iC.toString(),
+                  homeScale__bout: homeScale__bout.toString(),
+                });
+
   
                 drawingBout__new.config__bout.homeScale = homeScale__bout;
               }
@@ -58380,7 +58393,7 @@
 
             },
 
-            configure__bout__startingPoint(drawingBout__new) {
+            configure__bout__startingPoint: function(drawingBout__new) {
               logger.log("logZPixelFD", "configure__bout__startingPoint", drawingBout__new);
 
               const drawingSession    = this;
@@ -58423,7 +58436,34 @@
                 throw new Error("drawingBout__current.truePoint__atomic__end == null");
                 logger.log("logFD", "drawingBout__current.truePoint__atomic__end == null");
               }
-            }
+            },
+
+
+            // createDict__zPixel__forZPixelBrushPointerAndHomeScale: function(pointer, homeScale) {
+            //   // logger.log("logZPixel", "createDict__zPixel__forZPixelBrushPointer", "pointer:", pointer);
+            //   var outDict;
+    
+            //   const drawingSession    = this;
+            //   const drawingMode       = drawingSession.drawingMode;
+            //   const fabricIntegration = drawingMode.fabricIntegration;
+
+            //   const infiniteCanvas    = fabricIntegration.infiniteCanvas;
+    
+            //   const screenPoint = Object.assign({}, pointer);
+              
+            //   //get truePoint
+            //   const truePoint = infiniteCanvas.toTruePoint(screenPoint);
+    
+            //   //get dict_zPixel
+            //   // outDict = Geometry.zPixelUtils.defaultInstance.createDict__zPixel(infiniteCanvas, truePoint, homeScale);
+              
+            //   const zPixelUtils = drawingSession.config__session.zPixelUtils;
+            //   outDict = zPixelUtils.createDict__zPixel(infiniteCanvas, truePoint, homeScale);
+    
+            //   outDict.screenPoint = screenPoint;
+    
+            //   return outDict;
+            // },
 
           }) {}
 
@@ -58747,25 +58787,25 @@
 
             //specific
 
-            createDict__zPixel__forZPixelBrushPointer: function(pointer) {
-              const drawingBout       = this;
-              const drawingSession    = drawingBout.session;
-              const drawingMode       = drawingSession.drawingMode;
-              const fabricIntegration = drawingMode.fabricIntegration;
+            // createDict__zPixel__forZPixelBrushPointer: function(pointer) {
+            //   const drawingBout       = this;
+            //   const drawingSession    = drawingBout.session;
+            //   const drawingMode       = drawingSession.drawingMode;
+            //   const fabricIntegration = drawingMode.fabricIntegration;
 
-              const homeScale__bout   = drawingBout.config__bout.homeScale;
+            //   const homeScale__bout   = drawingBout.config__bout.homeScale;
 
-              return fabricIntegration.createDict__zPixel__forZPixelBrushPointerAndHomeScale(pointer, homeScale__bout);
-            },
+            //   return fabricIntegration.createDict__zPixel__forZPixelBrushPointerAndHomeScale(pointer, homeScale__bout);
+            // },
 
-            createFabricZPixelRectWith__dict_zPixelRect_p: async function(dict_zPixelRect) {
-              const drawingBout       = this;
-              const drawingSession    = drawingBout.session;
-              const drawingMode       = drawingSession.drawingMode;
-              const fabricIntegration = drawingMode.fabricIntegration;
+            // createFabricZPixelRectWith__dict_zPixelRect_p: async function(dict_zPixelRect) {
+            //   const drawingBout       = this;
+            //   const drawingSession    = drawingBout.session;
+            //   const drawingMode       = drawingSession.drawingMode;
+            //   const fabricIntegration = drawingMode.fabricIntegration;
               
-              return await fabricIntegration.createFabricZPixelRectWith__dict_zPixelRect_p(dict_zPixelRect);
-            },
+            //   return await fabricIntegration.createFabricZPixelRectWith__dict_zPixelRect_p(dict_zPixelRect);
+            // },
 
 
 
@@ -59420,7 +59460,7 @@
             },
 
             func__createIcObj__atomic_p: function(fObj) {
-              logger.log("logZPixelFD", "func__createIcObj__atomic_p", "fObj:", fObj);
+              logger.log("logZPixelCombSpecial", "func__createIcObj__atomic_p", "fObj:", fObj);
 
               var out_p;
 
@@ -59727,25 +59767,25 @@
         //   return this.createDict__zPixel__forZPixelBrushPointerAndHomeScale(pointer, null);
         // }
 
-        createDict__zPixel__forZPixelBrushPointerAndHomeScale(pointer, homeScale) {
-          // logger.log("logZPixel", "createDict__zPixel__forZPixelBrushPointer", "pointer:", pointer);
-          var outDict;
+        // createDict__zPixel__forZPixelBrushPointerAndHomeScale(pointer, homeScale) {
+        //   // logger.log("logZPixel", "createDict__zPixel__forZPixelBrushPointer", "pointer:", pointer);
+        //   var outDict;
 
-          const fabricIntegration = this;
-          const infiniteCanvas    = fabricIntegration.infiniteCanvas;
+        //   const fabricIntegration = this;
+        //   const infiniteCanvas    = fabricIntegration.infiniteCanvas;
 
-          const screenPoint = Object.assign({}, pointer);
+        //   const screenPoint = Object.assign({}, pointer);
           
-          //get truePoint
-          const truePoint = infiniteCanvas.toTruePoint(screenPoint);
+        //   //get truePoint
+        //   const truePoint = infiniteCanvas.toTruePoint(screenPoint);
 
-          //get dict_zPixel
-          outDict = Geometry.zPixelUtils.defaultInstance.createDict__zPixel(infiniteCanvas, truePoint, homeScale);
+        //   //get dict_zPixel
+        //   outDict = Geometry.zPixelUtils.defaultInstance.createDict__zPixel(infiniteCanvas, truePoint, homeScale);
 
-          outDict.screenPoint = screenPoint;
+        //   outDict.screenPoint = screenPoint;
 
-          return outDict;
-        }
+        //   return outDict;
+        // }
 
         // } zPixelFreeDrawing
 
@@ -64083,7 +64123,10 @@
         constructor(dict_truePoint__zPixelUnit, zPixelCoords__zPixelUnit = zPixelUtils.createZPixelCoords(new Decimal(0),new Decimal(0),new Decimal(0))) {
 
           this.dict_truePoint__zPixelOrigin = zPixelUtils.createDict_truePoint__zPixelOrigin_with__zPixelUnit(dict_truePoint__zPixelUnit, zPixelCoords__zPixelUnit);
+          logger.log("logZPixelUtils", "zPixelUtils::constructor", "this.dict_truePoint__zPixelOrigin:", ICUtils.stringify__dict(this.dict_truePoint__zPixelOrigin));
+          
           this.homeScale__zPixelOrigin      = zPixelUtils.createHomeScale__zPixelOrigin_with__zPixelUnit(dict_truePoint__zPixelUnit, zPixelCoords__zPixelUnit);
+          logger.log("logZPixelUtils", "zPixelUtils::constructor", "this.homeScale__zPixelOrigin:", this.homeScale__zPixelOrigin.toPrecision(4).toString());
 
           //stating the obvious
           this.zPixelCoords__zPixelOrigin   = zPixelUtils.createZPixelCoords(new Decimal(0),new Decimal(0),new Decimal(0));
@@ -64132,18 +64175,21 @@
           };
         }
 
+
+
+
         zLevelForHomeScale(homeScale) {
-          logger.trace("logZPixelUtils", "zLevelForHomeScale", homeScale);
+          logger.trace("logZPixelUtils", "zLevelForHomeScale", homeScale.toPrecision(4).toString());
 
           const dScale       = Decimal.div(homeScale, this.homeScale__zPixelOrigin);
           const log2__dScale = Decimal.floor(Decimal.log2(dScale));
-          logger.log("logZPixel", "log2__dScale:", log2__dScale);
+          logger.log("logZPixelUtils", "log2__dScale:", log2__dScale.toString());
 
           const zLevel = log2__dScale;
           return zLevel;
         }
 
-        zPixelCoordsForTruePointAndHomeScale(truePoint,homeScale) {
+        zPixelCoordsForTruePointAndHomeScale(truePoint, homeScale) {
           const zLevel = this.zLevelForHomeScale(homeScale);
 
           return this.zPixelCoordsForTruePointAndZLevel(truePoint, zLevel);
@@ -64152,33 +64198,42 @@
         zPixelCoordsForTruePointAndZLevel(truePoint, zLevel) {
           const factor__pow2ZLevel = Decimal.pow( new Decimal(2), zLevel );
 
-          const ix = Decimal.floor( Decimal.mul( Decimal.sub(truePoint.x, this.dict_truePoint__zPixelOrigin.tl.x) , factor__pow2ZLevel ) );
-          const iy = Decimal.floor( Decimal.mul( Decimal.sub(truePoint.y, this.dict_truePoint__zPixelOrigin.tl.y) , factor__pow2ZLevel ) );
+          const dict_truePoint__zPixelOrigin = this.dict_truePoint__zPixelOrigin;
 
-          return this.createZPixelCoords(ix,iy,zLevel);
+          const width__top   = Decimal.sub( dict_truePoint__zPixelOrigin.tr.x , dict_truePoint__zPixelOrigin.tl.x ); 
+          const height__left = Decimal.sub( dict_truePoint__zPixelOrigin.bl.y , dict_truePoint__zPixelOrigin.tl.y );
+
+          const width__top__zLevel   = Decimal.mul(width__top   , factor__pow2ZLevel);
+          const height__left__zLevel = Decimal.mul(height__left , factor__pow2ZLevel);
+
+          const ix = Decimal.floor( Decimal.div( Decimal.sub(truePoint.x, this.dict_truePoint__zPixelOrigin.tl.x), width__top__zLevel   ) );
+          const iy = Decimal.floor( Decimal.div( Decimal.sub(truePoint.y, this.dict_truePoint__zPixelOrigin.tl.y), height__left__zLevel ) );
+
+          return zPixelUtils.createZPixelCoords(ix,iy,zLevel);
         }
 
 
         dict_truePoint_forZPixelCoords(zPixelCoords) {
 
-          const width__top   = Decimal.sub( dict_truePoint__zPixelOrigin.tr.x , dict_truePoint__zPixelOrigin.tl.x ); 
-          const height__left = Decimal.sub( dict_truePoint__zPixelOrigin.bl.y , dict_truePoint__zPixelOrigin.tl.y );
+          const dict_truePoint__zPixelOrigin = this.dict_truePoint__zPixelOrigin;
+
+          // const t__toUnitSquare = ICUtils.createTransform__parallelogramToUnitSquare(dict_truePoint__zPixelOrigin);
 
           const t__translation = ICUtils.calcTranslateMatrix({
-            translateX: Decimal.mul( zPixelCoords.ix, width__top   ),
-            translateY: Decimal.mul( zPixelCoords.iy, height__left ),
+            translateX: zPixelCoords.ix,
+            translateY: zPixelCoords.iy,
           });
-          
+
           const factor__pow2ZLevel = Decimal.pow(new Decimal(2), zPixelCoords.zLevel);
-          
           const t__scale = ICUtils.calcScaleMatrix({
             scaleX: factor__pow2ZLevel,
             scaleY: factor__pow2ZLevel,
           });
 
-          const t__toZPixelCoords = ICUtils.multiplyTransformMatrices(t__scale, t__translation);
+          // const t__toZPixel = ICUtils.multiplyManyTransformMatricesInThatOrder(ICUtils.invertTransform(t__toUnitSquare), t__scale, t__translation, t__toUnitSquare);
+          const t__toZPixel = ICUtils.multiplyManyTransformMatricesInThatOrder(t__scale, t__translation);
 
-          const dict_truePoint__zPixelCoords = ICUtils.transformDict_parallelogram(dict_truePoint__zPixelOrigin, t__toZPixelCoords);
+          const dict_truePoint__zPixelCoords = ICUtils.transformDict_parallelogram(dict_truePoint__zPixelOrigin, t__toZPixel);
 
           return dict_truePoint__zPixelCoords; 
         }
@@ -64244,18 +64299,28 @@
           var outDict;
 
           const zLevel = this.zLevelForHomeScale(homeScale);
-          logger.log("logZPixel", "getZPixelFRect", "zLevel:", zLevel);
+          logger.log("logZPixel", "createDict__zPixel", "zLevel:", zLevel);
 
           const zPixelCoords = this.zPixelCoordsForTruePointAndZLevel(truePoint, zLevel);
-          logger.log("logZPixel", "getZPixelFRect", "zPixelCoords:", zPixelCoords);
+          logger.log("logZPixel", "createDict__zPixel", "zPixelCoords:", ICUtils.stringify__dict(zPixelCoords));
 
           const dict_truePoint   = this.dict_truePoint_forZPixelCoords(zPixelCoords);
+          logger.log("logZPixel", "createDict__zPixel", "dict_truePoint:", ICUtils.stringify__dict(dict_truePoint));
+
+          //debug
+          {
+            const dict_truePoint__zPixelOrigin = this.dict_truePoint__zPixelOrigin;
+            logger.log("logZPixel", "createDict__zPixel", "dict_truePoint__zPixelOrigin:", ICUtils.stringify__dict(dict_truePoint__zPixelOrigin));
+          }
+
 
           //convert to dict_screenPoint
           const dict_screenPoint = infiniteCanvas.toScreenDict_parallelogram(dict_truePoint);
+          logger.log("logZPixel", "createDict__zPixel", "dict_screenPoint:", ICUtils.stringify__dict(dict_screenPoint));
+
 
           outDict = {
-            zPixelCoords: zPixelCoords,
+            zPixelCoords:     zPixelCoords,
 
             dict_truePoint:   dict_truePoint,
             dict_screenPoint: dict_screenPoint,
@@ -72407,7 +72472,7 @@
         //   const icObj_free = icObj.r_free();
         //   fabricIntegration.addFabricObjectWithIcObj(icObj_free);
         // });
-        infiniteCanvas.didAddRepresentationListeners.push((icObj_represented, icObj_representation) => {
+        infiniteCanvas.didAddRepresentationListeners.push(async (icObj_represented, icObj_representation) => {
           console.log("infiniteCanvas.didAddRepresentationListeners", icObj_represented, icObj_representation);
 
           const rep_official = icObj_represented.r_official();
@@ -72679,7 +72744,7 @@
             }
           }
 
-          // fabricIntegration.addFabricObjectWithIcObj(icObj_representation);
+          // await fabricIntegration.addFabricObjectWithIcObj_p(icObj_representation);
         });
 
         infiniteCanvas.didAddPureObjectListeners.push((icObj) => {
