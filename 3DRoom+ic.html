@@ -1011,6 +1011,13 @@
         return t__product;
       }
 
+      static transferTransform = function(t, ...arr_t__through) {
+        const t__through__product = ICUtils.multiplyManyTransformMatricesInThatOrder(...arr_t__through);
+        return ICUtils.multiplyManyTransformMatricesInThatOrder(t__through__product, t, ICUtils.invertTransform(t__through__product));
+      };
+
+
+
 
       static decompose(a) {
         // logger.log("logICUtils", "decompose", "a:", ICUtils.numberize__array(a));
@@ -1521,12 +1528,6 @@
         return t__pToU;
       }
 
-
-
-
-
-
-
       static createTransform__parallelogramToParallelogram(dict_parallelogram__src, dict_parallelogram__dst) {
 
         const t__pToU = ICUtils.createTransform__parallelogramToUnitSquare(dict_parallelogram__src);
@@ -1540,6 +1541,18 @@
         //  2. t__uToP
         const t = ICUtils.multiplyTransformMatrices(t__uToP, t__pToU);    //SHU: une autre journée de perdue, c'est beau
 
+        return t;
+      }
+
+
+
+      static createTransform__parallelogramToUnitSquare__TL(dict_parallelogram__src) {
+        const t__pToU = ICUtils.createTransform__parallelogramToUnitSquare(dict_parallelogram__src);
+        const t__translation = ICUtils.calcTranslateMatrix({
+          translateX: new Decimal(0.5),
+          translateY: new Decimal(0.5),
+        });
+        const t = ICUtils.multiplyTransformMatrices(t__translation, t__pToU);
         return t;
       }
 
@@ -9935,8 +9948,8 @@
           // fabricIntegration.setActiveCameraFObj(fObj__camera);
 
           //passthrough
-          fObj__camera.evented    = false;
-          fObj__camera.selectable = false;
+          // fObj__camera.evented    = false;
+          // fObj__camera.selectable = false;
 
 
           if(isAddingCameraFObj) {
@@ -26657,7 +26670,7 @@
 
         const size = { //"information" size
           width:  100,   
-          height: 100,
+          height: 200,
         };
 
         const screenSize = {
@@ -26684,13 +26697,37 @@
       addNewCamera() {
         const infiniteCanvas = this;
 
-        const icCamera__src   = infiniteCanvas.icCamera;
-        const icCamera__clone = infiniteCanvas.createIcCamera__clone(icCamera__src);     //SHU: TODO: use infiniteCanvas.icCamera.deepClone()
+        // const icCamera__src   = infiniteCanvas.icCamera;
+        // const icCamera__clone = infiniteCanvas.createIcCamera__clone(icCamera__src);     //SHU: TODO: use infiniteCanvas.icCamera.deepClone()
 
-        //debug
-        icCamera__clone.fill = ColorUtils.rgbaColorStringForColorAndSuperOpacity( ColorUtils.randomColor(), 0.6 );
+        // //debug
+        // icCamera__clone.fill = ColorUtils.rgbaColorStringForColorAndSuperOpacity( ColorUtils.randomColor(), 0.6 );
 
-        this.addIcObject(icCamera__clone);
+        // this.addIcObject(icCamera__clone);
+
+
+
+        const size = { //"information" size
+          width:  100,   
+          height: 200,
+        };
+
+        const screenSize = {
+          width:  150,
+          height: 100,
+        };
+
+        const screenPoint__cursor = this.cursor__screen;
+        const screenRect          = Object.assign({}, screenPoint__cursor, screenSize);
+        logger.log("logIC", "addNewCamera", "screenRect:", screenRect);
+        const dict_screenPoint    = ICUtils.createDict_parallelogram__withRect(ICUtils.bigNumberize__dict(screenRect));
+
+        const dict_truePoint = infiniteCanvas.toTrueDict_parallelogram(dict_screenPoint);
+
+        const icCamera = this.createIcCamera_with__dict_parallelogram(dict_truePoint, size);
+        icCamera.fill = ColorUtils.rgbaColorStringForColorAndSuperOpacity( ColorUtils.randomColor(), 0.6 );
+
+        this.addIcObject(icCamera);
       }
 
       addNewText(text = "icText") {
@@ -28787,6 +28824,54 @@
         }
 
         return outFunc;
+      }
+
+      operateOnSelected__addNewZPixel() {
+        const infiniteCanvas = this;
+
+        //get selected icObj
+        const icObj__selected = infiniteCanvas.getSelectedIcObj();
+        logger.log("logOperateOn", "icObj__selected:", icObj__selected);
+
+        const dict_truePoint__zPixelUnit = icObj__selected.getDict_truePoint__zPixelUnit();
+
+        const zPixelUtils__icObj = new Geometry.zPixelUtils(dict_truePoint__zPixelUnit);
+
+        {
+          const zPixelCoords__zPixelOrigin   = Geometry.zPixelUtils.createZPixelCoords(new Decimal(0), new Decimal(0), new Decimal(0));
+          const dict_truePoint__zPixelOrigin = zPixelUtils__icObj.dict_truePoint_forZPixelCoords(zPixelCoords__zPixelOrigin); 
+  
+          const icRect = infiniteCanvas.createIcRect_with__dict_parallelogram(dict_truePoint__zPixelOrigin);
+          icRect.fill = "magenta";
+          infiniteCanvas.addIcObject(icRect);
+        }
+
+        {
+          const zPixelCoords   = Geometry.zPixelUtils.createZPixelCoords(new Decimal(0), new Decimal(10), new Decimal(0));
+          const dict_truePoint = zPixelUtils__icObj.dict_truePoint_forZPixelCoords(zPixelCoords); 
+  
+          const icRect = infiniteCanvas.createIcRect_with__dict_parallelogram(dict_truePoint);
+          icRect.fill = "yellow";
+          infiniteCanvas.addIcObject(icRect);
+        }
+
+        {
+          const screenPoint__cursor = infiniteCanvas.cursor__screen;
+          const truePoint__cursor   = infiniteCanvas.toTruePoint(screenPoint__cursor);
+
+          // const t_ic__zPixelOrigin  = ICUtils.createTransform__unitSquareToParallelogram(dict_truePoint__zPixelUnit); 
+          // const homeScale           = ICUtils.decompose(t_ic__zPixelOrigin).factScale;
+          // const zPixelCoords   = zPixelUtils__icObj.zPixelCoordsForTruePointAndHomeScale(truePoint__cursor, homeScale);
+
+          const zLevel       = new Decimal(1);
+          const zPixelCoords = zPixelUtils__icObj.zPixelCoordsForTruePointAndZLevel(truePoint__cursor, zLevel);
+
+          const dict_truePoint = zPixelUtils__icObj.dict_truePoint_forZPixelCoords(zPixelCoords); 
+  
+          const icRect = infiniteCanvas.createIcRect_with__dict_parallelogram(dict_truePoint);
+          icRect.fill = "cyan";
+          infiniteCanvas.addIcObject(icRect);
+        }
       }
 
 
@@ -34392,21 +34477,26 @@
 
         const dict_truePoint = icObj.getDict_truePoint();
 
+        const t__toUnitSquare__TL = ICUtils.createTransform__parallelogramToUnitSquare__TL(dict_truePoint);
+
+        //scale
         const t__scale = ICUtils.calcScaleMatrix({
           scaleX: new Decimal(0.1),
           scaleY: new Decimal(0.1),
         });
 
-        const dict_truePoint__small = ICUtils.transformDict_parallelogram(dict_truePoint, t__scale);
-
-        const t__translation = ICUtils.calcTranslateMatrix({
-          translateX: Decimal.sub( dict_truePoint.br.x , dict_truePoint__small.br.x ),
-          translateY: Decimal.sub( dict_truePoint.br.y , dict_truePoint__small.br.y ),
+        //translate
+        const t__translation = ICUtils.calcScaleMatrix({
+          scaleX: new Decimal(-0.1),
+          scaleY: new Decimal(-0.1),
         });
 
-        const dict_truePoint__small__translated = ICUtils.transformDict_parallelogram(dict_truePoint__small, t__translation);
+        const t_ic = ICUtils.transferTransform(ICUtils.multiplyTransformMatrices(t__translation, t__scale), ICUtils.invertTransform(t__toUnitSquare__TL));
 
-        return dict_truePoint__small__translated;
+        const dict_truePoint__topleft10 = ICUtils.transformDict_parallelogram(dict_truePoint, t_ic);
+        logger.log("logIcObject", "getDict_truePoint__zPixelUnit", "dict_truePoint__topleft10:", ICUtils.stringify__dict(dict_truePoint__topleft10));
+
+        return dict_truePoint__topleft10;
       }
 
       getDict_truePoint__zPixelUnit() { //same .tl, and it is .size times smaller (for zPixels)
@@ -34415,21 +34505,17 @@
         const dict_truePoint = icObj.getDict_truePoint();
         logger.log("logIcObject", "getDict_truePoint__zPixelUnit", "dict_truePoint:", ICUtils.stringify__dict(dict_truePoint));
 
+        const t__toUnitSquare__TL = ICUtils.createTransform__parallelogramToUnitSquare__TL(dict_truePoint);
+
         //scale
         const t__scale = ICUtils.calcScaleMatrix({
-          scaleX: Decimal.div( new Decimal(1), new Decimal(this.size.width) ),
-          scaleY: Decimal.div( new Decimal(1), new Decimal(this.size.height) ),
-        });
+          scaleX: Decimal.div( new Decimal(1), new Decimal(icObj.size.width) ),
+          scaleY: Decimal.div( new Decimal(1), new Decimal(icObj.size.height) ),
+        }); 
 
-        const dict_truePoint__scaled = ICUtils.transformDict_parallelogram(dict_truePoint, t__scale);
+        const t_ic = ICUtils.transferTransform(t__scale, ICUtils.invertTransform(t__toUnitSquare__TL));
 
-        //translate
-        const t__translation = ICUtils.calcTranslateMatrix({
-          translateX: Decimal.sub( dict_truePoint.tl.x , dict_truePoint__scaled.tl.x ),
-          translateY: Decimal.sub( dict_truePoint.tl.y , dict_truePoint__scaled.tl.y ),
-        });
-
-        const dict_truePoint__zPixelUnit = ICUtils.transformDict_parallelogram(dict_truePoint__scaled, t__translation);
+        const dict_truePoint__zPixelUnit = ICUtils.transformDict_parallelogram(dict_truePoint, t_ic);
         logger.log("logIcObject", "getDict_truePoint__zPixelUnit", "dict_truePoint__zPixelUnit:", ICUtils.stringify__dict(dict_truePoint__zPixelUnit));
 
         return dict_truePoint__zPixelUnit;
@@ -41421,7 +41507,7 @@
 
             const t__screenToTrue = this.getTransform__screenToTrue();
  
-            const t_ic = this.transferTransform(screenTransform, t__screenToTrue);
+            const t_ic = ICUtils.transferTransform(screenTransform, t__screenToTrue);
   
             return t_ic;
           };
@@ -41519,18 +41605,10 @@
             const t_ic__cam     = icCamera.getIcTransform();
             const t_screen__cam = this.screenTransform__camera();
             
-            return this.transferTransform(t_ic, ICUtils.invertTransform(t_ic__cam), t_screen__cam);
+            return ICUtils.transferTransform(t_ic, ICUtils.invertTransform(t_ic__cam), t_screen__cam);
           };
 
 
-
-          this.transferTransform = function(t, ...arr_t__through) {
-            const multiply      = ICUtils.multiplyTransformMatrices;
-
-            const t__through__product = ICUtils.multiplyManyTransformMatricesInThatOrder(...arr_t__through);
-
-            return ICUtils.multiplyManyTransformMatricesInThatOrder(t__through__product, t, ICUtils.invertTransform(t__through__product));
-          };
 
 
 
@@ -54360,7 +54438,7 @@
           });
           const dataURL__utf8 = FileIntegration.dataURLForSVGString(str__svg);
 
-          const fObj_p = new Promise((resolve, reject) => {
+          var fObj_p = new Promise((resolve, reject) => {
 
             fabric.Image.fromURL(dataURL__utf8, function (img) {
               resolve(img);
@@ -54371,15 +54449,15 @@
 
           });
 
-          fObj_p.then((fObj) => {
+          // fObj_p = fObj_p.then((fObj) => {
 
-            const dict_screenPoint = dict_zPixel.dict_screenPoint;
-            const t_f = ICUtils.createTransform__unitSquareToParallelogram(dict_screenPoint);
-            fabric.util.applyTransformToObject(fObj, t_f);
-            fObj.setCoords();
+          //   const dict_screenPoint = dict_zPixel.dict_screenPoint;
+          //   const t_f = ICUtils.createTransform__unitSquareToParallelogram(dict_screenPoint);
+          //   fabric.util.applyTransformToObject(fObj, t_f);
+          //   fObj.setCoords();
   
-            return fObj;
-          });
+          //   return fObj;
+          // });
 
           return fObj_p;
         }
@@ -58168,6 +58246,8 @@
               const drawingSession    = drawingBout.session;
               const drawingMode       = drawingSession.drawingMode;
               const fabricIntegration = drawingMode.fabricIntegration;
+              const infiniteCanvas    = fabricIntegration.infiniteCanvas;
+
 
               const homeScale__bout   = drawingBout.config__bout.homeScale;
 
@@ -58183,7 +58263,23 @@
               //get dict_zPixel
               // outDict = Geometry.zPixelUtils.defaultInstance.createDict__zPixel(infiniteCanvas, truePoint, homeScale);
               
-              const zPixelUtils = drawingSession.config__session.zPixelUtils;
+              const zPixelUtils = drawingBout.config__bout.zPixelUtils;
+              
+              // //debug
+              // {
+              //   const icCamera = infiniteCanvas.icCamera;
+              //   const dict_truePoint__zPixelUnit__camera = icCamera.getDict_truePoint__zPixelUnit();
+              //   const zPixelUtils = new Geometry.zPixelUtils(dict_truePoint__zPixelUnit__camera);
+              // }
+
+              //debug
+              const icCamera = infiniteCanvas.icCamera;
+              const dict_truePoint__camera   = icCamera.getDict_truePoint();
+              const dict_screenPoint__camera = infiniteCanvas.toScreenDict_parallelogram(dict_truePoint__camera);
+              logger.log("logFD", "DrawingBout__zPixelFreeDrawing", "createDict__zPixel__forZPixelBrushPointer", "dict_screenPoint__camera:", ICUtils.stringify__dict(dict_screenPoint__camera)); 
+
+
+              logger.log("logFD", "DrawingBout__zPixelFreeDrawing", "createDict__zPixel__forZPixelBrushPointer", "zPixelUtils:", zPixelUtils); 
               outDict = zPixelUtils.createDict__zPixel(infiniteCanvas, truePoint, homeScale__bout);
     
               outDict.screenPoint = screenPoint;
@@ -64122,6 +64218,9 @@
 
         constructor(dict_truePoint__zPixelUnit, zPixelCoords__zPixelUnit = zPixelUtils.createZPixelCoords(new Decimal(0),new Decimal(0),new Decimal(0))) {
 
+          this.id = zPixelUtils.counter;
+          zPixelUtils.counter += 1;
+
           this.dict_truePoint__zPixelOrigin = zPixelUtils.createDict_truePoint__zPixelOrigin_with__zPixelUnit(dict_truePoint__zPixelUnit, zPixelCoords__zPixelUnit);
           logger.log("logZPixelUtils", "zPixelUtils::constructor", "this.dict_truePoint__zPixelOrigin:", ICUtils.stringify__dict(this.dict_truePoint__zPixelOrigin));
           
@@ -64134,24 +64233,22 @@
 
         static createDict_truePoint__zPixelOrigin_with__zPixelUnit(dict_truePoint__zPixelUnit, zPixelCoords__zPixelUnit) {
 
-          const width__top   = Decimal.sub( dict_truePoint__zPixelUnit.tr.x , dict_truePoint__zPixelUnit.tl.x ); 
-          const height__left = Decimal.sub( dict_truePoint__zPixelUnit.bl.y , dict_truePoint__zPixelUnit.tl.y );
+          const t__toUnitSquare__TL = ICUtils.createTransform__parallelogramToUnitSquare__TL(dict_truePoint__zPixelUnit);
 
           const t__translation = ICUtils.calcTranslateMatrix({
-            translateX: Decimal.mul( Decimal.mul(new Decimal(-1), zPixelCoords__zPixelUnit.ix), width__top),
-            translateY: Decimal.mul( Decimal.mul(new Decimal(-1), zPixelCoords__zPixelUnit.iy), height__left),
+            translateX: zPixelCoords__zPixelUnit.ix,
+            translateY: zPixelCoords__zPixelUnit.iy,
           });
-          
+
           const factor__pow2ZLevel = Decimal.pow(new Decimal(2), zPixelCoords__zPixelUnit.zLevel);
-          
           const t__scale = ICUtils.calcScaleMatrix({
             scaleX: factor__pow2ZLevel,
             scaleY: factor__pow2ZLevel,
           });
 
-          const t__toZPixelUnit = ICUtils.multiplyTransformMatrices(t__scale, t__translation);
+          const t__toZPixelOrigin = ICUtils.multiplyManyTransformMatricesInThatOrder(ICUtils.invertTransform(t__toUnitSquare__TL), ICUtils.invertTransform(t__translation), ICUtils.invertTransform(t__scale), t__toUnitSquare__TL);
 
-          const dict_truePoint__zPixelOrigin = ICUtils.transformDict_parallelogram(dict_truePoint__zPixelUnit, t__toZPixelUnit);
+          const dict_truePoint__zPixelOrigin = ICUtils.transformDict_parallelogram(dict_truePoint__zPixelUnit, t__toZPixelOrigin);
 
           return dict_truePoint__zPixelOrigin; 
         }
@@ -64179,11 +64276,11 @@
 
 
         zLevelForHomeScale(homeScale) {
-          logger.trace("logZPixelUtils", "zLevelForHomeScale", homeScale.toPrecision(4).toString());
+          // logger.log("logZPixelUtils", "zLevelForHomeScale", homeScale.toPrecision(4).toString());
 
           const dScale       = Decimal.div(homeScale, this.homeScale__zPixelOrigin);
           const log2__dScale = Decimal.floor(Decimal.log2(dScale));
-          logger.log("logZPixelUtils", "log2__dScale:", log2__dScale.toString());
+          // logger.log("logZPixelUtils", "log2__dScale:", log2__dScale.toString());
 
           const zLevel = log2__dScale;
           return zLevel;
@@ -64196,20 +64293,29 @@
         }
 
         zPixelCoordsForTruePointAndZLevel(truePoint, zLevel) {
-          const factor__pow2ZLevel = Decimal.pow( new Decimal(2), zLevel );
 
           const dict_truePoint__zPixelOrigin = this.dict_truePoint__zPixelOrigin;
 
-          const width__top   = Decimal.sub( dict_truePoint__zPixelOrigin.tr.x , dict_truePoint__zPixelOrigin.tl.x ); 
-          const height__left = Decimal.sub( dict_truePoint__zPixelOrigin.bl.y , dict_truePoint__zPixelOrigin.tl.y );
+          const t__toUnitSquare__TL = ICUtils.createTransform__parallelogramToUnitSquare__TL(dict_truePoint__zPixelOrigin);
 
-          const width__top__zLevel   = Decimal.mul(width__top   , factor__pow2ZLevel);
-          const height__left__zLevel = Decimal.mul(height__left , factor__pow2ZLevel);
+          const factor__unpow2ZLevel = Decimal.pow(new Decimal(2), Decimal.mul( new Decimal(-1) , zLevel));
+          const t__scale = ICUtils.calcScaleMatrix({
+            scaleX: factor__unpow2ZLevel,
+            scaleY: factor__unpow2ZLevel,
+          });
 
-          const ix = Decimal.floor( Decimal.div( Decimal.sub(truePoint.x, this.dict_truePoint__zPixelOrigin.tl.x), width__top__zLevel   ) );
-          const iy = Decimal.floor( Decimal.div( Decimal.sub(truePoint.y, this.dict_truePoint__zPixelOrigin.tl.y), height__left__zLevel ) );
+          const t__toZLevel = ICUtils.multiplyManyTransformMatricesInThatOrder(t__scale, t__toUnitSquare__TL);
 
-          return zPixelUtils.createZPixelCoords(ix,iy,zLevel);
+          const zLevelPoint = ICUtils.transformPoint(truePoint, t__toZLevel);
+          // logger.log("logZPixelUtils", "zPixelCoordsForTruePointAndZLevel", "zLevelPoint:", ICUtils.stringify__dict(zLevelPoint));
+
+          const ix = Decimal.floor(zLevelPoint.x);
+          const iy = Decimal.floor(zLevelPoint.y);
+
+          const zPixelCoords = zPixelUtils.createZPixelCoords(ix,iy,zLevel);
+          // logger.log("logZPixelUtils", "zPixelCoordsForTruePointAndZLevel", "zPixelCoords:", ICUtils.stringify__dict(zPixelCoords));
+
+          return zPixelCoords;
         }
 
 
@@ -64217,7 +64323,7 @@
 
           const dict_truePoint__zPixelOrigin = this.dict_truePoint__zPixelOrigin;
 
-          // const t__toUnitSquare = ICUtils.createTransform__parallelogramToUnitSquare(dict_truePoint__zPixelOrigin);
+          const t__toUnitSquare__TL = ICUtils.createTransform__parallelogramToUnitSquare__TL(dict_truePoint__zPixelOrigin);
 
           const t__translation = ICUtils.calcTranslateMatrix({
             translateX: zPixelCoords.ix,
@@ -64230,8 +64336,7 @@
             scaleY: factor__pow2ZLevel,
           });
 
-          // const t__toZPixel = ICUtils.multiplyManyTransformMatricesInThatOrder(ICUtils.invertTransform(t__toUnitSquare), t__scale, t__translation, t__toUnitSquare);
-          const t__toZPixel = ICUtils.multiplyManyTransformMatricesInThatOrder(t__scale, t__translation);
+          const t__toZPixel = ICUtils.multiplyManyTransformMatricesInThatOrder(ICUtils.invertTransform(t__toUnitSquare__TL), t__scale, t__translation, t__toUnitSquare__TL);
 
           const dict_truePoint__zPixelCoords = ICUtils.transformDict_parallelogram(dict_truePoint__zPixelOrigin, t__toZPixel);
 
@@ -64241,10 +64346,10 @@
         dict_truePoint_forTruePointAndHomeScale(truePoint, homeScale) {
 
           const zLevel = this.zLevelForHomeScale(homeScale);
-          logger.log("logZPixel", "getZPixelFRect", "zLevel:", zLevel);
+          // logger.log("logZPixel", "getZPixelFRect", "zLevel:", zLevel);
 
           const zPixelCoords = this.zPixelCoordsForTruePointAndZLevel(truePoint, zLevel);
-          logger.log("logZPixel", "getZPixelFRect", "zPixelCoords:", zPixelCoords);
+          // logger.log("logZPixel", "getZPixelFRect", "zPixelCoords:", zPixelCoords);
 
           const dict_truePoint = this.dict_truePoint_forZPixelCoords(zPixelCoords);
 
@@ -64253,65 +64358,65 @@
 
 
 
-        zPixelRectCoordsForTrueRectAndZLevel(trueRect,zLevel) {
+        // zPixelRectCoordsForTrueRectAndZLevel(trueRect,zLevel) {
           
-          const truePoint__TL    = {x: trueRect.x, y: trueRect.y};
-          const zPixelCoords__TL = this.zPixelCoordsForTruePointAndZLevel(truePoint__TL, zLevel);
-          const truePoint__BR    = {x: trueRect.x + trueRect.width, y: trueRect.y + trueRect.height};
-          const zPixelCoords__BR = this.zPixelCoordsForTruePointAndZLevel(truePoint__BR, zLevel);
+        //   const truePoint__TL    = {x: trueRect.x, y: trueRect.y};
+        //   const zPixelCoords__TL = this.zPixelCoordsForTruePointAndZLevel(truePoint__TL, zLevel);
+        //   const truePoint__BR    = {x: trueRect.x + trueRect.width, y: trueRect.y + trueRect.height};
+        //   const zPixelCoords__BR = this.zPixelCoordsForTruePointAndZLevel(truePoint__BR, zLevel);
   
-          const zPixelRectCoords = {
-            zLevel:  zLevel,
-            ix:      zPixelCoords__TL.ix,
-            iy:      zPixelCoords__TL.iy,
-            iwidth:  (zPixelCoords__BR.ix - zPixelCoords__TL.ix),
-            iheight: (zPixelCoords__BR.iy - zPixelCoords__TL.iy),
-          };
+        //   const zPixelRectCoords = {
+        //     zLevel:  zLevel,
+        //     ix:      zPixelCoords__TL.ix,
+        //     iy:      zPixelCoords__TL.iy,
+        //     iwidth:  (zPixelCoords__BR.ix - zPixelCoords__TL.ix),
+        //     iheight: (zPixelCoords__BR.iy - zPixelCoords__TL.iy),
+        //   };
 
-          return zPixelRectCoords;
-        }
+        //   return zPixelRectCoords;
+        // }
 
-        dict_trueRectAndHomeScale_forZPixelRectCoords(zPixelRectCoords) {
+        // dict_trueRectAndHomeScale_forZPixelRectCoords(zPixelRectCoords) {
 
-          const pow2__bigNumber = math.pow(math.bignumber(2), math.bignumber(zPixelRectCoords.zLevel));
+        //   const pow2__bigNumber = math.pow(math.bignumber(2), math.bignumber(zPixelRectCoords.zLevel));
 
-          const homeScale__zPixelRect = math.multiply( this.homeScaleX__zPixelOrigin, pow2__bigNumber);
+        //   const homeScale__zPixelRect = math.multiply( this.homeScaleX__zPixelOrigin, pow2__bigNumber);
 
-          const width__zPixel  = math.divide(math.bignumber(1), pow2__bigNumber);
-          const height__zPixel = width__zPixel; 
+        //   const width__zPixel  = math.divide(math.bignumber(1), pow2__bigNumber);
+        //   const height__zPixel = width__zPixel; 
 
-          const trueRect = {
-            x: math.add(this.truePoint__zPixelOrigin.x, math.multiply(math.bignumber(zPixelRectCoords.ix) , width__zPixel)),
-            y: math.add(this.truePoint__zPixelOrigin.y, math.multiply(math.bignumber(zPixelRectCoords.iy) , height__zPixel)),
-            width:  math.multiply( math.bignumber(zPixelRectCoords.iwidth)  , width__zPixel),
-            height: math.multiply( math.bignumber(zPixelRectCoords.iheight) , height__zPixel),
-          };
+        //   const trueRect = {
+        //     x: math.add(this.truePoint__zPixelOrigin.x, math.multiply(math.bignumber(zPixelRectCoords.ix) , width__zPixel)),
+        //     y: math.add(this.truePoint__zPixelOrigin.y, math.multiply(math.bignumber(zPixelRectCoords.iy) , height__zPixel)),
+        //     width:  math.multiply( math.bignumber(zPixelRectCoords.iwidth)  , width__zPixel),
+        //     height: math.multiply( math.bignumber(zPixelRectCoords.iheight) , height__zPixel),
+        //   };
 
-          const miniDict = {
-            trueRect:  trueRect,
-            homeScale: homeScale__zPixelRect,
-          };
+        //   const miniDict = {
+        //     trueRect:  trueRect,
+        //     homeScale: homeScale__zPixelRect,
+        //   };
 
-          return miniDict;
-        }
+        //   return miniDict;
+        // }
 
         createDict__zPixel(infiniteCanvas, truePoint, homeScale) {
           var outDict;
 
           const zLevel = this.zLevelForHomeScale(homeScale);
-          logger.log("logZPixel", "createDict__zPixel", "zLevel:", zLevel);
+          // logger.log("logZPixel", "createDict__zPixel", "zLevel:", zLevel);
 
           const zPixelCoords = this.zPixelCoordsForTruePointAndZLevel(truePoint, zLevel);
-          logger.log("logZPixel", "createDict__zPixel", "zPixelCoords:", ICUtils.stringify__dict(zPixelCoords));
+          // logger.log("logZPixel", "createDict__zPixel", "zPixelCoords:", ICUtils.stringify__dict(zPixelCoords));
 
           const dict_truePoint   = this.dict_truePoint_forZPixelCoords(zPixelCoords);
-          logger.log("logZPixel", "createDict__zPixel", "dict_truePoint:", ICUtils.stringify__dict(dict_truePoint));
+          // logger.log("logZPixel", "createDict__zPixel", "dict_truePoint:", ICUtils.stringify__dict(dict_truePoint));
 
           //debug
-          {
-            const dict_truePoint__zPixelOrigin = this.dict_truePoint__zPixelOrigin;
-            logger.log("logZPixel", "createDict__zPixel", "dict_truePoint__zPixelOrigin:", ICUtils.stringify__dict(dict_truePoint__zPixelOrigin));
-          }
+          // {
+          //   const dict_truePoint__zPixelOrigin = this.dict_truePoint__zPixelOrigin;
+          //   logger.log("logZPixel", "createDict__zPixel", "dict_truePoint__zPixelOrigin:", ICUtils.stringify__dict(dict_truePoint__zPixelOrigin));
+          // }
 
 
           //convert to dict_screenPoint
@@ -64331,6 +64436,8 @@
         }
 
       }
+      //debug
+      zPixelUtils.counter = 0;
       Geometry.zPixelUtils = zPixelUtils;
       // Geometry.zPixelUtils.defaultInstance = new Geometry.zPixelUtils();
 
@@ -70556,6 +70663,10 @@
                 }          
 
               }
+            }),
+
+            "KeyD": new KeyUpTrigger("KeyD", KeyUpTrigger.defaultKeyUpFunc(["KeyD"]), () => {
+              keyboardIntegration.infiniteCanvas.operateOnSelected__addNewZPixel();
             }),
 
             "KeyT": new KeyUpTrigger("KeyT", KeyUpTrigger.defaultKeyUpFunc(["KeyT"]), () => {
