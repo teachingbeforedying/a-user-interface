@@ -30632,11 +30632,15 @@
       manageDrawingModeContextPicker() {
         const infiniteCanvas = this;
 
-        //get icObj under cursor
-        const icObj__under_cursor = infiniteCanvas.getIcObj__underCursor("free");
+        //get selected icObj
+        var icObj = infiniteCanvas.getSelectedIcObj();
+        if(!icObj) {
+          //get icObj under cursor
+          icObj = infiniteCanvas.getIcObj__underCursor("free");
+        }
 
         //create zPixelUtils
-        const dict_truePoint__zPixelUnit = icObj__under_cursor.getDict_truePoint__zPixelUnit();
+        const dict_truePoint__zPixelUnit = icObj.getDict_truePoint__zPixelUnit();
         const zPixelUtils__icObj = new Geometry.zPixelUtils(dict_truePoint__zPixelUnit);
 
         //update session with zPixelUtils
@@ -64436,6 +64440,36 @@
         }
 
 
+        dict_truePoint_forZPixelRectCoords(zPixelRectCoords) {
+
+          const dict_truePoint__zPixelOrigin = this.dict_truePoint__zPixelOrigin;
+
+          const t__toUnitSquare__TL = ICUtils.createTransform__parallelogramToUnitSquare__TL(dict_truePoint__zPixelOrigin);
+
+          const t__scale1 = ICUtils.calcScaleMatrix({
+            scaleX: zPixelRectCoords.iwidth,
+            scaleY: zPixelRectCoords.iheight,
+          });
+
+          const t__translation = ICUtils.calcTranslateMatrix({
+            translateX: zPixelRectCoords.ix,
+            translateY: zPixelRectCoords.iy,
+          });
+
+          const factor__pow2ZLevel = Decimal.pow(new Decimal(2), zPixelRectCoords.zLevel);
+          const t__scale2 = ICUtils.calcScaleMatrix({
+            scaleX: factor__pow2ZLevel,
+            scaleY: factor__pow2ZLevel,
+          });
+
+          const t__toZPixelRect = ICUtils.multiplyManyTransformMatricesInThatOrder(ICUtils.invertTransform(t__toUnitSquare__TL), t__scale2, t__translation, t__scale1, t__toUnitSquare__TL);
+
+          const dict_truePoint__zPixelRectCoords = ICUtils.transformDict_parallelogram(dict_truePoint__zPixelOrigin, t__toZPixelRect);
+
+          return dict_truePoint__zPixelRectCoords; 
+        }
+
+
 
         // zPixelRectCoordsForTrueRectAndZLevel(trueRect,zLevel) {
           
@@ -70354,30 +70388,37 @@
                 if (keyboardIntegration.keyDownToggles.digit2.isActive) {
 
                   const infiniteCanvas = keyboardIntegration.infiniteCanvas;
+                  // infiniteCanvas.isIgnoreOnObjectAdded = true;
+
+                  //get zPixelCoords of cursor
+                  const drawingMode__zPixelFreeDrawing = fabricIntegration.drawingMode__zPixelFreeDrawing;
+                  const zPixelUtils = drawingMode__zPixelFreeDrawing.session.config__session.zPixelUtils;
 
                   const truePoint__cursor = infiniteCanvas.getTrueCursor();
-                  const homeScaleX = infiniteCanvas.scale.X / 16.0;
-                  const zPixelCoords__0_0     = Geometry.zPixelUtils.defaultInstance.zPixelCoordsForTruePointAndHomeScaleX(truePoint__cursor, homeScaleX);
-                  
-                  const miniDict = Geometry.zPixelUtils.defaultInstance.dict_trueRectAndHomeScale_forZPixelCoords(zPixelCoords__0_0);
-                  const trueRect__zPixel__0_0  = miniDict.trueRect;
-                  const homeScale__zPixel__0_0 = miniDict.homeScale;
-
-                  infiniteCanvas.isIgnoreOnObjectAdded = true;
+                  const zLevel__cursor = new Decimal(0);
+                  const zPixelCoords__cursor = zPixelUtils.zPixelCoordsForTruePointAndZLevel(truePoint__cursor, zLevel__cursor);
+                  logger.log("logImportImage", "zPixelCoords__cursor:", zPixelCoords__cursor);
                   
                   FileIntegration.importImage_multiple_p()
                   .then(arr_img => {
                     arr_img.forEach(img => {
-                      
-                      const icImage = infiniteCanvas.createIcImage(trueRect__zPixel__0_0.x, trueRect__zPixel__0_0.y , img);
-                      icImage.homeScale = Object.assign({}, homeScale__zPixel__0_0);
 
-                      infiniteCanvas.addIcObject_p(icImage)
-                      .then(() => {
-                        setTimeout(() => {
-                          infiniteCanvas.isIgnoreOnObjectAdded = false;   //SHU: create a callback when fObj is added and ready
-                        }, 200);
+                      //create zPixelRectCoords using img's size
+                      const zPixelRectCoords = Object.assign({}, zPixelCoords__cursor, {
+                        iwidth:  new Decimal(img.width),
+                        iheight: new Decimal(img.height),
                       });
+
+                      const dict_truePoint = zPixelUtils.dict_truePoint_forZPixelRectCoords(zPixelRectCoords);
+                      
+                      const icZPixelImage = infiniteCanvas.createIcZPixelImage(dict_truePoint, img);
+
+                      infiniteCanvas.addIcObject_p(icZPixelImage);
+                      // .then(() => {
+                      //   setTimeout(() => {
+                      //     infiniteCanvas.isIgnoreOnObjectAdded = false;   //SHU: create a callback when fObj is added and ready
+                      //   }, 200);
+                      // });
 
                     });
 
