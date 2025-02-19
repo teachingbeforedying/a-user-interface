@@ -25374,7 +25374,7 @@
 
       }
 
-      addIcObject_p(icObj) {
+      addIcObject_p(icObj, fObj__to_recycle = null) {
         logger.log("logIC", "addIcObject_p", icObj);
         var out_p;
 
@@ -25395,11 +25395,19 @@
         } else {
           out_p = new Promise((resolve, reject) => {
 
-            infiniteCanvas.onceOnAddRepresentedForIcObject(icObj, (icObj) => {
-              logger.log("logIC", "addIcObject_p", "onceOnAddRepresentedForIcObject", "icObj:", icObj);
+            // infiniteCanvas.onceOnAddRepresentedForIcObject(icObj, (icObj) => {
+            //   logger.log("logIC", "addIcObject_p", "onceOnAddRepresentedForIcObject", "icObj:", icObj);
   
-              const rep_free = getRepFree(icObj);
+            //   const rep_free = getRepFree(icObj);
   
+            //   resolve(rep_free);
+            // });
+            infiniteCanvas.onceOnAddRepresentationForIcObject(icObj, "free", async (rep_free) => {
+
+              if(fabricIntegration != null) {
+                await fabricIntegration.addFabricObjectWithIcObj_p(rep_free, fObj__to_recycle);
+              }
+
               resolve(rep_free);
             });
             infiniteCanvas.addIcObject(icObj);
@@ -25512,7 +25520,7 @@
 
       onceOnAddRepresentedForIcObject(icObject, func) {
 
-        var autoUnsub = (represented) => {
+        const autoUnsub = (represented) => {
 
           //compare icObject with represented
           const r_official = represented.r_official();
@@ -25521,7 +25529,7 @@
             func(icObject);
           }
 
-        }
+        };
 
         this.onAddRepresented(autoUnsub);
       }
@@ -25640,37 +25648,73 @@
           throw new Error("oh, no, id collision for id: " + representation.id_rep);
         }
 
-        this.didAddRepresentation(represented, representation);
+        const repName = represented.getRepNameForRep(representation);
+
+        this.didAddRepresentation(represented, repName, representation);
       }
 
-      didAddRepresentation(represented, representation) {
+      didAddRepresentation(represented, repName, representation) {
         this.setChanged(true);
 
         this.didAddRepresentationListeners.forEach((listener, i) => {
-          listener(represented, representation);
+          listener(represented, repName, representation);
         });
 
-        this.redrawCanvas(RedrawOccasion.objectAdded);
+        // this.redrawCanvas(RedrawOccasion.objectAdded);   //SHU: leave it commented
       }
 
       removeRepresentation(represented, representation) {
+
+        const repName = represented.getRepNameForRep(representation);
 
         // if(this.representations[representation.id_rep] != null) {
         delete this.representations[representation.id_rep];
         // }
 
-        this.didRemoveRepresentation(represented, representation);
+        this.didRemoveRepresentation(represented, repName, representation);
       }
 
-      didRemoveRepresentation(represented, representation) {
+      didRemoveRepresentation(represented, repName, representation) {
         this.setChanged(true);
 
         // this.didAddObjectListeners.forEach((listener, i) => {
         //   listener(icObj);
         // });
 
-        this.redrawCanvas(RedrawOccasion.objectRemoved);
+        // this.redrawCanvas(RedrawOccasion.objectRemoved);
       }
+
+      onAddRepresentation(listener) {
+        this.didAddRepresentationListeners.push(listener);
+      }
+
+      offAddRepresentation(listener) {
+        this.didAddRepresentationListeners = Utils.arrayByRemovingElement(this.didAddRepresentationListeners, listener);
+      }
+
+      onceOnAddRepresentationForIcObject(icObject, repName, func) {
+
+        const autoUnsub = (represented_in, repName_in, representation_in) => {
+
+          //compare icObject with represented
+          const r_official = represented_in.r_official();
+          const isTargetRepresented = (r_official.id == icObject.id);
+
+          //compare repName
+          const isTargetRepName = (repName_in == repName) ;
+
+          if(isTargetRepresented && isTargetRepName)  {
+            this.offAddRepresentation(autoUnsub);
+            func(representation_in);
+          }
+
+        };
+
+        this.onAddRepresentation(autoUnsub);
+      }
+
+
+
 
       addPureIcObject(icObj) {
 
@@ -30398,9 +30442,10 @@
 
         const isFreeDrawingPan       = fabricIntegration.fabricCanvas.isDrawingMode && mouseIntegration.leftMouseDown && !infiniteCanvas.isFreeDrawingPan;
         const isFreeDrawingPan__line = isFreeDrawingPan && keyboardIntegration.keyDownToggles.shiftLeft.isActive;
-        if(isFreeDrawingPan__line) {
-          infiniteCanvas.enterPan__freeDrawing__line();
-        } else if(isFreeDrawingPan) {
+        // if(isFreeDrawingPan__line) {
+        //   infiniteCanvas.enterPan__freeDrawing__line();
+        // } else 
+        if(isFreeDrawingPan) {
           infiniteCanvas.enterPan__freeDrawing();
         } else if((infiniteCanvas.getArr_rep_free__isHeld().length !=0) && mouseIntegration.leftMouseDown && !infiniteCanvas.isObjectHoldingPan) {
           infiniteCanvas.enterPan__objectHolding();
@@ -30539,23 +30584,45 @@
         setTimeout(() => globalsSingleton.functionCallsQueue.next(), 0);
       }
 
-      enterPan__freeDrawing__line(func_update) {
-        //SHU TODO
-        // this.isFreeDrawingPan      = true;
-        // fabricIntegration.simulateMouseUp__with_freeDrawingBrush(() => {
-        //   fabricIntegration.leaveFreeDrawing__atomic();
-        //   func_update();
-        //   fabricIntegration.fabricCanvas.isDrawingMode = false;
-        // });
+
+
+
+      enterPan__freeDrawing__line() {
+        logger.log("logFD", "enterPan__freeDrawing__line");
+        const infiniteCanvas = this;
+
+        async function func__enterFreeDrawingPan__line() {
+          infiniteCanvas.isFreeDrawingPan = true;
+
+          await fabricIntegration.leaveDrawingMode__atomic_p({
+            isShouldEndWithoutCreatingFObj: true,
+          });
+
+          fabricIntegration.fabricCanvas.isDrawingMode = false;
+        }
+
+        globalsSingleton.functionCallsQueue.add(func__enterFreeDrawingPan__line);
+        setTimeout(() => globalsSingleton.functionCallsQueue.next(), 0);
       }
 
       leavePan__freeDrawing__line() {
-        //SHU TODO
-        // fabricIntegration.fabricCanvas.isDrawingMode = true;
-        // fabricIntegration.enterFreeDrawing__atomic({isCosmetic:false});
-        // fabricIntegration.simulateMouseDown__with_freeDrawingBrush(() => {});
-        // this.isFreeDrawingPan      = false;
-        // this.hasBeenFreeDrawingPan = true;
+        const infiniteCanvas = this;
+
+        async function func__leaveFreeDrawingPan__line() {
+
+          fabricIntegration.fabricCanvas.isDrawingMode = true;
+
+          const dict_update = {};
+          await fabricIntegration.updateDrawingModes(dict_update);
+
+          await fabricIntegration.enterDrawingMode__atomic_p();
+
+          infiniteCanvas.isFreeDrawingPan      = false;
+          infiniteCanvas.hasBeenFreeDrawingPan = true;
+        }
+
+        globalsSingleton.functionCallsQueue.add(func__leaveFreeDrawingPan__line);
+        setTimeout(() => globalsSingleton.functionCallsQueue.next(), 0);
       }
 
 
@@ -49570,6 +49637,8 @@
         redrawCanvas(redrawOccasion) {
           logger.trace("logFI", "redrawCanvas", redrawOccasion);
 
+          // this.killAllOrphanFObjs();
+
           this.updateFabricObjectsTransform(redrawOccasion);
 
           switch (redrawOccasion) {
@@ -49618,6 +49687,24 @@
           // this.fabricCanvas.renderAll(); //SHU: render only what is visible (is fabric smart enough ?)
           this.fabricCanvas.requestRenderAll();
         }
+
+        // killAllOrphanFObjs() {
+        //   const fabricIntegration = this;
+        //   const fabricCanvas = fabricIntegration.fabricCanvas;
+
+        //   const arr_fObj__orphan = fabricCanvas.getObjects().filter((fObj) => {
+        //     const isOrphan = (fObj.icObj == null);
+        //     const isNotExpectingRecycling = (fObj.id_recycle == null);
+        //     return isOrphan && isNotExpectingRecycling;
+        //   });
+        //   logger.log("logFI", "killAllOrphanFObjs", "arr_fObj__orphan:", arr_fObj__orphan);
+
+        //   arr_fObj__orphan.forEach((fObj) => {
+        //     fObj.dispose();
+        //     fabricCanvas.remove(fObj);
+        //   });
+
+        // }
 
 
         synchronizeWithIcObjects(icObjects) {
@@ -49725,7 +49812,7 @@
         }
 
 
-        addFabricObjectWithIcObj_p(icObj__r_free) {
+        addFabricObjectWithIcObj_p(icObj__r_free, fObj__to_recycle = null) {
           var out_p;
 
           logger.log("logFI", "addFabricObjectWithIcObj_p", "type:", icObj__r_free.type);
@@ -49742,7 +49829,6 @@
 
           //recycle if possible
           var fObj_p;
-          const fObj__to_recycle = fabricIntegration.getFObj_with_id_recycle(icObj__r_free.id);
           if(fObj__to_recycle != null) {
             fObj_p = fabricIntegration.recycleFabricObjectForIcObj_p(icObj_fRep, fObj__to_recycle);
           } else {
@@ -50187,8 +50273,9 @@
             // }
 
 
-            if (fObj.id_recycle != null) {
+            if (fObj.isRecycled) {
               fabricIntegration.addInnerFabricObject(fObj);
+              delete fObj.isRecycled;
             } else {
               fabricIntegration.addOuterFabricObject(fObj);
             }
@@ -50303,6 +50390,9 @@
 
 
           fObj.hasBorders = true;
+
+
+          fObj.isRecycled = true;
 
 
           const fObj_p = Promise.resolve(fObj);
@@ -56125,7 +56215,7 @@
 
 
         addOuterFabricObject(fObj) {
-          console.log("addOuterFabricObject", fObj);
+          logger.trace("logFI", "addOuterFabricObject", fObj, "icObj.id:", fObj.icObj.id);
 
           const fabricIntegration = this;
 
@@ -56155,7 +56245,7 @@
         // }
 
         addInnerFabricObject(fObj) {
-          console.log("addInnerFabricObject", fObj);
+          logger.log("logFI", "addInnerFabricObject", fObj, "icObj.id:", fObj.icObj.id);
 
           const fabricIntegration = this;
 
@@ -57113,8 +57203,8 @@
               drawingBout.plugBoutBrush(brush__bout);
             }
 
-            async end_p() {
-              logger.log("logDrawingMode", "DrawingBout::end_p");
+            async end_p(config__end = {}) {
+              logger.log("logDrawingMode", "DrawingBout::end_p", "config__end:", config__end);
               var out_p;
 
               const drawingBout = this;
@@ -57131,7 +57221,14 @@
                 // if(drawingBout.isFinished) {
                 //   out_p = Promise.resolve(drawingBout);
                 // } else {
-                  out_p = drawingBout.finalize_p();
+                if(config__end.isShouldEndWithoutCreatingFObj) {
+                  logger.log("logDrawingMode", "DrawingBout::end_p", "isShouldEndWithoutCreatingFObj");
+
+                  drawingBout.isFinished = true;
+                  out_p = drawingBout.session.manageDrawingBoutFinished_p(drawingBout);
+                } else {
+                  out_p = drawingBout.finalize_p(config__end);
+                }
                 // }
 
               }
@@ -57278,27 +57375,38 @@
 
               //work
               {
-                return drawingBout.func__createIcObj__atomic_p(fObj).then((icObj) => {
+                return drawingBout.func__createIcObj__atomic_p(fObj).then(async (icObj) => {
                   logger.log("logDrawingBout", "manageCreatedFabricObject_p", "icObj:", icObj);
 
                   // logger.log("logFD", "fObj.zIndex__ic", fObj.zIndex__ic);
                   icObj.zIndex = fObj.zIndex__ic;
       
-                  //recycle fObj
-                  fObj.id_recycle = icObj.id;
-      
-                  infiniteCanvas.addIcObject(icObj); 
+                  var rep_free;
+                  if(fObj.isToBeRecycled) {
+                    //recycle fObj
+                    const fObj__to_recycle = fObj;
+                    rep_free = await infiniteCanvas.addIcObject_p(icObj, fObj__to_recycle);
+                    delete fObj.isToBeRecycled;
+                  } else {
+                    //destroy fObj
+                    fObj.dispose();
+                    fabricIntegration.fabricCanvas.remove(fObj);
+
+                    rep_free = await infiniteCanvas.addIcObject_p(icObj);
+
+                    fabricIntegration.redrawCanvas(RedrawOccasion.objectAdded);
+                  }
       
                   // //manage .isAdhesive
                   // if(fObj.isAdhesive) {
                   //   //simple
       
-      
+
                   //   //complex: joining adhesive
       
                   // }
       
-                  drawingSession.arr_icObj__created.push(icObj);
+                  drawingSession.arr_icObj__created.push(rep_free);
                 })
                 .then(() => {
                   logger.log("logDrawingBout", "manageCreatedFabricObject_p", ".isFinished = true");
@@ -57505,7 +57613,7 @@
               drawingBout__new.configureBrush();
             }
     
-            async leave__atomic_p() {
+            async leave__atomic_p(cfg__leave__atomic = {}) {
               logger.log("logDrawingSession", "leave__atomic_p");
               var outDrawingBout;
 
@@ -57527,7 +57635,7 @@
                   outDrawingBout = drawingBout__current;
                 } else {
                   // out_p = drawingBout__current.end_p();
-                  const drawingBout = await drawingBout__current.end_p();
+                  const drawingBout = await drawingBout__current.end_p(cfg__leave__atomic);
                   outDrawingBout = drawingBout;
                 }
 
@@ -57805,11 +57913,11 @@
               return await drawingSession.enter__atomic_p(cfg);
             },
 
-            leaveDrawingMode__atomic_p: async function() {
+            leaveDrawingMode__atomic_p: async function(cfg = {}) {
               const drawingMode    = this;
               const drawingSession = drawingMode.getCurrentDrawingSession();
 
-              return await drawingSession.leave__atomic_p();
+              return await drawingSession.leave__atomic_p(cfg);
             },
 
             
@@ -58075,6 +58183,10 @@
               fObj.__truePointTL = truePointTL;
 
               const icObj = infiniteCanvas.createIcFreeDrawing_from_freeDrawingFObj(fObj);
+
+              //recycle fObj
+              fObj.isToBeRecycled = true;
+
               out_p = Promise.resolve(icObj);
 
               return out_p;
@@ -58548,9 +58660,9 @@
               out_p = infiniteCanvas.createIcZPixelImage_from_zPixelFreeDrawingFObj_p(fObj).then((icObj) => {
                 // logger.log("logZPixelFD", "fObj.zIndex__ic", fObj.zIndex__ic);
                 icObj.zIndex = fObj.zIndex__ic;
-    
+
                 //destroy fObj
-                fabricIntegration.fabricCanvas.remove(fObj);
+                fObj.isToBeRecycled = false;
     
                 return icObj;
               });
@@ -59148,6 +59260,10 @@
               // const icObj = infiniteCanvas.createIcZPixelRectFreeDrawing_from_zPixelRectFreeDrawingFObj(fObj);
               //debug
               const icObj = infiniteCanvas.createIcZPixelRect_from_fZPixelRect(fObj);
+
+              //destroy fObj
+              fObj.isToBeRecycled = false;
+              
               out_p = Promise.resolve(icObj);
 
               return out_p;
@@ -59497,7 +59613,8 @@
               icObj__zPixelSelectionRect.zIndex = fObj.zIndex__ic;
   
               //recycle fObj
-              fObj.id_recycle = icObj__zPixelSelectionRect.id;
+              // fObj.id_recycle = icObj__zPixelSelectionRect.id;
+              fObj.isToBeRecycled = true;
   
               // this.infiniteCanvas.addIcObject(icObj__zPixelSelectionRect); 
   
@@ -59733,7 +59850,7 @@
                 icObj.zIndex = fObj.zIndex__ic;
     
                 //destroy fObj
-                fabricIntegration.fabricCanvas.remove(fObj);
+                fObj.isToBeRecycled = false;
     
                 return icObj;
               });
@@ -59851,11 +59968,11 @@
           }
         }
 
-        async leaveDrawingMode__atomic_p() {
+        async leaveDrawingMode__atomic_p(cfg__leave__atomic) {
           // logger.trace("logDrawingModeFI", "leaveDrawingMode__atomic_p");
           for(var i=0; i<this.arr_drawingMode.length;i++) {
             const drawingMode = this.arr_drawingMode[i];
-            await drawingMode.leaveDrawingMode__atomic_p();
+            await drawingMode.leaveDrawingMode__atomic_p(cfg__leave__atomic);
           }
         }
 
@@ -62615,12 +62732,14 @@
         }
 
 
-        manageCreatedFloodFillObjects(arr_fObj) {
+        async manageCreatedFloodFillObjects(arr_fObj) {
           console.log("manageCreatedFloodFillObjects", arr_fObj);
 
           //group newly created fabric objects (or not (for easy delete))
 
-          arr_fObj.forEach((fObj) => {
+          for(var i=0; i<arr_fObj.length; i++) {
+            const fObj = arr_fObj[i];
+
             const icObj = this.infiniteCanvas.createIcFloodFill_from_floodFillFObj(fObj);
 
             icObj.homeScale = {
@@ -62630,10 +62749,11 @@
             icObj.zIndex = this.infiniteCanvas.getFreshIcZIndex__max();
 
             //recycle fObj
-            fObj.id_recycle = icObj.id;
+            // fObj.id_recycle = icObj.id;
 
-            this.infiniteCanvas.addIcObject(icObj); 
-          });
+            const rep_free = await this.infiniteCanvas.addIcObject_p(icObj); 
+            await fabricIntegration.addFabricObjectWithIcObj_p(rep_free, fObj);
+          }
 
         }
 
@@ -63151,12 +63271,12 @@
           return fObj;
         }
 
-        getFObj_with_id_recycle(id_recycle) {
-          const arr_fObj = this.fabricCanvas.getObjects();
-          return arr_fObj.find(fObj => {
-            return (fObj.id_recycle == id_recycle)
-          }); 
-        }
+        // getFObj_with_id_recycle(id_recycle) {
+        //   const arr_fObj = this.fabricCanvas.getObjects();
+        //   return arr_fObj.find(fObj => {
+        //     return (fObj.id_recycle == id_recycle)
+        //   }); 
+        // }
 
         getFObjAtFPosition(fPosition) {
           logger.log("logFD", "getFObjAtFPosition", fPosition);
@@ -72810,8 +72930,8 @@
         //   const icObj_free = icObj.r_free();
         //   fabricIntegration.addFabricObjectWithIcObj(icObj_free);
         // });
-        infiniteCanvas.didAddRepresentationListeners.push(async (icObj_represented, icObj_representation) => {
-          console.log("infiniteCanvas.didAddRepresentationListeners", icObj_represented, icObj_representation);
+        infiniteCanvas.didAddRepresentationListeners.push(async (icObj_represented, repName, icObj_representation) => {
+          console.log("infiniteCanvas.didAddRepresentationListeners", icObj_represented, repName, icObj_representation);
 
           const rep_official = icObj_represented.r_official();
           const rep_free     = icObj_represented.r_free();
