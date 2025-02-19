@@ -2268,6 +2268,9 @@
     logger.log("Intersects__decimal:", Intersects__decimal);
   </script> -->
 
+
+
+
   <!-- UI -->
   <script src='lib/fabric.531.min.js'      type='text/javascript'></script>
     <!-- debug -->
@@ -2277,8 +2280,19 @@
   <script src='lib/fabric+canvas2D_willReadFrequently.js' type='text/javascript'></script>
   <!-- <script src='lib/fabric+render_zEdition.js'          type='text/javascript'></script> -->
   <!-- <script src='lib/fabric+precision.js'                type='text/javascript'></script> -->
+
+  <!--
+  <script src="lib/Canvas2DtoWebGL/gl-matrix-min.js"></script>
+  <script src="lib/Canvas2DtoWebGL/litegl.min.js"></script>
+  <script src="lib/Canvas2DtoWebGL/Canvas2DtoWebGL.js"></script>
+  <script src='lib/fabric+canvas2DToWebGL.js' type='text/javascript'></script>
+  -->
+
   <script>
     installFabricUpgrade_Canvas2DWillReadFrequently(fabric);
+    //installFabricUpgrade_Canvas2DToWebGL(fabric);
+
+    
     //installFabricUpgrade_render_zEdition(fabric);
     //installFabricUpgrade_precision(fabric);
     logger.log("fabric", fabric);
@@ -2296,7 +2310,8 @@
   <script src='lib/fabric+activeSelectionTL.js' type='text/javascript'></script>
     
 
-  <script src='lib/fabric+zIndex.js'       type='text/javascript'></script>
+  <script src='lib/fabric+zIndex.js'                  type='text/javascript'></script>
+  <script src='lib/fabric+zIndexPencilBrush.js'       type='text/javascript'></script>
 
   <script src='lib/fabric+brushPreview.js'             type='text/javascript'></script>
 
@@ -9859,7 +9874,7 @@
           height: Decimal.mul( new Decimal(size__canvas.height), new Decimal("1e20")),
         };
 
-        // const icCamera = infiniteCanvas.createIcCamera__with__trueRect(trueRect__camera__initial, size__canvas);
+        const icCamera = infiniteCanvas.createIcCamera__with__trueRect(trueRect__camera__initial, size__canvas);
         
 
         //debug
@@ -9907,7 +9922,7 @@
         // const trueRect__cam1 = trueRect__camera__initial;
 
 
-        const icCamera = infiniteCanvas.createIcCamera__with__trueRect(trueRect__cam1, size__camera);
+        // const icCamera = infiniteCanvas.createIcCamera__with__trueRect(trueRect__cam1, size__camera);
 
 
         // const dict_parallelogram__cam = ICUtils.bigNumberize__dict({
@@ -9959,8 +9974,8 @@
           // fabricIntegration.setActiveCameraFObj(fObj__camera);
 
           //passthrough
-          // fObj__camera.evented    = false;
-          // fObj__camera.selectable = false;
+          fObj__camera.evented    = false;
+          fObj__camera.selectable = false;
 
 
           if(isAddingCameraFObj) {
@@ -10914,10 +10929,23 @@
         return outIcObj;          
       }
 
-      getCandidateSupportUnderPoint(truePoint, icObj_to_adhere) {
+      getCandidateSupportUnderTruePoint(truePoint, icObj_to_adhere) {
         var outIcObj;
 
         const arr_icObj = this.getArr_icObj__containingTruePoint("free", truePoint).sort((icObj1, icObj2) => (icObj1.zIndex < icObj2.zIndex));
+        outIcObj = arr_icObj.find((icObj) => (icObj.zIndex < icObj_to_adhere.zIndex));
+
+        return outIcObj;            
+      }
+
+      getCandidateSupportUnderScreenPoint(screenPoint, icObj_to_adhere, isShouldIncludeCamera = false) {
+        var outIcObj;
+
+        const icCamera = this.icCamera;
+
+        const arr_icObj = this.getArr_icObj__containingScreenPoint("free", screenPoint)
+          .filter((icObj) => (isShouldIncludeCamera || (icObj.id != icCamera.id)))
+          .sort((icObj1, icObj2) => (icObj1.zIndex < icObj2.zIndex));
         outIcObj = arr_icObj.find((icObj) => (icObj.zIndex < icObj_to_adhere.zIndex));
 
         return outIcObj;            
@@ -13127,17 +13155,25 @@
       }
 
       createIcFreeDrawing_from_freeDrawingFObj(fObj) {
-        // logger.trace("createIcFreeDrawing_from_freeDrawingFObj", fObj);
+        logger.trace("createIcFreeDrawing_from_freeDrawingFObj", fObj);
         // console.log("createIcFreeDrawing_from_freeDrawingFObj", fObj.constructor.name);
         const infiniteCanvas = this;
         const icCamera       = infiniteCanvas.icCamera;
         const cameraEngine   = icCamera.dict_engine["camera"].engine.awoken;
 
         const type = "freeDrawing";
-        const size = {
+        var size = {
           width:  fObj.width, 
           height: fObj.height,
         };
+        // //bugfix: drawing single dots
+        // if(size.width != 0 && size.height == 0) {
+        //   size.height = size.width;
+        // } 
+        // if(size.width == 0 && size.height != 0) {
+        //   size.width = size.height;
+        // } 
+        logger.log("createIcFreeDrawing_from_freeDrawingFObj", "size:", size);
 
         const t_ic = cameraEngine.getIcTransform(fObj);
 
@@ -13157,7 +13193,6 @@
           isCosmetic: isCosmetic,
 
           opacity: fObj.opacity,
-
         };
 
         const icFreeDrawing = Object.assign(icObj, icFreeDrawing_spec);
@@ -25316,6 +25351,8 @@
         // logger.log("logCP", "addIcObject", icObj);
 
         const isObjectAlreadyAdded_ = this.isObjectAlreadyAdded(icObj);
+        logger.log("logIC", "addIcObject", "isObjectAlreadyAdded_:", isObjectAlreadyAdded_);
+
         if (isObjectAlreadyAdded_) {
           logger.log("logIC", "addIcObject", "this.getRepresented(icObj.id) != null", "==> ignore");
           //ignore
@@ -25344,6 +25381,7 @@
         const infiniteCanvas = this;
 
         const isObjectAlreadyAdded_ = infiniteCanvas.isObjectAlreadyAdded(icObj);
+        logger.log("logIC", "addIcObject_p", "isObjectAlreadyAdded_:", isObjectAlreadyAdded_);
 
         function getRepFree(icObj) {
           const represented = infiniteCanvas.getRepresented(icObj.id);
@@ -29971,8 +30009,9 @@
             
             const icObj         = miniDict.icObj;
             const isDisplayable = miniDict.isDisplayable;
+            logger.log("logIC", "redrawCanvas", "icObj.id:", icObj.id, "isDisplayable:", isDisplayable);
   
-            const fObj = fabricIntegration.getFObjForIcObj(icObj);
+            var fObj = fabricIntegration.getFObjForIcObj(icObj);
             
             if(isDisplayable) {
               if(!fObj) {
@@ -30360,11 +30399,11 @@
         const isFreeDrawingPan       = fabricIntegration.fabricCanvas.isDrawingMode && mouseIntegration.leftMouseDown && !infiniteCanvas.isFreeDrawingPan;
         const isFreeDrawingPan__line = isFreeDrawingPan && keyboardIntegration.keyDownToggles.shiftLeft.isActive;
         if(isFreeDrawingPan__line) {
-          infiniteCanvas.enterPan__freeDrawing__line(func_update);
+          infiniteCanvas.enterPan__freeDrawing__line();
         } else if(isFreeDrawingPan) {
-          infiniteCanvas.enterPan__freeDrawing(func_update);
+          infiniteCanvas.enterPan__freeDrawing();
         } else if((infiniteCanvas.getArr_rep_free__isHeld().length !=0) && mouseIntegration.leftMouseDown && !infiniteCanvas.isObjectHoldingPan) {
-          infiniteCanvas.enterPan__objectHolding(func_update);
+          infiniteCanvas.enterPan__objectHolding();
         } 
         else {
             
@@ -30463,26 +30502,41 @@
 
 
 
-      async enterPan__freeDrawing(func_update) {
+      async enterPan__freeDrawing() {
         logger.log("logFD", "enterPan__freeDrawing");
+        const infiniteCanvas = this;
 
-        this.isFreeDrawingPan      = true;
+        async function func__enterFreeDrawingPan() {
+          infiniteCanvas.isFreeDrawingPan              = true;
 
-        await fabricIntegration.leaveDrawingMode__atomic_p();
+          await fabricIntegration.leaveDrawingMode__atomic_p();
 
-        func_update();
+          fabricIntegration.fabricCanvas.isDrawingMode = false;
+        }
 
-        fabricIntegration.fabricCanvas.isDrawingMode = false;
+        globalsSingleton.functionCallsQueue.add(func__enterFreeDrawingPan);
+        setTimeout(() => globalsSingleton.functionCallsQueue.next(), 0);
       }
 
       async leavePan__freeDrawing() {
         logger.log("logFD", "leavePan__freeDrawing");
-        fabricIntegration.fabricCanvas.isDrawingMode = true;
+        const infiniteCanvas = this;
 
-        await fabricIntegration.enterDrawingMode__atomic_p({isCosmetic:false});
+        async function func__leaveFreeDrawingPan() {
 
-        this.isFreeDrawingPan      = false;
-        this.hasBeenFreeDrawingPan = true;
+          fabricIntegration.fabricCanvas.isDrawingMode = true;
+
+          const dict_update = {};
+          await fabricIntegration.updateDrawingModes(dict_update);
+  
+          await fabricIntegration.enterDrawingMode__atomic_p();
+
+          infiniteCanvas.isFreeDrawingPan      = false;
+          infiniteCanvas.hasBeenFreeDrawingPan = true;
+        }
+
+        globalsSingleton.functionCallsQueue.add(func__leaveFreeDrawingPan);
+        setTimeout(() => globalsSingleton.functionCallsQueue.next(), 0);
       }
 
       enterPan__freeDrawing__line(func_update) {
@@ -30506,9 +30560,8 @@
 
 
 
-      enterPan__objectHolding(func_update) {
-        this.isObjectHoldingPan      = true;
-        func_update();
+      enterPan__objectHolding() {
+        this.isObjectHoldingPan = true;
       }
 
       leavePan__objectHolding() {
@@ -30569,6 +30622,8 @@
       }
 
 
+//create zPixelUtils
+
       manageCursorMove_rotate(factor) {
         const infiniteCanvas = this;
 
@@ -30584,7 +30639,15 @@
   
           cameraEngine.screenRotate(screenPoint__rotationCenter, angleInDegrees);
 
-          const dict_update = {};
+
+          const icObj = icCamera;
+          const dict_truePoint__zPixelUnit = icObj.getDict_truePoint__zPixelUnit();
+          const zPixelUtils__icObj         = new Geometry.zPixelUtils(dict_truePoint__zPixelUnit);
+
+          // const dict_update = {};
+          const dict_update = {
+            zPixelUtils: zPixelUtils__icObj,
+          };
           return dict_update;
         }
 
@@ -30995,6 +31058,15 @@
         }
 
         // manageFreeDrawingXScroll__granular();
+
+        
+        if(globalsSingleton.functionCallsQueue.dict_cancelable["manageFreeDrawingXScroll__granular"]) {
+          const func__toBeCanceled = globalsSingleton.functionCallsQueue.dict_cancelable["manageFreeDrawingXScroll__granular"];
+          const result = globalsSingleton.functionCallsQueue.remove(func__toBeCanceled);
+          logger.log("logFCQ", "remove", "result:", result);
+        }
+        globalsSingleton.functionCallsQueue.dict_cancelable["manageFreeDrawingXScroll__granular"] = manageFreeDrawingXScroll__granular;
+        
 
         globalsSingleton.functionCallsQueue.add(manageFreeDrawingXScroll__granular);
         setTimeout(() => globalsSingleton.functionCallsQueue.next(), 0);
@@ -31741,8 +31813,8 @@
         const fabricCanvas = fabricIntegration.fabricCanvas;
 
         function createChildBrush(index) {
-          // const brush__pencil__1 = new fabric.ZPencilBrush(fabricCanvas);
-          var brush__pencil__1 = fabric.ZPencilBrush.createInstance(fabricCanvas);
+          // const brush__pencil__1 = new fabric.zIndexPencilBrush(fabricCanvas);
+          var brush__pencil__1 = fabric.zIndexPencilBrush.createInstance(fabricCanvas);
           brush__pencil__1.color = ColorUtils.randomColor();
           brush__pencil__1.width = 20;
           brush__pencil__1.zIndex__ic = 10;
@@ -48494,6 +48566,28 @@
           };
 
 
+          //bugfix: freeDraw dots
+          const _calcDimensions__path__old = fabric.Path.prototype._calcDimensions; 
+          fabric.Path.prototype._calcDimensions = function() {
+            var outLTRect;
+            if(this.path.length > 2) {
+              outLTRect = Reflect.apply(_calcDimensions__path__old, this, []);
+            } else {
+              const elt__first = this.path[0];
+
+              const radius = this.strokeWidth / 2.0;
+
+              outLTRect = {
+                left:   elt__first[1] - radius,
+                top:    elt__first[2] - radius,
+                width:  this.strokeWidth,
+                height: this.strokeWidth,
+              };
+            }
+            return outLTRect;
+          };
+
+
 
 
 
@@ -48534,6 +48628,8 @@
             imageSmoothingEnabled: false,
 
             preserveObjectStacking: true,
+
+            renderOnAddRemove: false,
           });
           logger.log("logFabric", "fabricCanvas:", fabricCanvas);
 
@@ -48654,7 +48750,7 @@
 
           installFabricCanvasActiveSelectionTLUpgrade(fabricCanvas);  //fabric+activeSelectionTL.js
 
-          installFabricZIndexUpgrade(fabricCanvas);         //fabric+zIndex.js
+          installFabricCanvasUpgrade__zIndex(fabricCanvas);         //fabric+zIndex.js
           installFabricBrushPreviewUpgrade(fabricCanvas);   //fabric+brushPreview.js
           installFabricCombUpgrade(fabricCanvas);           //fabric+comb.js
 
@@ -49472,7 +49568,7 @@
 
 
         redrawCanvas(redrawOccasion) {
-          logger.log("logFI", "redrawCanvas", redrawOccasion);
+          logger.trace("logFI", "redrawCanvas", redrawOccasion);
 
           this.updateFabricObjectsTransform(redrawOccasion);
 
@@ -49632,13 +49728,13 @@
         addFabricObjectWithIcObj_p(icObj__r_free) {
           var out_p;
 
-          logger.log("logRecycle", "addFabricObjectWithIcObj", icObj__r_free.type);
+          logger.log("logFI", "addFabricObjectWithIcObj_p", "type:", icObj__r_free.type);
           const fabricIntegration = this;
           const fabricCanvas = this.fabricCanvas;
 
           const infiniteCanvas = this.infiniteCanvas;
 
-          console.log("addFabricObjectWithIcObj", "icObj", icObj__r_free);
+          logger.trace("logFI", "addFabricObjectWithIcObj_p", "icObj:", icObj__r_free);
           // const fObj = this.createFabricObjectWithIcObj(icObj);
 
           // var icObj_fRep = icObj__r_free.createSisterRepresentation();
@@ -54428,6 +54524,8 @@
           var fObj = new fabric.Path(exoObject.path);
 
           fObj.set({
+            width:            exoObject.width,
+            height:           exoObject.height,
 
             stroke:           exoObject.stroke,
             strokeDashArray:  exoObject.strokeDashArray,
@@ -54438,7 +54536,7 @@
 
             fill:             exoObject.fill,
 
-            opacity: icObj.opacity,
+            opacity:          icObj.opacity,
 
             icObj: icObj,
           });
@@ -54468,19 +54566,19 @@
 
 
           //debug
-          fObj.setControlsVisibility({
-            mt: false,
-            mb: false,
-            ml: false,
-            mr: false,
+          // fObj.setControlsVisibility({
+          //   mt: false,
+          //   mb: false,
+          //   ml: false,
+          //   mr: false,
 
-            tl: true,
-            tr: false,
-            br: false,
-            bl: false,
+          //   tl: true,
+          //   tr: false,
+          //   br: false,
+          //   bl: false,
 
-            mtr: true,
-          });
+          //   mtr: true,
+          // });
 
           // fObj.hasControls = false;
           fObj.hasBorders = true;
@@ -56827,10 +56925,10 @@
 
 
 
-          //install ZPencilBrush for pathmade
+          //install zIndexPencilBrush for pathmade
           try {
-            // const brush__zpencil = new fabric.ZPencilBrush(this.fabricCanvas);
-            var brush__zpencil = fabric.ZPencilBrush.createInstance(this.fabricCanvas);
+            // const brush__zpencil = new fabric.ZIndexPencilBrush(this.fabricCanvas);
+            var brush__zpencil = fabric.ZIndexPencilBrush.createInstance(this.fabricCanvas);
             brush__zpencil.color = "rgba(233,212,96,0.42)";
             brush__zpencil.width = 67;
             brush__zpencil.zIndex__ic = 0;
@@ -56866,10 +56964,10 @@
           // this.fabricCanvas.on('mouse:down:before', (this.freeDrawing__adhesive__checkForSupport).bind(this));
 
 
-          //install ZPencilBrush for freeDrawingApply
+          //install zIndexPencilBrush for freeDrawingApply
           try {
-            // const brush__zpencil = new fabric.ZPencilBrush(this.fabricCanvas);
-            var brush__zpencil = fabric.ZPencilBrush.createInstance(this.fabricCanvas);
+            // const brush__zpencil = new fabric.ZIndexPencilBrush(this.fabricCanvas);
+            var brush__zpencil = fabric.ZIndexPencilBrush.createInstance(this.fabricCanvas);
             brush__zpencil.color = new fabric.Color("black").toRgba();
             brush__zpencil.opacity = 0.4;
             brush__zpencil.width = 20;
@@ -57181,6 +57279,7 @@
               //work
               {
                 return drawingBout.func__createIcObj__atomic_p(fObj).then((icObj) => {
+                  logger.log("logDrawingBout", "manageCreatedFabricObject_p", "icObj:", icObj);
 
                   // logger.log("logFD", "fObj.zIndex__ic", fObj.zIndex__ic);
                   icObj.zIndex = fObj.zIndex__ic;
@@ -57786,8 +57885,8 @@
           const fabricIntegration = this;
 
 
-          // class Brush__DrawingBout__raw__freeDrawing extends DecorationUtils.createAbusiveDecoratorClass(fabric.ZPencilBrush, {
-          class Brush__DrawingBout__raw__freeDrawing extends DecorationUtils.createAbusiveTopDownDecoratorClass(fabric.ZPencilBrush, {
+          // class Brush__DrawingBout__raw__freeDrawing extends DecorationUtils.createAbusiveDecoratorClass(fabric.ZIndexPencilBrush, {
+          class Brush__DrawingBout__raw__freeDrawing extends DecorationUtils.createAbusiveTopDownDecoratorClass(fabric.ZIndexPencilBrush, {
 
             onMouseDown: function (pointer, options) {
               logger.log("logFD", "Brush__DrawingBout__raw__freeDrawing", "onMouseDown", "this:", this);
@@ -57806,9 +57905,9 @@
 
 
 
-          //install ZPencilBrush for freeDrawing
+          //install zIndexPencilBrush for freeDrawing
           try {
-            var brush__zpencil = fabric.ZPencilBrush.createInstance(this.fabricCanvas);
+            var brush__zpencil = fabric.ZIndexPencilBrush.createInstance(this.fabricCanvas);
             brush__zpencil     = Brush__DrawingBout__raw__freeDrawing.decorate(brush__zpencil);
             brush__zpencil     = PreviewBrush.decorate(brush__zpencil);
 
@@ -57816,7 +57915,7 @@
 
             fabricIntegration.storeBrush(brush__zpencil, "freeDrawing__raw");
           } catch(e) {
-            logger.log("logZPencilBrush", "error: ", e);
+            logger.log("logZIndexPencilBrush", "error: ", e);
           }
 
 
@@ -58157,7 +58256,7 @@
                     logger.log("logFD", "freeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "adhesion at end");
 
                     const true_cursor = infiniteCanvas.getTrueCursor();
-                    const icObj__support__end = infiniteCanvas.getCandidateSupportUnderPoint(true_cursor, icObj__polyatomic);
+                    const icObj__support__end = infiniteCanvas.getCandidateSupportUnderScreenPoint(true_cursor, icObj__polyatomic);
                     if(icObj__support__end != null) {
                       const rep_free__icObj__support__end = infiniteCanvas.getRepresented(icObj__support__end.id).r_free();
       
@@ -58245,7 +58344,7 @@
 
             fabricIntegration.storeBrush(brush__zpixel, "zPixelFreeDrawing__raw");
           } catch(e) {
-            logger.log("logZPencilBrush", "error: ", e);
+            logger.log("logZIndexPencilBrush", "error: ", e);
           }
 
 
@@ -58538,7 +58637,7 @@
                 const dZLevel__widthWise = Decimal.floor( Decimal.div ( Decimal.sub(width , width__std) , step_width) );
 
   
-                const dZLevel__std = 4;
+                const dZLevel__std = 5;
   
                 const dZLevel = Decimal.sub(dZLevel__std , dZLevel__widthWise);
    
@@ -58791,7 +58890,7 @@
                     logger.log("logFD", "freeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "adhesion at end");
 
                     const true_cursor = infiniteCanvas.getTrueCursor();
-                    const icObj__support__end = infiniteCanvas.getCandidateSupportUnderPoint(true_cursor, icObj__polyatomic);
+                    const icObj__support__end = infiniteCanvas.getCandidateSupportUnderScreenPoint(true_cursor, icObj__polyatomic);
                     if(icObj__support__end != null) {
                       const rep_free__icObj__support__end = infiniteCanvas.getRepresented(icObj__support__end.id).r_free();
       
@@ -59198,7 +59297,7 @@
                     logger.log("logFD", "freeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "adhesion at end");
 
                     const true_cursor = infiniteCanvas.getTrueCursor();
-                    const icObj__support__end = infiniteCanvas.getCandidateSupportUnderPoint(true_cursor, icObj__polyatomic);
+                    const icObj__support__end = infiniteCanvas.getCandidateSupportUnderScreenPoint(true_cursor, icObj__polyatomic);
                     if(icObj__support__end != null) {
                       const rep_free__icObj__support__end = infiniteCanvas.getRepresented(icObj__support__end.id).r_free();
       
@@ -59692,7 +59791,7 @@
           //       //adhesion at end of drawing
           //       if(infiniteCanvas.adhesive__isAdhesiveKick) {
           //         const true_cursor = infiniteCanvas.getTrueCursor();
-          //         const icObj__support__end = infiniteCanvas.getCandidateSupportUnderPoint(true_cursor, icObj__polyatomic);
+          //         const icObj__support__end = infiniteCanvas.getCandidateSupportUnderScreenPoint(true_cursor, icObj__polyatomic);
           //         if(icObj__support__end != null) {
           //           const rep_free__icObj__support__end = infiniteCanvas.getRepresented(icObj__support__end.id).r_free();
     
@@ -59957,83 +60056,83 @@
 
 
 
-        // simulateMouseUpInDrawingMode(func_after) {
-        //   const fabricIntegration = this;
-        //   const fabricCanvas      = fabricIntegration.fabricCanvas;
+        simulateMouseUpInDrawingMode(func_after) {
+          const fabricIntegration = this;
+          const fabricCanvas      = fabricIntegration.fabricCanvas;
 
-        //   //end current freeDrawing
-        //     //BAD IDEA
-        //   // MouseIntegration.triggerMouseEvent(fabricCanvas.upperCanvasEl, "mouseup");
-        //     //GOOD IDEA
-        //   // const functionCallsQueue = new FunctionCallsQueue(false).add(() => {
-        //   globalsSingleton.functionCallsQueue.add(() => {
+          //end current freeDrawing
+            //BAD IDEA
+          // MouseIntegration.triggerMouseEvent(fabricCanvas.upperCanvasEl, "mouseup");
+            //GOOD IDEA
+          // const functionCallsQueue = new FunctionCallsQueue(false).add(() => {
+          globalsSingleton.functionCallsQueue.add(() => {
 
-        //     //step 1
+            //step 1
 
-        //     const fCursor__mouseUp = fabricIntegration.getFCursor(false);
-        //     const x__mouseUp = fCursor__mouseUp.x;
-        //     const y__mouseUp = fCursor__mouseUp.y;
-        //     const mouseEvent__mouseUp = new MouseEvent("mouseup", {
-        //       isTrusted: true,
-        //       altKey : false, 
-        //       bubbles : true,
-        //       button : 0,
-        //       buttons : 0,
-        //       cancelBubble : false,
-        //       cancelable : true,
-        //       clientX: x__mouseUp,
-        //       clientY: y__mouseUp,
-        //       composed: true,
-        //       ctrlKey: false,
-        //       currentTarget: null,
-        //       defaultPrevented: false,
-        //       detail: 1,
-        //       eventPhase: 0,
-        //       fromElement: null,
-        //       layerX: x__mouseUp,
-        //       layerY: y__mouseUp,
-        //       metaKey: false,
-        //       movementX: 0,
-        //       movementY: 0,
-        //       offsetX: x__mouseUp,
-        //       offsetY: y__mouseUp,
-        //       pageX: x__mouseUp,
-        //       pageY: y__mouseUp,
-        //       relatedTarget: null,
-        //       returnValue: true,
-        //       screenX: x__mouseUp,
-        //       screenY: y__mouseUp,
-        //       shiftKey: false,
-        //       sourceCapabilities: new InputDeviceCapabilities({firesTouchEvents: false}),
-        //       srcElement: fabricCanvas.upperCanvasEl,
-        //       target:     fabricCanvas.upperCanvasEl,
-        //       timeStamp: 5848.39999999851,
-        //       toElement:  fabricCanvas.upperCanvasEl,
-        //       view: window,
-        //       which: 1,
-        //       x: x__mouseUp,
-        //       y: y__mouseUp,
-        //     });
-        //     const options__mouseUp = {
-        //       absolutePointer: fabricCanvas._absolutePointer,
-        //       button: 1,
-        //       e:       mouseEvent__mouseUp,
-        //       isClick: false,
-        //       pointer: fCursor__mouseUp,
-        //       subTargets: [],
-        //       target: null,
-        //       transform: null,
-        //     };
-        //     fabricCanvas._onMouseUpInDrawingMode(options__mouseUp);
+            const fCursor__mouseUp = fabricIntegration.getFCursor(false);
+            const x__mouseUp = fCursor__mouseUp.x;
+            const y__mouseUp = fCursor__mouseUp.y;
+            const mouseEvent__mouseUp = new MouseEvent("mouseup", {
+              isTrusted: true,
+              altKey : false, 
+              bubbles : true,
+              button : 0,
+              buttons : 0,
+              cancelBubble : false,
+              cancelable : true,
+              clientX: x__mouseUp,
+              clientY: y__mouseUp,
+              composed: true,
+              ctrlKey: false,
+              currentTarget: null,
+              defaultPrevented: false,
+              detail: 1,
+              eventPhase: 0,
+              fromElement: null,
+              layerX: x__mouseUp,
+              layerY: y__mouseUp,
+              metaKey: false,
+              movementX: 0,
+              movementY: 0,
+              offsetX: x__mouseUp,
+              offsetY: y__mouseUp,
+              pageX: x__mouseUp,
+              pageY: y__mouseUp,
+              relatedTarget: null,
+              returnValue: true,
+              screenX: x__mouseUp,
+              screenY: y__mouseUp,
+              shiftKey: false,
+              sourceCapabilities: new InputDeviceCapabilities({firesTouchEvents: false}),
+              srcElement: fabricCanvas.upperCanvasEl,
+              target:     fabricCanvas.upperCanvasEl,
+              timeStamp: 5848.39999999851,
+              toElement:  fabricCanvas.upperCanvasEl,
+              view: window,
+              which: 1,
+              x: x__mouseUp,
+              y: y__mouseUp,
+            });
+            const options__mouseUp = {
+              absolutePointer: fabricCanvas._absolutePointer,
+              button: 1,
+              e:       mouseEvent__mouseUp,
+              isClick: false,
+              pointer: fCursor__mouseUp,
+              subTargets: [],
+              target: null,
+              transform: null,
+            };
+            fabricCanvas._onMouseUpInDrawingMode(options__mouseUp);
 
-        //   }).add(() => {
-        //     //step 2
-        //     func_after();  
-        //   });
+          }).add(() => {
+            //step 2
+            func_after();  
+          });
 
-        //   // start the sequence
-        //   setTimeout(() => globalsSingleton.functionCallsQueue.next(), 1);
-        // }
+          // start the sequence
+          setTimeout(() => globalsSingleton.functionCallsQueue.next(), 1);
+        }
 
         // simulateMouseUp__with_freeDrawingBrush(func_after) {
         //   const fabricIntegration = this;
@@ -61539,7 +61638,7 @@
 
             if(infiniteCanvas.adhesive__isAdhesiveKick) {
               const true_cursor = infiniteCanvas.getTrueCursor();
-              const icObj__support__end = infiniteCanvas.getCandidateSupportUnderPoint(true_cursor, icObj__freeDrawing__result);
+              const icObj__support__end = infiniteCanvas.getCandidateSupportUnderScreenPoint(true_cursor, icObj__freeDrawing__result);
               if(icObj__support__end != null) {
                 const rep_free__icObj__support__end = infiniteCanvas.getRepresented(icObj__support__end.id).r_free();
 
@@ -61918,7 +62017,7 @@
 
             if(infiniteCanvas.adhesive__isAdhesiveKick) {
               const true_cursor = infiniteCanvas.getTrueCursor();
-              const icObj__support__end = infiniteCanvas.getCandidateSupportUnderPoint(true_cursor, icObj__freeDrawing__result);
+              const icObj__support__end = infiniteCanvas.getCandidateSupportUnderScreenPoint(true_cursor, icObj__freeDrawing__result);
               if(icObj__support__end != null) {
                 const rep_free__icObj__support__end = infiniteCanvas.getRepresented(icObj__support__end.id).r_free();
 
@@ -72055,13 +72154,7 @@
               // logger.log("logComb", "infiniteCanvas.isCombSetup:", infiniteCanvas.isCombSetup);
               if(!infiniteCanvas.isCombSetup) {
 
-                if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
-                  const icCamera       = infiniteCanvas.icCamera;
-                  const cameraEngine   = icCamera.dict_engine["camera"].engine.awoken; 
-        
-                  cameraEngine.screenSkew(infiniteCanvas.cursor__screen__previous, infiniteCanvas.cursor__screen);
-                } else {
-
+                const func_update = function() {
                   var factor;
                   // if (mouseIntegration.leftMouseDown) {
                   //   //reverse pan
@@ -72071,7 +72164,19 @@
                     factor = +1;
                   }
                   infiniteCanvas.manageCursorMove_offset(factor);
+                };
 
+                if(fabricIntegration.fabricCanvas.isDrawingMode) {
+                  func_update();
+                } else if(infiniteCanvas.isFreeDrawingPan) {
+                  func_update();
+                } else if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+                  const icCamera       = infiniteCanvas.icCamera;
+                  const cameraEngine   = icCamera.dict_engine["camera"].engine.awoken; 
+        
+                  cameraEngine.screenSkew(infiniteCanvas.cursor__screen__previous, infiniteCanvas.cursor__screen);
+                } else {
+                  func_update();
                 }
 
               }
@@ -72111,9 +72216,9 @@
               // SHU: horrible workaround
               if(infiniteCanvas.hasBeenFreeDrawingPan) {
                 // logger.log("logMouse", "onMouseUp", "infiniteCanvas.hasBeenFreeDrawingPan");
-                // fabricIntegration.simulateMouseUpInDrawingMode(()=>{
+                fabricIntegration.simulateMouseUpInDrawingMode(()=>{
                   infiniteCanvas.hasBeenFreeDrawingPan = false;
-                // });
+                });
               }
 
               // SHU: horrible workaround (even worse!)
