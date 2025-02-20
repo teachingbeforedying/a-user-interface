@@ -30833,7 +30833,9 @@
 
         const infiniteCanvas = this;
 
-        function func_update__zoom() {
+        const factor = 1 + scaleAmount;
+
+        async function func_update__zoom() {
           // zoom the page based on where the cursor is
           const cursor__screen = infiniteCanvas.cursor__screen;        //the only point that does not move on screen 
 
@@ -30842,7 +30844,6 @@
 
           // cameraEngine.screenZoomToPointByAmount(cursor__screen, scaleAmount);
 
-          const factor = 1 + scaleAmount;
           cameraEngine.screenZoomToPointByFactor(cursor__screen, factor);
 
           const dict_update = {};
@@ -30853,8 +30854,12 @@
 
         // logger.log("logFreeDrawing", "manageScaleUpdateWithScaleAmount", "fabricCanvas.isDrawingMode:", fabricIntegration.fabricCanvas.isDrawingMode);
 
-        const arr_rep_free_selected = infiniteCanvas.getArr_selected_rep_free();
-        const isSomethingSelected = (arr_rep_free_selected.length > 0);
+        // const arr_rep_free_selected = infiniteCanvas.getArr_selected_rep_free();
+        // const isSomethingSelected = (arr_rep_free_selected.length > 0);
+
+        const arr_rep_free__displayed = fabricIntegration.getFabricObjects().map((fObj) => fObj.icObj); 
+        const arr_rep_free__held      = arr_rep_free__displayed.filter((icObj) => icObj.isHeld);
+        const isSomethingHeld         = (arr_rep_free__held.length > 0);
 
         if(fabricIntegration.fabricCanvas.isDrawingMode) {
           
@@ -30868,12 +30873,13 @@
             infiniteCanvas.manageFreeDrawingXScroll(isBreakingBout, func_update__zoom);
           }
 
-        } else if(isSomethingSelected && mouseIntegration.leftMouseDown) {
+        // } else if(isSomethingSelected && mouseIntegration.leftMouseDown) {
+        } else if(isSomethingHeld /*&& mouseIntegration.leftMouseDown*/) {
 
           if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
-            infiniteCanvas.manageZPixelZScroll(scale_new, dOffset, arr_rep_free_selected, scaleAmount);
+            infiniteCanvas.manageZPixelZScroll(arr_rep_free__held, func_update__zoom);
           } else {
-            infiniteCanvas.manageZScroll(scale_new, dOffset, arr_rep_free_selected, scaleAmount);
+            infiniteCanvas.manageZScroll(arr_rep_free__held, func_update__zoom);
           }
 
         } else {
@@ -30884,96 +30890,71 @@
 
       //zScroll
 
-      manageZScroll(scale_new, dOffset, arr_rep_free_selected, scaleAmount) {
-        logger.log("logZScroll", "manageZScroll", scale_new, dOffset, arr_rep_free_selected, scaleAmount);
+      manageZScroll(arr_rep_free__held, func_update__zoom) {
+        logger.log("logZScroll", "manageZScroll", arr_rep_free__held, func_update__zoom);
 
-        const factor = (1 + scaleAmount);
+        const infiniteCanvas = this;
+        const icCamera       = infiniteCanvas.icCamera;
+        const cameraEngine   = icCamera.dict_engine["camera"].engine.awoken; 
 
-        const activeObject = fabricIntegration.fabricCanvas.getActiveObject();
-        if (activeObject instanceof fabric.ActiveSelection) {
-          const activeSelection = activeObject;
-          logger.log("logZScroll", "manageZScroll", "activeSelection:", activeSelection);
+        // const activeObject = fabricIntegration.fabricCanvas.getActiveObject();
+        // if (activeObject instanceof fabric.ActiveSelection) {
+        //   const activeSelection = activeObject;
+        //   logger.log("logZScroll", "manageZScroll", "activeSelection:", activeSelection);
 
-          // logger.log("logZScroll", "manageZScroll", {
-          //   "activeSelection.scaleX": activeSelection.scaleX,   //SHU: see that activeSelection.scaleX does not change
-          // });
+        //   globalsSingleton.functionCallsQueue
+        //   .add(() => {
 
-          const factor__f = 1.0 / factor;
+        //     //use activeSelection to manage all scale transformations
+        //     fabricIntegration.mutateActiveSelection(activeSelection, (activeSelection) => {
 
-          globalsSingleton.functionCallsQueue
-          .add(() => {
-
-            //use activeSelection to manage all scale transformations
-            fabricIntegration.mutateActiveSelection(activeSelection, (activeSelection) => {
-
-              //mutate scale
-              activeSelection.scaleX = activeSelection.scaleX * factor__f;
-              activeSelection.scaleY = activeSelection.scaleY * factor__f;
-
-              // //mutate position
-              // const screenPointTL__before_homot = {
-              //   x: activeSelection.left,
-              //   y: activeSelection.top,
-              // };
-              // logger.log("logZScroll", "manageZScroll", "screenPointTL__before_homot:", screenPointTL__before_homot);
-
-              // const cursor = this.cursor__screen;        //the only point that does not move on screen during zScroll
-              // const screenPointTL__after_homot = Geometry.pointWithHomothety(screenPointTL__before_homot, cursor, factor__f);
-              // logger.log("logZScroll", "manageZScroll", "screenPointTL__after_homot:", screenPointTL__after_homot);
-
-              // activeSelection.left = screenPointTL__after_homot.x;
-              // activeSelection.top  = screenPointTL__after_homot.y;
-
-            });        
+        //     });        
             
-          })
-          .add(() => {
-            fabricIntegration.bugFix__groupOrigin(activeSelection);
-          });
+        //   })
+        //   .add(() => {
+        //     fabricIntegration.bugFix__groupOrigin(activeSelection);
+        //   });
 
-          setTimeout(() => globalsSingleton.functionCallsQueue.next(), 0);
+        //   setTimeout(() => globalsSingleton.functionCallsQueue.next(), 0);
 
-        } else {
+        // } else {
+        // 
+        // }
           
-          arr_rep_free_selected.forEach((rep_free, i) => {
-          
-            const homeScale__old = Object.assign({}, rep_free.homeScale);
-            const homeScale__new = {
-              X: homeScale__old.X * factor,
-              Y: homeScale__old.Y * factor,
-            };
-            rep_free.homeScale = homeScale__new;
-            
-          });
+        //store held icObjs' screen transforms
+        const dict_dict_screenPoint = arr_rep_free__held.reduce((acc,icObj) => {
+          const dict_truePoint   = icObj.getDict_truePoint();
+          const dict_screenPoint = cameraEngine.toScreenDict_parallelogram(dict_truePoint);
 
-        }
+          const miniDict = {
+            icObj:            icObj,
+            dict_screenPoint: dict_screenPoint,
+          };
+
+          acc[icObj.id] = miniDict;
+
+          return acc;
+        }, {});
+
+        //update camera
+        func_update__zoom();
+
+        //update held icObjs' true transforms
+        Object.entries(dict_dict_screenPoint).forEach(([id, miniDict]) => {
+          const icObj            = miniDict.icObj;
+          const dict_screenPoint = miniDict.dict_screenPoint;
+
+          const dict_truePoint   = cameraEngine.toTrueDict_parallelogram(dict_screenPoint);
+          const t_ic = ICUtils.createTransform__unitSquareToParallelogram(dict_truePoint);
+          icObj.setIcTransform(t_ic);
+        });
 
       }
 
       //zPixelZScroll
 
-      // createDict__zPixel__forZPixelZScroll(infiniteCanvas, fObj) {
-      //   const icObj = fObj.icObj;
-    
-      //   const truePoint      = infiniteCanvas.getTrueCursor();
-    
-      //   // const homeScaleX     = infiniteCanvas.scale.X / 16.0;
-      //   const homeScaleX     = infiniteCanvas.scale.X / infiniteCanvas.dScale_when_held.X;
-      //   // logger.log("logZPixelZScroll", "icObj.homeScale.X:",                 icObj.homeScale.X);
-      //   // logger.log("logZPixelZScroll", "infiniteCanvas.scale.X:",            infiniteCanvas.scale.X);
-      //   // logger.log("logZPixelZScroll", "infiniteCanvas.dScale_when_held.X:", infiniteCanvas.dScale_when_held.X);
-    
-      //   //get dict_zPixel
-      //   const dict_zPixel    = Geometry.zPixelUtils.defaultInstance.createDict__zPixel(infiniteCanvas, truePoint, homeScaleX);
-    
-      //   return dict_zPixel;
-      // }
-
       compute_dScale_when_held(icObj) {
-        const dScale_when_held = {
-          X: infiniteCanvas.scale.X / icObj.homeScale.X,
-          Y: infiniteCanvas.scale.Y / icObj.homeScale.Y,
-        };
+        const dScale_when_held = Decimal.div(infiniteCanvas.scale , icObj.homeScale);
         return dScale_when_held;
       }
 
@@ -55894,24 +55875,24 @@
 
             const activeSelection = options.target;
 
-            //create/set icObj__fake
-            const icObj__fake = {
-              homeScale: {
-                X: (1.0 / activeSelection.scaleX),
-                Y: (1.0 / activeSelection.scaleY),
-              },
-            };
+            // //create/set icObj__fake
+            // const icObj__fake = {
+            //   homeScale: {
+            //     X: (1.0 / activeSelection.scaleX),
+            //     Y: (1.0 / activeSelection.scaleY),
+            //   },
+            // };
 
-            activeSelection.icObj__fake = icObj__fake;
+            // activeSelection.icObj__fake = icObj__fake;
 
-            //for zPixelZScroll
-            {
-              const dScale_when_held = infiniteCanvas.compute_dScale_when_held(icObj__fake);
-              logger.log("logAS", "activeSelection_held", "dScale_when_held:", dScale_when_held);
+            // //for zPixelZScroll
+            // {
+            //   const dScale_when_held = infiniteCanvas.compute_dScale_when_held(icObj__fake);
+            //   logger.log("logAS", "activeSelection_held", "dScale_when_held:", dScale_when_held);
 
-              // infiniteCanvas.dScale_when_held = dScale_when_held;
-              activeSelection.icObj__fake.__dScale_when_held = dScale_when_held;
-            }
+            //   // infiniteCanvas.dScale_when_held = dScale_when_held;
+            //   activeSelection.icObj__fake.__dScale_when_held = dScale_when_held;
+            // }
 
 
 
@@ -56354,24 +56335,25 @@
 
           var arr_fObj__to_move = [];
 
-          const activeObject = this.fabricCanvas.getActiveObject();
-          if (activeObject instanceof fabric.ActiveSelection) {   //when panning while there is an activeSelection
-            const activeSelection = activeObject;
-            logger.log("logAS", "updateFabricObjectsPosition_default", "ActiveSelection:", activeSelection);
+          // const activeObject = this.fabricCanvas.getActiveObject();
+          // if (activeObject instanceof fabric.ActiveSelection) {   //when panning while there is an activeSelection
+          //   // const activeSelection = activeObject;
+          //   // logger.log("logAS", "updateFabricObjectsPosition_default", "ActiveSelection:", activeSelection);
 
-            arr_fObj__to_move = [];
+          //   // arr_fObj__to_move = [];
 
-            const arr_fObj__inActiveSelection = activeSelection.getObjects();
+          //   // const arr_fObj__inActiveSelection = activeSelection.getObjects();
 
-            const arr_affected = fabric_objects
-            .filter(fObj => !arr_fObj__inActiveSelection.includes(fObj));
+          //   // const arr_affected = fabric_objects
+          //   // .filter(fObj => !arr_fObj__inActiveSelection.includes(fObj));
 
-            arr_fObj__to_move = arr_affected;
+          //   // arr_fObj__to_move = arr_affected;
 
-          } else  //when panning while there is no activeSelection
-          {
+          // }
+          // else  //when panning while there is no activeSelection
+          // {
             arr_fObj__to_move = [...fabric_objects];
-          }
+          // }
 
           arr_fObj__to_move.forEach((fObj, i) => {
             this.updateFabricObject_transform_default(fObj);
