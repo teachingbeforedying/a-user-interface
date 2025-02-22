@@ -18342,9 +18342,13 @@
 
         const type = "composite";
 
+        // const size = {
+        //   width:  1,
+        //   height: 1,
+        // };
         const size = {
-          width:  1,
-          height: 1,
+          width:  100,
+          height: 100,
         };
 
         const icObj = this.createIcObject_with__dict_parallelogram(type, size, dict_parallelogram);
@@ -26782,7 +26786,7 @@
 
       }
 
-
+      /*
       addNewIcObject(icObj) {
         // logger.log("addNewIcObject", icObj);
 
@@ -26790,11 +26794,18 @@
 
         this.addIcObject(icObj);
       }
+      */
 
-      addNewIcObject_p(icObj) {
-        this.configureNewIcObject(icObj);
+      addNewIcObject_p(icObj, isShouldConfigure = false) {
+        const infiniteCanvas = this;
 
-        return this.addIcObject_p(icObj);
+        if(isShouldConfigure) {
+          this.configureNewIcObject(icObj);
+        }
+
+        return this.addIcObject_p(icObj).then((rep_free) => {
+          infiniteCanvas.redrawCanvas(RedrawOccasion.objectAdded);
+        });
       }
 
 
@@ -26820,7 +26831,7 @@
   
         const icRect = this.createIcRect_with__dict_parallelogram(dict_truePoint, size);
 
-        this.addNewIcObject(icRect);
+        this.addNewIcObject_p(icRect);
 
         //debug
         // icRect.stroke      = "magenta";
@@ -27351,27 +27362,17 @@
         logger.log("logComposite", "compose", arr_icObj);
         const infiniteCanvas = this;
 
-        function debugTrueRect(infiniteCanvas) {
-          const true_cursor = infiniteCanvas.getTrueCursor();
+        const screenSize = {
+          width:  100,
+          height: 100,
+        };
 
-          const left = true_cursor.x;
-          const top = true_cursor.y;
+        const screenPoint__cursor = infiniteCanvas.cursor__screen;
+        const screenRect          = Object.assign({}, screenPoint__cursor, screenSize);
+        logger.log("logComposite", "compose", "screenRect:", screenRect);
+        const dict_screenPoint    = ICUtils.createDict_parallelogram__withRect(ICUtils.bigNumberize__dict(screenRect));
 
-          const width = 100;   //"information" size
-          const height = 100;
-
-          const trueRect = {
-            x: left,
-            y: top,
-            width: width,
-            height: height,
-          };
-
-          return trueRect;
-        }
-
-        const trueRect = debugTrueRect(infiniteCanvas);
-        console.log("trueRect", trueRect);
+        const dict_truePoint = infiniteCanvas.toTrueDict_parallelogram(dict_screenPoint);
 
         const parts = arr_icObj; //SHU: arr is an obj with propNames = indexes
         // const parts = {
@@ -27380,15 +27381,16 @@
         // };
 
         const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
-        const icComposite     = infiniteCanvas.createIcComposite(trueRect, parts, compositeConfig);
+        const icComposite     = infiniteCanvas.createIcComposite(dict_truePoint, parts, compositeConfig);
         logger.log("logComposite", "compose", "icComposite:", icComposite);
         // icComposite.cType = cType;
 
         icComposite.isTouchable = true;
 
+        //debug
         icComposite.stroke      = "cyan";
-        icComposite.strokeWidth = 5;
-
+        icComposite.strokeWidth = 1;
+        icComposite.fill        = ColorUtils.rgbaColorStringForColorAndOpacity("pink", 0.6);
 
 
 
@@ -27418,9 +27420,8 @@
 
 
 
-        this.addNewIcObject(icComposite);
+        this.addNewIcObject_p(icComposite);
         // this.addIcObject(icComposite);
-
       }
 
       decompose(icComposite) {
@@ -30935,6 +30936,8 @@
 
           return acc;
         }, {});
+        logger.log("logZScroll", "manageZScroll", "dict_dict_screenPoint:", dict_dict_screenPoint);
+
 
         //update camera
         func_update__zoom();
@@ -31210,6 +31213,7 @@
 
         switch(rep_free.type) {
           case "rect":
+          case "composite":
             rep_free.fill = rgbaColorString;
             break;
           case "text":
@@ -34180,44 +34184,47 @@
         this.size      = size;                //"information" size    //gives an idea of the "real" sharpness/heavyness of the object
 
 
-        // this._position__center        = null;
+        //transform {
+
+        this._position__center        = null;
         // this._position__center__debug = null;
         this.position__center  = position__center;    //{x: BigNumber, y: BigNumber}
 
-        // this._homeScale        = null;
+        this._homeScale        = null;
         // this._homeScale__debug = null;
         this.homeScale = homeScale;   //BigNumber
 
-        // this._orientation        = null;
+        this._orientation        = null;
         // this._orientation__debug = null;
         this.orientation = orientation;
 
 
-        this.zIndex      = 0;
-
-
         //refinement using controls
-        // this._scale = null;
+        this._scale = null;
         // this._scale__debug = null;
         this.scale = ICUtils.bigNumberize__dict({
           X: 1.0,
           Y: 1.0,
         });
+        this._flip = null;
+        this.flip = {
+          X: false,
+          Y: false,
+        };
 
-        // this._skew = null;
+        this._skew = null;
         // this._skew__debug = null;
         this.skew = ICUtils.bigNumberize__dict({
           X: 0,
           Y: 0,
         });
 
-        this.flip = {
-          X: false,
-          Y: false,
-        };
 
+        this.icTransform = null;
 
+        //} transform 
 
+        this.zIndex      = 0;
 
 
         this.fill = "";
@@ -34374,6 +34381,83 @@
 
 
 
+      //the new icTransform way {
+
+      get position__center() {
+        return this._position__center;
+      }
+
+      set position__center(position__center__new) {
+        this._position__center = position__center__new;
+        this._updateIcTransform();
+      }
+
+      get homeScale() {
+        return this._homeScale;
+      }
+
+      set homeScale(homeScale__new) {
+        this._homeScale = homeScale__new;
+        this._updateIcTransform();
+      }
+
+      get orientation() {
+        return this._orientation;
+      }
+
+      set orientation(orientation__new) {  
+        this._orientation = orientation__new;
+        this._updateIcTransform();
+      }
+
+      get scale() {
+        return this._scale;
+      }
+
+      set scale(scale__new) {  
+        this._scale = scale__new;
+        this._updateIcTransform();
+      }
+
+      get flip() {
+        return this._flip;
+      }
+
+      set flip(flip__new) {  
+        this._flip = flip__new;
+        this._updateIcTransform();
+      }
+
+      get skew() {
+        return this._skew;
+      }
+
+      set skew(skew__new) {  
+        this._skew = skew__new;
+        this._updateIcTransform();
+      }
+
+      _updateIcTransform() {
+        const dict_options__current = this.getDict_options();
+        // try{
+        //   logger.log("logIC", "IcObject::_updateIcTransform", "dict_options__current:", ICUtils.stringify__dict(dict_options__current));
+        // } catch(e) {}
+
+        const isOptionsValid = Object.values(dict_options__current).every((option) => option );
+        // logger.log("logIC", "IcObject::_updateIcTransform", "isOptionsValid:", isOptionsValid);
+        if(isOptionsValid) {
+          const t_ic__new = this.computeIcTransform(dict_options__current);
+          // logger.log("logIC", "IcObject::_updateIcTransform", "t_ic__new:", ICUtils.stringify__array(t_ic__new));
+          this.icTransform = t_ic__new; 
+        }
+      }
+
+      //} the new icTransform way
+
+
+
+
+
       getSizeTransform() {
         const t__size = ICUtils.calcScaleMatrix({
           scaleX: this.size.width,
@@ -34383,10 +34467,10 @@
       }
 
       
-      getHomeScaleTransform() {
+      getHomeScaleTransform(homeScale) {
         const t__homeScale__naive = ICUtils.composeMatrix({
-          scaleX: this.homeScale,                     
-          scaleY: this.homeScale,                   
+          scaleX: homeScale,                     
+          scaleY: homeScale,                   
         });
 
         //use this if you choose: homeScale = options.factScale
@@ -34403,33 +34487,31 @@
       configureWithOptionsDict(options) {
         // logger.log("logIC", "IcObject::configureWithOptionsDict", ICUtils.stringify__dict(options));
 
-        this.position__center = {
+        this._position__center = {
           x: options.translateX,
           y: options.translateY,
         };
 
-        this.homeScale   = options.factScale;
+        this._homeScale   = options.factScale;
         // this.homeScale = math.divide( math.bignumber(1), options.factScale );
 
-        this.orientation = options.angle;
+        this._orientation = options.angle;
         
 
-        this.scale = {
+        this._scale = {
           X: options.scaleX,
           Y: options.scaleY,
         };
-        this.flip = {
+        this._flip = {
           X: options.flipX,
           Y: options.flipY,
         };
 
 
-        this.skew = {
+        this._skew = {
           X: options.skewX,
           Y: options.skewY,
         };
-
-        // this.didUpdate();
 
         // logger.log("logIC", "IcObject::configureWithOptionsDict", "this.skew:", ICUtils.stringify__dict(this.skew));
 
@@ -34529,42 +34611,53 @@
       }
 
 
-          //t_ic does not care about icObj.size, 
-          //t_ic is center-based
-      getIcTransform() { 
-        // logger.log("logIC", "ICObject::getIcTransform", "this:", this);
+
+      getDict_options() {
+        return {
+          position__center: this.position__center,
+          orientation:      this.orientation,
+          homeScale:        this.homeScale,
+
+          scale:            this.scale,
+          skew:             this.skew,
+          flip:             this.flip,
+        };
+      }
+
+      computeIcTransform(dict_options) {
+        // logger.log("logIC", "ICObject::computeIcTransform", "this:", this);
         var outMatrix;
 
         const multiply = ICUtils.multiplyTransformMatrices;
 
         const t__translation = ICUtils.composeMatrix({
-          translateX: this.position__center.x,
-          translateY: this.position__center.y,
+          translateX: dict_options.position__center.x,
+          translateY: dict_options.position__center.y,
         });
         outMatrix = t__translation;
 
         const t__rotation = ICUtils.composeMatrix({
-          angleInDegrees: this.orientation,
+          angleInDegrees: dict_options.orientation,
         });
         outMatrix = multiply(outMatrix, t__rotation);
 
 
-        const t__homeScale = this.getHomeScaleTransform();  //main "infinite" mechanism
+        const t__homeScale = this.getHomeScaleTransform(dict_options.homeScale);  //main "infinite" mechanism
         outMatrix = multiply(outMatrix, t__homeScale);
 
         const t__scale = ICUtils.composeMatrix({
-          scaleX: this.scale.X,
-          scaleY: this.scale.Y,
+          scaleX: dict_options.scale.X,
+          scaleY: dict_options.scale.Y,
           
-          flipX: this.flip.X,
-          flipY: this.flip.Y,
+          flipX: dict_options.flip.X,
+          flipY: dict_options.flip.Y,
         });
         outMatrix = multiply(outMatrix, t__scale);
 
 
         const t__skew = ICUtils.composeMatrix({
-          skewXInDegrees: this.skew.X,
-          skewYInDegrees: this.skew.Y,
+          skewXInDegrees: dict_options.skew.X,
+          skewYInDegrees: dict_options.skew.Y,
         });
         outMatrix = multiply(outMatrix, t__skew);
 
@@ -34574,8 +34667,26 @@
         return outMatrix;
       }
 
+
+          //t_ic does not care about icObj.size, 
+          //t_ic is center-based
+      getIcTransform() { 
+        // logger.log("logIC", "ICObject::getIcTransform", "this:", this);
+        return this.icTransform;
+      }
+
       setIcTransform(t__obj__new) {
-        // logger.trace("logIC", "ICObject::setIcTransform", ICUtils.stringify__array(t__obj__new));
+        // logger.log("logIC", "ICObject::setIcTransform", ICUtils.stringify__array(t__obj__new));
+        const icObj = this;
+
+        //debug
+        {
+          const t__obj__old = icObj.getIcTransform(); 
+          logger.log("logIC", "ICObject::setIcTransform", {
+            t__obj__old: t__obj__old ? ICUtils.stringify__array(t__obj__old) : null,
+            t__obj__new: ICUtils.stringify__array(t__obj__new),
+          });
+        }
 
         if(t__obj__new.filter((elt) => !(elt instanceof Decimal)).length > 0) {
           throw new Error("t__obj__new is not bignumber-based");
@@ -34584,8 +34695,37 @@
         const options = ICUtils.decompose(t__obj__new);
         // const options = ICUtils.qrDecompose(t__obj__new);
 
-        return this.configureWithOptionsDict(options);
+        const result = this.configureWithOptionsDict(options);
+
+        // if(infiniteCanvas) {
+        //   logger.log("logIC", "ICObject::setIcTransform", "will call infiniteCanvas.icObjDidUpdate");
+        //   infiniteCanvas.icObjDidUpdate(icObj, {
+        //     icTransform: {
+        //       old: t__obj__old,
+        //       new: t__obj__new,
+        //     },
+        //   });
+        // }
+        icObj.icTransform = t__obj__new;
+
+        return result;
       }
+
+
+      // getDifferentIcTransform_with__dict_options__differences(dict_options__differences) { 
+      //   // logger.log("logIC", "ICObject::getIcTransform", "this:", this);
+
+      //   const dict_options__current = this.getDict_options(); 
+
+      //   const dict_options__different = Object.assign({}, dict_options__current, dict_options__differences);
+
+      //   const icTransform = this.computeIcTransform(dict_options__different);
+      //   return icTransform;
+      // }
+
+
+
+
 
 
       getHomeScaleFreeIcTransform() {    
@@ -34634,8 +34774,14 @@
 
 
       updateWithTrueTransform(t__update) {
+        logger.log("logIcObject", "updateWithTrueTransform", "t__update:", ICUtils.stringify__array(t__update));
+
         const t__ic__old = this.getIcTransform();
+        logger.log("logIcObject", "updateWithTrueTransform", "t__ic__old:", ICUtils.stringify__array(t__ic__old));
+
         const t__ic__new = ICUtils.multiplyTransformMatrices(t__update, t__ic__old);
+        logger.log("logIcObject", "updateWithTrueTransform", "t__ic__new:", ICUtils.stringify__array(t__ic__new));
+
         // const t__ic__new = ICUtils.multiplyTransformMatrices(t__update__centered, t__ic__old);
         this.setIcTransform(t__ic__new);
       }
@@ -42966,7 +43112,8 @@
             // const index__partListener = this.counter__partListeners;
 
             const part__listener = (representation, propName, oldValue, newValue) => {
-              // logger.log("partListener", index__partListener);
+              logger.log("logCompositeEngine", "partListener", representation, propName, oldValue, newValue);
+
               const updatesDict = {
                 [propName]: {
                   old: oldValue,
@@ -43068,16 +43215,20 @@
           };
 
 
+
+
+
+
+
+
           //part update
           this.managePartUpdate = function (icObj_compositePart, outerUpdatesDict) {
+            logger.log("logComposite", "managePartUpdate", icObj_compositePart, outerUpdatesDict);
 
             [...Object.keys(outerUpdatesDict)].forEach((key__update) => {
               switch(key__update) {
-                case "position":
-                  this.managePartUpdate__position(icObj_compositePart, outerUpdatesDict);
-                  break;
-                case "homeScale":
-                  this.managePartUpdate__homeScale(icObj_compositePart, outerUpdatesDict);
+                case "icTransform":
+                  this.managePartUpdate__transform(icObj_compositePart, outerUpdatesDict);
                   break;
                 default:
                   break;
@@ -43086,12 +43237,13 @@
 
           };
 
-          this.managePartUpdate__position = function (icObj_compositePart, outerUpdatesDict) {
-            logger.log("logComposite", "managePartUpdate__position", icObj_compositePart);
+
+          this.managePartUpdate__transform = function (icObj_compositePart, outerUpdatesDict) {
+            logger.log("logComposite", "managePartUpdate__transform", icObj_compositePart);
 
             //SHU FLUID
 
-            logger.log("managePartUpdate__position", icObj_compositePart);
+            logger.log("managePartUpdate__transform", icObj_compositePart);
 
             const infiniteCanvas = this.scopeObj.infiniteCanvas;
             const handle = this.scopeObj.engineCarrier;
@@ -43108,7 +43260,7 @@
               //ignore
             } else {
 
-              logger.log("logComposite", "managePartUpdate__position", ".isAltering:", infiniteCanvas.isAltering);
+              logger.log("logComposite", "managePartUpdate__transform", ".isAltering:", infiniteCanvas.isAltering);
 
               if(infiniteCanvas.isDeepAltering) {
                 //only move selected part: do nothing with other parts
@@ -43125,7 +43277,7 @@
                   //find closest alterable composite
 
                   const closestAlterableComposite__rep_free = infiniteCanvas.getParentCompositeForContentOrPart(icObj_compositePart, "free");
-                  logger.log("logComposite", "managePartUpdate__position", "isAltering", "closestAlterableComposite__rep_free:", closestAlterableComposite__rep_free);
+                  logger.log("logComposite", "managePartUpdate__transform", "isAltering", "closestAlterableComposite__rep_free:", closestAlterableComposite__rep_free);
                   
                   // closestAlterableComposite__rep_free.dict_engine["composite"].engine.awoken.manageHandleUpdate__position__bulkMove(icObj_compositePart, outerUpdatesDict);
                   
@@ -43138,7 +43290,7 @@
                     closestAlterableComposite__rep_free.offInnerUpdate(listener);
                   }
                   
-                  closestAlterableComposite__rep_free.dict_engine["composite"].engine.awoken.managePartUpdate__position__bulkMove(icObj_compositePart, outerUpdatesDict);
+                  closestAlterableComposite__rep_free.dict_engine["composite"].engine.awoken.managePartUpdate__transform__bulkMove(icObj_compositePart, outerUpdatesDict);
                   
                   if(!isRootObject) {
                     //listen:on
@@ -43150,7 +43302,7 @@
               }
               else {
                 //bulkMove everything accordingly
-                this.managePartUpdate__position__bulkMove(icObj_compositePart, outerUpdatesDict);
+                this.managePartUpdate__transform__bulkMove(icObj_compositePart, outerUpdatesDict);
 
               }
 
@@ -43158,17 +43310,21 @@
           
           };
 
-
-
-          this.managePartUpdate__position__bulkMove = function (icObj_compositePart, outerUpdatesDict) {
-            logger.log("logComposite", "managePartUpdate__position__bulkMove", icObj_compositePart);
+          this.managePartUpdate__transform__bulkMove = function (icObj_compositePart, outerUpdatesDict) {
+            logger.log("logComposite", "managePartUpdate__transform__bulkMove", icObj_compositePart, {
+              t_ic__old: ICUtils.stringify__array(outerUpdatesDict.icTransform.old),
+              t_ic__new: ICUtils.stringify__array(outerUpdatesDict.icTransform.new),
+            });
 
             //SHU FLUID
 
-            logger.log("managePartUpdate__position__bulkMove", icObj_compositePart);
+            logger.log("managePartUpdate__transform__bulkMove", icObj_compositePart);
 
             const infiniteCanvas = this.scopeObj.infiniteCanvas;
-            const handle = this.scopeObj.engineCarrier;
+            const handle         = this.scopeObj.engineCarrier;
+
+            const icCamera     = infiniteCanvas.icCamera;
+            const cameraEngine = icCamera.dict_engine["camera"].engine.awoken;
 
             const compositeConfig = handle.compositeConfig;
             console.log("compositeConfig", compositeConfig);
@@ -43187,21 +43343,7 @@
               const handle__represented = infiniteCanvas.getRepresented(handle.id);
               const handle__rep_free = handle__represented.r_free();
 
-              if ((outerUpdatesDict.position != null) || (outerUpdatesDict.point_start != null)) {
-
-                var offset;
-                if (outerUpdatesDict.position != null) {
-                  offset = {
-                    dx: outerUpdatesDict.position.new.x - outerUpdatesDict.position.old.x,
-                    dy: outerUpdatesDict.position.new.y - outerUpdatesDict.position.old.y,
-                  };
-                } else {
-                  //moved part was segment
-                  offset = {
-                    dx: outerUpdatesDict.point_start.new.x - outerUpdatesDict.point_start.old.x,
-                    dy: outerUpdatesDict.point_start.new.y - outerUpdatesDict.point_start.old.y,
-                  };
-                }
+              if (outerUpdatesDict.icTransform != null) {
 
                 const content = handle__rep_free.content;
                 const parts   = handle__rep_free.parts;
@@ -43213,44 +43355,7 @@
 
                 const arr_handle_and_other = [handle__rep_free, ...arr_parts_other];
 
-                // arr_parts_other.forEach((rep_free, i) => {
-                arr_handle_and_other.forEach((rep_free, i) => {
-
-                  const listener = this.listeners[rep_free.id];
-                  // console.log("°°°listener", listener);
-
-                  //listen:off
-                  rep_free.offInnerUpdate(listener);
-
-                  //mutate
-                  // logger.log("mutating part:", rep_free.id);
-                  {
-                    if (rep_free.position != null) {
-                      const position_new = {
-                        x: rep_free.position.x + offset.dx,
-                        y: rep_free.position.y + offset.dy,
-                      };
-
-                      rep_free.position = position_new;
-                    } else if (rep_free.point_start != null) {
-                      //move other segment parts
-                      const point_start_new = {
-                        x: rep_free.point_start.x + offset.dx,
-                        y: rep_free.point_start.y + offset.dy,
-                      };
-                      rep_free.point_start = point_start_new;
-                      const point_end_new = {
-                        x: rep_free.point_end.x + offset.dx,
-                        y: rep_free.point_end.y + offset.dy,
-                      };
-                      rep_free.point_end = point_end_new;
-                    }
-                  }
-
-                  //listen:on
-                  rep_free.onInnerUpdate(listener);
-
-                });
+                this.updateCrowd_wrt_leader(arr_handle_and_other, outerUpdatesDict);
 
               }
 
@@ -43259,215 +43364,14 @@
           };
 
 
-          // this.managePartUpdate__homeScale = function (icObj_compositePart, outerUpdatesDict) {}
-
-          this.managePartUpdate__homeScale = function (icObj_compositePart, outerUpdatesDict) {
-
-            logger.log("logComposite", "managePartUpdate__homeScale", icObj_compositePart);
-
-            //SHU FLUID
-
-            logger.log("managePartUpdate__homeScale", icObj_compositePart);
-
-            const infiniteCanvas = this.scopeObj.infiniteCanvas;
-            const handle = this.scopeObj.engineCarrier;
-
-            const compositeConfig = handle.compositeConfig;
-            console.log("compositeConfig", compositeConfig);
-            const id__compositePart = icObj_compositePart.id;
-            logger.log("logComposite", "id__compositePart", id__compositePart);
-
-            const isMobile    = compositeConfig[id__compositePart].isMobile;
-            const isAlterable = compositeConfig[id__compositePart].isAlterable;
-
-            if (isMobile) {
-              //ignore
-            } else {
-
-              logger.log("logComposite", "managePartUpdate__homeScale", ".isAltering:", infiniteCanvas.isAltering);
-
-              if(infiniteCanvas.isDeepAltering) {
-                //only move selected part: do nothing with other parts
-              } 
-              else if(infiniteCanvas.isAltering) {
-
-                if(isAlterable) {
-                  //only bulkMove closest composite of selected part (SHU: bulkMove "most meaningful" closest composite would be a better achievement)
-
-                } else {
-                  logger.log("logPlatform", ".isAlterable:false");
-
-
-                  //find closest alterable composite
-
-                  const closestAlterableComposite__rep_free = infiniteCanvas.getParentCompositeForContentOrPart(icObj_compositePart, "free");
-                  logger.log("logComposite", "managePartUpdate__homeScale", "isAltering", "closestAlterableComposite__rep_free:", closestAlterableComposite__rep_free);
-                  
-                  // closestAlterableComposite__rep_free.dict_engine["composite"].engine.awoken.manageHandleUpdate__position__bulkMove(icObj_compositePart, outerUpdatesDict);
-                  
-                  const listener = this.listeners[closestAlterableComposite__rep_free.id];
-
-                  const isRootObject = closestAlterableComposite__rep_free.isRootObject(infiniteCanvas);
-
-                  if(!isRootObject) {
-                    //listen:off
-                    closestAlterableComposite__rep_free.offInnerUpdate(listener);
-                  }
-                  
-                  closestAlterableComposite__rep_free.dict_engine["composite"].engine.awoken.managePartUpdate__homeScale__bulkRescale(icObj_compositePart, outerUpdatesDict);
-                  
-                  if(!isRootObject) {
-                    //listen:on
-                    closestAlterableComposite__rep_free.onInnerUpdate(listener);
-                  }
-
-                }
-
-              }
-              else {
-                //bulkMove everything accordingly
-                this.manageHandleUpdate__homeScale(icObj_compositePart, outerUpdatesDict);
-
-              }
-
-            }
-
-          };
-
-          
-          this.managePartUpdate__homeScale__bulkRescale = function (icObj_compositePart, outerUpdatesDict) {
-            logger.log("logCompZscroll", "managePartUpdate__homeScale__bulkRescale", icObj_compositePart, outerUpdatesDict);
-
-            //get free_rep
-            const icObj_handle        = this.scopeObj.engineCarrier;
-
-            const handle__represented = infiniteCanvas.getRepresented(icObj_handle.id);
-            const handle__rep_free    = handle__represented.r_free();
-
-            if (outerUpdatesDict.homeScale != null) {
-
-              const scaleFactor = {
-                X: outerUpdatesDict.homeScale.new.X / outerUpdatesDict.homeScale.old.X,
-                Y: outerUpdatesDict.homeScale.new.Y / outerUpdatesDict.homeScale.old.Y,
-              };
-              logger.log("logCompZscroll", "scaleFactor", scaleFactor);
-
-              if(scaleFactor.X == 1 && scaleFactor.Y == 1) {  //SHU: bwerk
-                //ignore
-                return;
-              }
-
-              const content = handle__rep_free.content;
-              const parts   = handle__rep_free.parts;
-
-              const arr_parts_all             = Object.values(parts);
-              const arr_content_and_parts_all = [content, ...arr_parts_all].filter(icObj => (icObj != null));
-
-              const arr_parts_other = arr_content_and_parts_all.filter(part => part.id != icObj_compositePart.id);
-
-              const arr_handle_and_other = [handle__rep_free, ...arr_parts_other];
-
-              arr_handle_and_other.forEach((part__rep_free, i) => {
-
-                const listener = this.listeners[part__rep_free.id];
-
-                //listen:off
-                // if(typeof part__rep_free.offInnerUpdate === "function") { //SHU HORROR
-                part__rep_free.offInnerUpdate(listener);
-                // }
-
-
-
-                //mutate
-                // logger.log("mutating part:", part__rep_free.id);
-                // if(part__rep_free.type != "composite")
-                {
-
-                  //homeScale
-                  const homeScale__new__part = {
-                    X: part__rep_free.homeScale.X * scaleFactor.X,
-                    Y: part__rep_free.homeScale.Y * scaleFactor.Y,
-                  };
-                  logger.log("logCompZscroll", "homeScale__old__part", part__rep_free.homeScale);
-                  logger.log("logCompZscroll", "homeScale__new__part", homeScale__new__part);
-                  part__rep_free.homeScale = homeScale__new__part;
-
-
-                  //other (induced)
-                    //position
-                  const offset_wrt_handle__old = {
-                    dx: part__rep_free.position.x - handle__rep_free.position.x,
-                    dy: part__rep_free.position.y - handle__rep_free.position.y,
-                  };
-                  logger.log("logCompZscroll", "offset_wrt_handle__old", offset_wrt_handle__old);
-
-                  const offset_wrt_handle__new = {
-                    dx: offset_wrt_handle__old.dx / scaleFactor.X,
-                    dy: offset_wrt_handle__old.dy / scaleFactor.Y,
-                  };
-                  logger.log("logCompZscroll", "offset_wrt_handle__new", offset_wrt_handle__new);
-
-
-                  if (part__rep_free.position != null) {
-                    const position_new = {
-                      x: part__rep_free.position.x - offset_wrt_handle__old.dx + offset_wrt_handle__new.dx,
-                      y: part__rep_free.position.y - offset_wrt_handle__old.dy + offset_wrt_handle__new.dy,
-                    };
-                    logger.log("logCompZscroll", "position_new", position_new);
-
-                    part__rep_free.position = position_new;
-
-                  } else if (part__rep_free.point_start != null) {
-                    //move segment parts
-                    const point_start_new = {
-                      x: part__rep_free.point_start.x + offset_wrt_handle__new.dx,
-                      y: part__rep_free.point_start.y + offset_wrt_handle__new.dy,
-                    };
-                    part__rep_free.point_start = point_start_new;
-
-                    const v__old = {
-                      dx: part__rep_free.point_end.x - part__rep_free.point_start.x,
-                      dy: part__rep_free.point_end.y - part__rep_free.point_start.y,
-                    };
-                    const v__new = {
-                      dx: v__old.dx / scaleFactor.X,
-                      dy: v__old.dy / scaleFactor.Y,
-                    };
-
-                    const point_end_new = {
-                      x: part__rep_free.point_end.x + v__new.dx,
-                      y: part__rep_free.point_end.y + v__new.dy,
-                    };
-                    part__rep_free.point_end = point_end_new;
-                  }
-                } 
-                // else {
-                //   //bulkMove everything accordingly
-                //   const engine__part_which_is_handle = part__rep_free.dict_engine["composite"].engine.awoken;
-                //   engine__part_which_is_handle.manageHandleUpdate__homeScale(part__rep_free, outerUpdatesDict);
-                // }
-
-                //listen:on
-                // if(typeof part__rep_free.onInnerUpdate === "function") { //SHU HORROR
-                part__rep_free.onInnerUpdate(listener);
-                // }
-
-              });
-
-            }
-
-          };
 
           //content update
           this.manageContentUpdate = function (icObj_compositeContent, outerUpdatesDict) {
 
             [...Object.keys(outerUpdatesDict)].forEach((key__update) => {
               switch(key__update) {
-                case "position":
-                  this.managePartUpdate__position(icObj_compositeContent, outerUpdatesDict);
-                  break;
-                case "homeScale":
-                  this.managePartUpdate__homeScale(icObj_compositeContent, outerUpdatesDict);
+                case "icTransform":
+                  this.managePartUpdate__transform(icObj_compositeContent, outerUpdatesDict);
                   break;
                 default:
                   break;
@@ -43475,114 +43379,6 @@
             });
 
           };
-
-          // this.manageContentUpdate__position = function (icObj_compositePart, outerUpdatesDict) {
-
-          //   //SHU FLUID
-
-          //   logger.log("managePartUpdate__position", icObj_compositePart);
-
-          //   const infiniteCanvas = this.scopeObj.infiniteCanvas;
-          //   const handle = this.scopeObj.engineCarrier;
-
-          //   const compositeConfig = handle.compositeConfig;
-          //   console.log("compositeConfig", compositeConfig);
-          //   const id__compositePart = icObj_compositePart.id;
-          //   console.log("id__compositePart", id__compositePart);
-
-          //   const isMobile = compositeConfig[id__compositePart].isMobile;
-
-          //   if (isMobile) {
-          //     //ignore
-          //   } else {
-
-          //     if(infiniteCanvas.isAltering) {
-          //       //only move selected part: do nothing with other parts
-          //     } else {
-          //       //move everything accordingly
-
-          //       //get free_rep
-          //       const handle__represented = infiniteCanvas.getRepresented(handle.id);
-          //       const handle__rep_free = handle__represented.r_free();
-
-          //       // const part__represented   = infiniteCanvas.getRepresented(icObj_compositePart.id);
-
-          //       // rep_free__composite.composite.managePartUpdate(rep_free__compositePart, outerUpdatesDict);
-          //       if ((outerUpdatesDict.position != null) || (outerUpdatesDict.point_start != null)) {
-
-          //         var offset;
-          //         if (outerUpdatesDict.position != null) {
-          //           offset = {
-          //             dx: outerUpdatesDict.position.new.x - outerUpdatesDict.position.old.x,
-          //             dy: outerUpdatesDict.position.new.y - outerUpdatesDict.position.old.y,
-          //           };
-          //         } else {
-          //           //moved part was segment
-          //           offset = {
-          //             dx: outerUpdatesDict.point_start.new.x - outerUpdatesDict.point_start.old.x,
-          //             dy: outerUpdatesDict.point_start.new.y - outerUpdatesDict.point_start.old.y,
-          //           };
-          //         }
-
-          //         const parts = handle__rep_free.parts;
-
-          //         const arr_parts_all = Object.values(parts);
-          //         const arr_parts_other = arr_parts_all.filter(part => part.id != icObj_compositePart.id);
-
-          //         const arr_handle_and_other = [handle__rep_free, ...arr_parts_other];
-
-          //         // arr_parts_other.forEach((rep_free, i) => {
-          //         arr_handle_and_other.forEach((rep_free, i) => {
-
-          //           const listener = this.listeners[rep_free.id];
-          //           // console.log("°°°listener", listener);
-
-          //           //listen:off
-          //           rep_free.offInnerUpdate(listener);
-
-          //           //mutate
-          //           // logger.log("mutating part:", rep_free.id);
-          //           {
-          //             if (rep_free.position != null) {
-          //               const position_new = {
-          //                 x: rep_free.position.x + offset.dx,
-          //                 y: rep_free.position.y + offset.dy,
-          //               };
-
-          //               rep_free.position = position_new;
-          //             } else if (rep_free.point_start != null) {
-          //               //move other segment parts
-          //               const point_start_new = {
-          //                 x: rep_free.point_start.x + offset.dx,
-          //                 y: rep_free.point_start.y + offset.dy,
-          //               };
-          //               rep_free.point_start = point_start_new;
-          //               const point_end_new = {
-          //                 x: rep_free.point_end.x + offset.dx,
-          //                 y: rep_free.point_end.y + offset.dy,
-          //               };
-          //               rep_free.point_end = point_end_new;
-          //             }
-          //           }
-
-          //           //listen:on
-          //           rep_free.onInnerUpdate(listener);
-
-          //         });
-
-          //       }
-
-          //     }
-
-          //   }
-
-          // };
-
-
-          // this.manageContentUpdate__homeScale = function (icObj_compositePart, outerUpdatesDict) {
-
-          // };
-
 
 
           //handle update
@@ -43618,11 +43414,8 @@
             {
               [...Object.keys(outerUpdatesDict)].forEach((key__update) => {
                 switch(key__update) {
-                  case "position":
-                    this.manageHandleUpdate__position(icObj_composite, outerUpdatesDict);
-                    break;
-                  case "homeScale":
-                    this.manageHandleUpdate__homeScale(icObj_composite, outerUpdatesDict);
+                  case "icTransform":
+                    this.manageHandleUpdate__transform(icObj_composite, outerUpdatesDict);
                     break;
                   default:
                     break;
@@ -43685,8 +43478,9 @@
 
           };
 
-          this.manageHandleUpdate__position = function (icObj_composite, outerUpdatesDict) {
-            logger.log("logComposite", "manageHandleUpdate__position", icObj_composite);
+
+          this.manageHandleUpdate__transform = function (icObj_composite, outerUpdatesDict) {
+            logger.log("logComposite", "manageHandleUpdate__transform", icObj_composite);
 
             if(infiniteCanvas.isDeepAltering) {
                 //only move selected handle: do nothing with parts
@@ -43698,12 +43492,7 @@
               const handle__represented = infiniteCanvas.getRepresented(icObj_composite.id);
               const handle__rep_free = handle__represented.r_free();
 
-              if (outerUpdatesDict.position != null) {
-
-                const offset = {
-                  dx: outerUpdatesDict.position.new.x - outerUpdatesDict.position.old.x,
-                  dy: outerUpdatesDict.position.new.y - outerUpdatesDict.position.old.y,
-                };
+              if (outerUpdatesDict.icTransform != null) {
 
                 const content = handle__rep_free.content;
                 const parts   = handle__rep_free.parts;
@@ -43711,437 +43500,45 @@
                 const arr_parts_all             = Object.values(parts);
                 const arr_content_and_parts_all = [content, ...arr_parts_all].filter(icObj => (icObj != null));
 
-                arr_content_and_parts_all.forEach((part__rep_free, i) => {
-
-                  const listener = this.listeners[part__rep_free.id];
-
-                  //listen:off
-                  // if(typeof part__rep_free.offInnerUpdate === "function") { //SHU HORROR
-                  part__rep_free.offInnerUpdate(listener);
-                  // }
-
-
-
-                  //mutate
-                  // logger.log("mutating part:", part__rep_free.id);
-                  {
-                    if (part__rep_free.position != null) {
-                      const position_new = {
-                        x: part__rep_free.position.x + offset.dx,
-                        y: part__rep_free.position.y + offset.dy,
-                      };
-
-                      part__rep_free.position = position_new;
-                    } else if (part__rep_free.point_start != null) {
-                      //move segment parts
-                      const point_start_new = {
-                        x: part__rep_free.point_start.x + offset.dx,
-                        y: part__rep_free.point_start.y + offset.dy,
-                      };
-                      part__rep_free.point_start = point_start_new;
-                      const point_end_new = {
-                        x: part__rep_free.point_end.x + offset.dx,
-                        y: part__rep_free.point_end.y + offset.dy,
-                      };
-                      part__rep_free.point_end = point_end_new;
-                    }
-                  }
-
-                  //listen:on
-                  // if(typeof part__rep_free.onInnerUpdate === "function") { //SHU HORROR
-                  part__rep_free.onInnerUpdate(listener);
-                  // }
-
-                });
+                this.updateCrowd_wrt_leader(arr_content_and_parts_all, outerUpdatesDict);
 
               }
-              // else if(outerUpdatesDict.parts != null) {
-              //   logger.log("outerUpdatesDict.parts", outerUpdatesDict.parts);
-              //
-              //   // const arr_parts__old = [];
-              //   // const arr_parts__new = [];
-              //
-              //   Object.values(outerUpdatesDict.parts.new).forEach((part__rep_free, i) => {
-              //     const part__listener = this.createPartListener();
-              //     this.listeners[part__rep_free.id] = part__listener;
-              //
-              //     if(handle__rep_free.compositeConfig[part__rep_free.id] == null) {
-              //       const config__part = {
-              //         // isMobile: true,
-              //         isMobile: false,
-              //       };
-              //       handle__rep_free.compositeConfig[part__rep_free.id] = config__part;
-              //     }
-              //
-              //     //'activate' listener
-              //     // const part__listener = this.listeners[part__rep_free.id];
-              //     part__rep_free.onInnerUpdate(part__listener);
-              //
-              //   });
-              //
-              // }
 
             }
 
           };
 
 
-          // this.manageHandleUpdate__position__bulkMove = function (icObj_composite, outerUpdatesDict) {
-          //   logger.log("logComposite", "manageHandleUpdate__position", icObj_composite);
+          this.updateCrowd_wrt_leader = function(arr_crowd, outerUpdatesDict__leader) {
 
-          //   if(infiniteCanvas.isDeepAltering) {
-          //       //only move selected handle: do nothing with parts
-          //   } 
-          //   // else if(infiniteCanvas.isAltering) {}
-          //   else {
+            const t_ic__leader__old = outerUpdatesDict__leader.icTransform.old;
+            const t_ic__leader__new = outerUpdatesDict__leader.icTransform.new;
 
-          //     //get free_rep
-          //     const handle__represented = infiniteCanvas.getRepresented(icObj_composite.id);
-          //     const handle__rep_free = handle__represented.r_free();
+            arr_crowd.forEach((rep_free, i) => {
 
-          //     if (outerUpdatesDict.position != null) {
+              const listener = this.listeners[rep_free.id];
+              // console.log("°°°listener", listener);
 
-          //       const offset = {
-          //         dx: outerUpdatesDict.position.new.x - outerUpdatesDict.position.old.x,
-          //         dy: outerUpdatesDict.position.new.y - outerUpdatesDict.position.old.y,
-          //       };
+              //listen:off
+              rep_free.offInnerUpdate(listener);
 
-          //       const content = handle__rep_free.content;
-          //       const parts   = handle__rep_free.parts;
-
-          //       const arr_parts_all             = Object.values(parts);
-          //       const arr_content_and_parts_all = [content, ...arr_parts_all].filter(icObj => (icObj != null));
-
-          //       arr_content_and_parts_all.forEach((part__rep_free, i) => {
-
-          //         const listener = this.listeners[part__rep_free.id];
-
-          //         //listen:off
-          //         // if(typeof part__rep_free.offInnerUpdate === "function") { //SHU HORROR
-          //         part__rep_free.offInnerUpdate(listener);
-          //         // }
-
-
-
-          //         //mutate
-          //         // logger.log("mutating part:", part__rep_free.id);
-          //         {
-          //           if (part__rep_free.position != null) {
-          //             const position_new = {
-          //               x: part__rep_free.position.x + offset.dx,
-          //               y: part__rep_free.position.y + offset.dy,
-          //             };
-
-          //             part__rep_free.position = position_new;
-          //           } else if (part__rep_free.point_start != null) {
-          //             //move segment parts
-          //             const point_start_new = {
-          //               x: part__rep_free.point_start.x + offset.dx,
-          //               y: part__rep_free.point_start.y + offset.dy,
-          //             };
-          //             part__rep_free.point_start = point_start_new;
-          //             const point_end_new = {
-          //               x: part__rep_free.point_end.x + offset.dx,
-          //               y: part__rep_free.point_end.y + offset.dy,
-          //             };
-          //             part__rep_free.point_end = point_end_new;
-          //           }
-          //         }
-
-          //         //listen:on
-          //         // if(typeof part__rep_free.onInnerUpdate === "function") { //SHU HORROR
-          //         part__rep_free.onInnerUpdate(listener);
-          //         // }
-
-          //       });
-
-          //     }
-          //     // else if(outerUpdatesDict.parts != null) {
-          //     //   logger.log("outerUpdatesDict.parts", outerUpdatesDict.parts);
-          //     //
-          //     //   // const arr_parts__old = [];
-          //     //   // const arr_parts__new = [];
-          //     //
-          //     //   Object.values(outerUpdatesDict.parts.new).forEach((part__rep_free, i) => {
-          //     //     const part__listener = this.createPartListener();
-          //     //     this.listeners[part__rep_free.id] = part__listener;
-          //     //
-          //     //     if(handle__rep_free.compositeConfig[part__rep_free.id] == null) {
-          //     //       const config__part = {
-          //     //         // isMobile: true,
-          //     //         isMobile: false,
-          //     //       };
-          //     //       handle__rep_free.compositeConfig[part__rep_free.id] = config__part;
-          //     //     }
-          //     //
-          //     //     //'activate' listener
-          //     //     // const part__listener = this.listeners[part__rep_free.id];
-          //     //     part__rep_free.onInnerUpdate(part__listener);
-          //     //
-          //     //   });
-          //     //
-          //     // }
-
-          //   }
-
-          // };
-
-
-          this.manageHandleUpdate__homeScale = function (icObj_composite, outerUpdatesDict) {
-            logger.log("logCompZscroll", "manageHandleUpdate__homeScale", icObj_composite, outerUpdatesDict);
-
-            //get free_rep
-            const handle__represented = infiniteCanvas.getRepresented(icObj_composite.id);
-            const handle__rep_free    = handle__represented.r_free();
-
-            if(infiniteCanvas.isDeepAltering) {
-                //only move selected handle: do nothing with parts
-            } else if(infiniteCanvas.isAltering) {
-              //only move closest parent of selected handle
-            } else {
-
-              if (outerUpdatesDict.homeScale != null) {
-
-                const scaleFactor = {
-                  X: outerUpdatesDict.homeScale.new.X / outerUpdatesDict.homeScale.old.X,
-                  Y: outerUpdatesDict.homeScale.new.Y / outerUpdatesDict.homeScale.old.Y,
-                };
-                logger.log("logCompZscroll", "scaleFactor", scaleFactor);
-
-                if(scaleFactor.X == 1 && scaleFactor.Y == 1) {  //SHU: bwerk
-                  //ignore
-                  return;
-                }
-
-                const content = handle__rep_free.content;
-                const parts   = handle__rep_free.parts;
-
-                const arr_parts_all             = Object.values(parts);
-                const arr_content_and_parts_all = [content, ...arr_parts_all].filter(icObj => (icObj != null));
-
-                arr_content_and_parts_all.forEach((part__rep_free, i) => {
-
-                  const listener = this.listeners[part__rep_free.id];
-
-                  //listen:off
-                  // if(typeof part__rep_free.offInnerUpdate === "function") { //SHU HORROR
-                  part__rep_free.offInnerUpdate(listener);
-                  // }
-
-
-
-                  //mutate
-                  // logger.log("mutating part:", part__rep_free.id);
-                  {
-
-                    //homeScale
-                    const homeScale__new__part = {
-                      X: part__rep_free.homeScale.X * scaleFactor.X,
-                      Y: part__rep_free.homeScale.Y * scaleFactor.Y,
-                    };
-                    logger.log("logCompZscroll", "homeScale__old__part", part__rep_free.homeScale);
-                    logger.log("logCompZscroll", "homeScale__new__part", homeScale__new__part);
-                    part__rep_free.homeScale = homeScale__new__part;
-
-
-                    //other (induced)
-                      //position
-                    const offset_wrt_handle__old = {
-                      dx: part__rep_free.position.x - handle__rep_free.position.x,
-                      dy: part__rep_free.position.y - handle__rep_free.position.y,
-                    };
-                    logger.log("logCompZscroll", "offset_wrt_handle__old", offset_wrt_handle__old);
-
-                    const offset_wrt_handle__new = {
-                      dx: offset_wrt_handle__old.dx / scaleFactor.X,
-                      dy: offset_wrt_handle__old.dy / scaleFactor.Y,
-                    };
-                    logger.log("logCompZscroll", "offset_wrt_handle__new", offset_wrt_handle__new);
-
-
-                    if (part__rep_free.position != null) {
-                      const position_new = {
-                        x: part__rep_free.position.x - offset_wrt_handle__old.dx + offset_wrt_handle__new.dx,
-                        y: part__rep_free.position.y - offset_wrt_handle__old.dy + offset_wrt_handle__new.dy,
-                      };
-                      logger.log("logCompZscroll", "position_new", position_new);
-
-                      part__rep_free.position = position_new;
-
-                    } else if (part__rep_free.point_start != null) {
-                      //move segment parts
-                      const point_start_new = {
-                        x: part__rep_free.point_start.x + offset_wrt_handle__new.dx,
-                        y: part__rep_free.point_start.y + offset_wrt_handle__new.dy,
-                      };
-                      part__rep_free.point_start = point_start_new;
-
-                      const v__old = {
-                        dx: part__rep_free.point_end.x - part__rep_free.point_start.x,
-                        dy: part__rep_free.point_end.y - part__rep_free.point_start.y,
-                      };
-                      const v__new = {
-                        dx: v__old.dx / scaleFactor.X,
-                        dy: v__old.dy / scaleFactor.Y,
-                      };
-
-                      const point_end_new = {
-                        x: part__rep_free.point_end.x + v__new.dx,
-                        y: part__rep_free.point_end.y + v__new.dy,
-                      };
-                      part__rep_free.point_end = point_end_new;
-                    }
-                  }
-
-                  //listen:on
-                  // if(typeof part__rep_free.onInnerUpdate === "function") { //SHU HORROR
-                  part__rep_free.onInnerUpdate(listener);
-                  // }
-
-                });
-
+              //mutate
+              // logger.log("logComposite", "managePartUpdate__transform__bulkMove", "mutating part:", rep_free.id);
+              {
+                const t_ic__obj__old      = rep_free.getIcTransform();
+                const t_ic__relationship  = ICUtils.multiplyTransformMatrices(ICUtils.invertTransform(t_ic__leader__old), t_ic__obj__old);
+                const t_ic__obj__new      = ICUtils.multiplyTransformMatrices(t_ic__leader__new, t_ic__relationship);
+                rep_free.setIcTransform(t_ic__obj__new);
               }
-              // else if(outerUpdatesDict.parts != null) {
-              //   logger.log("outerUpdatesDict.parts", outerUpdatesDict.parts);
-              //
-              //   // const arr_parts__old = [];
-              //   // const arr_parts__new = [];
-              //
-              //   Object.values(outerUpdatesDict.parts.new).forEach((part__rep_free, i) => {
-              //     const part__listener = this.createPartListener();
-              //     this.listeners[part__rep_free.id] = part__listener;
-              //
-              //     if(handle__rep_free.compositeConfig[part__rep_free.id] == null) {
-              //       const config__part = {
-              //         // isMobile: true,
-              //         isMobile: false,
-              //       };
-              //       handle__rep_free.compositeConfig[part__rep_free.id] = config__part;
-              //     }
-              //
-              //     //'activate' listener
-              //     // const part__listener = this.listeners[part__rep_free.id];
-              //     part__rep_free.onInnerUpdate(part__listener);
-              //
-              //   });
-              //
-              // }
 
-            }
+              //listen:on
+              rep_free.onInnerUpdate(listener);
+
+            });
 
           };
 
 
-          this.manageHandleUpdate__homeScale__bulkRescale = function (icObj_composite, outerUpdatesDict) {
-            logger.log("logCompZscroll", "manageHandleUpdate__homeScale__bulkRescale", icObj_composite, outerUpdatesDict);
-
-            //get free_rep
-            const handle__represented = infiniteCanvas.getRepresented(icObj_composite.id);
-            const handle__rep_free    = handle__represented.r_free();
-
-            if (outerUpdatesDict.homeScale != null) {
-
-              const scaleFactor = {
-                X: outerUpdatesDict.homeScale.new.X / outerUpdatesDict.homeScale.old.X,
-                Y: outerUpdatesDict.homeScale.new.Y / outerUpdatesDict.homeScale.old.Y,
-              };
-              logger.log("logCompZscroll", "scaleFactor", scaleFactor);
-
-              if(scaleFactor.X == 1 && scaleFactor.Y == 1) {  //SHU: bwerk
-                //ignore
-                return;
-              }
-
-              const content = handle__rep_free.content;
-              const parts   = handle__rep_free.parts;
-
-              const arr_parts_all             = Object.values(parts);
-              const arr_content_and_parts_all = [content, ...arr_parts_all].filter(icObj => (icObj != null));
-
-              arr_content_and_parts_all.forEach((part__rep_free, i) => {
-
-                const listener = this.listeners[part__rep_free.id];
-
-                //listen:off
-                // if(typeof part__rep_free.offInnerUpdate === "function") { //SHU HORROR
-                part__rep_free.offInnerUpdate(listener);
-                // }
-
-
-
-                //mutate
-                // logger.log("mutating part:", part__rep_free.id);
-                {
-
-                  //homeScale
-                  const homeScale__new__part = {
-                    X: part__rep_free.homeScale.X * scaleFactor.X,
-                    Y: part__rep_free.homeScale.Y * scaleFactor.Y,
-                  };
-                  logger.log("logCompZscroll", "homeScale__old__part", part__rep_free.homeScale);
-                  logger.log("logCompZscroll", "homeScale__new__part", homeScale__new__part);
-                  part__rep_free.homeScale = homeScale__new__part;
-
-
-                  //other (induced)
-                    //position
-                  const offset_wrt_handle__old = {
-                    dx: part__rep_free.position.x - handle__rep_free.position.x,
-                    dy: part__rep_free.position.y - handle__rep_free.position.y,
-                  };
-                  logger.log("logCompZscroll", "offset_wrt_handle__old", offset_wrt_handle__old);
-
-                  const offset_wrt_handle__new = {
-                    dx: offset_wrt_handle__old.dx / scaleFactor.X,
-                    dy: offset_wrt_handle__old.dy / scaleFactor.Y,
-                  };
-                  logger.log("logCompZscroll", "offset_wrt_handle__new", offset_wrt_handle__new);
-
-
-                  if (part__rep_free.position != null) {
-                    const position_new = {
-                      x: part__rep_free.position.x - offset_wrt_handle__old.dx + offset_wrt_handle__new.dx,
-                      y: part__rep_free.position.y - offset_wrt_handle__old.dy + offset_wrt_handle__new.dy,
-                    };
-                    logger.log("logCompZscroll", "position_new", position_new);
-
-                    part__rep_free.position = position_new;
-
-                  } else if (part__rep_free.point_start != null) {
-                    //move segment parts
-                    const point_start_new = {
-                      x: part__rep_free.point_start.x + offset_wrt_handle__new.dx,
-                      y: part__rep_free.point_start.y + offset_wrt_handle__new.dy,
-                    };
-                    part__rep_free.point_start = point_start_new;
-
-                    const v__old = {
-                      dx: part__rep_free.point_end.x - part__rep_free.point_start.x,
-                      dy: part__rep_free.point_end.y - part__rep_free.point_start.y,
-                    };
-                    const v__new = {
-                      dx: v__old.dx / scaleFactor.X,
-                      dy: v__old.dy / scaleFactor.Y,
-                    };
-
-                    const point_end_new = {
-                      x: part__rep_free.point_end.x + v__new.dx,
-                      y: part__rep_free.point_end.y + v__new.dy,
-                    };
-                    part__rep_free.point_end = point_end_new;
-                  }
-                }
-
-                //listen:on
-                // if(typeof part__rep_free.onInnerUpdate === "function") { //SHU HORROR
-                part__rep_free.onInnerUpdate(listener);
-                // }
-
-              });
-
-            }
-
-          };
 
 
 
@@ -50152,6 +49549,12 @@
                 // }
               }
 
+
+              // //debug
+              // if(propName == "icTransform") {
+              //   logger.log("icObj_fRep","onInnerUpdate", "icTransform");
+              // }
+
             };
             fObj.fListener_inner = innerUpdateListener;
             icObj_fRep.onInnerUpdate(innerUpdateListener);
@@ -55251,12 +54654,6 @@
 
             } else {
 
-              //---new style: rep inner update---
-              const listener = fObj.fListener_inner;
-
-              //listen:off
-              rep_free.offInnerUpdate(listener);
-
               //mutate
               switch (icObj.type) {
                 case "segment":
@@ -55275,7 +54672,7 @@
 
                     //update .point_start and .point_end
                     rep_free.point_start = Geometry.translatedPoint(fObj.point_start__original, v);
-                    rep_free.point_end = Geometry.translatedPoint(fObj.point_end__original, v);
+                    rep_free.point_end   = Geometry.translatedPoint(fObj.point_end__original, v);
 
                   }
                   break;
@@ -55287,9 +54684,6 @@
                   }
                   break;
               }
-
-              //listen:on
-              rep_free.onInnerUpdate(listener);
 
             }
 
@@ -55342,13 +54736,13 @@
             console.log("scaling", "options", options);
 
             switch (icObj.type) {
-              case "composite":
-                doResize(fObj, options);
-                Object.values(icObj.parts).forEach((icObj__part, i) => {
-                  const fObj__part = fabricIntegration.getFObjForIcObj(icObj__part);
-                  doResize(fObj__part, options);
-                });
-                break;
+              // case "composite":
+              //   doResize(fObj, options);
+              //   Object.values(icObj.parts).forEach((icObj__part, i) => {
+              //     const fObj__part = fabricIntegration.getFObjForIcObj(icObj__part);
+              //     doResize(fObj__part, options);
+              //   });
+              //   break;
               default:
                 {
                   const target = options.transform.target;
