@@ -794,6 +794,36 @@
         }));
       }
 
+      static createArrXY(dict_point) {
+        return [
+          dict_point.tl.x,
+          dict_point.tl.y,
+          dict_point.tr.x,
+          dict_point.tr.y,
+          dict_point.br.x,
+          dict_point.br.y,
+          dict_point.bl.x,
+          dict_point.bl.y,
+        ];
+      }
+
+      static computeBoundingBallRadius(dict_point) {
+        const length__diagTLBR = Decimal.sqrt( 
+          Decimal.add( 
+            Decimal.pow( Decimal.sub(dict_point.br.x , dict_point.tl.x) , new Decimal(2)) , 
+            Decimal.pow( Decimal.sub(dict_point.br.y , dict_point.tl.y) , new Decimal(2))
+          )
+        );
+        const length__diagTRBL = Decimal.sqrt( 
+          Decimal.add( 
+            Decimal.pow( Decimal.sub(dict_point.bl.x , dict_point.tr.x) , new Decimal(2)) , 
+            Decimal.pow( Decimal.sub(dict_point.bl.y , dict_point.tr.y) , new Decimal(2))
+          )
+        );
+        const radius__boundingBall = Decimal.max(length__diagTLBR, length__diagTRBL);
+        return radius__boundingBall;
+      }
+
 
 
       //bigNumber fun {
@@ -1567,6 +1597,13 @@
 
 
     class CompositeUtils {
+
+      static createPartsDict(arr_part) {
+        return arr_part.reduce((acc, x) => {
+          acc[x.id] = x;
+          return acc; 
+        }, {});
+      }
 
       static traverseComposite(icObj__composite, func_callback/*, isBreadthFirst = true*/) {
         func_callback(icObj__composite);
@@ -10472,20 +10509,7 @@
           const dict_truePoint   = rep_x__icObj.getDict_truePoint();
           const dict_screenPoint = ICUtils.numberize__dict(infiniteCanvas.toScreenDict_parallelogram(dict_truePoint));
 
-          function createArrXY(dict_point) {
-            return [
-              dict_point.tl.x,
-              dict_point.tl.y,
-              dict_point.tr.x,
-              dict_point.tr.y,
-              dict_point.br.x,
-              dict_point.br.y,
-              dict_point.bl.x,
-              dict_point.bl.y,
-            ];
-          }
-
-          const arr_xy__screenPoint = createArrXY(dict_screenPoint);
+          const arr_xy__screenPoint = ICUtils.createArrXY(dict_screenPoint);
           const tolerance = 0;
           const isContainingScreenPoint = Intersects.polygonPoint(arr_xy__screenPoint, screenPoint.x, screenPoint.y, tolerance);
 
@@ -10904,6 +10928,7 @@
       }
 
 
+      /*
       getCandidateSupportForIcObj(icObj) {
         var outIcObj;
 
@@ -10925,6 +10950,55 @@
           }
           return acc;
         }, null);
+
+        return outIcObj;          
+      }
+      */
+
+      getCandidateSupportForIcObj(icObj) {
+        var outIcObj;
+
+        const infiniteCanvas = this;
+        const icCamera       = infiniteCanvas.icCamera;
+
+        const arr_icObj__other = infiniteCanvas.getArr_icObj("free")
+          .filter((rep_free) => {
+            const isCamera = (rep_free.id == icCamera.id);
+            const isI      = (rep_free.id == icObj.id);
+            return !isI && !isCamera;
+          })
+          .toSorted((icObj1, icObj2) => {
+            //sort by zIndex (descending)
+            return icObj1.zIndex > icObj2.zIndex;
+          });
+
+        const dict_truePoint__icObj       = icObj.getDict_truePoint();
+        const arr_xy__icObj               = ICUtils.createArrXY(dict_truePoint__icObj);
+        const radius__boundingBall__icObj = icObj.getBoundingBallRadius();
+
+        function isBigEnough(icObj__candidate) {
+          const radius__boundingBall__candidate = icObj__candidate.getBoundingBallRadius();
+          const isBigEnough_ = Decimal.div(radius__boundingBall__candidate , radius__boundingBall__icObj).greaterThan(new Decimal("7e-2"));
+          return isBigEnough_;
+        }
+
+        function isIntersectingIcObj(icObj__candidate) {
+          const dict_truePoint__candidate = icObj__candidate.getDict_truePoint();
+          const arr_xy__candidate         = ICUtils.createArrXY(dict_truePoint__candidate);        
+          const isIntersecting = Intersects__decimal.polygonPolygon(arr_xy__candidate,arr_xy__icObj);
+          return isIntersecting;
+        }
+        
+        outIcObj = Utils.early_break_reduce(arr_icObj__other, (acc, x, i, arr) => {
+            const isBigEnough_    = isBigEnough(x);
+            const isIntersecting_ = isIntersectingIcObj(x);
+            if(isBigEnough_ && isIntersecting_) {
+              acc = x;
+            }
+            return acc;
+          }, null, (acc, x, i, arr) => {
+            return (acc != null);
+          });
 
         return outIcObj;          
       }
@@ -11204,6 +11278,17 @@
         };
 
         const icRect = Object.assign(icObj, icRect_spec);
+
+        return icRect;
+      }
+
+      createIcRect_with__screenRect(screenRect, size = { width:  math.bignumber(1), height: math.bignumber(1) }) {
+        const infiniteCanvas = this;
+
+        const dict_screenPoint = ICUtils.createDict_parallelogram__withRect(ICUtils.bigNumberize__dict(screenRect));
+        const dict_truePoint   = infiniteCanvas.toTrueDict_parallelogram(dict_screenPoint);
+
+        const icRect = infiniteCanvas.createIcRect_with__dict_parallelogram(dict_truePoint, size);
 
         return icRect;
       }
@@ -18384,6 +18469,16 @@
 
         return icEngined;
       }
+
+      createIcComposite_with__screenRect(screenRect, parts, compositeConfig, content = null, config_in = {}) {
+        const infiniteCanvas = this;
+
+        const dict_screenPoint = ICUtils.createDict_parallelogram__withRect(ICUtils.bigNumberize__dict(screenRect));
+        const dict_truePoint   = infiniteCanvas.toTrueDict_parallelogram(dict_screenPoint);
+
+        return infiniteCanvas.createIcComposite(dict_truePoint, parts, compositeConfig, content, config_in);
+      }
+
 
       createIcArray(trueRect, arr_icObj_in) {
 
@@ -26803,9 +26898,17 @@
           this.configureNewIcObject(icObj);
         }
 
-        return this.addIcObject_p(icObj).then((rep_free) => {
+        return this.addIcObject_p(icObj)
+        // .tap((rep_free) => {
+        //   infiniteCanvas.redrawCanvas(RedrawOccasion.objectAdded);
+        // });
+        .then((rep_free) => {
+          
           infiniteCanvas.redrawCanvas(RedrawOccasion.objectAdded);
+          
+          return rep_free;
         });
+
       }
 
 
@@ -27395,28 +27498,28 @@
 
 
         //get tag object (if any)
-        const tag = arr_icObj.find(icObj => icObj.type == "tag");
+        // const tag = arr_icObj.find(icObj => icObj.type == "tag");
 
-        var cType;
-        if (tag != null) {
-          cType = tag.text;
-        } else {
-          cType = "anonymous";
-        }
-        icComposite.cType = cType;
+        // var cType;
+        // if (tag != null) {
+        //   cType = tag.text;
+        // } else {
+        //   cType = "anonymous";
+        // }
+        // icComposite.cType = cType;
 
 
-        if (tag != null) {
-          //stick tag next to handle
+        // if (tag != null) {
+        //   //stick tag next to handle
 
-          // tag.isMobile = false;
-          // compositeConfig.parts[tag].isMobile = false;
+        //   // tag.isMobile = false;
+        //   // compositeConfig.parts[tag].isMobile = false;
 
-          tag.position = {
-            x: icComposite.position.x + icComposite.size.width,
-            y: icComposite.position.y,
-          };
-        }
+        //   tag.position = {
+        //     x: icComposite.position.x + icComposite.size.width,
+        //     y: icComposite.position.y,
+        //   };
+        // }
 
 
 
@@ -30054,20 +30157,20 @@
             
             const icObj         = miniDict.icObj;
             const isDisplayable = miniDict.isDisplayable;
-            logger.log("logIC", "redrawCanvas", "icObj.id:", icObj.id, "isDisplayable:", isDisplayable);
+            // logger.log("logIC", "redrawCanvas", "icObj.id:", icObj.id, "isDisplayable:", isDisplayable);
   
             var fObj = fabricIntegration.getFObjForIcObj(icObj);
             
             if(isDisplayable) {
               if(!fObj) {
                 //create and add fabric object
-                logger.log("logIC", "redrawCanvas", "create and add fObj", "icObj.id:", icObj.id);
+                // logger.log("logIC", "redrawCanvas", "create and add fObj", "icObj.id:", icObj.id);
                 await fabricIntegration.addFabricObjectWithIcObj_p(icObj);
               }
             } else {
               if(fObj) {
                 //destroy fabric object
-                logger.log("logIC", "redrawCanvas", "destroy fObj", "icObj.id:", icObj.id);
+                // logger.log("logIC", "redrawCanvas", "destroy fObj", "icObj.id:", icObj.id);
                 fabricIntegration.removeFabricObject(fObj);
               }
             }
@@ -30109,53 +30212,23 @@
         const infiniteCanvas = this;
         const icCamera = infiniteCanvas.icCamera;
 
-        function createArrXY(dict_point) {
-          return [
-            dict_point.tl.x,
-            dict_point.tl.y,
-            dict_point.tr.x,
-            dict_point.tr.y,
-            dict_point.br.x,
-            dict_point.br.y,
-            dict_point.bl.x,
-            dict_point.bl.y,
-          ];
-        }
-
-        function getBoundingBallRadius(dict_point) {
-          const length__diagTLBR = Decimal.sqrt( 
-            Decimal.add( 
-              Decimal.pow( Decimal.sub(dict_point.br.x , dict_point.tl.x) , new Decimal(2)) , 
-              Decimal.pow( Decimal.sub(dict_point.br.y , dict_point.tl.y) , new Decimal(2))
-            )
-          );
-          const length__diagTRBL = Decimal.sqrt( 
-            Decimal.add( 
-              Decimal.pow( Decimal.sub(dict_point.bl.x , dict_point.tr.x) , new Decimal(2)) , 
-              Decimal.pow( Decimal.sub(dict_point.bl.y , dict_point.tr.y) , new Decimal(2))
-            )
-          );
-          const radius__boundingBall = Decimal.max(length__diagTLBR, length__diagTRBL);
-          return radius__boundingBall;
-        }
-
         const dict_truePoint__camera = icCamera.getDict_truePoint(); 
 
-        const radius__boundingBall__camera = getBoundingBallRadius(dict_truePoint__camera);
-        const arr_xy__camera               = createArrXY(dict_truePoint__camera);
+        const radius__boundingBall__camera = ICUtils.computeBoundingBallRadius(dict_truePoint__camera);
+        const arr_xy__camera               = ICUtils.createArrXY(dict_truePoint__camera);
 
         const dict_displayable = infiniteCanvas.getArr_icObj("free").reduce((acc,icObj) => {
           
           const dict_truePoint__icObj  = icObj.getDict_truePoint(); 
 
           function isBigEnough() {
-            const radius__boundingBall__icObj = getBoundingBallRadius(dict_truePoint__icObj);
+            const radius__boundingBall__icObj = ICUtils.computeBoundingBallRadius(dict_truePoint__icObj);
             const isBigEnough_ = Decimal.div(radius__boundingBall__icObj , radius__boundingBall__camera).greaterThan(new Decimal("1e-3"));
             return isBigEnough_;
           }
 
           function isIntersectingCamera() {
-            const arr_xy__icObj          = createArrXY(dict_truePoint__icObj);        
+            const arr_xy__icObj          = ICUtils.createArrXY(dict_truePoint__icObj);        
             const isIntersecting         = Intersects__decimal.polygonPolygon(arr_xy__icObj,arr_xy__camera);
             return isIntersecting;
           }
@@ -30860,7 +30933,9 @@
 
         const arr_rep_free__displayed = fabricIntegration.getFabricObjects().map((fObj) => fObj.icObj); 
         const arr_rep_free__held      = arr_rep_free__displayed.filter((icObj) => icObj.isHeld);
+        logger.log("logFreeDrawing", "manageScaleUpdateWithScaleAmount", "arr_rep_free__held:", arr_rep_free__held);
         const isSomethingHeld         = (arr_rep_free__held.length > 0);
+        logger.log("logFreeDrawing", "manageScaleUpdateWithScaleAmount", "isSomethingHeld:", isSomethingHeld);
 
         if(fabricIntegration.fabricCanvas.isDrawingMode) {
           
@@ -34774,13 +34849,13 @@
 
 
       updateWithTrueTransform(t__update) {
-        logger.log("logIcObject", "updateWithTrueTransform", "t__update:", ICUtils.stringify__array(t__update));
+        // logger.log("logIcObject", "updateWithTrueTransform", "t__update:", ICUtils.stringify__array(t__update));
 
         const t__ic__old = this.getIcTransform();
-        logger.log("logIcObject", "updateWithTrueTransform", "t__ic__old:", ICUtils.stringify__array(t__ic__old));
+        // logger.log("logIcObject", "updateWithTrueTransform", "t__ic__old:", ICUtils.stringify__array(t__ic__old));
 
         const t__ic__new = ICUtils.multiplyTransformMatrices(t__update, t__ic__old);
-        logger.log("logIcObject", "updateWithTrueTransform", "t__ic__new:", ICUtils.stringify__array(t__ic__new));
+        // logger.log("logIcObject", "updateWithTrueTransform", "t__ic__new:", ICUtils.stringify__array(t__ic__new));
 
         // const t__ic__new = ICUtils.multiplyTransformMatrices(t__update__centered, t__ic__old);
         this.setIcTransform(t__ic__new);
@@ -34846,7 +34921,7 @@
         const icObj = this;
 
         const dict_truePoint = icObj.getDict_truePoint();
-        logger.log("logIcObject", "getDict_truePoint__zPixelUnit", "dict_truePoint:", ICUtils.stringify__dict(dict_truePoint));
+        // logger.log("logIcObject", "getDict_truePoint__zPixelUnit", "dict_truePoint:", ICUtils.stringify__dict(dict_truePoint));
 
         const t__toUnitSquare__TL = ICUtils.createTransform__parallelogramToUnitSquare__TL(dict_truePoint);
 
@@ -34859,9 +34934,14 @@
         const t_ic = ICUtils.transferTransform(t__scale, ICUtils.invertTransform(t__toUnitSquare__TL));
 
         const dict_truePoint__zPixelUnit = ICUtils.transformDict_parallelogram(dict_truePoint, t_ic);
-        logger.log("logIcObject", "getDict_truePoint__zPixelUnit", "dict_truePoint__zPixelUnit:", ICUtils.stringify__dict(dict_truePoint__zPixelUnit));
+        // logger.log("logIcObject", "getDict_truePoint__zPixelUnit", "dict_truePoint__zPixelUnit:", ICUtils.stringify__dict(dict_truePoint__zPixelUnit));
 
         return dict_truePoint__zPixelUnit;
+      }
+
+      getBoundingBallRadius() {
+        const dict_truePoint = this.getDict_truePoint();
+        return ICUtils.computeBoundingBallRadius(dict_truePoint);
       }
 
 
@@ -48357,21 +48437,8 @@
               const dict_screenPoint__fObj   = fObj.getDict_screenPoint();
               const dict_screenPoint__camera = fObj__camera.getDict_screenPoint();
   
-              function createArrXY(dict_point) {
-                return [
-                  dict_point.tl.x,
-                  dict_point.tl.y,
-                  dict_point.tr.x,
-                  dict_point.tr.y,
-                  dict_point.br.x,
-                  dict_point.br.y,
-                  dict_point.bl.x,
-                  dict_point.bl.y,
-                ];
-              }
-  
-              const arr_xy__fObj   = createArrXY(dict_screenPoint__fObj);
-              const arr_xy__camera = createArrXY(dict_screenPoint__camera);
+              const arr_xy__fObj   = ICUtils.createArrXY(dict_screenPoint__fObj);
+              const arr_xy__camera = ICUtils.createArrXY(dict_screenPoint__camera);
               
               const isIntersecting = Intersects.polygonPolygon(arr_xy__fObj,arr_xy__camera);
   
@@ -49013,7 +49080,7 @@
 
 
         redrawCanvas(redrawOccasion) {
-          logger.trace("logFI", "redrawCanvas", redrawOccasion);
+          // logger.trace("logFI", "redrawCanvas", redrawOccasion);
 
           // this.killAllOrphanFObjs();
 
@@ -49801,28 +49868,21 @@
           switch (icObj.type) {
             case "rect":
             case "povRect":
+            case "printPovRect":
             case "entrance":
               {
-                // if(icObj.rType && icObj.rType == "zPixel" || icObj.rType == "zPixelRect") {
-                  fObj_p = this.createFabricRectWithIcObj_p(icObj);   //perfect rects
-                // } else {
-                  // const fObj = this.createFabricRectWithIcObj(icObj);
-                  // fObj_p = Promise.resolve(fObj);
-                // }
+                fObj_p = this.createFabricRectWithIcObj_p(icObj);   //perfect rects
               }
               break;
-            case "printPovRect":
+
+            case "composite":
               {
-                const fObj = this.createFabricRectWithIcObj(icObj);
-                fObj_p = Promise.resolve(fObj);
+                fObj_p = this.createFabricRectWithIcObj_p(icObj);   //perfect rects
               }
               break;
 
             case "camera":
               {
-                // const fObj = this.createFabricRectWithIcObj(icObj);
-                // fObj_p = Promise.resolve(fObj);
-
                 fObj_p = this.createFabricRectWithIcObj_p(icObj);   //perfect rects
               }
               break;
@@ -49853,8 +49913,7 @@
               break;
             case "audio":
               {
-                const fObj = this.createFabricAudioWithIcObj(icObj);
-                fObj_p = Promise.resolve(fObj);
+                fObj_p = this.createFabricAudioWithIcObj_p(icObj);
               }
               break;
 
@@ -50012,8 +50071,7 @@
 
             case "mnrei_rectangle":
               {
-                const fObj = this.createFabricRectWithIcObj(icObj);
-                fObj_p = Promise.resolve(fObj);
+                fObj_p = this.createFabricRectWithIcObj_p(icObj);
               }
               break;
 
@@ -50086,12 +50144,12 @@
 
 
 
-            case "composite":
-              {
-                const fObj = this.createFabricCompositeWithIcObj(icObj);
-                fObj_p = Promise.resolve(fObj);
-              }
-              break;
+            // case "composite":
+            //   {
+            //     const fObj = this.createFabricCompositeWithIcObj(icObj);
+            //     fObj_p = Promise.resolve(fObj);
+            //   }
+            //   break;
 
             case "button":
               {
@@ -50135,27 +50193,11 @@
 
 
             case "observer":
-              {
-                const fObj = this.createFabricRectWithIcObj(icObj);
-                fObj_p = Promise.resolve(fObj);
-              }
-              break;
             case "trigger":
-              {
-                const fObj = this.createFabricRectWithIcObj(icObj);
-                fObj_p = Promise.resolve(fObj);
-              }
-              break;
             case "eventEmitter":
-              {
-                const fObj = this.createFabricRectWithIcObj(icObj);
-                fObj_p = Promise.resolve(fObj);
-              }
-              break;
             case "eventReceiver":
               {
-                const fObj = this.createFabricRectWithIcObj(icObj);
-                fObj_p = Promise.resolve(fObj);
+                fObj_p = this.createFabricRectWithIcObj_p(icObj);   //perfect rects
               }
               break;
 
@@ -50289,7 +50331,8 @@
           // logger.log("logZPixel", "createFabricRectWithIcObj", "fObj:", fObj);
 
           fObj.set({
-
+            width:  icObj.size.width,
+            height: icObj.size.height,
 
             stroke:      icObj.stroke,
             strokeWidth: icObj.strokeWidth,
@@ -50840,12 +50883,10 @@
           return fObj;
         }
 
-        createFabricAudioWithIcObj(icObj) {
-          logger.log("log1", "createFabricAudioWithIcObj", icObj);
+        createFabricAudioWithIcObj_p(icObj) {
+          logger.log("log1", "createFabricAudioWithIcObj_p", icObj);
 
-          var fObj = this.createFabricRectWithIcObj(icObj);
-
-          return fObj;
+          return this.createFabricRectWithIcObj_p(icObj);
         }
 
 
@@ -53424,21 +53465,21 @@
         }
 
 
-        createFabricCompositeWithIcObj(icObj) {
-          console.log("createFabricCompositeWithIcObj", icObj);
+        // createFabricCompositeWithIcObj(icObj) {
+        //   console.log("createFabricCompositeWithIcObj", icObj);
 
-          const fObj = this.createFabricRectWithIcObj(icObj);
+        //   const fObj = this.createFabricRectWithIcObj(icObj);
 
-          return fObj;
-        }
+        //   return fObj;
+        // }
 
-        createFabricCompositePartWithIcObj(icObj) {
-          console.log("createFabricCompositeWithIcObj", icObj);
+        // createFabricCompositePartWithIcObj(icObj) {
+        //   console.log("createFabricCompositeWithIcObj", icObj);
 
-          const fObj = this.createFabricObjectWithIcObj(icObj);
+        //   const fObj = this.createFabricObjectWithIcObj(icObj);
 
-          return fObj;
-        }
+        //   return fObj;
+        // }
 
 
         createFabricButtonWithIcObj(icObj) {
@@ -54911,6 +54952,12 @@
           //hold
           fObj.on('mousedown', function (options) {
             logger.log("logFObj", "mousedown", fObj, options);
+
+            if(fabricCanvas.isDrawingMode) {
+              //ignore
+              return;
+            }
+
             icObj.nowHeld();
           });
 
@@ -55083,7 +55130,7 @@
 
 
           //creation
-          this.fabricCanvas.on("selection:created", (options) => {
+          fabricCanvas.on("selection:created", (options) => {
             logger.log("selection:created", options);
 
             const activeObject = this.fabricCanvas.getActiveObject();
@@ -55101,6 +55148,10 @@
               {
                 //hold
                 activeSelection.on('mousedown', function (options) {
+                  if(fabricCanvas.isDrawingMode) {
+                    //ignore
+                    return;
+                  }
                   activeSelection_held(options);
                 });
 
@@ -57311,6 +57362,7 @@
     
             manageDrawingSessionCreatedObjects_p: async function(arr_icObj__created) {
               logger.log("logFD", "DrawingMode", "manageDrawingSessionCreatedObjects_p", this, arr_icObj__created);
+              var out_p;
 
               const drawingMode       = this;
               const fabricIntegration = drawingMode.fabricIntegration;
@@ -57324,14 +57376,14 @@
 
               if(icObj__polyatomic != null) {
                 // const rep_free = await infiniteCanvas.addIcObject_p(icObj__polyatomic)
-                const rep_free = await infiniteCanvas.addNewIcObject_p(icObj__polyatomic)
+                const rep_free = await infiniteCanvas.addNewIcObject_p(icObj__polyatomic);    //add and refresh canvas
 
-                return Promise.resolve(rep_free);
+                out_p = Promise.resolve(rep_free);
               } else {
-                return null;
-                // return Promise.resolve(null);
+                out_p = Promise.resolve(null);
               }
 
+              return out_p;
             },
     
     
@@ -57659,46 +57711,52 @@
             
 
             func__createIcObj__polyatomic_p: function(arr_icObj__created) {
+              logger.log("logFD", "func__createIcObj__polyatomic_p", "arr_icObj__created:", arr_icObj__created);
               var out_p;
 
-              const drawingMode       = this;
-              const fabricIntegration = drawingMode.fabricIntegration;
-              const infiniteCanvas    = fabricIntegration.infiniteCanvas;
-    
-              var icObj__freeDrawing__result;
-              if(arr_icObj__created.length > 1) {
-    
-                //create composite
-                const icFreeDrawing0 = arr_icObj__created.find(e => true);
-                
-                const dict_truePoint__composite = icFreeDrawing0.getDict_truePoint__topleft10();
-                const parts = arr_icObj__created.reduce((acc, icFreeDrawing) => {
-                  const partName = "freeDrawing__" + icFreeDrawing.id;
-                  acc[partName] = icFreeDrawing;
-                  return acc;
-                }, {});
-                const compositeConfig = Compositer.defaultCompositeConfig(parts, false, false);
-                const icComposite     = infiniteCanvas.createIcComposite(dict_truePoint__composite, parts, compositeConfig); 
-                icComposite.cType = "freeDrawingObj";
-                icComposite.isEntity = true;
-                // icComposite.fillColor = "green";
-    
-                //SHU: illusion
-                icComposite.fill    = "transparent";
-                // icComposite.opacity = 0;
-    
-                //add composite 
-                // infiniteCanvas.addNewIcObject(icComposite);
-    
-                icObj__freeDrawing__result = icComposite;
-    
-              } else {
-                //only one icObj (arr_icObj__created.length == 1) : don't create composite 
-                const icFreeDrawing0       = arr_icObj__created.find(e => true);
-                icObj__freeDrawing__result = icFreeDrawing0; 
-              }
-
-              out_p = Promise.resolve(icObj__freeDrawing__result);
+              // try {
+                const drawingMode       = this;
+                const fabricIntegration = drawingMode.fabricIntegration;
+                const infiniteCanvas    = fabricIntegration.infiniteCanvas;
+      
+                var icObj__freeDrawing__result;
+                if(arr_icObj__created.length > 1) {
+      
+                  //create composite
+                  const icFreeDrawing0 = arr_icObj__created.find(e => true);
+                  
+                  const dict_truePoint__composite = icFreeDrawing0.getDict_truePoint__topleft10();
+                  // const parts = arr_icObj__created.reduce((acc, icFreeDrawing) => {
+                  //   const partName = "freeDrawing__" + icFreeDrawing.id;
+                  //   acc[partName] = icFreeDrawing;
+                  //   return acc;
+                  // }, {});
+                  const parts = CompositeUtils.createPartsDict(arr_icObj__created);
+                  const compositeConfig = Compositer.defaultCompositeConfig(parts, false, false);
+                  const icComposite     = infiniteCanvas.createIcComposite(dict_truePoint__composite, parts, compositeConfig); 
+                  icComposite.cType = "freeDrawingObj";
+                  icComposite.isEntity = true;
+                  // icComposite.fillColor = "green";
+      
+                  //SHU: illusion
+                  icComposite.fill    = "transparent";
+                  // icComposite.opacity = 0;
+      
+                  //add composite 
+                  // infiniteCanvas.addNewIcObject(icComposite);
+      
+                  icObj__freeDrawing__result = icComposite;
+      
+                } else {
+                  //only one icObj (arr_icObj__created.length == 1) : don't create composite 
+                  const icFreeDrawing0       = arr_icObj__created.find(e => true);
+                  icObj__freeDrawing__result = icFreeDrawing0; 
+                }
+  
+                out_p = Promise.resolve(icObj__freeDrawing__result);
+              // } catch(e) {
+              //   logger.log("logError", e);
+              // }
 
               return out_p;
             },
@@ -57722,6 +57780,7 @@
               // out_p = DecorationUtils.getWrappedObj(this).manageDrawingSessionCreatedObjects_p.call(drawingMode,arr_icObj__created)
               out_p = DecorationUtils.getWrappedObj(this).manageDrawingSessionCreatedObjects_p(arr_icObj__created)
               .then((icObj__polyatomic) => {
+                logger.log("logFD", "freeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "icObj__polyatomic:", icObj__polyatomic);
   
                 const isAdhesive = drawingSession.config__session.isAdhesive;
 
@@ -58344,7 +58403,7 @@
             //override base class
 
             manageDrawingSessionCreatedObjects_p: function(arr_icObj__created) {
-              logger.log("logFD", "freeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", arr_icObj__created);
+              logger.log("logZPixelFD", "manageDrawingSessionCreatedObjects_p__decorated", arr_icObj__created);
               var out_p;
   
               const drawingMode       = this;
@@ -58359,12 +58418,12 @@
   
                 const isAdhesive = drawingSession.config__session.isAdhesive;
 
-                logger.log("logFD", "freeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "isAdhesive:", isAdhesive);
+                logger.log("logZPixelFD", "manageDrawingSessionCreatedObjects_p__decorated", "isAdhesive:", isAdhesive);
                 if(isAdhesive) {
       
                   //adhesion at start of drawing
                   if((arr_icObj__created.length > 0) && (drawingSession.icObj__adhesive__support != null)) {
-                    logger.log("logFD", "freeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "adhesion at start");
+                    logger.log("logZPixelFD", "manageDrawingSessionCreatedObjects_p__decorated", "adhesion at start");
   
                     const icObj__support__start           = drawingSession.icObj__adhesive__support;
                     const rep_free__icObj__support__start = infiniteCanvas.getRepresented(icObj__support__start.id).r_free(); //SHU: probably overkill
@@ -58375,7 +58434,7 @@
       
                   //adhesion at end of drawing
                   if(infiniteCanvas.adhesive__isAdhesiveKick) {
-                    logger.log("logFD", "freeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "adhesion at end");
+                    logger.log("logZPixelFD", "manageDrawingSessionCreatedObjects_p__decorated", "adhesion at end");
 
                     const true_cursor = infiniteCanvas.getTrueCursor();
                     const icObj__support__end = infiniteCanvas.getCandidateSupportUnderScreenPoint(true_cursor, icObj__polyatomic);
@@ -58703,7 +58762,7 @@
             },
 
             func__createIcObj__polyatomic_p: function(arr_icObj__created) {
-              logger.log("logZPixelFD", "func__createIcObj__polyatomic_p", arr_icObj__created);
+              logger.log("logZPixelRectFD", "func__createIcObj__polyatomic_p", arr_icObj__created);
 
               var out_p;
 
@@ -58755,7 +58814,7 @@
 
 
             manageDrawingSessionCreatedObjects_p: function(arr_icObj__created) {
-              logger.log("logFD", "freeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", arr_icObj__created);
+              logger.log("logZPixelRectFD", "manageDrawingSessionCreatedObjects_p__decorated", arr_icObj__created);
               var out_p;
   
               const drawingMode       = this;
@@ -58770,12 +58829,12 @@
   
                 const isAdhesive = drawingSession.config__session.isAdhesive;
 
-                logger.log("logFD", "freeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "isAdhesive:", isAdhesive);
+                logger.log("logZPixelRectFD", "manageDrawingSessionCreatedObjects_p__decorated", "isAdhesive:", isAdhesive);
                 if(isAdhesive) {
       
                   //adhesion at start of drawing
                   if((arr_icObj__created.length > 0) && (drawingSession.icObj__adhesive__support != null)) {
-                    logger.log("logFD", "freeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "adhesion at start");
+                    logger.log("logZPixelRectFD", "manageDrawingSessionCreatedObjects_p__decorated", "adhesion at start");
   
                     const icObj__support__start           = drawingSession.icObj__adhesive__support;
                     const rep_free__icObj__support__start = infiniteCanvas.getRepresented(icObj__support__start.id).r_free(); //SHU: probably overkill
@@ -58786,7 +58845,7 @@
       
                   //adhesion at end of drawing
                   if(infiniteCanvas.adhesive__isAdhesiveKick) {
-                    logger.log("logFD", "freeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "adhesion at end");
+                    logger.log("logFD", "manageDrawingSessionCreatedObjects_p__decorated", "adhesion at end");
 
                     const true_cursor = infiniteCanvas.getTrueCursor();
                     const icObj__support__end = infiniteCanvas.getCandidateSupportUnderScreenPoint(true_cursor, icObj__polyatomic);
@@ -63355,19 +63414,7 @@
         }
 
         static isPointContainedInParallelogram(point, dict_parallelogram) {
-          function createArrXY(dict_point) {
-            return [
-              dict_point.tl.x,
-              dict_point.tl.y,
-              dict_point.tr.x,
-              dict_point.tr.y,
-              dict_point.br.x,
-              dict_point.br.y,
-              dict_point.bl.x,
-              dict_point.bl.y,
-            ];
-          }
-          const arr_xy__parallelogram = createArrXY(dict_parallelogram);
+          const arr_xy__parallelogram = ICUtils.createArrXY(dict_parallelogram);
           const tolerance = new Decimal(0);
           return Intersects__decimal.polygonPoint(arr_xy__parallelogram, point.x, point.y, tolerance);
         }
@@ -109135,6 +109182,36 @@
 
 
 
+          this.screenRect1 = {
+            x:      100,
+            y:      100,
+            width:  100,
+            height: 100,
+          }; 
+
+          this.screenRect2 = {
+            x:      800,
+            y:      150,
+            width:  100,
+            height: 100,
+          }; 
+
+          this.screenRect3 = {
+            x:      100,
+            y:      800,
+            width:  100,
+            height: 100,
+          }; 
+
+          this.screenRect4 = {
+            x:      800,
+            y:      950,
+            width:  100,
+            height: 100,
+          }; 
+
+
+
           // this.debug1();
           // this.debug2();
 
@@ -109338,6 +109415,8 @@
             // this.debug_activeSelection();
 
             // this.debug_camera();
+
+            this.debug_composite_encore();
 
             // this.debug_construct();
 
@@ -117739,6 +117818,66 @@
             // fabricIntegration.fabricCanvas.requestRenderAll();
             
           }, 500);
+
+        }
+
+
+        debug_composite_encore() {
+          const atelier        = this;
+          const infiniteCanvas = atelier.infiniteCanvas;
+          const icCamera       = infiniteCanvas.icCamera;
+          const cameraEngine   = icCamera.dict_engine["camera"].engine.awoken;
+
+          var icRect1;
+          {
+            const size = {width:  40, height: 75,};
+            const screenRect = atelier.screenRect1;
+
+            icRect1 = infiniteCanvas.createIcRect_with__screenRect(screenRect, size);
+            icRect1.fill = "white";
+          }
+
+          var icRect2;
+          {
+            const size = {width:  90, height: 25,};
+            const screenRect = atelier.screenRect2;
+
+            icRect2 = infiniteCanvas.createIcRect_with__screenRect(screenRect, size);
+            icRect2.fill = "magenta";
+          }
+
+          // infiniteCanvas.addIcObject_p(icRect1);
+          // infiniteCanvas.addIcObject_p(icRect2);
+
+          var icComposite;
+          {
+            // const screenPoint = infiniteCanvas.cursor__screen;
+            const screenPoint = {
+              x: 200,
+              y: 0,
+            };
+            const screenSize = {
+              width:  100,
+              height: 100,
+            };
+            const screenRect      = Object.assign({}, screenPoint, screenSize);
+            const parts           = CompositeUtils.createPartsDict([icRect1, icRect2]);
+            // const parts           = CompositeUtils.createPartsDict([]);
+            const compositeConfig = Compositer.defaultCompositeConfig(parts, false);
+            
+
+            icComposite = infiniteCanvas.createIcComposite_with__screenRect(screenRect, parts, compositeConfig);
+            logger.log("logAtelier", "debug_composite_encore", "icComposite:", icComposite);
+    
+            icComposite.isTouchable = true;
+    
+            //debug
+            icComposite.stroke      = "cyan";
+            icComposite.strokeWidth = 1;
+            icComposite.fill        = ColorUtils.rgbaColorStringForColorAndOpacity("pink", 0.6);
+          }
+
+          infiniteCanvas.addIcObject_p(icComposite);
 
         }
 
