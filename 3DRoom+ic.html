@@ -836,25 +836,52 @@
 
 
 
-      static bigNumberize__dict(dict__number) {
-        return Object.fromEntries(Object.entries(dict__number).reduce((acc, [k,v]) => {
-          
-          var v__bigNumberized;
-          try {
-            if(v instanceof Decimal) {
-              v__bigNumberized = v;
-            } else {
-              v__bigNumberized = math.bignumber__old(v);
-              v__bigNumberized = math.bignumber(v);
-            }
-          } catch(e) {
-            v__bigNumberized = ICUtils.bigNumberize__dict(v);
+      static bigNumberize__dict(dict__number, counter = 0) {
+        // logger.trace("logICUtils", "bigNumberize__dict", "dict__number:", dict__number);
+
+        var dict__bigNumberized;
+        // try {
+
+          if(counter > 2) {
+            logger.trace("logICUtils", "bigNumberize__dict", "dict__number:", dict__number);
+            throw new Error("counter > 2");
           }
 
-          const arr_entry = [k, v__bigNumberized];
-          acc.push(arr_entry);
-          return acc;
-        }, []));
+          const arr_entry = Object.entries(dict__number);
+          if(arr_entry.length == 0) {
+            logger.trace("logICUtils", "bigNumberize__dict", "dict__number:", dict__number);
+            throw new Error("Object.entries(dict__number).length == 0");
+          }
+
+          const arr_entry__refined = arr_entry.reduce((acc, [k,v]) => {
+            // logger.trace("logICUtils", "bigNumberize__dict", "[k,v]:", [k,v]);
+          
+            var v__bigNumberized;
+            try {
+
+              // const isInstanceOfDecimal = (v instanceof Decimal);
+              // logger.log("logICUtils", "bigNumberize__dict", v, "isInstanceOfDecimal:", isInstanceOfDecimal);
+
+              if(v instanceof Decimal) {
+                v__bigNumberized = v;
+              } else {
+                v__bigNumberized = new Decimal(v);
+              }
+            } catch(e) {
+              v__bigNumberized = ICUtils.bigNumberize__dict(v, counter + 1);
+            }
+  
+            const arr_entry = [k, v__bigNumberized];
+            acc.push(arr_entry);
+            return acc;
+          }, []);
+
+          dict__bigNumberized = Object.fromEntries(arr_entry__refined);
+        // } catch(e) {
+        //   logger.log("logError", e);
+        // }
+
+        return dict__bigNumberized;
       }
 
       static bigNumberize__array(arr__number) {
@@ -915,7 +942,7 @@
 
 
       static transformPoint(p, t, ignoreOffset = false) {
-        // logger.log("logICUtils", "transformPoint", {
+        // logger.trace("logICUtils", "transformPoint", {
         //   p: p,
         //   t: t,
         // });
@@ -1293,12 +1320,10 @@
       static calcScaleMatrix(options) {
         var outMatrix;
 
-        const options__bigNumber = ICUtils.bigNumberize__dict(options);
-
         outMatrix = ICUtils.iMatrix9__bigNumber();
 
-        const scaleX = options__bigNumber.scaleX ? options__bigNumber.scaleX : math.bignumber(1);
-        const scaleY = options__bigNumber.scaleY ? options__bigNumber.scaleY : math.bignumber(1);
+        const scaleX = options.scaleX ? math.bignumber(options.scaleX) : math.bignumber(1);
+        const scaleY = options.scaleY ? math.bignumber(options.scaleY) : math.bignumber(1);
 
         outMatrix[0] = options.flipX ? math.multiply(math.bignumber(-1), scaleX) : scaleX;
         outMatrix[3] = options.flipY ? math.multiply(math.bignumber(-1), scaleY) : scaleY;
@@ -9681,6 +9706,11 @@
 
       "objectRemoved": "objectRemoved",
 
+      "objectUpdate": "objectUpdate",
+
+
+      "infiniShuteLoaded": "infiniShuteLoaded",
+
 
 
       // "windowResize"  : 100,
@@ -11111,8 +11141,9 @@
 
         const engine = new CameraEngine();
         const eType  = "camera";
+        const isAutoStart = false;
         
-        const icEngined = infiniteCanvas.installEngineOnIcObj(icCamera, eType, engine);
+        const icEngined = infiniteCanvas.installEngineOnIcObj(icCamera, eType, engine, isAutoStart);
 
         const icCamera__engined = icEngined;
 
@@ -11147,8 +11178,9 @@
 
         const engine = new CameraEngine();
         const eType  = "camera";
+        const isAutoStart = false;
         
-        const icEngined = infiniteCanvas.installEngineOnIcObj(icCamera, eType, engine);
+        const icEngined = infiniteCanvas.installEngineOnIcObj(icCamera, eType, engine, isAutoStart);
 
         const icCamera__engined = icEngined;
 
@@ -11183,8 +11215,9 @@
 
         const engine = new CameraEngine();
         const eType  = "camera";
+        const isAutoStart = false;
         
-        const icEngined = infiniteCanvas.installEngineOnIcObj(icCamera, eType, engine);
+        const icEngined = infiniteCanvas.installEngineOnIcObj(icCamera, eType, engine, isAutoStart);
 
         const icCamera__engined = icEngined;
 
@@ -24952,7 +24985,7 @@
 
       //icEngined
 
-      installEngineOnIcObj(icObj, eType, engine) {
+      installEngineOnIcObj(icObj, eType, engine, isAutoStart = true) {
         console.log("promotedToIcEngined", icObj, eType, engine);
 
         const dict_engine__icObj = icObj.dict_engine;
@@ -24974,6 +25007,7 @@
             [eType]: {
               engine: engine,
               index_start: index_start,
+              isAutoStart: isAutoStart,
             },
           },
         };
@@ -24982,11 +25016,7 @@
         if (icObj.dict_engine == null) {
           icEngined = Object.assign(icObj, icEngined_spec);
         } else {
-          // Object.assign(icObj.dict_engine, icEngined_spec.dictEngine);
-          icObj.dict_engine[eType] = {
-            engine: engine,
-            index_start: index_start,
-          };
+          icObj.dict_engine[eType] = icEngined_spec.dict_engine[eType];
           icEngined = icObj;
         }
 
@@ -25574,9 +25604,10 @@
           const icEngined = represented.r_free();
           // const icEngined = represented.r_engined();     //SHU: maybe one day...
 
-          const arr_engine__entry__sorted = Object.entries(icEngined.dict_engine).toSorted(([eType1, eMiniDict1], [eType2, eMiniDict2]) => {
-            return eMiniDict1.index_start > eMiniDict2.index_start;
-          });
+          const arr_engine__entry__sorted = Object.entries(icEngined.dict_engine)
+            .toSorted(([eType1, eMiniDict1], [eType2, eMiniDict2]) => {
+              return eMiniDict1.index_start > eMiniDict2.index_start;
+            });
 
           arr_engine__entry__sorted.forEach(([eType, eMiniDict]) => {
             logger.log("initialize", "eType", eType, eMiniDict.index_start);
@@ -25593,7 +25624,9 @@
             //start
             // icEngined.engine.start();
             // icEngined.engine.start(scopeObj);
-            eMiniDict.engine.awoken.start();
+            if(eMiniDict.isAutoStart) {
+              eMiniDict.engine.awoken.start();
+            }
 
           });
 
@@ -26119,10 +26152,11 @@
       }
 
       rehydrated(icObj) {
-        var rehydrated;
+        var rehydrated_;
 
-        // rehydrated = icObj.clone();
-        rehydrated = icObj.deepClone();
+        // rehydrated_ = icObj.clone();
+        rehydrated_ = icObj.deepClone();
+        logger.log("logIC", "rehydrated_:", rehydrated_);
 
 
         // switch(icObj.type) {
@@ -26136,21 +26170,9 @@
         //   break;
         // }
 
-        return rehydrated;
+        return rehydrated_;
       }
 
-
-      addIcObjectAtPositionAndScale(icObj, position_new, homeScale_new) {
-        
-        if(icObj.type == "composite") {
-          CompositeUtils.shiftToPositionAndScale(icObj, position_new, homeScale_new); //SHU: this could be improved by using "appearance scale" i.e object.size.width wrt screenPov.size.width 
-        } else {
-          icObj.position  = position_new;
-          icObj.homeScale = homeScale_new;
-        }
-
-        infiniteCanvas.addIcObject(icObj);
-      }
 
       addPastedIcObject(icObj) {
         const infiniteCanvas = this;
@@ -31683,19 +31705,25 @@
         } else {
 
           //get selected objects
-          const arr_rep_free_selected = this.getArr_selected_rep_free();
-          logger.log("logZIndexScroll", "manageUpdate__zIndex_withScrement", "arr_rep_free_selected:", arr_rep_free_selected);
+          const arr_rep_free__selected = this.getArr_selected_rep_free();
+          
+          // const arr_rep_free__toBeZIndexScrolled = arr_rep_free__selected;
+          // logger.log("logZIndexScroll", "manageUpdate__zIndex_withScrement", "arr_rep_free__toBeZIndexScrolled:", arr_rep_free__toBeZIndexScrolled);
+          
+          const dict_family = this.getArr_selected_rep_free().reduce((acc,icObj__selected) => {
+            const icObj__rootObject = icObj__selected.getRootObject(infiniteCanvas);
+            const id__rootObject    = icObj__rootObject.id;
+            if(!acc[id__rootObject]) {
+              acc[id__rootObject] = icObj__rootObject;
+            }
+            return acc;
+          }, {});
 
-          //update zIndex
-          arr_rep_free_selected.forEach((rep_free, i) => {
-            rep_free.zIndex += screment;
+          Object.entries(dict_family).forEach(([id__rootObject, icObj__rootObject]) => {
+            CompositeUtils.zIndexTranslation(icObj__rootObject, screment);
           });
 
-          // if(icObj_active.type == "composite") {
-          //
-          // } else {
-          //   icObj_active.zIndex += screment;
-          // }
+          infiniteCanvas.redrawCanvas(RedrawOccasion.objectUpdate);
 
         }
 
@@ -33737,13 +33765,20 @@
 
         const arr_icObj_p = arr_official.map((json_icObject, i) => {
 
-          //inject imgSrc
-          const filename__image = "fObjImage_with_id__" + json_icObject.id__imgSrc + ".png";
-          const imgSrc = dict__infinishute["res"]["img"][filename__image];
-          logger.log("logDeSer", "imgSrc:", imgSrc);
-          json_icObject.imgSrc = imgSrc;
+          if(json_icObject.id__imgSrc) {
+            //inject imgSrc
+            const filename__image = "fObjImage_with_id__" + json_icObject.id__imgSrc + ".png";
+            const imgSrc = dict__infinishute["res"]["img"][filename__image];
+            logger.log("logDeSer", "imgSrc:", imgSrc);
+            json_icObject.imgSrc = imgSrc;
+          }
 
-          const icObj_p = IcObject.fromJson_p(json_icObject);
+          var icObj_p;
+          try {
+           icObj_p = IcObject.fromJson_p(json_icObject);
+          } catch(e) {
+            logger.log("logError", e);
+          }
           return icObj_p;
         });
 
@@ -33751,7 +33786,8 @@
           .then(arr_icObj => {
             console.log("manageLoadInfinishute", "arr_icObj", arr_icObj);
 
-            arr_icObj.forEach((icObj, i) => {
+            arr_icObj
+            .forEach((icObj, i) => {
               logger.log("log1", "manageLoadInfinishute", "icObj", icObj);
 
               infiniteCanvas.addDehydratedIcObject(icObj);
@@ -33779,6 +33815,9 @@
             //   infiniteCanvas.addDehydratedIcObject(icObj);
             //   // infiniteCanvas.addRepresented(icObj);
 
+          })
+          .then(arr_icObj => {
+            infiniteCanvas.redrawCanvas(RedrawOccasion.infiniShuteLoaded);
           });
 
       }
@@ -34242,7 +34281,7 @@
     class IcObject {
 
       constructor(id, type, size, position__center = {x: math.bignumber(0), y: math.bignumber(0)} , homeScale = math.bignumber(1), orientation = math.bignumber(0)) {
-        logger.log("logIC", "IcObject::constructor", {
+        logger.trace("logIC", "IcObject::constructor", {
           id:   id,
           type: type,
           size: size,
@@ -34267,7 +34306,7 @@
 
         this._homeScale        = null;
         // this._homeScale__debug = null;
-        this.homeScale = homeScale;   //BigNumber
+        this.homeScale = homeScale;                   //BigNumber
 
         this._orientation        = null;
         // this._orientation__debug = null;
@@ -34366,6 +34405,10 @@
         //ugliness from outer space
         this.counter__path = 0;
       }
+
+      // static createIcObject_with__transform(type, size, transform) {
+      //
+      // }
 
 
       //debug
@@ -34700,7 +34743,7 @@
       }
 
       computeIcTransform(dict_options) {
-        // logger.log("logIC", "ICObject::computeIcTransform", "this:", this);
+        logger.log("logIC", "ICObject::computeIcTransform", "this:", this, "dict_options:", dict_options);
         var outMatrix;
 
         const multiply = ICUtils.multiplyTransformMatrices;
@@ -34747,6 +34790,9 @@
           //t_ic is center-based
       getIcTransform() { 
         // logger.log("logIC", "ICObject::getIcTransform", "this:", this);
+        if(!this.icTransform) {
+          this._updateIcTransform();
+        }
         return this.icTransform;
       }
 
@@ -35044,29 +35090,33 @@
         const type              = json_icObject.type;
         const size              = json_icObject.size;
 
-        const position__center__string  = json_icObject.position__center;
+
+
+        const position__center__string = json_icObject.position__center;
         const position__center  = {
           x: new Decimal(position__center__string.x),
           y: new Decimal(position__center__string.y),
         };
-        const homeScale__string         = json_icObject.homeScale;
+        const homeScale__string = json_icObject.homeScale;
         const homeScale         = new Decimal(homeScale__string);
 
-        const orientation__string       = json_icObject.orientation;
-        const orientation       = new Decimal(orientation__string);
+        const orientation__string = json_icObject.orientation;
+        const orientation         = new Decimal(orientation__string);
 
 
-        const scale__string             = json_icObject.scale;
-        const scale             = {
+        const scale__string = json_icObject.scale;
+        const scale         = {
           X: new Decimal(scale__string.X),
           Y: new Decimal(scale__string.Y),
         };
-        const skew__string             = json_icObject.skew;
-        const skew              = {
+        const skew__string  = json_icObject.skew;
+        const skew          = {
           X: new Decimal(skew__string.X),
           Y: new Decimal(skew__string.Y),
         };
-        const flip              = json_icObject.flip;
+        const flip          = json_icObject.flip;
+
+
 
         const zIndex            = json_icObject.zIndex;
 
@@ -35103,9 +35153,9 @@
 
         const icObj = new IcObject(id, type, size, position__center, homeScale, orientation);
 
-        icObj.scale             = scale;
-        icObj.skew              = skew;
-        icObj.flip              = flip;
+        icObj._scale             = scale;
+        icObj._skew              = skew;
+        icObj._flip              = flip;
 
         icObj.zIndex            = zIndex;
 
@@ -35147,6 +35197,7 @@
           const dict_engine = Object.entries(json_icObject.dict_engine).reduce((acc, [eType, engineMiniDict_serial] ) => {
             const index_start   = engineMiniDict_serial.index_start;
             const engine_serial = engineMiniDict_serial.engine;
+            const isAutoStart   = engineMiniDict_serial.isAutoStart;
 
             const virgin      = deserialize(engine_serial);
 
@@ -35157,6 +35208,7 @@
             const engineMiniDict = {
               index_start: index_start,
               engine: engine,
+              isAutoStart: isAutoStart,
             };
             acc[eType] = engineMiniDict;
             return acc;
@@ -35404,6 +35456,30 @@
 
         const icObj_serial = Object.assign({}, icObj);
 
+
+        //serialize Decimal
+        icObj_serial.position__center = {
+          x: icObj.position__center.x.toJSON(),
+          y: icObj.position__center.y.toJSON(),
+        };
+        icObj_serial.homeScale   = icObj.homeScale.toJSON();
+        icObj_serial.orientation = icObj.orientation.toJSON();
+        icObj_serial.scale = {
+          X: icObj.scale.X.toJSON(),
+          Y: icObj.scale.Y.toJSON(),
+        };
+        icObj_serial.flip = {
+          X: icObj.flip.X,
+          Y: icObj.flip.Y,
+        };
+        icObj_serial.skew = {
+          X: icObj.skew.X.toJSON(),
+          Y: icObj.skew.Y.toJSON(),
+        };        
+
+
+
+
         if(icObj.dict_engine != null) {
           //don't serialize engine directly
           delete icObj_serial.dict_engine;
@@ -35414,6 +35490,7 @@
 
               const index_start = engineMiniDict.index_start;
               const engine      = engineMiniDict.engine;
+              const isAutoStart = engineMiniDict.isAutoStart;
 
               //serialize the virgin version of engine (== a version which is context-free and not bound)
               const virgin = engine.virgin;
@@ -35425,6 +35502,7 @@
               const engineMiniDict_serial= {
                 index_start: index_start,
                 engine:      engine_serial,
+                isAutoStart: isAutoStart,
               };
               acc[eType] = engineMiniDict_serial;
 
@@ -36026,33 +36104,78 @@
         const id   = infiniteCanvas.getId__fresh();
         const type = this.type;
         const size = {
-          width:  new Decimal(this.size.width),
-          height: new Decimal(this.size.height),
+          width:  this.size.width,
+          height: this.size.height,
         };
 
 
         const position__center = {
-          x: new Decimal(this.position__center.x),
-          y: new Decimal(this.position__center.y),
+          x: new Decimal(this.position__center.x.toJSON()),
+          y: new Decimal(this.position__center.y.toJSON()),
         };
-        const homeScale   = new Decimal(this.homeScale);
-        const orientation = new Decimal(this.orientation);
+        const homeScale   = new Decimal(this.homeScale.toJSON());
+        const orientation = new Decimal(this.orientation.toJSON());
 
 
         const icObj__deepClone = new IcObject(id, type, size, position__center, homeScale, orientation);
         // logger.log("logCP", "deepClone", "icObj__deepClone:", icObj__deepClone);
+
+        icObj__deepClone._scale = {
+          X: new Decimal(this.scale.X.toJSON()),
+          Y: new Decimal(this.scale.Y.toJSON()),
+        };
+        icObj__deepClone._flip = {
+          X: this.flip.X,
+          Y: this.flip.Y,
+        };
+        icObj__deepClone._skew = {
+          X: new Decimal(this.skew.X.toJSON()),
+          Y: new Decimal(this.skew.Y.toJSON()),
+        };
+
+        //getters and setters
+        {
+
+          const obj  = icObj;
+          const copy = icObj__deepClone;
+          for (var attr in obj) {
+            if (obj.hasOwnProperty(attr)) {
+              if (Object.getOwnPropertyDescriptor(obj, attr).value instanceof Object) {
+                // copy[attr] = clone(obj[attr]);
+              }
+              else {
+                Object.defineProperty(copy, attr, Object.getOwnPropertyDescriptor(obj,attr));
+              }
+            }
+          }
+
+        }
+
         
         const arr_method = Utils.getMethods(icObj__deepClone);
-        // logger.log("logCP", "deepClone", "arr_method:", arr_method);
+        logger.log("logCP", "deepClone", "arr_method:", arr_method);
 
         const arr_alreadySet = [
           ...arr_method,
-          "id",
-          "type",
-          "size",
           "position__center",
           "homeScale",
           "orientation",
+          "scale",
+          "flip",
+          "skew",
+
+
+
+          "id",
+          "type",
+          "size",
+
+          "_position__center",
+          "_homeScale",
+          "_orientation",
+          "_scale",
+          "_flip",
+          "_skew",
         ];
 
         const arr_ignored = [
@@ -36154,6 +36277,7 @@
                     acc[eType] = {
                       index_start:  engineMiniDict.index_start,
                       engine: this.deepClone__engine(engineMiniDict.engine),
+                      isAutoStart: engineMiniDict.isAutoStart,
                     };
                     return acc;
                   }, {});
@@ -43308,7 +43432,9 @@
             [...Object.keys(outerUpdatesDict)].forEach((key__update) => {
               switch(key__update) {
                 case "icTransform":
-                  this.managePartUpdate__transform(icObj_compositePart, outerUpdatesDict);
+                  if(outerUpdatesDict.icTransform.old) {
+                    this.managePartUpdate__transform(icObj_compositePart, outerUpdatesDict);
+                  }
                   break;
                 default:
                   break;
@@ -43391,10 +43517,10 @@
           };
 
           this.managePartUpdate__transform__bulkMove = function (icObj_compositePart, outerUpdatesDict) {
-            logger.log("logComposite", "managePartUpdate__transform__bulkMove", icObj_compositePart, {
-              t_ic__old: ICUtils.stringify__array(outerUpdatesDict.icTransform.old),
-              t_ic__new: ICUtils.stringify__array(outerUpdatesDict.icTransform.new),
-            });
+            // logger.log("logComposite", "managePartUpdate__transform__bulkMove", icObj_compositePart, {
+            //   t_ic__old: ICUtils.stringify__array(outerUpdatesDict.icTransform.old),
+            //   t_ic__new: ICUtils.stringify__array(outerUpdatesDict.icTransform.new),
+            // });
 
             //SHU FLUID
 
@@ -43451,7 +43577,9 @@
             [...Object.keys(outerUpdatesDict)].forEach((key__update) => {
               switch(key__update) {
                 case "icTransform":
-                  this.managePartUpdate__transform(icObj_compositeContent, outerUpdatesDict);
+                  if(outerUpdatesDict.icTransform.old) {
+                    this.managePartUpdate__transform(icObj_compositeContent, outerUpdatesDict);
+                  }
                   break;
                 default:
                   break;
@@ -43495,7 +43623,9 @@
               [...Object.keys(outerUpdatesDict)].forEach((key__update) => {
                 switch(key__update) {
                   case "icTransform":
-                    this.manageHandleUpdate__transform(icObj_composite, outerUpdatesDict);
+                    if(outerUpdatesDict.icTransform.old) {
+                      this.manageHandleUpdate__transform(icObj_composite, outerUpdatesDict);
+                    }
                     break;
                   default:
                     break;
@@ -43603,7 +43733,7 @@
               rep_free.offInnerUpdate(listener);
 
               //mutate
-              // logger.log("logComposite", "managePartUpdate__transform__bulkMove", "mutating part:", rep_free.id);
+              // logger.log("logComposite", "updateCrowd_wrt_leader", "mutating crowd:", rep_free.id);
               {
                 const t_ic__obj__old      = rep_free.getIcTransform();
                 const t_ic__relationship  = ICUtils.multiplyTransformMatrices(ICUtils.invertTransform(t_ic__leader__old), t_ic__obj__old);
@@ -43615,7 +43745,6 @@
               rep_free.onInnerUpdate(listener);
 
             });
-
           };
 
 
@@ -49107,6 +49236,14 @@
               break;
 
             case RedrawOccasion.objectRemoved:
+
+              break;
+
+            case RedrawOccasion.objectUpdate:
+
+              break;
+
+            case RedrawOccasion.infiniShuteLoaded:
 
               break;
 
@@ -109416,7 +109553,8 @@
 
             // this.debug_camera();
 
-            this.debug_composite_encore();
+            // this.debug_composite_encore();
+            this.debug_serialization();
 
             // this.debug_construct();
 
@@ -117878,6 +118016,38 @@
           }
 
           infiniteCanvas.addIcObject_p(icComposite);
+
+        }
+
+
+        debug_serialization() {
+          const atelier        = this;
+          const infiniteCanvas = atelier.infiniteCanvas;
+          const icCamera       = infiniteCanvas.icCamera;
+          const cameraEngine   = icCamera.dict_engine["camera"].engine.awoken;
+
+
+          // var icRect1;
+          // {
+          //   const size = {width:  40, height: 75,};
+          //   const screenRect = atelier.screenRect1;
+
+          //   icRect1 = infiniteCanvas.createIcRect_with__screenRect(screenRect, size);
+          //   icRect1.fill = "yellow";
+          // }
+          // infiniteCanvas.addIcObject_p(icRect1);
+
+
+          // var icRect2;
+          // {
+          //   const size = {width:  90, height: 25,};
+          //   const screenRect = atelier.screenRect2;
+
+          //   icRect2 = infiniteCanvas.createIcRect_with__screenRect(screenRect, size);
+          //   icRect2.fill = "green";
+          // }
+          // infiniteCanvas.addIcObject_p(icRect2);
+
 
         }
 
