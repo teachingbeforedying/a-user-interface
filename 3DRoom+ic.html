@@ -42355,7 +42355,9 @@
             const icCamera       = this.scopeObj.engineCarrier;
             const infiniteCanvas = this.scopeObj.infiniteCanvas;
 
-            const dict_screenPoint = fObj.getDict_screenPoint();
+            const isSkipGroup = false;  //this is important for active selection
+
+            const dict_screenPoint = fObj.getDict_screenPoint(isSkipGroup);
             const dict_truePoint   = this.toTrueDict_parallelogram(dict_screenPoint);
 
             const t_ic__obj = ICUtils.createTransform__unitSquareToParallelogram(dict_truePoint);
@@ -48252,17 +48254,17 @@
           //     };
           // })(fabric.Group.prototype.initialize);
 
-          fabric.Object.prototype.getDict_screenPoint = function() {
+          fabric.Object.prototype.getDict_screenPoint = function(isSkipGroup = true) {
             const fObj = this;
 
             const multiply  = ICUtils.multiplyTransformMatrices;
       
-            const t_f__obj  = ICUtils.bigNumberize__array([...fObj.calcTransformMatrix(true), fObj.angle, fObj.skewX, fObj.skewY]);
+            const t_f__obj  = ICUtils.bigNumberize__array([...fObj.calcTransformMatrix(isSkipGroup), fObj.angle, fObj.skewX, fObj.skewY]);
             const t__size = ICUtils.calcScaleMatrix(ICUtils.bigNumberize__dict({
               scaleX: fObj.width,
               scaleY: fObj.height,
             }));
-            // logger.log("logCameraEngine", "getIcTransform", "t__size:", ICUtils.stringify__array(t__size));
+            logger.log("logFOBJ", "getDict_screenPoint", "t__size:", ICUtils.stringify__array(t__size));
 
             const t_screen__obj = multiply( t_f__obj, t__size );
     
@@ -48270,9 +48272,6 @@
             const dict_screenPoint = ICUtils.transformDict_parallelogram(dict_unitSquare, t_screen__obj);
     
             return dict_screenPoint;
-
-            // const dict_screenPoint__number = ICUtils.numberize__dict(dict_screenPoint);
-            // return dict_screenPoint__number;
           };
 
 
@@ -55250,77 +55249,34 @@
 
 
 
-        bugFix__groupOrigin(fObj__group) {
-          // fObj__group.__isUpdated_by_bugFix__groupOrigin = true;
-          
-          //main part of bugFix
-          {
-            const dict_lt__fObj__group = {
-              left: fObj__group.left,
-              top:  fObj__group.top,
-            };
 
-            const arr_fObj = [...fObj__group._objects];
-
-            globalsSingleton.functionCallsQueue
-            .add(() => {
-              arr_fObj.forEach((fObj) => {
-                fObj__group.removeWithUpdate(fObj);
-              });
-            })
-            .add(() => {
-              arr_fObj.forEach((fObj) => {
-                fObj__group.addWithUpdate(fObj);
-              });
-            })
-            .add(() => {
-              fObj__group.set(dict_lt__fObj__group);
-              fObj__group.setCoords();
-              fabricIntegration.fabricCanvas.requestRenderAll();
-            });
-            
-            // start the sequence
-            setTimeout(() => globalsSingleton.functionCallsQueue.next(), 0);
-
-          }
-
-          // fObj__group.__isUpdated_by_bugFix__groupOrigin = false;
-        }
 
         manageActiveSelectionUpdate(fObj__group) {
           const fabricIntegration = this;
 
-          const dict_lt__fObj__group = {
-            left: fObj__group.left,
-            top:  fObj__group.top,
-          };
-
           const arr_fObj = [...fObj__group._objects];
 
-          globalsSingleton.functionCallsQueue
-          .add(() => {
-            arr_fObj.forEach((fObj) => {
-              fObj__group.removeWithUpdate(fObj);
-            });
-          })
-          .add(() => {
-            arr_fObj.forEach((fObj) => {
-              fabricIntegration.updateIcObj_with__fObj(fObj);
-            });
-          })
-          .add(() => {
-            arr_fObj.forEach((fObj) => {
-              fObj__group.addWithUpdate(fObj);
-            });
-          })
-          .add(() => {
-            fObj__group.set(dict_lt__fObj__group);
-            fObj__group.setCoords();
-            fabricIntegration.fabricCanvas.requestRenderAll();
-          });
+          // arr_fObj.forEach((fObj) => {
+          //   fabricIntegration.updateIcObj_with__fObj(fObj);
+          // });
+
           
-          // start the sequence
-          setTimeout(() => globalsSingleton.functionCallsQueue.next(), 0);
+          //only move 1 fObj per composite
+          const dict_family = arr_fObj.reduce((acc, fObj) => {
+            const icObj = fObj.icObj;
+            const icObj__rootObject = icObj.getRootObject(infiniteCanvas);
+            const id__rootObject    = icObj__rootObject.id;
+            if(!acc[id__rootObject]) {
+              acc[id__rootObject] = fObj;
+            }
+            return acc;
+          }, {});
+
+          const arr_fObj__leader = Object.values(dict_family);
+
+          arr_fObj__leader.forEach((fObj) => {
+            fabricIntegration.updateIcObj_with__fObj(fObj);
+          });
 
         }
 
@@ -55352,9 +55308,7 @@
               logger.log("logAS", "selection:created", "activeSelection:", activeSelection);
 
               //active selection "originX:'center' etc." fix
-              // setTimeout(() => {
-                fabricIntegration.bugFix__groupOrigin(activeSelection);
-              // }, 20);
+              fabricIntegration.manageActiveSelectionUpdate(activeSelection);
 
               //setup some listeners
               {
@@ -55391,10 +55345,8 @@
               const activeSelection = activeObject;
               logger.log("logAS", "selection:updated", "activeSelection:", activeSelection);
 
-              // if(!activeSelection.__isUpdated_by_bugFix__groupOrigin) { //bugFix updates activeSelection, so we may have to check if it's a "true" update (i.e. coming from fabricCanvas) 
                 //active selection "originX:'center' etc." fix
-                fabricIntegration.bugFix__groupOrigin(activeSelection);
-              // }
+                fabricIntegration.manageActiveSelectionUpdate(activeSelection);
             }
 
             //manage icObj.isSelected:true/false
@@ -55407,18 +55359,6 @@
           this.fabricCanvas.on("selection:cleared", (options) => {
             logger.log("selection:cleared", options);
 
-            // const activeObject = this.fabricCanvas.getActiveObject();
-
-            // if (activeObject instanceof fabric.ActiveSelection) {
-            //   const activeSelection = activeObject;
-            //   logger.log("logAS", "selection:updated", "activeSelection:", activeSelection);
-
-            //   // if(!activeSelection.__isUpdated_by_bugFix__groupOrigin) { //bugFix updates activeSelection, so we have to check if it's a "true" update (i.e. coming from fabricCanvas) 
-            //     //active selection "originX:'center' etc." fix
-            //     fabricIntegration.bugFix__groupOrigin(activeSelection);
-            //   // }
-            // }
-
             //manage icObj.isSelected:true/false
             const dict__selectionMgmt = fabricIntegration.createDict_selectionMgmt__selectionCleared(options);
             fabricIntegration.processSelectionMgmtDict(dict__selectionMgmt);
@@ -55426,103 +55366,33 @@
           });
 
 
-
-
-
           this.fabricCanvas.on("object:moving", (options) => {
             const target = options.target;
             if(target.type == "activeSelection") {
-              // activeSelection_moving(options);
               fabricIntegration.manageActiveSelectionUpdate(target);
             }
           });
           this.fabricCanvas.on("object:scaling", (options) => {
-            // console.log("object:scaling", options);
-
             const target = options.target;
             if (target.type == "activeSelection") {
-              // activeSelection_scaling(options);
               fabricIntegration.manageActiveSelectionUpdate(target);
             }
 
           });
           this.fabricCanvas.on("object:rotating", (options) => {
-            // console.log("object:rotating", event);
-
             const target = options.target;
             if (target.type == "activeSelection") {
-              // activeSelection_rotating(options);
               fabricIntegration.manageActiveSelectionUpdate(target);
             }
 
           });
           this.fabricCanvas.on("object:skewing", (options) => {
-            // console.log("object:skewing", event);
-
             const target = options.target;
             if (target.type == "activeSelection") {
-              // activeSelection_skewing(options);
               fabricIntegration.manageActiveSelectionUpdate(target);
             }
 
           });
-
-
-
-
-
-          // this.fabricCanvas.on("object:moved", (options) => {
-          //   logger.log("logAS", "object:moved", options);
-          //   const target = options.target;
-          //   if(target.type == "activeSelection") {
-          //     activeSelection_moved(options);
-          //   }
-          // });
-
-          // this.fabricCanvas.on("object:modified", (options) => {
-          //   logger.log("logAS", "object:modified", options);
-
-          //   const target = options.target;
-          //   if (target.type != "activeSelection") {
-          //     return;
-          //   }
-          //   const activeSelection = target;
-
-          //   const str__action = options.action;
-          //   logger.log("logAS", "object:modified", "str__action:", str__action);
-
-          //   switch(str__action) {
-          //     case "scale":
-          //     case "scaleX":
-          //     case "scaleY":
-          //       {
-          //         activeSelection_scaled(options);
-          //       }
-          //       break;
-          //     case "skewX":
-          //     case "skewY":
-          //       {
-          //         // activeSelection_skewed(options);
-          //       }
-          //       break;
-          //     case "drag":
-          //       {
-          //         // activeSelection_moved(options);
-          //       }
-          //       break;
-          //     case "rotate":
-          //       {
-          //         // activeSelection_rotated(options);
-          //       }
-          //       break;
-          //     default:
-          //       {
-          //         throw new Error("Unsupported action: " + str__action);
-          //       }
-          //       break;
-          //   }
-
-          // });
 
 
           //hold/release
@@ -55561,7 +55431,7 @@
               icObj.nowHeld();
             });
 
-            fabricIntegration.bugFix__groupOrigin(activeSelection);
+            fabricIntegration.manageActiveSelectionUpdate(activeSelection);
 
           }
 
@@ -55578,131 +55448,9 @@
               icObj.nowReleased();
             });
 
-
-            fabricIntegration.bugFix__groupOrigin(activeSelection);
+            fabricIntegration.manageActiveSelectionUpdate(activeSelection);
 
           }
-
-
-          // //move
-
-          // function activeSelection_moving(options) {
-          //   logger.log("logAS", "activeSelection_moving", options);
-
-          //   const activeSelection = options.target;
-
-          //   if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) { //zPixelMove
-
-          //     //compute position at current zPixelZLevel
-          //     const screenPointTL__activeSelection = {
-          //       x: activeSelection.left,
-          //       y: activeSelection.top,
-          //     };
-          //     const screenPointTL__zPixel = infiniteCanvas.compute_screenPointTL__zPixelMove(screenPointTL__activeSelection);
-          //     logger.log("logAS", "zPixelMove", "screenPointTL__zPixel:", screenPointTL__zPixel);
-
-
-          //     if( (screenPointTL__activeSelection.x != screenPointTL__zPixel.x) || (screenPointTL__activeSelection.y != screenPointTL__zPixel.y) ) {
-
-          //       globalsSingleton.functionCallsQueue
-          //       .add(() => {
-      
-          //         //use activeSelection to manage all scale transformations
-          //         fabricIntegration.mutateActiveSelection(activeSelection, (activeSelection) => {
-      
-          //           //mutate position
-          //           activeSelection.left = screenPointTL__zPixel.x;
-          //           activeSelection.top  = screenPointTL__zPixel.y;
-      
-          //         });        
-                  
-          //       })
-          //       .add(() => {
-          //         fabricIntegration.bugFix__groupOrigin(activeSelection);
-          //       });
-      
-          //       setTimeout(() => globalsSingleton.functionCallsQueue.next(), 0);
-
-          //     } else {
-          //       //do nothing
-          //     }
-
-          //   } else {
-
-          //     fabricIntegration.mutateActiveSelection(activeSelection, (activeSelection) => {
-          //       //already done
-          //     });
-
-          //   }
-
-          // }
-
-          // function activeSelection_moved(options) {
-          //   logger.log("logAS", "activeSelection_moved", options);
-          // }
-
-
-          // //scale
-
-          // function activeSelection_scaling(options) {
-          //   logger.log("logAS", "activeSelection_scaling", options);
-          // }
-          // function activeSelection_scaled(options) {
-
-          //   const activeSelection = options.target;
-
-          //   fabricIntegration.mutateActiveSelection(activeSelection, (activeSelection) => {
-          //     //already done
-          //   });
-          // }
-
-
-
-          // //rotate
-
-          // function activeSelection_rotating(options) {
-          //   console.log("activeSelection rotating", options);
-
-          //   const target = options.transform.target;
-          //   // const original = options.transform.original;
-
-          //   const activeSelection = target;
-
-          //   activeSelection.forEachObject((fObj, index, arr_fObj) => {
-          //     const icObj = fObj.icObj;
-
-          //     const activeSelectionCenterX = activeSelection.width / 2;
-          //     const activeSelectionCenterY = activeSelection.height / 2;
-
-          //     const fObj_pos_wrt_ASTL = {
-          //       left: activeSelectionCenterX + fObj.left,
-          //       top: activeSelectionCenterY + fObj.top,
-          //     };
-
-          //     const activeSelection_angleInRadians = fabric.util.degreesToRadians(activeSelection.angle);
-
-          //     const fObj_screenPos = {
-          //       x: activeSelection.left + Math.cos(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.left - Math.sin(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.top,
-          //       y: activeSelection.top + Math.sin(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.left + Math.cos(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.top,
-          //     };
-
-          //     const position_update = infiniteCanvas.toTruePoint(fObj_screenPos);
-
-
-
-
-          //     const fObj_angle = target.angle + fObj.angle;
-          //     const orientation_update = Geometry.boundedAngleInDegrees(fObj_angle + infiniteCanvas.orientation);
-
-          //     const icObj_new = Object.assign({}, icObj);
-
-          //     Object.assign(icObj_new.position, position_update);
-          //     icObj_new.orientation = orientation_update;
-
-          //     icObj.update(icObj_new, false);
-          //   });
-
-          // }
 
 
         }
@@ -56029,6 +55777,11 @@
 
           var t_f__icObj = ICUtils.numberize__array(cameraEngine.getFTransform(icObj));
           // logger.log("logFI", "updateFabricObject_transform_default", "t_f__icObj__1:", ICUtils.stringify__array(t_f__icObj));
+          
+          if (fObj.group) {
+            t_f__icObj = fabric.util.multiplyTransformMatrices(fabric.util.invertTransform(fObj.group.calcTransformMatrix(false)), t_f__icObj);
+          }
+          
           fabric.util.applyTransformToObject(fObj, t_f__icObj);
           fObj.setCoords(); //SHU: common gotcha
         }
