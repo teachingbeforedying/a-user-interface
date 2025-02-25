@@ -9709,6 +9709,7 @@
       "objectUpdate": "objectUpdate",
 
 
+      "savingInfinishute": "savingInfinishute",
       "infiniShuteLoaded": "infiniShuteLoaded",
 
 
@@ -9784,9 +9785,15 @@
         this.redrawCanvasListeners = [];
         this.setupRedrawConditions();
 
+
+
+
+
         this.counter = 0;
         this.counter__freeDrawing_frameskip = 0;
         this.counter__freeDrawing_once = 0;
+
+        this.isSaving = false;
 
 
 
@@ -12960,15 +12967,17 @@
       }
 
 
-      createIcText(left, top, text) {
+      createIcText(trueX, trueY, text) {
+        const infiniteCanvas = this;
 
         const type = "text";
-        const position = Geometry.createPoint(left, top);
         const size = Geometry.createSize(0, 0);
-        const homeScale = Object.assign({}, this.scale);
 
-        const icObj = this.createIcObject(type, position, size, homeScale);
+        const truePoint__TL = Geometry.createPoint(trueX, trueY);
+        const homeScale     = infiniteCanvas.scale;
+        const orientation   = infiniteCanvas.orientation;
 
+        const icObj = infiniteCanvas.createIcObject(type, size, truePoint__TL, homeScale, orientation);
 
         // const text     = "icText";
         const fontSize = 100;
@@ -27003,10 +27012,10 @@
 
         const true_cursor = this.getTrueCursor();
 
-        const left = true_cursor.x;
-        const top = true_cursor.y;
+        const trueX = true_cursor.x;
+        const trueY = true_cursor.y;
 
-        const icText = this.createIcText(left, top, text);
+        const icText = this.createIcText(trueX, trueY, text);
 
         // //debug
         // const width  = 100;   //"information" size
@@ -27014,7 +27023,8 @@
         // icText.width  = width;
         // icText.height = height;
 
-        this.addNewIcObject(icText);
+        // this.addNewIcObject(icText);
+        this.addNewIcObject_p(icText);
       }
 
       addNewHTMLObject(htmlObject = "<html><body>lol</body></html>") {
@@ -30178,7 +30188,7 @@
             const miniDict = arr_miniDict[i];
             
             const icObj         = miniDict.icObj;
-            const isDisplayable = miniDict.isDisplayable;
+            const isDisplayable = miniDict.isDisplayable || infiniteCanvas.isSaving;
             // logger.log("logIC", "redrawCanvas", "icObj.id:", icObj.id, "isDisplayable:", isDisplayable);
   
             var fObj = fabricIntegration.getFObjForIcObj(icObj);
@@ -30198,6 +30208,10 @@
             }
           }
 
+          if(infiniteCanvas.isSaving) {
+            fabricIntegration.fabricCanvas.renderAll();
+          }
+
         } 
         
 
@@ -30210,10 +30224,10 @@
         });
       }
 
-      redrawCanvas_p(redrawOccasion) {
+      async redrawCanvas_p(redrawOccasion) {
         const infiniteCanvas = this;
 
-        infiniteCanvas.redrawCanvas(redrawOccasion);
+        await infiniteCanvas.redrawCanvas(redrawOccasion);
 
         return new Promise((resolve, reject) => {
           setTimeout(() => {
@@ -33763,26 +33777,56 @@
 
         const arr_official = Object.values(json.official);
 
-        const arr_icObj_p = arr_official.map((json_icObject, i) => {
+        //keep only root objects
+        const arr_json_icObject__root = arr_official.filter((json_icObject) => {
+          const compositeId = json_icObject.compositeId;
+          const isRootObject = (compositeId == -1);
+          return isRootObject;
+        });
+
+        function populateWithImgSrc(json_icObject) {
 
           if(json_icObject.id__imgSrc) {
             //inject imgSrc
             const filename__image = "fObjImage_with_id__" + json_icObject.id__imgSrc + ".png";
             const imgSrc = dict__infinishute["res"]["img"][filename__image];
             logger.log("logDeSer", "imgSrc:", imgSrc);
-            json_icObject.imgSrc = imgSrc;
+            // if(imgSrc) {
+              json_icObject.imgSrc = imgSrc;
+            // }
           }
+
+          if(json_icObject.type == "composite") {
+
+            //content
+            const json_icObject__content = json_icObject.content;
+            if(json_icObject__content) {
+              populateWithImgSrc(json_icObject__content);
+            }
+
+            //parts
+            Object.values(json_icObject.parts).forEach((json_icObject__part) => {
+              populateWithImgSrc(json_icObject__part);
+            });
+
+          }
+
+        }
+
+        const arr_icObj__root_p = arr_json_icObject__root.map((json_icObject__root, i) => {
+
+          populateWithImgSrc(json_icObject__root);
 
           var icObj_p;
           try {
-           icObj_p = IcObject.fromJson_p(json_icObject);
+           icObj_p = IcObject.fromJson_p(json_icObject__root);
           } catch(e) {
             logger.log("logError", e);
           }
           return icObj_p;
         });
 
-        Promise.all(arr_icObj_p)
+        Promise.all(arr_icObj__root_p)
           .then(arr_icObj => {
             console.log("manageLoadInfinishute", "arr_icObj", arr_icObj);
 
@@ -33821,6 +33865,12 @@
           });
 
       }
+
+
+
+
+
+
 
 
         //get objects intersecting screenPov
@@ -35221,6 +35271,10 @@
 
 
 
+
+
+
+
         var icObj_p = Promise.resolve(icObj);
 
         switch (icObj.type) {
@@ -35261,6 +35315,7 @@
             break;
           case "image":
           case "sparkle":
+          case "zPixelFreeDrawing":
             {
               const imgSrc_serial = json_icObject.imgSrc;
               const img_p = FileIntegration.imageFromImgSrc_p(imgSrc_serial);
@@ -35310,7 +35365,6 @@
 
           case "freeDrawing":
           case "floodFill":
-          case "zPixelFreeDrawing":
             const exoObject = json_icObject.exoObject;
             icObj.exoObject = exoObject;
             break;
@@ -35442,6 +35496,8 @@
           default:
             break;
         }
+
+
 
 
         return icObj_p;
@@ -49243,8 +49299,9 @@
 
               break;
 
+            case RedrawOccasion.savingInfinishute:
+                break;
             case RedrawOccasion.infiniShuteLoaded:
-
               break;
 
 
@@ -50723,25 +50780,9 @@
           */
           // console.log("createFabricITextWithIcObj", icObj);
 
-          // const scale = this.infiniteCanvas.scale;
-
           var fObj = new fabric.IText(icObj.text);
           fObj.set({
-            left: icObj.position.x,
-            top:  icObj.position.y,
-            // width:  100,
-            // height: 100,
-
-            flipX: icObj.flip.X,
-            flipY: icObj.flip.Y,
-
-            angle: icObj.orientation,
-
-
             fontSize: icObj.fontSize,
-
-            // scaleX: scale,
-            // scaleY: scale,
 
             // fill: '#f55',
             // fill: 'black',
@@ -50758,18 +50799,17 @@
             //~'persistent'
             // birth_scale : birth_scale,
 
-            // trueRect : trueRect,
             // true_fontSize : true_fontSize,
             icObj: icObj,
 
           });
 
-          if (icObj.isUsingCenterPosition != null && icObj.isUsingCenterPosition) {
-            fObj.set({
-              originX: icObj.originX,
-              originY: icObj.originY,
-            });
-          }
+          // if (icObj.isUsingCenterPosition != null && icObj.isUsingCenterPosition) {
+          //   fObj.set({
+          //     originX: icObj.originX,
+          //     originY: icObj.originY,
+          //   });
+          // }
 
           if (icObj.rx != null && icObj.ry != null) {
             fObj.set({
@@ -54167,7 +54207,7 @@
 
 
         createFabricFreeDrawingWithIcObj(icObj) {
-          console.log("createFabricFreeDrawingWithIcObj", icObj);
+          logger.log("logFD", "createFabricFreeDrawingWithIcObj", icObj);
 
           const infiniteCanvas = this.infiniteCanvas;
 
@@ -54176,8 +54216,6 @@
           var fObj = new fabric.Path(exoObject.path);
 
           fObj.set({
-            width:            exoObject.width,
-            height:           exoObject.height,
 
             stroke:           exoObject.stroke,
             strokeDashArray:  exoObject.strokeDashArray,
@@ -55249,6 +55287,43 @@
           // fObj__group.__isUpdated_by_bugFix__groupOrigin = false;
         }
 
+        manageActiveSelectionUpdate(fObj__group) {
+          const fabricIntegration = this;
+
+          const dict_lt__fObj__group = {
+            left: fObj__group.left,
+            top:  fObj__group.top,
+          };
+
+          const arr_fObj = [...fObj__group._objects];
+
+          globalsSingleton.functionCallsQueue
+          .add(() => {
+            arr_fObj.forEach((fObj) => {
+              fObj__group.removeWithUpdate(fObj);
+            });
+          })
+          .add(() => {
+            arr_fObj.forEach((fObj) => {
+              fabricIntegration.updateIcObj_with__fObj(fObj);
+            });
+          })
+          .add(() => {
+            arr_fObj.forEach((fObj) => {
+              fObj__group.addWithUpdate(fObj);
+            });
+          })
+          .add(() => {
+            fObj__group.set(dict_lt__fObj__group);
+            fObj__group.setCoords();
+            fabricIntegration.fabricCanvas.requestRenderAll();
+          });
+          
+          // start the sequence
+          setTimeout(() => globalsSingleton.functionCallsQueue.next(), 0);
+
+        }
+
 
         configureActiveSelectionListeners() {
           // object:moving
@@ -55354,100 +55429,100 @@
 
 
 
-
-
-          //move
           this.fabricCanvas.on("object:moving", (options) => {
             const target = options.target;
             if(target.type == "activeSelection") {
-              activeSelection_moving(options);
+              // activeSelection_moving(options);
+              fabricIntegration.manageActiveSelectionUpdate(target);
             }
           });
-          this.fabricCanvas.on("object:moved", (options) => {
-            logger.log("logAS", "object:moved", options);
-            const target = options.target;
-            if(target.type == "activeSelection") {
-              activeSelection_moved(options);
-            }
-          });
-
-          //scale
           this.fabricCanvas.on("object:scaling", (options) => {
             // console.log("object:scaling", options);
 
             const target = options.target;
             if (target.type == "activeSelection") {
-              activeSelection_scaling(options);
+              // activeSelection_scaling(options);
+              fabricIntegration.manageActiveSelectionUpdate(target);
             }
 
           });
-
-          //rotate
           this.fabricCanvas.on("object:rotating", (options) => {
             // console.log("object:rotating", event);
 
             const target = options.target;
             if (target.type == "activeSelection") {
-              activeSelection_rotating(options);
+              // activeSelection_rotating(options);
+              fabricIntegration.manageActiveSelectionUpdate(target);
             }
 
           });
-
-          //skew
           this.fabricCanvas.on("object:skewing", (options) => {
             // console.log("object:skewing", event);
 
             const target = options.target;
             if (target.type == "activeSelection") {
-              activeSelection_skewing(options);
+              // activeSelection_skewing(options);
+              fabricIntegration.manageActiveSelectionUpdate(target);
             }
 
           });
 
-          this.fabricCanvas.on("object:modified", (options) => {
-            logger.log("logAS", "object:modified", options);
 
-            const target = options.target;
-            if (target.type != "activeSelection") {
-              return;
-            }
-            const activeSelection = target;
 
-            const str__action = options.action;
-            logger.log("logAS", "object:modified", "str__action:", str__action);
 
-            switch(str__action) {
-              case "scale":
-              case "scaleX":
-              case "scaleY":
-                {
-                  activeSelection_scaled(options);
-                }
-                break;
-              case "skewX":
-              case "skewY":
-                {
-                  // activeSelection_skewed(options);
-                }
-                break;
-              case "drag":
-                {
-                  // activeSelection_moved(options);
-                }
-                break;
-              case "rotate":
-                {
-                  // activeSelection_rotated(options);
-                }
-                break;
-              default:
-                {
-                  throw new Error("Unsupported action: " + str__action);
-                }
-                break;
-            }
 
-          });
+          // this.fabricCanvas.on("object:moved", (options) => {
+          //   logger.log("logAS", "object:moved", options);
+          //   const target = options.target;
+          //   if(target.type == "activeSelection") {
+          //     activeSelection_moved(options);
+          //   }
+          // });
+
+          // this.fabricCanvas.on("object:modified", (options) => {
+          //   logger.log("logAS", "object:modified", options);
+
+          //   const target = options.target;
+          //   if (target.type != "activeSelection") {
+          //     return;
+          //   }
+          //   const activeSelection = target;
+
+          //   const str__action = options.action;
+          //   logger.log("logAS", "object:modified", "str__action:", str__action);
+
+          //   switch(str__action) {
+          //     case "scale":
+          //     case "scaleX":
+          //     case "scaleY":
+          //       {
+          //         activeSelection_scaled(options);
+          //       }
+          //       break;
+          //     case "skewX":
+          //     case "skewY":
+          //       {
+          //         // activeSelection_skewed(options);
+          //       }
+          //       break;
+          //     case "drag":
+          //       {
+          //         // activeSelection_moved(options);
+          //       }
+          //       break;
+          //     case "rotate":
+          //       {
+          //         // activeSelection_rotated(options);
+          //       }
+          //       break;
+          //     default:
+          //       {
+          //         throw new Error("Unsupported action: " + str__action);
+          //       }
+          //       break;
+          //   }
+
+          // });
 
 
           //hold/release
@@ -55509,125 +55584,125 @@
           }
 
 
-          //move
+          // //move
 
-          function activeSelection_moving(options) {
-            logger.log("logAS", "activeSelection_moving", options);
+          // function activeSelection_moving(options) {
+          //   logger.log("logAS", "activeSelection_moving", options);
 
-            const activeSelection = options.target;
+          //   const activeSelection = options.target;
 
-            if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) { //zPixelMove
+          //   if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) { //zPixelMove
 
-              //compute position at current zPixelZLevel
-              const screenPointTL__activeSelection = {
-                x: activeSelection.left,
-                y: activeSelection.top,
-              };
-              const screenPointTL__zPixel = infiniteCanvas.compute_screenPointTL__zPixelMove(screenPointTL__activeSelection);
-              logger.log("logAS", "zPixelMove", "screenPointTL__zPixel:", screenPointTL__zPixel);
+          //     //compute position at current zPixelZLevel
+          //     const screenPointTL__activeSelection = {
+          //       x: activeSelection.left,
+          //       y: activeSelection.top,
+          //     };
+          //     const screenPointTL__zPixel = infiniteCanvas.compute_screenPointTL__zPixelMove(screenPointTL__activeSelection);
+          //     logger.log("logAS", "zPixelMove", "screenPointTL__zPixel:", screenPointTL__zPixel);
 
 
-              if( (screenPointTL__activeSelection.x != screenPointTL__zPixel.x) || (screenPointTL__activeSelection.y != screenPointTL__zPixel.y) ) {
+          //     if( (screenPointTL__activeSelection.x != screenPointTL__zPixel.x) || (screenPointTL__activeSelection.y != screenPointTL__zPixel.y) ) {
 
-                globalsSingleton.functionCallsQueue
-                .add(() => {
+          //       globalsSingleton.functionCallsQueue
+          //       .add(() => {
       
-                  //use activeSelection to manage all scale transformations
-                  fabricIntegration.mutateActiveSelection(activeSelection, (activeSelection) => {
+          //         //use activeSelection to manage all scale transformations
+          //         fabricIntegration.mutateActiveSelection(activeSelection, (activeSelection) => {
       
-                    //mutate position
-                    activeSelection.left = screenPointTL__zPixel.x;
-                    activeSelection.top  = screenPointTL__zPixel.y;
+          //           //mutate position
+          //           activeSelection.left = screenPointTL__zPixel.x;
+          //           activeSelection.top  = screenPointTL__zPixel.y;
       
-                  });        
+          //         });        
                   
-                })
-                .add(() => {
-                  fabricIntegration.bugFix__groupOrigin(activeSelection);
-                });
+          //       })
+          //       .add(() => {
+          //         fabricIntegration.bugFix__groupOrigin(activeSelection);
+          //       });
       
-                setTimeout(() => globalsSingleton.functionCallsQueue.next(), 0);
+          //       setTimeout(() => globalsSingleton.functionCallsQueue.next(), 0);
 
-              } else {
-                //do nothing
-              }
+          //     } else {
+          //       //do nothing
+          //     }
 
-            } else {
+          //   } else {
 
-              fabricIntegration.mutateActiveSelection(activeSelection, (activeSelection) => {
-                //already done
-              });
+          //     fabricIntegration.mutateActiveSelection(activeSelection, (activeSelection) => {
+          //       //already done
+          //     });
 
-            }
+          //   }
 
-          }
+          // }
 
-          function activeSelection_moved(options) {
-            logger.log("logAS", "activeSelection_moved", options);
-          }
-
-
-          //scale
-
-          function activeSelection_scaling(options) {
-            logger.log("logAS", "activeSelection_scaling", options);
-          }
-          function activeSelection_scaled(options) {
-
-            const activeSelection = options.target;
-
-            fabricIntegration.mutateActiveSelection(activeSelection, (activeSelection) => {
-              //already done
-            });
-          }
+          // function activeSelection_moved(options) {
+          //   logger.log("logAS", "activeSelection_moved", options);
+          // }
 
 
+          // //scale
 
-          //rotate
+          // function activeSelection_scaling(options) {
+          //   logger.log("logAS", "activeSelection_scaling", options);
+          // }
+          // function activeSelection_scaled(options) {
 
-          function activeSelection_rotating(options) {
-            console.log("activeSelection rotating", options);
+          //   const activeSelection = options.target;
 
-            const target = options.transform.target;
-            // const original = options.transform.original;
-
-            const activeSelection = target;
-
-            activeSelection.forEachObject((fObj, index, arr_fObj) => {
-              const icObj = fObj.icObj;
-
-              const activeSelectionCenterX = activeSelection.width / 2;
-              const activeSelectionCenterY = activeSelection.height / 2;
-
-              const fObj_pos_wrt_ASTL = {
-                left: activeSelectionCenterX + fObj.left,
-                top: activeSelectionCenterY + fObj.top,
-              };
-
-              const activeSelection_angleInRadians = fabric.util.degreesToRadians(activeSelection.angle);
-
-              const fObj_screenPos = {
-                x: activeSelection.left + Math.cos(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.left - Math.sin(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.top,
-                y: activeSelection.top + Math.sin(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.left + Math.cos(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.top,
-              };
-
-              const position_update = infiniteCanvas.toTruePoint(fObj_screenPos);
+          //   fabricIntegration.mutateActiveSelection(activeSelection, (activeSelection) => {
+          //     //already done
+          //   });
+          // }
 
 
 
+          // //rotate
 
-              const fObj_angle = target.angle + fObj.angle;
-              const orientation_update = Geometry.boundedAngleInDegrees(fObj_angle + infiniteCanvas.orientation);
+          // function activeSelection_rotating(options) {
+          //   console.log("activeSelection rotating", options);
 
-              const icObj_new = Object.assign({}, icObj);
+          //   const target = options.transform.target;
+          //   // const original = options.transform.original;
 
-              Object.assign(icObj_new.position, position_update);
-              icObj_new.orientation = orientation_update;
+          //   const activeSelection = target;
 
-              icObj.update(icObj_new, false);
-            });
+          //   activeSelection.forEachObject((fObj, index, arr_fObj) => {
+          //     const icObj = fObj.icObj;
 
-          }
+          //     const activeSelectionCenterX = activeSelection.width / 2;
+          //     const activeSelectionCenterY = activeSelection.height / 2;
+
+          //     const fObj_pos_wrt_ASTL = {
+          //       left: activeSelectionCenterX + fObj.left,
+          //       top: activeSelectionCenterY + fObj.top,
+          //     };
+
+          //     const activeSelection_angleInRadians = fabric.util.degreesToRadians(activeSelection.angle);
+
+          //     const fObj_screenPos = {
+          //       x: activeSelection.left + Math.cos(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.left - Math.sin(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.top,
+          //       y: activeSelection.top + Math.sin(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.left + Math.cos(activeSelection_angleInRadians) * fObj_pos_wrt_ASTL.top,
+          //     };
+
+          //     const position_update = infiniteCanvas.toTruePoint(fObj_screenPos);
+
+
+
+
+          //     const fObj_angle = target.angle + fObj.angle;
+          //     const orientation_update = Geometry.boundedAngleInDegrees(fObj_angle + infiniteCanvas.orientation);
+
+          //     const icObj_new = Object.assign({}, icObj);
+
+          //     Object.assign(icObj_new.position, position_update);
+          //     icObj_new.orientation = orientation_update;
+
+          //     icObj.update(icObj_new, false);
+          //   });
+
+          // }
 
 
         }
@@ -66607,96 +66682,29 @@
 
           const fObj = fObj__image;
 
-          //store fObj scale
-          const scale__fObj__tmp = {
-            X: fObj.scaleX, 
-            Y: fObj.scaleY,
-          };
+          //store fObj transform
+          const t__fObj__tmp = fObj.calcOwnMatrix();
 
-          //set scale corresponding to photo
-          const scale__fObj__new = {
-            X: 1,
-            Y: 1,
-          };
+          //set transform corresponding to photo: t__identity
+          const t__identity = fabric.iMatrix.slice(0);
 
-          fObj.set({
-            scaleX: scale__fObj__new.X,
-            scaleY: scale__fObj__new.Y,
-          });
+          fabric.util.applyTransformToObject(fObj, t__identity);
+          fObj.setCoords();
 
           //take photo
           const options  = {};
           const canvasEl = fObj.toCanvasElement(options);
 
-          //restore fObj scale
-          fObj.set({
-            scaleX: scale__fObj__new.X,
-            scaleY: scale__fObj__new.Y,
-          });
+          //restore fObj transform
+          fabric.util.applyTransformToObject(fObj, t__fObj__tmp);
+          fObj.setCoords();
 
           out_p = FileIntegration.fileForCanvasEl__indiv_p(canvasEl, options);
 
           return out_p;
         }
 
-        // static fileForFabricImage__indiv_p(fObj__image, filename) {
-        //   logger.log("logSer", fObj__image, filename);
 
-        //   const options  = {};
-        //   const canvasEl = fObj__image.toCanvasElement(options);
-
-        //   return FileIntegration.fileForCanvasEl__indiv_p(canvasEl, options);
-        // }
-
-        // static fileForFabricImage__indiv_p(infiniteCanvas, fObj__image, filename) {
-        //   logger.log("logSer", fObj__image, filename);
-        //   var out_p;
-
-        //   //prepare canvas for photo
-        //   // {
-        //     //store "iC pov"
-        //     const offset__tmp = Object.assign({}, infiniteCanvas.offset);
-        //     const scale__tmp  = Object.assign({}, infiniteCanvas.scale);
-
-        //     const icObj = fObj__image.icObj;
-
-        //     //set "iC pov" = "obj pov" 
-        //     const scale__obj = {
-        //       X: icObj.homeScale.X * icObj.scale.X,
-        //       Y: icObj.homeScale.Y * icObj.scale.Y,
-        //     };
-        //     // const offset__obj = {
-        //     //   dx: 0,
-        //     //   dy: 0,
-        //     // };
-        //     const offset__obj = {
-        //       dx: -icObj.position.x,
-        //       dy: -icObj.position.y,
-        //     };
-        //     infiniteCanvas.updateScaleAndOffset(scale__obj, offset__obj);
-        //     out_p = infiniteCanvas.redrawCanvas_p(RedrawOccasion.scaleChanged)
-        //   // }
-
-        //   //take photo
-        //   .then((infiniteCanvas) => {
-        //     const options  = {};
-        //     const canvasEl = fObj__image.toCanvasElement(options);
-
-        //     const file = FileIntegration.fileForCanvasEl__indiv_p(canvasEl, options);
-        //     return file;
-        //   })
-
-        //   //restore canvas after photo
-        //   .then((file) => {
-        //     infiniteCanvas.updateScaleAndOffset(scale__tmp, offset__tmp);
-        //     return infiniteCanvas.redrawCanvas_p(RedrawOccasion.scaleChanged)
-        //           .then((infiniteCanvas) => {
-        //             return file;
-        //           });
-        //   });
-
-        //   return out_p;
-        // }
 
         static fileForCanvasEl__indiv_p(canvasEl, filename) {
           logger.log("logSer", canvasEl, filename);
@@ -70488,16 +70496,21 @@
               }
             }),
 
-            "KeyS": new KeyUpTrigger("KeyS", KeyUpTrigger.defaultKeyUpFunc(["KeyS"]), () => {
+            "KeyS": new KeyUpTrigger("KeyS", KeyUpTrigger.defaultKeyUpFunc(["KeyS"]), async () => {
               if (keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
                 // fabricIntegration.spreadSelectedObjects();
 
                 FileIntegration.save_clone_of_whole_page();
               } else {
-                infiniteCanvas.manageSaveInfinishute_p()
-                  .then((success) => {
-                    console.log("success", success);
-                  });
+                infiniteCanvas.isSaving = true;
+
+                await infiniteCanvas.redrawCanvas_p(RedrawOccasion.savingInfinishute);
+
+                const success = await infiniteCanvas.manageSaveInfinishute_p();
+
+                logger.log("logIC", "save infinishute", "success:", success);
+
+                infiniteCanvas.isSaving = false;    
               }
             }),
 
