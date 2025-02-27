@@ -109,6 +109,8 @@
 
   <!-- <script src="lib/panzoom.min.js" type='text/javascript'></script> -->
 
+  <script src="lib/parallel.js" type='text/javascript'></script>
+
   <!-- global -->
   <script>
 
@@ -2340,9 +2342,11 @@
 
 
   <!-- UI -->
-  <script src='lib/fabric.531.min.js'      type='text/javascript'></script>
+    <script src='lib/fabric.531.min.js'      type='text/javascript'></script>
     <!-- debug -->
     <!-- <script src='lib/fabric.531.js'      type='text/javascript'></script> -->
+
+    <!-- <script src='lib/fabric/index.min.js'      type='text/javascript'></script> -->
 
     <!-- fabric upgrades -->
   <script src='lib/fabric+canvas2D_willReadFrequently.js' type='text/javascript'></script>
@@ -10023,9 +10027,8 @@
         icCamera.stroke = ColorUtils.rgbaColorStringForColorAndSuperOpacity( "lime", 0.3 );
         icCamera.fill = "transparent";
 
-        await infiniteCanvas.addIcObject_p(icCamera).then((rep_free) => {
-          infiniteCanvas.swapToCamera(rep_free, fabricIntegration);
-        });
+        const rep_free = await infiniteCanvas.addIcObject_p(icCamera);
+        await infiniteCanvas.swapToCamera(rep_free, fabricIntegration);
       }
 
       async swapToCamera(icCamera__new, fabricIntegration) {
@@ -10034,6 +10037,8 @@
         const infiniteCanvas = this;
 
         const icCamera__old = infiniteCanvas.icCamera;
+        logger.log("logIC", "swapToCamera", "icCamera__old:", icCamera__old);
+
         if(icCamera__old != null) {
           //stop the engine
           const cameraEngine__old = icCamera__old.dict_engine["camera"].engine.awoken;
@@ -10042,15 +10047,21 @@
           var fObj__camera__old = fabricIntegration.getFObjForIcObj(icCamera__old);
 
           //un-passthrough
-          fObj__camera__old.evented    = true;
-          fObj__camera__old.selectable = true;
+          fObj__camera__old.hasControls = true;
+          fObj__camera__old.evented     = true;
+          fObj__camera__old.selectable  = true;
+
+          fObj__camera.isVisible        = true;
+
+          icCamera__old.canBeSelected = true;
+          icCamera__old.canBeHeld     = true;
         }
 
 
-        // if(icCamera__new.isSelected) {
-        //   icCamera__new.isSelected = false;
-        // }
-        // icCamera__new.nowReleased();
+
+
+        icCamera__new.canBeSelected = false;
+        icCamera__new.canBeHeld     = false;
 
         infiniteCanvas.icCamera = icCamera__new;
         //start the engine
@@ -10066,9 +10077,20 @@
           fObj__camera = await fabricIntegration.addFabricObjectWithIcObj_p(icCamera__new);
         }
 
+
+        // if(icCamera__new.isSelected) {
+        //   icCamera__new.isSelected = false;
+        // }
+        // if(icCamera__new.isHeld) {
+        //   icCamera__new.nowReleased();
+        // }
+
         //passthrough
-        fObj__camera.evented    = false;
-        fObj__camera.selectable = false;
+        fObj__camera.hasControls = false;
+        fObj__camera.evented     = false;
+        fObj__camera.selectable  = false;
+
+        fObj__camera.isVisible   = false;
 
 
         // if(isAddingCameraFObj) {
@@ -13319,7 +13341,10 @@
         // } 
         logger.log("createIcFreeDrawing_from_freeDrawingFObj", "size:", size);
 
-        const t_ic = cameraEngine.getIcTransform(fObj);
+        const isSkipGroup = true;
+        const t_screen    = fObj.getScreenTransform(isSkipGroup);
+
+        const t_ic        = cameraEngine.toTrueTransform(t_screen);
 
         const icObj = this.createIcObject_with__transform(type, size, t_ic);
 
@@ -26200,76 +26225,31 @@
       }
 
 
-      addPastedIcObject(icObj) {
+      async addPastedIcObject(icObj) {
         const infiniteCanvas = this;
-        // const icCamera       = infiniteCanvas.icCamera;
-        // const cameraEngine   = icCamera.dict_engine["camera"].engine.awoken;
+        const icCamera       = infiniteCanvas.icCamera;
+        const cameraEngine   = icCamera.dict_engine["camera"].engine.awoken;
 
-        // const true_cursor = this.getTrueCursor();
+        // const t_screen = icObj.__t_screen__whenCopied;
+        // const t_ic     = cameraEngine.toTrueTransform(t_screen);
+        // icObj.setIcTransform(t_ic);
 
-        // const position__cursor = {
-        //   x: true_cursor.x,
-        //   y: true_cursor.y,
-        // };
+        const rep_free = await this.addIcObject_p(icObj);
 
-        // const scale__iC = {
-        //   X: infiniteCanvas.scale.X,
-        //   Y: infiniteCanvas.scale.Y,
-        // };
+        const t_screen = icObj.__t_screen__whenCopied;
+        const t_ic     = cameraEngine.toTrueTransform(t_screen);
+        rep_free.setIcTransform(t_ic);
 
-        // this.addIcObjectAtPositionAndScale(icObj, position__cursor, scale__iC);
+        await infiniteCanvas.redrawCanvas(RedrawOccasion.objectAdded);
 
-        const dict_screenPoint = icObj.__dict_screenPoint__whenCopied;
-        logger.log("logCP", "addPastedIcObject", "dict_screenPoint:", dict_screenPoint);
-        const dict_truePoint   = infiniteCanvas.toTrueDict_parallelogram(dict_screenPoint);
-
-        const t_ic = ICUtils.createTransform__unitSquareToParallelogram(dict_truePoint);
-        icObj.setIcTransform(t_ic);
-
-        this.addIcObject_p(icObj).then((rep_free) => {
-          infiniteCanvas.redrawCanvas(RedrawOccasion.objectAdded);
-        });
-
+        return rep_free;
       }
 
       addPastedIcObjects(arr_icObj) {
         const infiniteCanvas = this;
 
-        const true_cursor = this.getTrueCursor();
-
-        const position__cursor = {
-          x: true_cursor.x,
-          y: true_cursor.y,
-        };
-
-        const scale__iC = {
-          X: infiniteCanvas.scale.X,
-          Y: infiniteCanvas.scale.Y,
-        };
-
-        //SHU TODO: keep relative offsets while changing position and scale
-
-        //paste layout: row
-        const ratio_padding__h = 0.1;
-        const ratio_padding__v = 0;
-        var position__prev = position__cursor;
         arr_icObj.forEach((icObj) => {
-          const position_new  = position__prev;
-          const homeScale_new = scale__iC;
-          this.addIcObjectAtPositionAndScale(icObj, position_new, homeScale_new);
-
-          const trueWidth__total = icObj.getTrueWidth__total(); //SHU TODO: take orientation into account...
-          // logger.log("logCP", "addPastedIcObjects", "width__total:", width__total);
-
-          const true_offset = {
-            dx: trueWidth__total * (1 + ratio_padding__h),
-            dy:                0 * (1 + ratio_padding__v),
-          }; 
-          position__prev = {
-            x: position_new.x + true_offset.dx,
-            y: position_new.y + true_offset.dy,               
-          };
-
+          infiniteCanvas.addPastedIcObject(icObj);
         });
 
       }
@@ -30210,40 +30190,40 @@
         */
 
         
-        if( (infiniteCanvas.icCamera != null) && (fabricIntegration != null) ) {
+        // if( (infiniteCanvas.icCamera != null) && (fabricIntegration != null) ) {
 
-          const dict_displayable = infiniteCanvas.getDict_displayable();
-          const arr_miniDict = Object.values(dict_displayable);
-          for(var i=0;i<arr_miniDict.length;i++) {
+        //   const dict_displayable = infiniteCanvas.getDict_displayable();
+        //   const arr_miniDict = Object.values(dict_displayable);
+        //   for(var i=0;i<arr_miniDict.length;i++) {
 
-            const miniDict = arr_miniDict[i];
+        //     const miniDict = arr_miniDict[i];
             
-            const icObj         = miniDict.icObj;
-            const isDisplayable = miniDict.isDisplayable || infiniteCanvas.isSaving;
-            // logger.log("logIC", "redrawCanvas", "icObj.id:", icObj.id, "isDisplayable:", isDisplayable);
+        //     const icObj         = miniDict.icObj;
+        //     const isDisplayable = miniDict.isDisplayable || infiniteCanvas.isSaving;
+        //     // logger.log("logIC", "redrawCanvas", "icObj.id:", icObj.id, "isDisplayable:", isDisplayable);
   
-            var fObj = fabricIntegration.getFObjForIcObj(icObj);
+        //     var fObj = fabricIntegration.getFObjForIcObj(icObj);
             
-            if(isDisplayable) {
-              if(!fObj) {
-                //create and add fabric object
-                // logger.log("logIC", "redrawCanvas", "create and add fObj", "icObj.id:", icObj.id);
-                await fabricIntegration.addFabricObjectWithIcObj_p(icObj);
-              }
-            } else {
-              if(fObj) {
-                //destroy fabric object
-                // logger.log("logIC", "redrawCanvas", "destroy fObj", "icObj.id:", icObj.id);
-                fabricIntegration.removeFabricObject(fObj);
-              }
-            }
-          }
+        //     if(isDisplayable) {
+        //       if(!fObj) {
+        //         //create and add fabric object
+        //         // logger.log("logIC", "redrawCanvas", "create and add fObj", "icObj.id:", icObj.id);
+        //         await fabricIntegration.addFabricObjectWithIcObj_p(icObj);
+        //       }
+        //     } else {
+        //       if(fObj) {
+        //         //destroy fabric object
+        //         // logger.log("logIC", "redrawCanvas", "destroy fObj", "icObj.id:", icObj.id);
+        //         fabricIntegration.removeFabricObject(fObj);
+        //       }
+        //     }
+        //   }
 
-          if(infiniteCanvas.isSaving) {
-            fabricIntegration.fabricCanvas.renderAll();
-          }
+        //   if(infiniteCanvas.isSaving) {
+        //     fabricIntegration.fabricCanvas.renderAll();
+        //   }
 
-        } 
+        // } 
         
 
 
@@ -30312,7 +30292,7 @@
           return acc;
         }, {});
 
-        logger.log("logIC", "getDict_displayable", "dict_displayable:", dict_displayable);
+        // logger.log("logIC", "getDict_displayable", "dict_displayable:", dict_displayable);
 
         return dict_displayable;
       }
@@ -31040,57 +31020,33 @@
         const icCamera       = infiniteCanvas.icCamera;
         const cameraEngine   = icCamera.dict_engine["camera"].engine.awoken; 
 
-        // const activeObject = fabricIntegration.fabricCanvas.getActiveObject();
-        // if (activeObject instanceof fabric.ActiveSelection) {
-        //   const activeSelection = activeObject;
-        //   logger.log("logZScroll", "manageZScroll", "activeSelection:", activeSelection);
-
-        //   globalsSingleton.functionCallsQueue
-        //   .add(() => {
-
-        //     //use activeSelection to manage all scale transformations
-        //     fabricIntegration.mutateActiveSelection(activeSelection, (activeSelection) => {
-
-        //     });        
-            
-        //   })
-        //   .add(() => {
-        //     fabricIntegration.bugFix__groupOrigin(activeSelection);
-        //   });
-
-        //   setTimeout(() => globalsSingleton.functionCallsQueue.next(), 0);
-
-        // } else {
-        // 
-        // }
           
         //store held icObjs' screen transforms
-        const dict_dict_screenPoint = arr_rep_free__held.reduce((acc,icObj) => {
-          const dict_truePoint   = icObj.getDict_truePoint();
-          const dict_screenPoint = cameraEngine.toScreenDict_parallelogram(dict_truePoint);
+        const dict_dict_screenT = arr_rep_free__held.reduce((acc,icObj) => {
+          const t_ic     = icObj.getIcTransform();
+          const t_screen = cameraEngine.toScreenTransform(t_ic); 
 
           const miniDict = {
-            icObj:            icObj,
-            dict_screenPoint: dict_screenPoint,
+            icObj:    icObj,
+            t_screen: t_screen,
           };
 
           acc[icObj.id] = miniDict;
 
           return acc;
         }, {});
-        logger.log("logZScroll", "manageZScroll", "dict_dict_screenPoint:", dict_dict_screenPoint);
+        logger.log("logZScroll", "manageZScroll", "dict_dict_screenT:", dict_dict_screenT);
 
 
         //update camera
         func_update__zoom();
 
         //update held icObjs' true transforms
-        Object.entries(dict_dict_screenPoint).forEach(([id, miniDict]) => {
-          const icObj            = miniDict.icObj;
-          const dict_screenPoint = miniDict.dict_screenPoint;
+        Object.entries(dict_dict_screenT).forEach(([id, miniDict]) => {
+          const icObj    = miniDict.icObj;
+          const t_screen = miniDict.t_screen;
 
-          const dict_truePoint   = cameraEngine.toTrueDict_parallelogram(dict_screenPoint);
-          const t_ic = ICUtils.createTransform__unitSquareToParallelogram(dict_truePoint);
+          const t_ic = cameraEngine.toTrueTransform(t_screen); 
           icObj.setIcTransform(t_ic);
         });
 
@@ -33338,8 +33294,8 @@
             });
 
             return out_p;
-          }).then((icObj) => {
-            infiniteCanvas.addPastedIcObject(icObj);
+          }).then(async (icObj) => {
+            await infiniteCanvas.addPastedIcObject(icObj);
           });
         
 
@@ -36255,6 +36211,11 @@
 
         }
 
+        if(icObj.icTransform) {
+          icObj__deepClone.icTransform = icObj.icTransform.slice(0);    //SHU: no more questions...
+        }
+
+
         
         const arr_method = Utils.getMethods(icObj__deepClone);
         logger.log("logCP", "deepClone", "arr_method:", arr_method);
@@ -36269,7 +36230,6 @@
           "skew",
 
 
-
           "id",
           "type",
           "size",
@@ -36280,6 +36240,7 @@
           "_scale",
           "_flip",
           "_skew",
+          "icTransform",
         ];
 
         const arr_ignored = [
@@ -42150,7 +42111,8 @@
           };
 
           this.toTrueTransform = function(screenTransform) {
-            return this.transferScreenToTrue(screenTransform);
+            const t__screenToTrue = this.getTransform__screenToTrue();
+            return ICUtils.multiplyTransformMatrices(t__screenToTrue, screenTransform);
           };
 
           this.transferScreenToTrue = function(screenTransform) {
@@ -42247,7 +42209,8 @@
           };
 
           this.toScreenTransform = function(trueTransform) {
-            return this.transferTrueToScreen(trueTransform);
+            const t__trueToScreen = this.getTransform__trueToScreen();
+            return ICUtils.multiplyTransformMatrices(t__trueToScreen, trueTransform);
           };
 
           this.transferTrueToScreen = function(t_ic) {
@@ -42293,27 +42256,9 @@
             return t_screen__obj;
           };
 
-          // this.getFTransform = function(icObj) {
-          //   const icCamera       = this.scopeObj.engineCarrier;
-          //   const infiniteCanvas = this.scopeObj.infiniteCanvas;
 
-          //   const multiply  = ICUtils.multiplyTransformMatrices;
 
-          //   const t_ic__obj = icObj.getIcTransform();
-          //   logger.log("logCameraEngine", "getFTransform", "t_ic__obj:",     ICUtils.stringify__array(t_ic__obj));
-          //   var t_cam__obj  = this.trueTtoCamT(t_ic__obj);
-          //   // logger.log("logCameraEngine", "getFTransform", "t_cam__obj:",          ICUtils.stringify__array(t_cam__obj));
 
-          //   const t_screen__obj = this.camTtoScreenT(t_cam__obj);
-          //   // logger.log("logCameraEngine", "getFTransform", "t_screen__obj:",    ICUtils.stringify__array(t_screen__obj));
-
-          //   const t__size = icObj.getSizeTransform();
-          //   const t__inv_size = ICUtils.invertTransform(t__size);
-          //   var t_f__obj = multiply( t_screen__obj, t__inv_size );
-          //   logger.log("logCameraEngine", "getFTransform", "t_f__obj:",      ICUtils.stringify__array(t_f__obj));
-
-          //   return t_f__obj;
-          // };
 
           this.getFTransform = function(icObj) {
             const icCamera  = this.scopeObj.engineCarrier;
@@ -42325,27 +42270,19 @@
 
               t_screen__obj = this.screenTransform__camera();
 
-              // {
-              //   const dict_truePoint   = icObj.getDict_truePoint();
-              //   const dict_screenPoint = this.toScreenDict_parallelogram(dict_truePoint);
-    
-              //   const t_screen__obj__via_transform = ICUtils.createTransform__unitSquareToParallelogram(dict_screenPoint);
-
-              //   const t__test = ICUtils.multiplyTransformMatrices(ICUtils.invertTransform(t_screen__obj__via_transform), t_screen__obj);
-
-              //   logger.log("logCameraEngine", "t__test:", ICUtils.stringify__array(t__test));
-              // }
-
             } else {  
-              const dict_truePoint   = icObj.getDict_truePoint();
-              const dict_screenPoint = this.toScreenDict_parallelogram(dict_truePoint);
-  
-              t_screen__obj = ICUtils.createTransform__unitSquareToParallelogram(dict_screenPoint);
+              // const dict_truePoint   = icObj.getDict_truePoint();
+              // const dict_screenPoint = this.toScreenDict_parallelogram(dict_truePoint);
+              // t_screen__obj          = ICUtils.createTransform__unitSquareToParallelogram(dict_screenPoint);
+
+              //better performance:
+              const t_ic    = icObj.getIcTransform();
+              t_screen__obj = this.toScreenTransform(t_ic);
             }
 
-            const t__size       = icObj.getSizeTransform();
-            const t__inv_size   = ICUtils.invertTransform(t__size);
-            const t_f__obj      = multiply( t_screen__obj, t__inv_size );
+            const t__size     = icObj.getSizeTransform();
+            const t__inv_size = ICUtils.invertTransform(t__size);
+            const t_f__obj    = multiply( t_screen__obj, t__inv_size );
 
             return t_f__obj;
           };
@@ -42375,43 +42312,8 @@
             return t_cam__obj;
           };
 
-          // this.getIcTransform = function(fObj) {
-          //   const icCamera       = this.scopeObj.engineCarrier;
-          //   const infiniteCanvas = this.scopeObj.infiniteCanvas;
 
-          //   const multiply  = ICUtils.multiplyTransformMatrices;
 
-          //   const t_f__obj  = ICUtils.bigNumberize__array([...fObj.calcTransformMatrix(true), fObj.angle, fObj.skewX, fObj.skewY]);
-          //   // logger.log("logCameraEngine", "getIcTransform", "t_f__obj:", ICUtils.stringify__array(t_f__obj));
-
-          //   const t__size = ICUtils.calcScaleMatrix(ICUtils.bigNumberize__dict({
-          //     scaleX: fObj.width,
-          //     scaleY: fObj.height,
-          //   }));
-          //   // logger.log("logCameraEngine", "getIcTransform", "t__size:", ICUtils.stringify__array(t__size));
-
-          //   const t_screen__obj = multiply( t_f__obj, t__size );
-          //   const t_cam__obj    = this.screenTtoCamT(t_screen__obj);
-          //   const t_ic__obj     = this.camTtoTrueT(t_cam__obj);
-
-          //   // logger.log("logCameraEngine", "getIcTransform", "t_ic__obj:", ICUtils.stringify__array(t_ic__obj));
-
-          //   return t_ic__obj;
-          // };
-
-          this.getIcTransform = function(fObj) {
-            const icCamera       = this.scopeObj.engineCarrier;
-            const infiniteCanvas = this.scopeObj.infiniteCanvas;
-
-            const isSkipGroup = false;  //this is important for active selection
-
-            const dict_screenPoint = fObj.getDict_screenPoint(isSkipGroup);
-            const dict_truePoint   = this.toTrueDict_parallelogram(dict_screenPoint);
-
-            const t_ic__obj = ICUtils.createTransform__unitSquareToParallelogram(dict_truePoint);
-
-            return t_ic__obj;
-          };
 
 
 
@@ -48247,8 +48149,9 @@
           // fabric.Object.prototype.padding     = 10;
           //
           //
-          fabric.Rect.prototype.rx = 5;    //shuxylo
-          fabric.Rect.prototype.ry = 5;
+
+          // fabric.Rect.prototype.rx = 5;    //shuxylo
+          // fabric.Rect.prototype.ry = 5;
 
           fabric.Rect.prototype.strokeWidth = 0;
 
@@ -48302,7 +48205,7 @@
           //     };
           // })(fabric.Group.prototype.initialize);
 
-          fabric.Object.prototype.getDict_screenPoint = function(isSkipGroup = true) {
+          fabric.Object.prototype.getScreenTransform = function(isSkipGroup = true) {
             const fObj = this;
 
             const multiply  = ICUtils.multiplyTransformMatrices;
@@ -48312,9 +48215,16 @@
               scaleX: fObj.width,
               scaleY: fObj.height,
             }));
-            logger.log("logFOBJ", "getDict_screenPoint", "t__size:", ICUtils.stringify__array(t__size));
+            // logger.log("logFOBJ", "getDict_screenPoint", "t__size:", ICUtils.stringify__array(t__size));
 
             const t_screen__obj = multiply( t_f__obj, t__size );
+            return t_screen__obj;
+          }
+
+          fabric.Object.prototype.getDict_screenPoint = function(isSkipGroup = true) {
+            const fObj = this;
+
+            const t_screen__obj = fObj.getScreenTransform(isSkipGroup);
     
             const dict_unitSquare  = ICUtils.createDict_parallelogram__unitSquare();
             const dict_screenPoint = ICUtils.transformDict_parallelogram(dict_unitSquare, t_screen__obj);
@@ -48375,11 +48285,6 @@
 
             // width:  canvas.width,
             // height: canvas.height,
-
-            // scale: 100.0,
-            // scale: 1e-10,
-            // scale: 1e10,
-
 
             // imageSmoothingEnabled: true,
             imageSmoothingEnabled: false,
@@ -49313,6 +49218,8 @@
 
         redrawCanvas(redrawOccasion) {
           // logger.trace("logFI", "redrawCanvas", redrawOccasion);
+          const fabricIntegration = this;
+          const fabricCanvas      = fabricIntegration.fabricCanvas;
 
           // this.killAllOrphanFObjs();
 
@@ -49372,6 +49279,13 @@
 
           // this.fabricCanvas.renderAll(); //SHU: render only what is visible (is fabric smart enough ?)
           this.fabricCanvas.requestRenderAll();
+
+          // function requestRenderAll2(fabricCanvas) {
+          //   fabric.util.cancelAnimFrame(fabricCanvas.renderAndResetBound);
+          //   fabric.util.requestAnimFrame(fabricCanvas.renderAndResetBound);
+          // }
+          // requestRenderAll2(fabricCanvas);
+
         }
 
         // killAllOrphanFObjs() {
@@ -50574,6 +50488,8 @@
           fObj.set({
             width:  icObj.size.width,
             height: icObj.size.height,
+            objectCaching: true,
+
 
             stroke:      icObj.stroke,
             strokeWidth: icObj.strokeWidth,
@@ -54263,6 +54179,7 @@
           var fObj = new fabric.Path(exoObject.path);
 
           fObj.set({
+            objectCaching: true,
 
             stroke:           exoObject.stroke,
             strokeDashArray:  exoObject.strokeDashArray,
@@ -54353,16 +54270,6 @@
             });
 
           });
-
-          // fObj_p = fObj_p.then((fObj) => {
-
-          //   const dict_screenPoint = dict_zPixel.dict_screenPoint;
-          //   const t_f = ICUtils.createTransform__unitSquareToParallelogram(dict_screenPoint);
-          //   fabric.util.applyTransformToObject(fObj, t_f);
-          //   fObj.setCoords();
-  
-          //   return fObj;
-          // });
 
           return fObj_p;
         }
@@ -54856,7 +54763,12 @@
           const icCamera          = infiniteCanvas.icCamera;
           const cameraEngine      = icCamera.dict_engine["camera"].engine.awoken; 
           
-          const t_ic = cameraEngine.getIcTransform(fObj);
+          // const t_ic = cameraEngine.getIcTransform(fObj);
+
+          const isSkipGroup = false;  //this is important for active selection
+          const t_screen  = fObj.getScreenTransform(isSkipGroup);
+
+          const t_ic      = cameraEngine.toTrueTransform(t_screen);
 
           const rep_free = fObj.icObj;
 
@@ -55395,6 +55307,25 @@
 
                 //active selection "originX:'center' etc." fix
                 fabricIntegration.manageActiveSelectionUpdate(activeSelection);
+
+
+                //setup some listeners    //SHU: as strange at is seems, when activeSelection is updated, it needs new listeners...
+                {
+                  //hold
+                  activeSelection.on('mousedown', function (options) {
+                    if(fabricCanvas.isDrawingMode) {
+                      //ignore
+                      return;
+                    }
+                    activeSelection_held(options);
+                  });
+
+                  //release
+                  activeSelection.on('mouseup', function (options) {
+                    activeSelection_released(options);
+                  });
+                }
+
             }
 
             //manage icObj.isSelected:true/false
@@ -55655,7 +55586,8 @@
 
           const icObj = fObj.icObj;
           if(fabricIntegration.fObjForIcObj_dict[icObj.id] != null) {
-            throw new Error("fabricIntegration.fObjForIcObj_dict[icObj.id] != null");
+            // throw new Error("fabricIntegration.fObjForIcObj_dict[icObj.id] != null");
+            return;
           }
           fabricIntegration.fObjForIcObj_dict[icObj.id] = fObj;
 
@@ -55781,7 +55713,8 @@
         //update fObjs to match icObjs
 
         updateFabricObjectsTransform(redrawOccasion) {
-          const infiniteCanvas = this.infiniteCanvas;
+          const fabricIntegration = this;
+          const infiniteCanvas    = fabricIntegration.infiniteCanvas;
   
           // const fabric_objects = this.fabric_objects;
           const fabric_objects = this.getFabricObjects();
@@ -55808,9 +55741,15 @@
             arr_fObj__to_move = [...fabric_objects];
           // }
 
+
           arr_fObj__to_move.forEach((fObj, i) => {
             this.updateFabricObject_transform_default(fObj);
           });
+
+          // const p = new Parallel(arr_fObj__to_move);
+          // p.map(fabricIntegration.updateFabricObject_transform_default);
+
+
         }
 
         updateFabricObject_transform_default(fObj) {
@@ -62326,35 +62265,49 @@
         }
 
         copySelection(event) {
+          const fabricIntegration = this;
+          const infiniteCanvas    = fabricIntegration.infiniteCanvas;
+          const icCamera          = infiniteCanvas.icCamera;
+          const cameraEngine      = icCamera.dict_engine["camera"].engine.awoken;
+
           const clipboardIntegration = this.clipboardIntegration;
           // this.fabricCanvas.getActiveObject().clone(function(cloned) {
           //   clipboardIntegration.manageInnerCopy("fabric.general", cloned);
           // });
           const fActiveObject = this.fabricCanvas.getActiveObject(); 
           // logger.log("logCP", "fActiveObject", fActiveObject);
-          const icObj = fActiveObject.icObj;
-          logger.log("logCP", "copySelection", "icObj.type:", icObj.type);
 
-          switch(icObj.type) {
+          switch(fActiveObject.type) {
             case "activeSelection":
               {
-                if(icObj.children.length == 1) {
-                  const icObj_single = icObj.children.find(e => true);
-                  // logger.log("logCP", "copySelection", "icObj_single:", icObj_single);
-                  copy_single_or_composite(icObj_single);
-                } else {
-                  copy_group(icObj.children);
-                }
+                copy_group(fActiveObject);
               }
               break;
             default:
               {  
+                const icObj = fActiveObject.icObj;
                 copy_single_or_composite(icObj);
               }
               break;
           }
 
-          function copy_group(arr_icObj) {
+          function copy_group(fObj__group) {
+
+            const arr_fObj  = fObj__group.getObjects();
+            const arr_icObj = arr_fObj.map((fObj) => fObj.icObj);
+            
+            // const dict_family = arr_icObj.reduce((acc,icObj) => {
+            //   const icObj__rootObject = icObj.getRootObject(infiniteCanvas);
+            //   const id__rootObject    = icObj__rootObject.id;
+            //   if(!acc[id__rootObject]) {
+            //     acc[id__rootObject] = icObj__rootObject;
+            //   }
+            //   return acc;
+            // }, {});
+
+            //create composite with icObjs
+            
+
             //SHU TODO
             // const cloned = icObj.deepClone();
             // cloned.position.x += 10;
@@ -62367,95 +62320,102 @@
             // logger.log("logCP", "copy_single_or_composite", "icObj_src:", icObj_src);
 
             const isCompositeContentOrPart = (icObj_src.compositeId != -1);
-            const isComposite     = (icObj_src.type == "composite");
+            const isComposite              = (icObj_src.type == "composite");
+
+            var cloned;
             if(infiniteCanvas.isAltering) {
 
-              copy_isAltering(icObj_src);
+              if(isComposite) {
+                cloned = createClone_composite(icObj_src);
+              } 
+              else {
+                cloned = createClone_single(icObj_src);
+              }
+
+              //forget parent composite
+              cloned.compositeId = -1;
+
+              clipboardIntegration.manageInnerCopy("fabric.general.altering", cloned);
 
             } else {
 
               if(isCompositeContentOrPart) {
                 //get root composite
                 const icObj__rootComposite = infiniteCanvas.getRootCompositeForContentOrPart(icObj_src);
-                copy_composite(icObj__rootComposite);
+                cloned = createClone_composite(icObj__rootComposite);
               } else if(isComposite) {
-                copy_composite(icObj_src);
+                cloned = createClone_composite(icObj_src);
               } 
               else {
-                copy_single(icObj_src);
+                cloned = createClone_single(icObj_src);
               }
 
+              clipboardIntegration.manageInnerCopy("fabric.general", cloned);
+
             }
 
           }
 
-          function copy_single(icObj_single) {
-            // logger.log("logCP", "copy_single", "icObj_single:", icObj_single);
 
+
+          function createClone_single(icObj_single) {
             const cloned = icObj_single.deepClone();
-
-            //translate slightly
-            {
-
-            }
-
-            //shift id
-            cloned.id = infiniteCanvas.generateIcObjectId();
-
-            //store appearance on screen
-            {
-              const dict_truePoint   = icObj_single.getDict_truePoint();
-              const dict_screenPoint = infiniteCanvas.toScreenDict_parallelogram(dict_truePoint);
-              cloned.__dict_screenPoint__whenCopied = dict_screenPoint; 
-            }
-
-
-            clipboardIntegration.manageInnerCopy("fabric.general", cloned);
-          }
-
-          function copy_composite(icObj__composite) {
-            // logger.log("logCP", "copy_composite", "icObj__composite:", icObj__composite);
-
-            const icObj__cloned = icObj__composite.deepClone();
-
+  
             //translate slightly
             {
   
             }
+  
+            //shift id
+            cloned.id = infiniteCanvas.generateIcObjectId();
+  
+            //store appearance on screen
+            {
+              // const dict_truePoint   = icObj_single.getDict_truePoint();
+              // const dict_screenPoint = infiniteCanvas.toScreenDict_parallelogram(dict_truePoint);
+              // cloned.__dict_screenPoint__whenCopied = dict_screenPoint; 
+  
+              const t_ic     = icObj_single.getIcTransform();
+              const t_screen = cameraEngine.toScreenTransform(t_ic);
+              cloned.__t_screen__whenCopied = t_screen; 
+            }
+  
+            return cloned;
+          }
+  
 
+          function createClone_composite(icObj__composite) {
+  
+            const icObj__cloned = icObj__composite.deepClone();
+
+            // icObj__cloned.icTransform = icObj__composite.icTransform.slice(0);  //SHU: no more questions...
+  
+            //translate slightly
+            {
+  
+            }
+  
             //shift ids
             CompositeUtils.shiftToNextAvailableId(icObj__cloned, icObj__composite, infiniteCanvas);
-
-            clipboardIntegration.manageInnerCopy("fabric.general", icObj__cloned);
-          }
-
-          function copy_isAltering(icObj_src) {
-              logger.log("logCP", "copy_isAltering", "icObj_src:", icObj_src);
-
-              const isComposite = (icObj_src.type == "composite");
-
-              const icObj__cloned = icObj_src.deepClone();
-
-              //translate slightly
-              {
-                
-              }
-
-              if(isComposite) {
-                //shift ids
-                CompositeUtils.shiftToNextAvailableId(icObj__cloned, icObj_src, infiniteCanvas);
-              } else {
-                //shift id
-                icObj__cloned.id = infiniteCanvas.generateIcObjectId();
-              }
-
-              //forget being composite part 
-              icObj__cloned.compositeId = -1;
-
-              clipboardIntegration.manageInnerCopy("fabric.general", icObj__cloned);
+  
+            //store appearance on screen
+            {
+              // const dict_truePoint   = icObj_single.getDict_truePoint();
+              // const dict_screenPoint = infiniteCanvas.toScreenDict_parallelogram(dict_truePoint);
+              // cloned.__dict_screenPoint__whenCopied = dict_screenPoint; 
+  
+              const t_ic     = icObj__composite.getIcTransform();
+              const t_screen = cameraEngine.toScreenTransform(t_ic);
+              icObj__cloned.__t_screen__whenCopied = t_screen; 
+            }
+  
+            return icObj__cloned;
           }
 
         }
+
+
+
 
         cutSelection(event) {
           console.log("cutSelection", event);
@@ -62727,10 +62687,8 @@
           const fObj = this.fObjForIcObj_dict[icObj.id];
 
           if (!fObj) {
-            // console.log("icObj", icObj);
-            // console.log("this.fObjForIcObj_dict", this.fObjForIcObj_dict);
             // throw new Error("fObj not found for icObj.id: " + icObj.id);
-            logger.log("logFI", "fObj not found for icObj.id: ", icObj.id);
+            // logger.log("logFI", "fObj not found for icObj.id: ", icObj.id);
           }
 
           return fObj;
@@ -67905,7 +67863,8 @@
 
                 //store appearance on screen
                 {
-                  icObj__recloned.__dict_screenPoint__whenCopied = Object.assign({}, icObj__cloned.__dict_screenPoint__whenCopied); 
+                  // icObj__recloned.__dict_screenPoint__whenCopied = Object.assign({}, icObj__cloned.__dict_screenPoint__whenCopied); 
+                  icObj__recloned.__t_screen__whenCopied = icObj__cloned.__t_screen__whenCopied;
                 }
 
 
@@ -72313,9 +72272,9 @@
         // }
 
         clipboardIntegration.rx_mixedPaste.subscribe({
-          next: (icObj) => {
+          next: async (icObj) => {
             logger.log("rx_mixedPaste, next:", icObj);
-            infiniteCanvas.addPastedIcObject(icObj);
+            await infiniteCanvas.addPastedIcObject(icObj);
           },
           error: (e) => {
             logger.log("rx_mixedPaste, error:", e);
@@ -72620,7 +72579,7 @@
             }
           }
 
-          // await fabricIntegration.addFabricObjectWithIcObj_p(icObj_representation);
+          await fabricIntegration.addFabricObjectWithIcObj_p(icObj_representation);
         });
 
         infiniteCanvas.didAddPureObjectListeners.push((icObj) => {
