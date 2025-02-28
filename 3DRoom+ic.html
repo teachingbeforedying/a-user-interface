@@ -1087,7 +1087,8 @@
         const translateY     = a__bigNumber[5];
 
         const angleInRadians = a__bigNumber[6];
-        const angleInDegrees = ICUtils.radiansToDegrees(angleInRadians);
+        var angleInDegrees = ICUtils.radiansToDegrees(angleInRadians);
+        angleInDegrees = angleInDegrees.mod(new Decimal(360));
 
         const skewXInRadians = a__bigNumber[7];
         const skewXInDegrees = ICUtils.radiansToDegrees(skewXInRadians);
@@ -10027,62 +10028,62 @@
         icCamera.stroke = ColorUtils.rgbaColorStringForColorAndSuperOpacity( "lime", 0.3 );
         icCamera.fill = "transparent";
 
-        const rep_free = await infiniteCanvas.addIcObject_p(icCamera);
-        await infiniteCanvas.swapToCamera(rep_free, fabricIntegration);
+        const rep_free__icCamera = await infiniteCanvas.addIcObject_p(icCamera);
+        await infiniteCanvas.swapToCamera(rep_free__icCamera, fabricIntegration);
       }
 
-      async swapToCamera(icCamera__new, fabricIntegration) {
-        logger.log("logIC", "swapToCamera", "icCamera__new:", icCamera__new);
+      async swapToCamera(rep_free_icCamera__new, fabricIntegration) {
+        logger.log("logIC", "swapToCamera", "rep_free_icCamera__new:", rep_free_icCamera__new);
 
         const infiniteCanvas = this;
 
-        const icCamera__old = infiniteCanvas.icCamera;
-        logger.log("logIC", "swapToCamera", "icCamera__old:", icCamera__old);
+        const rep_free_icCamera__old = infiniteCanvas.icCamera;
+        logger.log("logIC", "swapToCamera", "rep_free_icCamera__old:", rep_free_icCamera__old);
 
-        if(icCamera__old != null) {
+        if(rep_free_icCamera__old != null) {
           //stop the engine
-          const cameraEngine__old = icCamera__old.dict_engine["camera"].engine.awoken;
+          const cameraEngine__old = rep_free_icCamera__old.dict_engine["camera"].engine.awoken;
           cameraEngine__old.stop();
 
-          var fObj__camera__old = fabricIntegration.getFObjForIcObj(icCamera__old);
+          var fObj__camera__old = fabricIntegration.getFObjForIcObj(rep_free_icCamera__old);
 
           //un-passthrough
           fObj__camera__old.hasControls = true;
           fObj__camera__old.evented     = true;
           fObj__camera__old.selectable  = true;
 
-          fObj__camera.isVisible        = true;
+          fObj__camera__old.isVisible        = true;
 
-          icCamera__old.canBeSelected = true;
-          icCamera__old.canBeHeld     = true;
+          rep_free_icCamera__old.canBeSelected = true;
+          rep_free_icCamera__old.canBeHeld     = true;
         }
 
 
 
 
-        icCamera__new.canBeSelected = false;
-        icCamera__new.canBeHeld     = false;
+        rep_free_icCamera__new.canBeSelected = false;
+        rep_free_icCamera__new.canBeHeld     = false;
 
-        infiniteCanvas.icCamera = icCamera__new;
+        infiniteCanvas.icCamera = rep_free_icCamera__new;
         //start the engine
-        const cameraEngine__new = icCamera__new.dict_engine["camera"].engine.awoken;
+        const cameraEngine__new = rep_free_icCamera__new.dict_engine["camera"].engine.awoken;
         cameraEngine__new.start();
 
 
         // await infiniteCanvas.redrawCanvas_p(RedrawOccasion.cameraSwap);
         
-        var fObj__camera = fabricIntegration.getFObjForIcObj(icCamera__new);
+        var fObj__camera = fabricIntegration.getFObjForIcObj(rep_free_icCamera__new);
         const isAddingCameraFObj = !fObj__camera;
         if(isAddingCameraFObj) {
-          fObj__camera = await fabricIntegration.addFabricObjectWithIcObj_p(icCamera__new);
+          fObj__camera = await fabricIntegration.addFabricObjectWithIcObj_p(rep_free_icCamera__new);
         }
 
 
-        // if(icCamera__new.isSelected) {
-        //   icCamera__new.isSelected = false;
+        // if(rep_free_icCamera__new.isSelected) {
+        //   rep_free_icCamera__new.isSelected = false;
         // }
-        // if(icCamera__new.isHeld) {
-        //   icCamera__new.nowReleased();
+        // if(rep_free_icCamera__new.isHeld) {
+        //   rep_free_icCamera__new.nowReleased();
         // }
 
         //passthrough
@@ -18545,11 +18546,11 @@
           CompositeUtils.zIndexTranslation(icComposite, zIndex);
         }
 
-        const engine = new CompositeEngine();
-        const eType  = "composite";
-
-        const icEngined = infiniteCanvas.installEngineOnIcObj(icComposite, eType, engine);
-
+        const engine      = new CompositeEngine();
+        const eType       = "composite";
+        const isAutoStart = true;
+        
+        const icEngined = infiniteCanvas.installEngineOnIcObj(icComposite, eType, engine, isAutoStart);
 
         return icEngined;
       }
@@ -25526,7 +25527,11 @@
         return (this.getRepresented(icObj.id) != null);
       }
 
-      addIcObject(icObj) {
+      addIcObject(icObj, isMagnificent = false) {
+        if(!isMagnificent) {
+          throw new Error("isMagnificent == false");
+        }
+
         logger.log("logIC", "addIcObject", icObj);
         // logger.log("logCP", "addIcObject", icObj);
 
@@ -25537,65 +25542,69 @@
           logger.log("logIC", "addIcObject", "this.getRepresented(icObj.id) != null", "==> ignore");
           //ignore
         } else {
-
-          if (icObj.type == "composite"
-            || icObj.type == "compositeSegment") {
-            if(icObj.content != null) {
-              this.addIcObject(icObj.content);
-            }            
-            Object.values(icObj.parts).forEach((part, i) => {
-              this.addIcObject(part);
-            });
-          }
-
           const represented = this.createRepresentedIcObject(icObj);
           this.addRepresented(represented);
         }
 
       }
 
-      addIcObject_p(icObj, fObj__to_recycle = null) {
-        logger.log("logIC", "addIcObject_p", icObj);
-        var out_p;
+      async addIcObject_p(icObj, fObj__to_recycle = null) {
+        logger.trace("logIC", "addIcObject_p", icObj);
+        var out_rep_free;
 
         const infiniteCanvas = this;
 
         const isObjectAlreadyAdded_ = infiniteCanvas.isObjectAlreadyAdded(icObj);
         logger.log("logIC", "addIcObject_p", "isObjectAlreadyAdded_:", isObjectAlreadyAdded_);
 
-        function getRepFree(icObj) {
-          const represented = infiniteCanvas.getRepresented(icObj.id);
-          const rep_free    = represented.r_free();
-          return rep_free;
-        }
 
         if(isObjectAlreadyAdded_) {
-          const rep_free = getRepFree(icObj);
-          out_p = Promise.resolve(rep_free);
+          const represented = infiniteCanvas.getRepresented(icObj.id);
+          out_rep_free      = represented.r_free();
         } else {
-          out_p = new Promise((resolve, reject) => {
 
-            // infiniteCanvas.onceOnAddRepresentedForIcObject(icObj, (icObj) => {
-            //   logger.log("logIC", "addIcObject_p", "onceOnAddRepresentedForIcObject", "icObj:", icObj);
-  
-            //   const rep_free = getRepFree(icObj);
-  
-            //   resolve(rep_free);
-            // });
-            infiniteCanvas.onceOnAddRepresentationForIcObject(icObj, "free", async (rep_free) => {
+          //if composite: add content and parts before adding handle
+          if (icObj.type == "composite"
+            || icObj.type == "compositeSegment") {
 
-              if(fabricIntegration != null) {
-                await fabricIntegration.addFabricObjectWithIcObj_p(rep_free, fObj__to_recycle);
+              //add content
+              if(icObj.content != null) {
+                const content = icObj.content;
+                logger.log("logIC", "addIcObject_p", "content:", content);
+                await infiniteCanvas.addIcObject_p(content);
+              }    
+
+              //add parts
+              const arr_part = Object.values(icObj.parts);
+              for(var i=0;i<arr_part.length;i++) {
+                const part = arr_part[i];
+                logger.log("logIC", "addIcObject_p", "index_part:", i, "part:", part);
+                await infiniteCanvas.addIcObject_p(part);
               }
 
-              resolve(rep_free);
-            });
-            infiniteCanvas.addIcObject(icObj);
-  
-          });
+          }
+
+          infiniteCanvas.addIcObject(icObj, true);
+          const rep_free = infiniteCanvas.getRepresented(icObj.id).r_free();
+          if(fabricIntegration != null) {
+            await fabricIntegration.addFabricObjectWithIcObj_p(rep_free, fObj__to_recycle);
+          }
+
+          // if(rep_free.dict_engine) {
+
+          //   const isOwningCompositeEngine = (rep_free.dict_engine["composite"] != null);
+          //   if(isOwningCompositeEngine) {
+          //     const compositeEngine = rep_free.dict_engine["composite"].engine.awoken;
+          //     compositeEngine.start();
+          //   }
+
+          // }
+
+          out_rep_free = rep_free;
         }
 
-        return out_p;
+
+        return out_rep_free;
       }
 
       didAddIcObject(icObj) {
@@ -26196,10 +26205,12 @@
       }
 
 
-      addDehydratedIcObject(icObj) {
-        const rehydrated = this.rehydrated(icObj);
+      async addDehydratedIcObject(icObj) {
+        const infiniteCanvas = this;
 
-        this.addIcObject(rehydrated);
+        const rehydrated = infiniteCanvas.rehydrated(icObj);
+
+        await this.addIcObject_p(rehydrated);
       }
 
       rehydrated(icObj) {
@@ -26236,9 +26247,26 @@
 
         const rep_free = await this.addIcObject_p(icObj);
 
-        const t_screen = icObj.__t_screen__whenCopied;
-        const t_ic     = cameraEngine.toTrueTransform(t_screen);
-        rep_free.setIcTransform(t_ic);
+        //1.make all composite hierarchy untouchable etc.
+        {
+          //TODO
+        }
+        //2.use composite engine (implicitly) to move all composite hierarchy
+        {
+          // async function sleep(ms) {
+          //   return new Promise(resolve => setTimeout(resolve, ms));
+          // }
+
+          // await sleep(2000);
+
+          const t_screen = icObj.__t_screen__whenCopied;
+          const t_ic     = cameraEngine.toTrueTransform(t_screen);
+          rep_free.setIcTransform(t_ic);
+        }
+        //3.make all composite hierarchy touchable etc.
+        {
+          //TODO
+        }
 
         await infiniteCanvas.redrawCanvas(RedrawOccasion.objectAdded);
 
@@ -26254,7 +26282,7 @@
 
       }
 
-      manageAdhesion(icObj, icObj__support) {
+      async manageAdhesion(icObj, icObj__support) {
         logger.log("logFD", "manageAdhesion", icObj, icObj__support);
         const infiniteCanvas = this;
 
@@ -26293,7 +26321,7 @@
           icObj__support__as_composite.fill = "transparent";
           
             //add composite form
-          infiniteCanvas.addIcObject_p(icObj__support__as_composite).then((icObj__support__as_composite__rep_free) => {
+          await infiniteCanvas.addIcObject_p(icObj__support__as_composite).then((icObj__support__as_composite__rep_free) => {
 
             //add composite version to parent
             parent__rep_free.dict_engine["composite"].engine.awoken.addPart(icObj__support__as_composite__rep_free, false);
@@ -26317,7 +26345,7 @@
           //SHU: illusion
           icObj__support__as_composite.fill = "transparent";
 
-          infiniteCanvas.addIcObject(icObj__support__as_composite);
+          await infiniteCanvas.addIcObject_p(icObj__support__as_composite);
         }
           
 
@@ -27504,7 +27532,7 @@
       }
 
 
-      compose(arr_icObj) {
+      async compose(arr_icObj) {
         logger.log("logComposite", "compose", arr_icObj);
         const infiniteCanvas = this;
 
@@ -27566,8 +27594,11 @@
 
 
 
-        this.addNewIcObject_p(icComposite);
-        // this.addIcObject(icComposite);
+        const rep_free = await this.addNewIcObject_p(icComposite);
+        
+        //debug
+        // const compositeEngine = rep_free.dict_engine["composite"].engine.awoken;
+        // compositeEngine.start();
       }
 
       decompose(icComposite) {
@@ -29096,7 +29127,8 @@
         switch(icObj.type) {
           case "camera":
             outFunc = function(infiniteCanvas, icCamera) {
-              infiniteCanvas.swapToCamera(icCamera, fabricIntegration);
+              const rep_free__icCamera = infiniteCanvas.getRepresented(icObj.id).r_free();
+              infiniteCanvas.swapToCamera(rep_free__icCamera, fabricIntegration);
             };
             break;
           default:
@@ -33817,7 +33849,9 @@
 
         const arr_icObj = await Promise.all(arr_icObj__root_p);
 
-        arr_icObj.forEach((icObj, i) => {
+
+        for(var i=0;i<arr_icObj.length;i++) {
+          const icObj = arr_icObj[i];
           logger.log("log1", "manageLoadInfinishute", "icObj", icObj);
 
 
@@ -33839,10 +33873,12 @@
             dict_migration = Object.assign(dict_migration, {[id__beforeMigration]: id__afterMigration});
           }
 
-
-          infiniteCanvas.addDehydratedIcObject(icObj);
-          // infiniteCanvas.addRepresented(icObj);
-        });
+          try {
+            await infiniteCanvas.addDehydratedIcObject(icObj);
+          } catch(e) {
+            logger.log("logError", e);
+          }
+        }
 
         dict__infinishute.dict_migration = dict_migration;
 
@@ -34460,6 +34496,20 @@
         this.counter__path = 0;
       }
 
+      log__debug(occasion) {
+
+        logger.log(occasion, "log__debug", {
+          position__center: ICUtils.stringify__dict(this.position__center),
+          orientation:      this.orientation.toPrecision(4),
+          homeScale:        this.homeScale.toPrecision(4),
+
+          scale:            ICUtils.stringify__dict(this.scale),
+          flip:             this.flip,
+          skew:             ICUtils.stringify__dict(this.skew),
+        });
+
+      }
+
       // static createIcObject_with__transform(type, size, transform) {
       //
       // }
@@ -34870,7 +34920,7 @@
         const options = ICUtils.decompose(t__obj__new);
         // const options = ICUtils.qrDecompose(t__obj__new);
 
-        const result = this.configureWithOptionsDict(options);
+        const result = icObj.configureWithOptionsDict(options);
 
         // if(infiniteCanvas) {
         //   logger.log("logIC", "ICObject::setIcTransform", "will call infiniteCanvas.icObjDidUpdate");
@@ -35137,7 +35187,7 @@
       //  this.touchStateDict_ = dict;
       //}
 
-      static fromJson_p(json_icObject) {
+      static async fromJson_p(json_icObject) {
         logger.log("log2", "fromJson_p", json_icObject);
 
         const id                = json_icObject.id;
@@ -35145,31 +35195,9 @@
         const size              = json_icObject.size;
 
 
-
-        const position__center__string = json_icObject.position__center;
-        const position__center  = {
-          x: new Decimal(position__center__string.x),
-          y: new Decimal(position__center__string.y),
-        };
-        const homeScale__string = json_icObject.homeScale;
-        const homeScale         = new Decimal(homeScale__string);
-
-        const orientation__string = json_icObject.orientation;
-        const orientation         = new Decimal(orientation__string);
-
-
-        const scale__string = json_icObject.scale;
-        const scale         = {
-          X: new Decimal(scale__string.X),
-          Y: new Decimal(scale__string.Y),
-        };
-        const skew__string  = json_icObject.skew;
-        const skew          = {
-          X: new Decimal(skew__string.X),
-          Y: new Decimal(skew__string.Y),
-        };
-        const flip          = json_icObject.flip;
-
+        //SHU: don't use the decomposed props instead of using the reduced prop: transform
+        const icTransform__string = json_icObject.icTransform;
+        const icTransform         = ICUtils.bigNumberize__array(icTransform__string);
 
 
         const zIndex            = json_icObject.zIndex;
@@ -35205,11 +35233,18 @@
 
 
 
-        const icObj = new IcObject(id, type, size, position__center, homeScale, orientation);
+        // const icObj = new IcObject(id, type, size, position__center, homeScale, orientation);
 
-        icObj._scale             = scale;
-        icObj._skew              = skew;
-        icObj._flip              = flip;
+        // icObj._scale             = scale;
+        // icObj._skew              = skew;
+        // icObj._flip              = flip;
+
+        const icObj = new IcObject(id, type, size);
+        icObj.setIcTransform(icTransform);
+
+
+        icObj.log__debug("logDeSer");
+
 
         icObj.zIndex            = zIndex;
 
@@ -35410,64 +35445,27 @@
               const json_content   = json_icObject.content;
               const dict_json_part = json_icObject.parts;
 
-              // const arr_p = parts.map(json_part => {
-              //   const icObj = IcObject.fromJson_p(json_part);
-              //   return icObj;
-              // });
-              // icObj_p = Promise.all(arr_p)
-              // .then((arr_icObj) => {
-              //   icObj.parts = arr_icObj;
-              //
-              //   // if(icObj.engine == null) {
-              //   //   icObj.engine = Compositer.defaultCompositeEngine(icObj, icObj.parts);
-              //   // }
-              //
-              //   return icObj;
-              // });
-
-              const arr_part_serial_miniDict_p = Object.entries(dict_json_part).reduce((acc, [partName, json_part]) => {
-                const part_miniDict_p = IcObject.fromJson_p(json_part)
-                  .then(icObj => {
-
-                    const part_miniDict = {
-                      [partName]: icObj,
-                    };
-
-                    return part_miniDict;
-                  });
-
-                acc.push(part_miniDict_p);
-                return acc;
-              }, []);
-
-              icObj_p = Promise.all(arr_part_serial_miniDict_p)
-                .then((arr_part_miniDict) => {
-                  icObj.parts = {};
-                  Object.assign(icObj.parts, ...arr_part_miniDict);
-
-                  return icObj;
-                });
 
               if(json_content != null) {
-
-                const content_p = IcObject.fromJson_p(json_content);
-                icObj_p = Promise.all([icObj_p, content_p])
-                  .then(([icObj, content]) => {
-                    icObj.content = content;
-                    return icObj;
-                  });
-
+                const content = await IcObject.fromJson_p(json_content);
+                icObj.content = content;
               }
+
+              const parts = {};
+              const arr_entry = Object.entries(dict_json_part);
+              for(var i=0;i<arr_entry.length;i++) {
+                const [partName, json_part] = arr_entry[i]; 
+                const part = await IcObject.fromJson_p(json_part);
+                parts[partName] = part;
+              }
+              icObj.parts = parts;
+              logger.log("log2", "fromJson_p", "parts:", parts);
 
 
               const compositeConfig_serial = json_icObject.compositeConfig_serial;
               const compositeConfig        = deserialize(compositeConfig_serial);
 
-              icObj_p = icObj_p
-                .then(icObj => {
-                  icObj.compositeConfig = compositeConfig;
-                  return icObj;
-                });
+              icObj.compositeConfig = compositeConfig;
             }
             break;
 
@@ -35509,35 +35507,17 @@
 
 
 
-      toSerial_p() {
+      async toSerial_p() {
         var out_p;
 
         const icObj = this;
 
+        icObj.log__debug("logSer");
+
         const icObj_serial = Object.assign({}, icObj);
 
-
-        //serialize Decimal
-        icObj_serial.position__center = {
-          x: icObj.position__center.x.toJSON(),
-          y: icObj.position__center.y.toJSON(),
-        };
-        icObj_serial.homeScale   = icObj.homeScale.toJSON();
-        icObj_serial.orientation = icObj.orientation.toJSON();
-        icObj_serial.scale = {
-          X: icObj.scale.X.toJSON(),
-          Y: icObj.scale.Y.toJSON(),
-        };
-        icObj_serial.flip = {
-          X: icObj.flip.X,
-          Y: icObj.flip.Y,
-        };
-        icObj_serial.skew = {
-          X: icObj.skew.X.toJSON(),
-          Y: icObj.skew.Y.toJSON(),
-        };        
-
-
+        //SHU: don't use the decomposed props instead of using the reduced prop: transform
+        icObj_serial.icTransform = ICUtils.stringify__array(icObj_serial.icTransform);
 
 
         if(icObj.dict_engine != null) {
@@ -35571,7 +35551,7 @@
           icObj_serial.dict_engine = dict_virgin;
         }
 
-        var icObj_serial_p = Promise.resolve(icObj_serial);
+        // var icObj_serial_p = Promise.resolve(icObj_serial);
 
         switch (icObj.type) {
 
@@ -35710,12 +35690,14 @@
               const touchSlotConfig = icObj.touchSlotConfig;
               const touchSlotConfig_serial = serialize(touchSlotConfig);
 
-              icObj_serial_p = icObj_serial_p
-                .then((icObj_serial) => {
+              // icObj_serial_p = icObj_serial_p
+              //   .then((icObj_serial) => {
 
-                  icObj_serial.touchSlotConfig_serial = touchSlotConfig_serial;
-                  return icObj_serial;
-                });
+              //     icObj_serial.touchSlotConfig_serial = touchSlotConfig_serial;
+              //     return icObj_serial;
+              //   });
+
+              icObj_serial.touchSlotConfig_serial = touchSlotConfig_serial;
             }
             break;
 
@@ -35724,12 +35706,14 @@
               const snapSlotConfig = icObj.snapSlotConfig;
               const snapSlotConfig_serial = serialize(snapSlotConfig);
 
-              icObj_serial_p = icObj_serial_p
-                .then((icObj_serial) => {
+              // icObj_serial_p = icObj_serial_p
+              //   .then((icObj_serial) => {
 
-                  icObj_serial.snapSlotConfig_serial = snapSlotConfig_serial;
-                  return icObj_serial;
-                });
+              //     icObj_serial.snapSlotConfig_serial = snapSlotConfig_serial;
+              //     return icObj_serial;
+              //   });
+
+              icObj_serial.snapSlotConfig_serial = snapSlotConfig_serial;
             }
             break;
 
@@ -35737,53 +35721,76 @@
 
           case "composite":
             {
-              const parts = icObj.parts;
-              const arr_part_serial_miniDict_p = Object.entries(icObj.parts).reduce((acc, [partName, part]) => {
-                const part_serial_miniDict_p = part.toSerial_p()
-                  .then(part_serial => {
 
-                    const part_serial_miniDict = {
-                      [partName]: part_serial,
-                    };
+              // if(icObj.content != null) {
+              //   const content = icObj.content;
+              //   const content_serial_p = content.toSerial_p();
 
-                    return part_serial_miniDict;
-                  });
+              //   icObj_serial_p = Promise.all([icObj_serial_p, content_serial_p])
+              //     .then(([icObj_serial, content_serial]) => {
+              //       icObj_serial.content = content_serial;
+              //       return icObj_serial;
+              //     });
+              // }
 
-                acc.push(part_serial_miniDict_p);
-                return acc;
-              }, []);
+              // const parts = icObj.parts;
+              // const arr_part_serial_miniDict_p = Object.entries(icObj.parts).reduce((acc, [partName, part]) => {
+              //   const part_serial_miniDict_p = part.toSerial_p()
+              //     .then(part_serial => {
+
+              //       const part_serial_miniDict = {
+              //         [partName]: part_serial,
+              //       };
+
+              //       return part_serial_miniDict;
+              //     });
+
+              //   acc.push(part_serial_miniDict_p);
+              //   return acc;
+              // }, []);
+
+              // icObj_serial_p = Promise.all([icObj_serial_p, ...arr_part_serial_miniDict_p])
+              //   .then(([icObj_serial, ...arr_part_serial_miniDict]) => {    //SHU: wow, pas mal le spread operator
+              //     // icObj_serial.parts = arr_part_serial_miniDict.reduce((acc, x) => {
+              //     //   Object.assign(acc, x);
+              //     //   return acc;
+              //     // }, {});
+              //     icObj_serial.parts = {};
+              //     Object.assign(icObj_serial.parts, ...arr_part_serial_miniDict);
+              //     return icObj_serial;
+              //   });
+
+              // const compositeConfig = icObj.compositeConfig;
+              // const compositeConfig_serial = serialize(compositeConfig);
+
+              // icObj_serial_p = icObj_serial_p
+              //   .then((icObj_serial) => {
+
+              //     icObj_serial.compositeConfig_serial = compositeConfig_serial;
+              //     return icObj_serial;
+              //   });
+
 
               if(icObj.content != null) {
-                const content = icObj.content;
-                const content_serial_p = content.toSerial_p();
-
-                icObj_serial_p = Promise.all([icObj_serial_p, content_serial_p])
-                  .then(([icObj_serial, content_serial]) => {
-                    icObj_serial.content = content_serial;
-                    return icObj_serial;
-                  });
+                const content        = icObj.content;
+                const content_serial = await content.toSerial_p();
+                icObj_serial.content = content_serial;
               }
 
-              icObj_serial_p = Promise.all([icObj_serial_p, ...arr_part_serial_miniDict_p])
-                .then(([icObj_serial, ...arr_part_serial_miniDict]) => {    //SHU: wow, pas mal le spread operator
-                  // icObj_serial.parts = arr_part_serial_miniDict.reduce((acc, x) => {
-                  //   Object.assign(acc, x);
-                  //   return acc;
-                  // }, {});
-                  icObj_serial.parts = {};
-                  Object.assign(icObj_serial.parts, ...arr_part_serial_miniDict);
-                  return icObj_serial;
-                });
+              const parts_serial = {};
+              const arr_entry = Object.entries(icObj.parts);
+              for(var i=0; i<arr_entry.length;i++) {
+                const [partName, part] = arr_entry[i]; 
+                const part_serial = await part.toSerial_p();
+                parts_serial[partName] = part_serial;
+              }
+              icObj_serial.parts = parts_serial;
+
 
               const compositeConfig = icObj.compositeConfig;
               const compositeConfig_serial = serialize(compositeConfig);
+              icObj_serial.compositeConfig_serial = compositeConfig_serial;
 
-              icObj_serial_p = icObj_serial_p
-                .then((icObj_serial) => {
-
-                  icObj_serial.compositeConfig_serial = compositeConfig_serial;
-                  return icObj_serial;
-                });
             }
             break;
 
@@ -35791,16 +35798,18 @@
             {
               const mathNode = icObj.mathNode;
               const mathNodeString = mathNode.toString();
-              const mathNode_serial_p = Promise.resolve(mathNodeString);
+              // const mathNode_serial_p = Promise.resolve(mathNodeString);
 
-              const arr_p = [icObj_serial_p, mathNode_serial_p];
+              // const arr_p = [icObj_serial_p, mathNode_serial_p];
 
-              icObj_serial_p = Promise.all(arr_p)
-                .then(([icObj_serial, mathNode_serial]) => {
+              // icObj_serial_p = Promise.all(arr_p)
+              //   .then(([icObj_serial, mathNode_serial]) => {
 
-                  icObj_serial.mathNodeString = mathNode_serial;
-                  return icObj_serial;
-                });
+              //     icObj_serial.mathNodeString = mathNode_serial;
+              //     return icObj_serial;
+              //   });
+
+              icObj_serial.mathNodeString = mathNodeString;
             }
             break;
 
@@ -35809,12 +35818,14 @@
             const buttonConfig        = icObj.buttonConfig;
             const buttonConfig_serial = serialize(buttonConfig);
 
-            icObj_serial_p = icObj_serial_p
-              .then((icObj_serial) => {
+            // icObj_serial_p = icObj_serial_p
+            //   .then((icObj_serial) => {
 
-                icObj_serial.buttonConfig_serial = buttonConfig_serial;
-                return icObj_serial;
-              });
+            //     icObj_serial.buttonConfig_serial = buttonConfig_serial;
+            //     return icObj_serial;
+            //   });
+
+            icObj_serial.buttonConfig_serial = buttonConfig_serial;
           }
           break;
 
@@ -35822,9 +35833,11 @@
             break;
         }
 
-        out_p = icObj_serial_p;
+        // out_p = icObj_serial_p;
 
-        return out_p;
+        // return out_p;
+
+        return icObj_serial;
       }
 
 
@@ -36160,68 +36173,26 @@
 
         const icObj = this;
 
-        // const id   = this.id;
-        const id   = infiniteCanvas.getId__fresh();
+        const id   = this.id;
         const type = this.type;
         const size = {
           width:  this.size.width,
           height: this.size.height,
         };
 
-
-        const position__center = {
-          x: new Decimal(this.position__center.x.toJSON()),
-          y: new Decimal(this.position__center.y.toJSON()),
-        };
-        const homeScale   = new Decimal(this.homeScale.toJSON());
-        const orientation = new Decimal(this.orientation.toJSON());
+        //SHU: don't use the decomposed props instead of using the reduced prop: transform
+        const icObj__deepClone = new IcObject(id, type, size);
+        icObj__deepClone.setIcTransform(icObj.icTransform);
 
 
-        const icObj__deepClone = new IcObject(id, type, size, position__center, homeScale, orientation);
-        // logger.log("logCP", "deepClone", "icObj__deepClone:", icObj__deepClone);
-
-        icObj__deepClone._scale = {
-          X: new Decimal(this.scale.X.toJSON()),
-          Y: new Decimal(this.scale.Y.toJSON()),
-        };
-        icObj__deepClone._flip = {
-          X: this.flip.X,
-          Y: this.flip.Y,
-        };
-        icObj__deepClone._skew = {
-          X: new Decimal(this.skew.X.toJSON()),
-          Y: new Decimal(this.skew.Y.toJSON()),
-        };
-
-        //getters and setters
-        {
-
-          const obj  = icObj;
-          const copy = icObj__deepClone;
-          for (var attr in obj) {
-            if (obj.hasOwnProperty(attr)) {
-              if (Object.getOwnPropertyDescriptor(obj, attr).value instanceof Object) {
-                // copy[attr] = clone(obj[attr]);
-              }
-              else {
-                Object.defineProperty(copy, attr, Object.getOwnPropertyDescriptor(obj,attr));
-              }
-            }
-          }
-
-        }
-
-        if(icObj.icTransform) {
-          icObj__deepClone.icTransform = icObj.icTransform.slice(0);    //SHU: no more questions...
-        }
-
-
-        
         const arr_method = Utils.getMethods(icObj__deepClone);
         logger.log("logCP", "deepClone", "arr_method:", arr_method);
 
         const arr_alreadySet = [
+          //methods:
           ...arr_method,
+
+          //properties:
           "position__center",
           "homeScale",
           "orientation",
@@ -36229,7 +36200,7 @@
           "flip",
           "skew",
 
-
+          //attributes:
           "id",
           "type",
           "size",
@@ -36356,12 +36327,20 @@
                 break;
               case "parts":
                 {
-                  logger.log("logCP", "deepClone", "parts:");
+                  // logger.log("logCP", "deepClone", "parts:");
 
-                  icObj__deepClone[key] = [...Object.entries(icObj[key])].reduce((acc, [partName, icObj__part]) => {
+                  const parts__original = icObj[key];
+                  logger.log("logCP", "deepClone", "parts__original:", parts__original);
+
+                  const parts__deepCloned = Object.entries(parts__original).reduce((acc, [partName, icObj__part]) => {
+                    logger.log("logCP", "deepClone", "partName:", partName, "icObj__part:", icObj__part);
+
                     acc[partName] = icObj__part.deepClone();
                     return acc;
                   }, {});
+                  logger.log("logCP", "deepClone", "parts__deepCloned:", parts__deepCloned);
+
+                  icObj__deepClone[key] = parts__deepCloned;
                 }
                 break;
               default:
@@ -43435,12 +43414,13 @@
 
           //part update
           this.managePartUpdate = function (icObj_compositePart, outerUpdatesDict) {
-            logger.log("logComposite", "managePartUpdate", icObj_compositePart, outerUpdatesDict);
+            // logger.log("logComposite", "managePartUpdate", icObj_compositePart, outerUpdatesDict);
 
             [...Object.keys(outerUpdatesDict)].forEach((key__update) => {
               switch(key__update) {
                 case "icTransform":
                   if(outerUpdatesDict.icTransform.old) {
+                    logger.log("logComposite", "managePartUpdate", icObj_compositePart, outerUpdatesDict);
                     this.managePartUpdate__transform(icObj_compositePart, outerUpdatesDict);
                   }
                   break;
@@ -43453,7 +43433,7 @@
 
 
           this.managePartUpdate__transform = function (icObj_compositePart, outerUpdatesDict) {
-            logger.log("logComposite", "managePartUpdate__transform", icObj_compositePart);
+            logger.log("logComposite", "managePartUpdate__transform", icObj_compositePart, outerUpdatesDict);
 
             //SHU FLUID
 
@@ -43632,6 +43612,7 @@
                 switch(key__update) {
                   case "icTransform":
                     if(outerUpdatesDict.icTransform.old) {
+                      logger.log("logComposite", "manageHandleUpdate", icObj_composite, outerUpdatesDict);
                       this.manageHandleUpdate__transform(icObj_composite, outerUpdatesDict);
                     }
                     break;
@@ -43698,7 +43679,7 @@
 
 
           this.manageHandleUpdate__transform = function (icObj_composite, outerUpdatesDict) {
-            logger.log("logComposite", "manageHandleUpdate__transform", icObj_composite);
+            logger.trace("logComposite", "manageHandleUpdate__transform", icObj_composite, outerUpdatesDict);
 
             if(infiniteCanvas.isDeepAltering) {
                 //only move selected handle: do nothing with parts
@@ -49412,529 +49393,586 @@
         }
 
 
-        addFabricObjectWithIcObj_p(icObj__r_free, fObj__to_recycle = null) {
-          var out_p;
+        async addFabricObjectWithIcObj_p(icObj__r_free, fObj__to_recycle = null) {
+          logger.log("logFI", "addFabricObjectWithIcObj_p", {
+            "icObj.id": icObj__r_free.id, 
+            "type":  icObj__r_free.type,
+            "icObj": icObj__r_free,
+          });
 
-          logger.log("logFI", "addFabricObjectWithIcObj_p", "type:", icObj__r_free.type);
+          var outFObj;
+
           const fabricIntegration = this;
-          const fabricCanvas = this.fabricCanvas;
+          const fabricCanvas      = fabricIntegration.fabricCanvas;
+          const infiniteCanvas    = fabricIntegration.infiniteCanvas;
 
-          const infiniteCanvas = this.infiniteCanvas;
-
-          logger.trace("logFI", "addFabricObjectWithIcObj_p", "icObj:", icObj__r_free);
           // const fObj = this.createFabricObjectWithIcObj(icObj);
 
           // var icObj_fRep = icObj__r_free.createSisterRepresentation();
           var icObj_fRep = icObj__r_free;
 
-          //recycle if possible
-          var fObj_p;
-          if(fObj__to_recycle != null) {
-            fObj_p = fabricIntegration.recycleFabricObjectForIcObj_p(icObj_fRep, fObj__to_recycle);
+          if(fabricIntegration.fObjForIcObj_dict[icObj__r_free.id] != null) {
+            // const fObj__found = fabricIntegration.fObjForIcObj_dict[icObj__r_free.id];
+            // outFObj = fObj__found;
+            throw new Error("fabricIntegration.fObjForIcObj_dict[icObj__r_free.id] != null");
           } else {
-            fObj_p = fabricIntegration.createFabricObjectWithIcObj_p(icObj_fRep);
+
+            //recycle if possible
+            if(fObj__to_recycle != null) {
+              outFObj = await fabricIntegration.recycleFabricObjectForIcObj_p(icObj_fRep, fObj__to_recycle);
+            } else {
+              outFObj = await fabricIntegration.createFabricObjectWithIcObj_p(icObj_fRep);
+            }
+
+            fabricIntegration.manageCreatedFObj(outFObj, icObj_fRep);
           }
 
-          out_p = fObj_p.then(fObj => {
-            manageCreatedFObj(fObj);
-            return fObj;
-          });
+          return outFObj;
+        }
 
-          function manageCreatedFObj(fObj) {
+        manageCreatedFObj(fObj, icObj_fRep) {
+          const fabricIntegration = this;
+          const fabricCanvas      = fabricIntegration.fabricCanvas;
+          const infiniteCanvas    = fabricIntegration.infiniteCanvas;
 
-            function standardRedraw(fObj) {
-              // logger.log("logFI", "standardRedraw", fObj);
-              const icObj = fObj.icObj;
 
-              //common
-              if(icObj.type != "rect") {
-                fObj.set({
-                  opacity: icObj.opacity,
-                  fill:    icObj.fill,
-                });
+          const innerUpdateListener = (icObj_fRep, propName, oldValue, newValue) => {
+            // logger.log("innerUpdateListener", icObj_fRep.id_rep, propName, newValue);
+
+            if (propName == "im_dying_now") {
+              console.log("im_dying_now");
+              if (icObj_fRep.im_dying_now) {
+                fabricIntegration.removeFabricObject(fObj);
+                icObj_fRep.im_dying_now = false;
+                icObj_fRep.im_dead_now = true;
+              }
+            }
+            else if (propName == "im_active_now") {
+              console.log("im_active_now");
+              if (icObj_fRep.im_active_now) {
+                fabricIntegration.fabricCanvas.setActiveObject(fObj);
+              }
+            }
+            else if (propName == "isLocked") {
+              console.log("isLocked");
+              if (icObj_fRep.isLocked) {
+                fabricIntegration.lockFObj(fObj);
+              }
+              else {
+                fabricIntegration.unlockFObj(fObj);
+              }
+            }
+            else if (propName == "icObj__activeSelection") {
+              console.log("icObj__activeSelection");
+              if (icObj_fRep.icObj__activeSelection != null) {
+                //switch to group coordinates
+
               } else {
-                const fObj__img = fObj;
-                const icRect    = icObj;
+                //back to individual coordinates
 
-                //create new img.src with update
-                const str__svg = SvgHelper.createString__svgRect(icRect);
-                const dataURL__utf8 = FileIntegration.dataURLForSVGString(str__svg);
-
-                //set new img.src
-                fObj__img.setSrc(dataURL__utf8, () => {
-                  fabricCanvas.requestRenderAll();
-                });
               }
+            }
+
+            // else if(propName == "isHeld") {
+            //   console.log("innerUpdate", "isHeld");
+            // }
+            else if (propName == "zIndex") {
+              const zIndex_icObj = icObj_fRep.zIndex;
+              console.log("zIndex_icObj", zIndex_icObj);
+
+              // fObj.moveTo(zIndex_icObj);
+              const zIndex_fObj__target = fabricIntegration.fObjZIndexForIcObj(icObj_fRep);
+              fObj.moveTo(zIndex_fObj__target);
+
+              //debug
+              const zIndex_fObj__actual = fObj.getFObjZIndex();
+              console.log("zIndex_fObj__actual", zIndex_fObj__actual);
+            }
+
+
+            else if (propName == "text") {
+              //update size
+              fObj.icObj.size = {
+                width:  fObj.width,
+                height: fObj.height,
+              };
+
+              // logger.log("innerUpdate, text", fObj.text);
+              fabricIntegration.standardRedraw(fObj);
               
-
-                //border
-              if(icObj.borderScaleFactor != null) {
-                fObj.set({
-                  borderScaleFactor: icObj.borderScaleFactor,
-                });
-              }
-              if(icObj.borderColor != null) {
-                fObj.set({
-                  borderColor: icObj.borderColor,
-                });
-              }
-
-              //type specific
-              if (icObj.text) {
-                console.log("fObj", fObj);
-                fObj.set({
-                  text: icObj.text,
-                  // fill: icObj.textColor,
-                });
-                
-                if(icObj.textColor != null) {
-                  if(icObj.textColor == "gradient") {
-                    const gradient__default = ColorUtils.fGradient__default();
-                    fObj.set({
-                      fill: gradient__default,
-                    });
-                  } else {
-                    fObj.set({
-                      fill: icObj.textColor,
-                    });
-                  }
-                }
-              }
-
-              switch (icObj.type) {
-                case "mnrei_rectangle":
-                  fObj.set({
-                    width:  icObj.size.width,
-                    height: icObj.size.height,
-                  });
-                  break;
-                case "segment":
-                  logger.log("standardRedraw: segment");
-                  fObj.set({
-                    x1: icObj.point_start.x,
-                    y1: icObj.point_start.y,
-                    x2: icObj.point_end.x,
-                    y2: icObj.point_end.y,
-                  });
-                  break;
-                // case "polygon":
-                //   {
-                //     fObj.set({
-                //       points: icObj.arr_point,
-                //     });
-
-                //     // const position_screen = icObj.getScreenPositionWithoutOffset();
-                //     // // console.log("position_screen", position_screen);
-                //     // const homeSize_screen = icObj.getHomeScreenSize();
-                //     // // console.log("homeSize_screen", homeSize_screen);
-
-                //     // fObj.set({
-                //     //   left: position_screen.x,
-                //     //   top:  position_screen.y,
-                //     //   width:  homeSize_screen.width,
-                //     //   height: homeSize_screen.height,
-
-                //     //   rx: homeSize_screen.width  / 2.0,
-                //     //   ry: homeSize_screen.height / 2.0,
-
-                //     //   points: icObj.arr_point,
-                //     // });
-
-                //     fObj.setCoords();
-                //   }
-                //   break;
-                case "arc_of_circle":
-                  if (fObj.isDirty__clipPath) {
-                    logger.log("standardRedraw:", "arc_of_circle", icObj.arcStart, icObj.arcEnd);
-                    //set clipPath (arc of square)
-                    const clipPath = fabricIntegration.createFabricClipPath_ArcOfSquare(icObj.radius, icObj.strokeWidth, icObj.arcStart, icObj.arcEnd);
-                    fObj.set({
-                      clipPath: clipPath,
-                    });
-                    fObj.isDirty__clipPath = false;
-                  }
-                  break;
-                case "image":
-                  {
-                    // logger.log("standardRedraw:", "image", icObj.img);
-                    fObj.setElement(icObj.img);
-                    fObj.setCoords();
-                  }
-                  break;
-                case "video":
-                  {
-                    // logger.log("standardRedraw:", "video", icObj.video);
-                    fObj.setElement(icObj.video);
-                    fObj.setCoords();
-                  }
-                  break;
-                case "icCanvas":
-                  {
-                    logger.log("logICIC", "standardRedraw", "icCanvas");
-                    const fabricCanvas    = icObj.dict__iC.fabricIntegration.fabricCanvas;
-                    const el__lowerCanvas = fabricCanvas.lowerCanvasEl;
-                    fObj.setElement(el__lowerCanvas);
-                    fObj.setCoords();
-                  }
-                  break;
-                default:
-                  break;
-              }
-
-              // fabricIntegration.updateFabricObject_size_default(fObj);
-              // fabricIntegration.updateFabricObject_position_default(fObj);
-
-              fabricIntegration.updateFabricObject_transform_default(fObj);
-
-              // fabricCanvas.renderAll();
-              fabricCanvas.requestRenderAll();
+              // //update size
+              // fObj.icObj.size = {
+              //   width:  fObj.width,
+              //   height: fObj.height,
+              // };
             }
-
-            // function hardRedraw() {   //REDRAw HACK
-            //   infiniteCanvas.updateScaleAndDOffset({
-            //     X: infiniteCanvas.scale.X * (1.0 + 1e-10),
-            //     Y: infiniteCanvas.scale.Y * (1.0 + 1e-10),
-            //   }, { dx: 0, dy: 0 });
-            //   infiniteCanvas.redrawCanvas(RedrawOccasion.scaleChanged);
-            // }
-
-            const innerUpdateListener = (icObj_fRep, propName, oldValue, newValue) => {
-              // logger.log("innerUpdateListener", icObj_fRep.id_rep, propName, newValue);
-
-              if (propName == "im_dying_now") {
-                console.log("im_dying_now");
-                if (icObj_fRep.im_dying_now) {
-                  fabricIntegration.removeFabricObject(fObj);
-                  icObj_fRep.im_dying_now = false;
-                  icObj_fRep.im_dead_now = true;
-                }
-              }
-              else if (propName == "im_active_now") {
-                console.log("im_active_now");
-                if (icObj_fRep.im_active_now) {
-                  fabricIntegration.fabricCanvas.setActiveObject(fObj);
-                }
-              }
-              else if (propName == "isLocked") {
-                console.log("isLocked");
-                if (icObj_fRep.isLocked) {
-                  fabricIntegration.lockFObj(fObj);
-                }
-                else {
-                  fabricIntegration.unlockFObj(fObj);
-                }
-              }
-              else if (propName == "icObj__activeSelection") {
-                console.log("icObj__activeSelection");
-                if (icObj_fRep.icObj__activeSelection != null) {
-                  //switch to group coordinates
-
-                } else {
-                  //back to individual coordinates
-
-                }
-              }
-
-              // else if(propName == "isHeld") {
-              //   console.log("innerUpdate", "isHeld");
-              // }
-              else if (propName == "zIndex") {
-                const zIndex_icObj = icObj_fRep.zIndex;
-                console.log("zIndex_icObj", zIndex_icObj);
-
-                // fObj.moveTo(zIndex_icObj);
-                const zIndex_fObj__target = fabricIntegration.fObjZIndexForIcObj(icObj_fRep);
-                fObj.moveTo(zIndex_fObj__target);
-
-                //debug
-                const zIndex_fObj__actual = fObj.getFObjZIndex();
-                console.log("zIndex_fObj__actual", zIndex_fObj__actual);
-              }
-
-
-              // else if(propName == "text") {
-              //   logger.log("innerUpdate, text", fObj.text);
-              //   standardRedraw(fObj);
-              // }
-              else if (propName == "tex"
-                || propName == "mathNode"
-                || propName == "richMathNode") {
-
-                if (fObj.refreshTex_p != null) {
-                  fObj.refreshTex_p()
-                    .then((fObj) => {
-                      standardRedraw(fObj);
-                      // hardRedraw();
-                    });
-                }
-
-              }
-              else if (propName == "htmlElt") {
-                fObj.refreshScreenshot_p()
-                  .then((fObj) => {
-                    standardRedraw(fObj);
-                  });
-              }
-              else if (propName == "el_html") {
-                fObj.refreshScreenshot_p()
-                  .then((fObj) => {
-                    standardRedraw(fObj);
-                  });
-              }
-              else if (propName == "arcStart" || propName == "arcEnd") {
-                fObj.isDirty__clipPath = true;
-                standardRedraw(fObj);
-              }
-              else if (propName == "point_start" || propName == "point_end") {
-                standardRedraw(fObj);
-              } 
-              else if(propName == "arr_point") {
-                logger.log("logZSegment", "innerUpdate", "arr_point", icObj.arr_point);
-                const arr_point = icObj.arr_point;
-
-                if(icObj.type == "compositeSegment") {
-                  fObj.set({
-                    points: arr_point,
-                  });
-                  fObj._setPositionDimensions({});
-                  fObj.setCoords();
-  
-                  standardRedraw(fObj);
-                } else {
-                  //composite curve
-                }
-                
-              }
-              else if (propName == "img") {
-                // fObj.refreshImg_p()
-                // .then((fObj) => {
-                //   standardRedraw(fObj);
-                // });
-                logger.log("log1", "icObj_fRep", "onInnerUpdate", "img", icObj_fRep);
-
-                fObj.setElement(icObj.img);
-                fObj.setCoords();
-                // fabricCanvas.renderAll();     //added for icVideo img refresh
-                fabricCanvas.requestRenderAll();   //added for icVideo img refresh
-
-                // standardRedraw(fObj);
-              }
-              else if (propName == "video") {
-                // fObj.refreshImg_p()
-                // .then((fObj) => {
-                //   standardRedraw(fObj);
-                // });
-                console.log("icObj_fRep", "onInnerUpdate", "video", icObj_fRep);
-                fObj.setElement(icObj.video);
-                fObj.setCoords();
-              }
-              else if (propName == "backgroundColor") {
-                // logger.log("innerUpdateListener", "backgroundColor");
-                fObj.set({
-                  backgroundColor: newValue,
-                });
-                standardRedraw(fObj);
-              }
-              else if (propName == "stroke") {
-                // logger.log("logUp", "innerUpdateListener", "stroke");
-                if (fObj.refreshTex_p != null) {
-                  fObj.refreshTex_p()
-                    .then((fObj) => {
-                      standardRedraw(fObj);
-                      // hardRedraw();
-                    });
-                } else {
-                  standardRedraw(fObj);
-                }
-              } else if (propName == "strokeWidth") {
-                // logger.log("innerUpdateListener", "strokeWidth");
-                fObj.set({
-                  strokeWidth: newValue,
-                });
-                standardRedraw(fObj);
-              } else if (propName == "exoObject") {
-                // logger.log("innerUpdateListener", "exoObject");
-                const exoObject__new = newValue;
-                fObj.set({
-                  stroke:      exoObject__new.stroke,
-                  strokeWidth: exoObject__new.strokeWidth,
-                  //etc.
-                });
-                standardRedraw(fObj);
-              }
-              else {
-                // logger.log("icObj_fRep","onInnerUpdate", icObj_fRep);
-                standardRedraw(fObj);
-
-                // if(icObj.type == "sparkle") {
-                //
-                // }
-              }
-
-
-              // //debug
-              // if(propName == "icTransform") {
-              //   logger.log("icObj_fRep","onInnerUpdate", "icTransform");
-              // }
-
-            };
-            fObj.fListener_inner = innerUpdateListener;
-            icObj_fRep.onInnerUpdate(innerUpdateListener);
-
-            // const outerUpdateListener = (icObj_fRep) => {
-            const outerUpdateListener = (icObj_fRep, propName, oldValue, newValue) => {
-              // logger.log("outerUpdateListener", icObj_fRep.id_rep, propName, newValue);
-
-              if (propName == "im_dying_now") {
-                console.log("im_dying_now");
-                if (icObj_fRep.im_dying_now) {
-                  fabricIntegration.removeFabricObject(fObj);
-                  icObj_fRep.im_dying_now = false;
-                  icObj_fRep.im_dead_now = true;
-                }
-              }
-              else if (propName == "isLocked") {
-                console.log("isLocked");
-                if (icObj_fRep.isLocked) {
-                  fabricIntegration.lockFObj(fObj);
-                }
-                else {
-                  fabricIntegration.unlockFObj(fObj);
-                }
-              }
-              // else if(propName == "isHeld") {
-              //   console.log("outerUpdate", "isHeld");
-              // }
-              else if (propName == "text") {
-                // logger.log("outerUpdate, text", fObj.text);
-                standardRedraw(fObj);
-              }
-              else if (propName == "tex"
-                || propName == "mathNode"
-                || propName == "richMathNode") {
-
-                if (fObj.refreshTex_p != null) {
-                  fObj.refreshTex_p()
-                    .then((fObj) => {
-                      standardRedraw(fObj);
-                      // hardRedraw();
-                    });
-                }
-
-              }
-              else if (propName == "htmlElt") {
-                fObj.refreshScreenshot_p()
-                  .then((fObj) => {
-                    standardRedraw(fObj);
-                  });
-              }
-              else if (propName == "el_html") {
-                fObj.refreshScreenshot_p()
-                  .then((fObj) => {
-                    standardRedraw(fObj);
-                  });
-              }
-              else if (propName == "img") {
-                console.log("log1", "icObj_fRep", "onOuterUpdate", "img", icObj_fRep);
-
-                // fObj.refreshImg_p()
-                // .then((fObj) => {
-                //   standardRedraw(fObj);
-                // });
-
-                fObj.setElement(icObj.img);
-                fObj.setCoords();
-              }
-              else if (propName == "video") {
-                console.log("icObj_fRep", "onOuterUpdate", "video", icObj_fRep);
-
-                // fObj.refreshImg_p()
-                // .then((fObj) => {
-                //   standardRedraw(fObj);
-                // });
-
-                fObj.setElement(icObj.video);
-                fObj.setCoords();
-              }
-              else {
-                console.log("icObj_fRep", "onOuterUpdate", icObj_fRep);
-                standardRedraw(fObj);
-              }
-
-            };
-            fObj.fListener_outer = outerUpdateListener;
-            icObj_fRep.onOuterUpdate(outerUpdateListener);
-
-
-            // if(icObj_fRep.onHold != null) {
-            //   icObj_fRep.onHold((icObj) => {
-            //
-            //   });
-            // }
-            //
-            // if(icObj_fRep.onRelease != null) {
-            //   icObj_fRep.onRelease((icObj) => {
-            //
-            //   });
-            // }
-
-
-            if (fObj.isRecycled) {
-              fabricIntegration.addInnerFabricObject(fObj);
-              delete fObj.isRecycled;
-            } else {
-              fabricIntegration.addOuterFabricObject(fObj);
-            }
-
-            //"initial refresh"
-            const icObj = fObj.icObj;
-            if (icObj.type == "tex"
-              || icObj.type == "mathNode"
-              || icObj.type == "richMathNode") {
+            else if (propName == "tex"
+              || propName == "mathNode"
+              || propName == "richMathNode") {
 
               if (fObj.refreshTex_p != null) {
                 fObj.refreshTex_p()
                   .then((fObj) => {
-                    // fabricCanvas.renderAll();
-                    fabricCanvas.requestRenderAll();
-
-                    standardRedraw(fObj);         //SHU: rajouté pour que les TeX (tout simples) spawnent correctement
+                    fabricIntegration.standardRedraw(fObj);
                     // hardRedraw();
                   });
               }
 
             }
-            else if (icObj.type == "htmlElt") {
+            else if (propName == "htmlElt") {
               fObj.refreshScreenshot_p()
+                .then((fObj) => {
+                 fabricIntegration.standardRedraw(fObj);
+                });
+            }
+            else if (propName == "el_html") {
+              fObj.refreshScreenshot_p()
+                .then((fObj) => {
+                 fabricIntegration.standardRedraw(fObj);
+                });
+            }
+            else if (propName == "arcStart" || propName == "arcEnd") {
+              fObj.isDirty__clipPath = true;
+             fabricIntegration.standardRedraw(fObj);
+            }
+            else if (propName == "point_start" || propName == "point_end") {
+             fabricIntegration.standardRedraw(fObj);
+            } 
+            else if(propName == "arr_point") {
+              logger.log("logZSegment", "innerUpdate", "arr_point", icObj.arr_point);
+              const arr_point = icObj.arr_point;
+
+              if(icObj.type == "compositeSegment") {
+                fObj.set({
+                  points: arr_point,
+                });
+                fObj._setPositionDimensions({});
+                fObj.setCoords();
+
+               fabricIntegration.standardRedraw(fObj);
+              } else {
+                //composite curve
+              }
+              
+            }
+            else if (propName == "img") {
+              // fObj.refreshImg_p()
+              // .then((fObj) => {
+              //  fabricIntegration.standardRedraw(fObj);
+              // });
+              logger.log("log1", "icObj_fRep", "onInnerUpdate", "img", icObj_fRep);
+
+              fObj.setElement(icObj.img);
+              fObj.setCoords();
+              // fabricCanvas.renderAll();     //added for icVideo img refresh
+              fabricCanvas.requestRenderAll();   //added for icVideo img refresh
+
+              //fabricIntegration.standardRedraw(fObj);
+            }
+            else if (propName == "video") {
+              // fObj.refreshImg_p()
+              // .then((fObj) => {
+              //  fabricIntegration.standardRedraw(fObj);
+              // });
+              console.log("icObj_fRep", "onInnerUpdate", "video", icObj_fRep);
+              fObj.setElement(icObj.video);
+              fObj.setCoords();
+            }
+            else if (propName == "backgroundColor") {
+              // logger.log("innerUpdateListener", "backgroundColor");
+              fObj.set({
+                backgroundColor: newValue,
+              });
+             fabricIntegration.standardRedraw(fObj);
+            }
+            else if (propName == "stroke") {
+              // logger.log("logUp", "innerUpdateListener", "stroke");
+              if (fObj.refreshTex_p != null) {
+                fObj.refreshTex_p()
+                  .then((fObj) => {
+                   fabricIntegration.standardRedraw(fObj);
+                    // hardRedraw();
+                  });
+              } else {
+               fabricIntegration.standardRedraw(fObj);
+              }
+            } else if (propName == "strokeWidth") {
+              // logger.log("innerUpdateListener", "strokeWidth");
+              fObj.set({
+                strokeWidth: newValue,
+              });
+             fabricIntegration.standardRedraw(fObj);
+            } else if (propName == "exoObject") {
+              // logger.log("innerUpdateListener", "exoObject");
+              const exoObject__new = newValue;
+              fObj.set({
+                stroke:      exoObject__new.stroke,
+                strokeWidth: exoObject__new.strokeWidth,
+                //etc.
+              });
+             fabricIntegration.standardRedraw(fObj);
+            }
+            else {
+              // logger.log("icObj_fRep","onInnerUpdate", icObj_fRep);
+             fabricIntegration.standardRedraw(fObj);
+
+              // if(icObj.type == "sparkle") {
+              //
+              // }
+            }
+
+
+            // //debug
+            // if(propName == "icTransform") {
+            //   logger.log("icObj_fRep","onInnerUpdate", "icTransform");
+            // }
+
+          };
+
+          if(fObj.fListener_inner) {
+            icObj_fRep.offInnerUpdate(fObj.fListener_inner);
+          }
+
+          fObj.fListener_inner = innerUpdateListener;
+          icObj_fRep.onInnerUpdate(innerUpdateListener);
+
+          // // const outerUpdateListener = (icObj_fRep) => {
+          // const outerUpdateListener = (icObj_fRep, propName, oldValue, newValue) => {
+          //   // logger.log("outerUpdateListener", icObj_fRep.id_rep, propName, newValue);
+
+          //   if (propName == "im_dying_now") {
+          //     console.log("im_dying_now");
+          //     if (icObj_fRep.im_dying_now) {
+          //       fabricIntegration.removeFabricObject(fObj);
+          //       icObj_fRep.im_dying_now = false;
+          //       icObj_fRep.im_dead_now = true;
+          //     }
+          //   }
+          //   else if (propName == "isLocked") {
+          //     console.log("isLocked");
+          //     if (icObj_fRep.isLocked) {
+          //       fabricIntegration.lockFObj(fObj);
+          //     }
+          //     else {
+          //       fabricIntegration.unlockFObj(fObj);
+          //     }
+          //   }
+          //   // else if(propName == "isHeld") {
+          //   //   console.log("outerUpdate", "isHeld");
+          //   // }
+          //   else if (propName == "text") {
+          //     // logger.log("outerUpdate, text", fObj.text);
+          //    fabricIntegration.standardRedraw(fObj);
+              
+          //     //update size
+          //     fObj.icObj.size = {
+          //       width:  fObj.width,
+          //       height: fObj.height,
+          //     };
+          //   }
+          //   else if (propName == "tex"
+          //     || propName == "mathNode"
+          //     || propName == "richMathNode") {
+
+          //     if (fObj.refreshTex_p != null) {
+          //       fObj.refreshTex_p()
+          //         .then((fObj) => {
+          //          fabricIntegration.standardRedraw(fObj);
+          //           // hardRedraw();
+          //         });
+          //     }
+
+          //   }
+          //   else if (propName == "htmlElt") {
+          //     fObj.refreshScreenshot_p()
+          //       .then((fObj) => {
+          //        fabricIntegration.standardRedraw(fObj);
+          //       });
+          //   }
+          //   else if (propName == "el_html") {
+          //     fObj.refreshScreenshot_p()
+          //       .then((fObj) => {
+          //        fabricIntegration.standardRedraw(fObj);
+          //       });
+          //   }
+          //   else if (propName == "img") {
+          //     console.log("log1", "icObj_fRep", "onOuterUpdate", "img", icObj_fRep);
+
+          //     // fObj.refreshImg_p()
+          //     // .then((fObj) => {
+          //     //  fabricIntegration.standardRedraw(fObj);
+          //     // });
+
+          //     fObj.setElement(icObj.img);
+          //     fObj.setCoords();
+          //   }
+          //   else if (propName == "video") {
+          //     console.log("icObj_fRep", "onOuterUpdate", "video", icObj_fRep);
+
+          //     // fObj.refreshImg_p()
+          //     // .then((fObj) => {
+          //     //  fabricIntegration.standardRedraw(fObj);
+          //     // });
+
+          //     fObj.setElement(icObj.video);
+          //     fObj.setCoords();
+          //   }
+          //   else {
+          //     console.log("icObj_fRep", "onOuterUpdate", icObj_fRep);
+          //    fabricIntegration.standardRedraw(fObj);
+          //   }
+
+          // };
+          // fObj.fListener_outer = outerUpdateListener;
+          // icObj_fRep.onOuterUpdate(outerUpdateListener);
+
+
+
+
+
+          // if(icObj_fRep.onHold != null) {
+          //   icObj_fRep.onHold((icObj) => {
+          //
+          //   });
+          // }
+          //
+          // if(icObj_fRep.onRelease != null) {
+          //   icObj_fRep.onRelease((icObj) => {
+          //
+          //   });
+          // }
+
+
+
+
+
+          {
+            const icObj = fObj.icObj;
+            if(fabricIntegration.fObjForIcObj_dict[icObj.id] != null) {
+              throw new Error("fabricIntegration.fObjForIcObj_dict[icObj.id] != null");
+            }
+            fabricIntegration.fObjForIcObj_dict[icObj.id] = fObj;
+  
+            if(!fabricIntegration.fabric_objects.includes(fObj)) {
+              fabricIntegration.fabric_objects.push(fObj);
+            }
+  
+            if (fObj.isRecycled) {
+              // fabricIntegration.fabricCanvas.add(fObj);
+              delete fObj.isRecycled;
+            } else {
+              fabricIntegration.fabricCanvas.add(fObj);
+            }
+  
+            const zIndex_fObj__target = fabricIntegration.fObjZIndexForIcObj(fObj.icObj);
+            fObj.moveTo(zIndex_fObj__target);
+          }
+
+
+
+
+
+
+
+          //"initial refresh"
+          const icObj = fObj.icObj;
+          if (icObj.type == "tex"
+            || icObj.type == "mathNode"
+            || icObj.type == "richMathNode") {
+
+            if (fObj.refreshTex_p != null) {
+              fObj.refreshTex_p()
                 .then((fObj) => {
                   // fabricCanvas.renderAll();
                   fabricCanvas.requestRenderAll();
-                });
-            }
-            else if (icObj.type == "htmlObject") {
-              fObj.refreshScreenshot_p()
-                .then((fObj) => {
-                  // fabricCanvas.renderAll();
-                  fabricCanvas.requestRenderAll();
+
+                  fabricIntegration.standardRedraw(fObj);         //SHU: rajouté pour que les TeX (tout simples) spawnent correctement
+                  // hardRedraw();
                 });
             }
 
-            if (icObj.im_active_now) {
-              fabricIntegration.fabricCanvas.setActiveObject(fObj);
+          }
+          else if (icObj.type == "htmlElt") {
+            fObj.refreshScreenshot_p()
+              .then((fObj) => {
+                // fabricCanvas.renderAll();
+                fabricCanvas.requestRenderAll();
+              });
+          }
+          else if (icObj.type == "htmlObject") {
+            fObj.refreshScreenshot_p()
+              .then((fObj) => {
+                // fabricCanvas.renderAll();
+                fabricCanvas.requestRenderAll();
+              });
+          }
 
-              icObj.nowHeld();
+          if (icObj.im_active_now) {
+            fabricIntegration.fabricCanvas.setActiveObject(fObj);
 
-              //SHU TODO
-              //while held, position offset should follow cursor offset     (a DSL would be nice someday)
+            icObj.nowHeld();
 
-            }
-
-            //standardRedraw(fObj);   //SHU: is it still necessary ?
+            //SHU TODO
+            //while held, position offset should follow cursor offset     (a DSL would be nice someday)
 
           }
 
-          return out_p;
+          //standardRedraw(fObj);   //SHU: is it still necessary ?
+
         }
+
+       standardRedraw(fObj) {
+          const fabricIntegration = this;
+          const fabricCanvas      = fabricIntegration.fabricCanvas;
+          const infiniteCanvas    = fabricIntegration.infiniteCanvas;
+
+          // logger.log("logFI", "standardRedraw", fObj);
+          const icObj = fObj.icObj;
+
+          //common
+          if(icObj.type != "rect") {
+            fObj.set({
+              opacity: icObj.opacity,
+              fill:    icObj.fill,
+            });
+          } else {
+            const fObj__img = fObj;
+            const icRect    = icObj;
+
+            //create new img.src with update
+            const str__svg      = SvgHelper.createString__svgRect(icRect);
+            const dataURL__utf8 = FileIntegration.dataURLForSVGString(str__svg);
+
+            //set new img.src
+            fObj__img.setSrc(dataURL__utf8, () => {
+              fabricCanvas.requestRenderAll();
+            });
+          }
+          
+
+            //border
+          if(icObj.borderScaleFactor != null) {
+            fObj.set({
+              borderScaleFactor: icObj.borderScaleFactor,
+            });
+          }
+          if(icObj.borderColor != null) {
+            fObj.set({
+              borderColor: icObj.borderColor,
+            });
+          }
+
+          //type specific
+          if (icObj.text) {
+            console.log("fObj", fObj);
+            fObj.set({
+              text: icObj.text,
+              // fill: icObj.textColor,
+            });
+            
+            if(icObj.textColor != null) {
+              if(icObj.textColor == "gradient") {
+                const gradient__default = ColorUtils.fGradient__default();
+                fObj.set({
+                  fill: gradient__default,
+                });
+              } else {
+                fObj.set({
+                  fill: icObj.textColor,
+                });
+              }
+            }
+          }
+
+          switch (icObj.type) {
+            case "mnrei_rectangle":
+              fObj.set({
+                width:  icObj.size.width,
+                height: icObj.size.height,
+              });
+              break;
+            case "segment":
+              logger.log("standardRedraw: segment");
+              fObj.set({
+                x1: icObj.point_start.x,
+                y1: icObj.point_start.y,
+                x2: icObj.point_end.x,
+                y2: icObj.point_end.y,
+              });
+              break;
+            // case "polygon":
+            //   {
+            //     fObj.set({
+            //       points: icObj.arr_point,
+            //     });
+
+            //     // const position_screen = icObj.getScreenPositionWithoutOffset();
+            //     // // console.log("position_screen", position_screen);
+            //     // const homeSize_screen = icObj.getHomeScreenSize();
+            //     // // console.log("homeSize_screen", homeSize_screen);
+
+            //     // fObj.set({
+            //     //   left: position_screen.x,
+            //     //   top:  position_screen.y,
+            //     //   width:  homeSize_screen.width,
+            //     //   height: homeSize_screen.height,
+
+            //     //   rx: homeSize_screen.width  / 2.0,
+            //     //   ry: homeSize_screen.height / 2.0,
+
+            //     //   points: icObj.arr_point,
+            //     // });
+
+            //     fObj.setCoords();
+            //   }
+            //   break;
+            case "arc_of_circle":
+              if (fObj.isDirty__clipPath) {
+                logger.log("standardRedraw:", "arc_of_circle", icObj.arcStart, icObj.arcEnd);
+                //set clipPath (arc of square)
+                const clipPath = fabricIntegration.createFabricClipPath_ArcOfSquare(icObj.radius, icObj.strokeWidth, icObj.arcStart, icObj.arcEnd);
+                fObj.set({
+                  clipPath: clipPath,
+                });
+                fObj.isDirty__clipPath = false;
+              }
+              break;
+            case "image":
+              {
+                // logger.log("standardRedraw:", "image", icObj.img);
+                fObj.setElement(icObj.img);
+                fObj.setCoords();
+              }
+              break;
+            case "video":
+              {
+                // logger.log("standardRedraw:", "video", icObj.video);
+                fObj.setElement(icObj.video);
+                fObj.setCoords();
+              }
+              break;
+            case "icCanvas":
+              {
+                logger.log("logICIC", "standardRedraw", "icCanvas");
+                const fabricCanvas    = icObj.dict__iC.fabricIntegration.fabricCanvas;
+                const el__lowerCanvas = fabricCanvas.lowerCanvasEl;
+                fObj.setElement(el__lowerCanvas);
+                fObj.setCoords();
+              }
+              break;
+            default:
+              break;
+          }
+
+          // fabricIntegration.updateFabricObject_size_default(fObj);
+          // fabricIntegration.updateFabricObject_position_default(fObj);
+
+          fabricIntegration.updateFabricObject_transform_default(fObj);
+
+          // fabricCanvas.renderAll();
+          fabricCanvas.requestRenderAll();
+        }
+
 
         lockFObj(fObj) {
           fObj.lockMovementX = true;
@@ -54758,6 +54796,7 @@
 
 
         updateIcObj_with__fObj(fObj) {
+          logger.log("logFI", "updateIcObj_with__fObj", fObj, fObj.icObj.id);
           const fabricIntegration = this;
           const infiniteCanvas    = fabricIntegration.infiniteCanvas;
           const icCamera          = infiniteCanvas.icCamera;
@@ -54766,21 +54805,21 @@
           // const t_ic = cameraEngine.getIcTransform(fObj);
 
           const isSkipGroup = false;  //this is important for active selection
-          const t_screen  = fObj.getScreenTransform(isSkipGroup);
+          const t_screen    = fObj.getScreenTransform(isSkipGroup);
 
-          const t_ic      = cameraEngine.toTrueTransform(t_screen);
+          const t_ic        = cameraEngine.toTrueTransform(t_screen);
 
-          const rep_free = fObj.icObj;
+          const rep_free    = fObj.icObj;
 
-          const listener = fObj.fListener_inner;
+          // const listener    = fObj.fListener_inner;
           //listen:off
-          rep_free.offInnerUpdate(listener);
+          // rep_free.offInnerUpdate(listener);
 
           //update
           rep_free.setIcTransform(t_ic);
 
           //listen:on
-          rep_free.onInnerUpdate(listener);
+          // rep_free.onInnerUpdate(listener);
         }
 
 
@@ -55579,27 +55618,7 @@
 
 
 
-        addOuterFabricObject(fObj) {
-          logger.trace("logFI", "addOuterFabricObject", fObj, "icObj.id:", fObj.icObj.id);
 
-          const fabricIntegration = this;
-
-          const icObj = fObj.icObj;
-          if(fabricIntegration.fObjForIcObj_dict[icObj.id] != null) {
-            // throw new Error("fabricIntegration.fObjForIcObj_dict[icObj.id] != null");
-            return;
-          }
-          fabricIntegration.fObjForIcObj_dict[icObj.id] = fObj;
-
-          // this.outer_fabric_objects.push(fObj);
-          fabricIntegration.fabric_objects.push(fObj);
-
-          fabricIntegration.fabricCanvas.add(fObj);
-
-          const zIndex_fObj__target = fabricIntegration.fObjZIndexForIcObj(fObj.icObj);
-          fObj.moveTo(zIndex_fObj__target);
-
-        }
 
         // addPureOuterFabricObject(fObj) {
         //   console.log("addPureOuterFabricObject", fObj);
@@ -55610,24 +55629,7 @@
         //   this.fabricCanvas.add(fObj);
         // }
 
-        addInnerFabricObject(fObj) {
-          logger.log("logFI", "addInnerFabricObject", fObj, "icObj.id:", fObj.icObj.id);
 
-          const fabricIntegration = this;
-
-          const icObj = fObj.icObj;
-          if(fabricIntegration.fObjForIcObj_dict[icObj.id] != null) {
-            throw new Error("fabricIntegration.fObjForIcObj_dict[icObj.id] != null");
-          }
-          fabricIntegration.fObjForIcObj_dict[icObj.id] = fObj;
-
-          fabricIntegration.fabric_objects.push(fObj);
-
-          // fabricIntegration.fabricCanvas.add(fObj);
-
-          const zIndex_fObj__target = fabricIntegration.fObjZIndexForIcObj(fObj.icObj);
-          fObj.moveTo(zIndex_fObj__target);
-        }
 
 
         removeFabricObject(fObj) {
@@ -56189,40 +56191,6 @@
 
 
 
-
-        //update icObj to match fObj
-
-        updateIcObjWithFObj(fObj) {
-          console.log("updateIcObjWithFObj", fObj);
-
-          const offset = this.infiniteCanvas.offset;
-          const scale = this.infiniteCanvas.scale;
-          console.log("scale", scale);
-
-
-          const trueRect_update = {
-            left: fObj.left / scale.X - offset.dx,
-            top: fObj.top / scale.Y - offset.dy,
-
-            width: fObj.width / scale.X,
-            height: fObj.height / scale.Y,
-          };
-
-          const icObj_update = {
-            position: Geometry.createPoint(trueRect_update.left, trueRect_update.top),
-            size: Geometry.createSize(trueRect_update.width, trueRect_update.height),
-          };
-
-          const icObj = fObj.icObj;
-
-          const icObj_new = Object.assign({}, icObj);
-          Object.assign(icObj_new, icObj_update);
-
-          console.log("icObj_new", icObj_new);
-
-          icObj.update(icObj_new, false);
-
-        }
 
 
 
@@ -57719,7 +57687,7 @@
 
             //override base class
 
-            manageDrawingSessionCreatedObjects_p: function(arr_icObj__created) {
+            manageDrawingSessionCreatedObjects_p: async function(arr_icObj__created) {
               logger.log("logFD", "freeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", arr_icObj__created);
               var out_p;
   
@@ -57730,51 +57698,46 @@
               const drawingSession    = drawingMode.getCurrentDrawingSession();  
   
               // out_p = DecorationUtils.getWrappedObj(this).manageDrawingSessionCreatedObjects_p.call(drawingMode,arr_icObj__created)
-              out_p = DecorationUtils.getWrappedObj(this).manageDrawingSessionCreatedObjects_p(arr_icObj__created)
-              .then((icObj__polyatomic) => {
-                logger.log("logFD", "freeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "icObj__polyatomic:", icObj__polyatomic);
-  
-                const isAdhesive = drawingSession.config__session.isAdhesive;
+              const icObj__polyatomic = await DecorationUtils.getWrappedObj(this).manageDrawingSessionCreatedObjects_p(arr_icObj__created);
+              logger.log("logFD", "freeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "icObj__polyatomic:", icObj__polyatomic);
 
-                logger.log("logFD", "freeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "isAdhesive:", isAdhesive);
-                if(isAdhesive) {
-      
-                  //adhesion at start of drawing
-                  if((arr_icObj__created.length > 0) && (drawingSession.icObj__adhesive__support != null)) {
-                    logger.log("logFD", "freeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "adhesion at start");
-  
-                    const icObj__support__start           = drawingSession.icObj__adhesive__support;
-                    const rep_free__icObj__support__start = infiniteCanvas.getRepresented(icObj__support__start.id).r_free(); //SHU: probably overkill
-      
-                    //manage adhesion
-                    infiniteCanvas.manageAdhesion(icObj__polyatomic, rep_free__icObj__support__start);  
-                  }
-      
-                  //adhesion at end of drawing
-                  if(infiniteCanvas.adhesive__isAdhesiveKick) {
-                    logger.log("logFD", "freeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "adhesion at end");
+              const isAdhesive = drawingSession.config__session.isAdhesive;
 
-                    const true_cursor = infiniteCanvas.getTrueCursor();
-                    const icObj__support__end = infiniteCanvas.getCandidateSupportUnderScreenPoint(true_cursor, icObj__polyatomic);
-                    if(icObj__support__end != null) {
-                      const rep_free__icObj__support__end = infiniteCanvas.getRepresented(icObj__support__end.id).r_free();
-      
-                      //manage adhesion
-                      infiniteCanvas.manageAdhesion(icObj__polyatomic, rep_free__icObj__support__end);  
-                    }
-      
-                    infiniteCanvas.adhesive__isAdhesiveKick = false;
-                  }
-      
+              logger.log("logFD", "freeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "isAdhesive:", isAdhesive);
+              if(isAdhesive) {
+    
+                //adhesion at start of drawing
+                if((arr_icObj__created.length > 0) && (drawingSession.icObj__adhesive__support != null)) {
+                  logger.log("logFD", "freeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "adhesion at start");
+
+                  const icObj__support__start           = drawingSession.icObj__adhesive__support;
+                  const rep_free__icObj__support__start = infiniteCanvas.getRepresented(icObj__support__start.id).r_free(); //SHU: probably overkill
+    
+                  //manage adhesion
+                  await infiniteCanvas.manageAdhesion(icObj__polyatomic, rep_free__icObj__support__start);  
                 }
-  
-                // drawingSession.icObj__adhesive__support = null;
+    
+                //adhesion at end of drawing
+                if(infiniteCanvas.adhesive__isAdhesiveKick) {
+                  logger.log("logFD", "freeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "adhesion at end");
 
-                return icObj__polyatomic;
-              });
+                  const true_cursor = infiniteCanvas.getTrueCursor();
+                  const icObj__support__end = infiniteCanvas.getCandidateSupportUnderScreenPoint(true_cursor, icObj__polyatomic);
+                  if(icObj__support__end != null) {
+                    const rep_free__icObj__support__end = infiniteCanvas.getRepresented(icObj__support__end.id).r_free();
+    
+                    //manage adhesion
+                    await infiniteCanvas.manageAdhesion(icObj__polyatomic, rep_free__icObj__support__end);  
+                  }
+    
+                  infiniteCanvas.adhesive__isAdhesiveKick = false;
+                }
+    
+              }
   
-              return out_p;
+              // drawingSession.icObj__adhesive__support = null;
   
+              return icObj__polyatomic;
             },
 
 
@@ -58354,8 +58317,8 @@
 
             //override base class
 
-            manageDrawingSessionCreatedObjects_p: function(arr_icObj__created) {
-              logger.log("logZPixelFD", "manageDrawingSessionCreatedObjects_p__decorated", arr_icObj__created);
+            manageDrawingSessionCreatedObjects_p: async function(arr_icObj__created) {
+              logger.log("logZPixelFD", "zPixelFreeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", arr_icObj__created);
               var out_p;
   
               const drawingMode       = this;
@@ -58365,50 +58328,46 @@
               const drawingSession    = drawingMode.getCurrentDrawingSession();  
   
               // out_p = DecorationUtils.getWrappedObj(this).manageDrawingSessionCreatedObjects_p.call(drawingMode,arr_icObj__created)
-              out_p = DecorationUtils.getWrappedObj(this).manageDrawingSessionCreatedObjects_p(arr_icObj__created)
-              .then((icObj__polyatomic) => {
-  
-                const isAdhesive = drawingSession.config__session.isAdhesive;
+              const icObj__polyatomic = await DecorationUtils.getWrappedObj(this).manageDrawingSessionCreatedObjects_p(arr_icObj__created);
+              logger.log("logZPixelFD", "zPixelFreeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "icObj__polyatomic:", icObj__polyatomic);
 
-                logger.log("logZPixelFD", "manageDrawingSessionCreatedObjects_p__decorated", "isAdhesive:", isAdhesive);
-                if(isAdhesive) {
-      
-                  //adhesion at start of drawing
-                  if((arr_icObj__created.length > 0) && (drawingSession.icObj__adhesive__support != null)) {
-                    logger.log("logZPixelFD", "manageDrawingSessionCreatedObjects_p__decorated", "adhesion at start");
-  
-                    const icObj__support__start           = drawingSession.icObj__adhesive__support;
-                    const rep_free__icObj__support__start = infiniteCanvas.getRepresented(icObj__support__start.id).r_free(); //SHU: probably overkill
-      
-                    //manage adhesion
-                    infiniteCanvas.manageAdhesion(icObj__polyatomic, rep_free__icObj__support__start);  
-                  }
-      
-                  //adhesion at end of drawing
-                  if(infiniteCanvas.adhesive__isAdhesiveKick) {
-                    logger.log("logZPixelFD", "manageDrawingSessionCreatedObjects_p__decorated", "adhesion at end");
+              const isAdhesive = drawingSession.config__session.isAdhesive;
 
-                    const true_cursor = infiniteCanvas.getTrueCursor();
-                    const icObj__support__end = infiniteCanvas.getCandidateSupportUnderScreenPoint(true_cursor, icObj__polyatomic);
-                    if(icObj__support__end != null) {
-                      const rep_free__icObj__support__end = infiniteCanvas.getRepresented(icObj__support__end.id).r_free();
-      
-                      //manage adhesion
-                      infiniteCanvas.manageAdhesion(icObj__polyatomic, rep_free__icObj__support__end);  
-                    }
-      
-                    infiniteCanvas.adhesive__isAdhesiveKick = false;
-                  }
-      
+              logger.log("logZPixelFD", "zPixelFreeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "isAdhesive:", isAdhesive);
+              if(isAdhesive) {
+    
+                //adhesion at start of drawing
+                if((arr_icObj__created.length > 0) && (drawingSession.icObj__adhesive__support != null)) {
+                  logger.log("logZPixelFD", "zPixelFreeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "adhesion at start");
+
+                  const icObj__support__start           = drawingSession.icObj__adhesive__support;
+                  const rep_free__icObj__support__start = infiniteCanvas.getRepresented(icObj__support__start.id).r_free(); //SHU: probably overkill
+    
+                  //manage adhesion
+                  await infiniteCanvas.manageAdhesion(icObj__polyatomic, rep_free__icObj__support__start);  
                 }
-  
-                // drawingSession.icObj__adhesive__support = null;
+    
+                //adhesion at end of drawing
+                if(infiniteCanvas.adhesive__isAdhesiveKick) {
+                  logger.log("logZPixelFD", "zPixelFreeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "adhesion at end");
 
-                return icObj__polyatomic;
-              });
+                  const true_cursor = infiniteCanvas.getTrueCursor();
+                  const icObj__support__end = infiniteCanvas.getCandidateSupportUnderScreenPoint(true_cursor, icObj__polyatomic);
+                  if(icObj__support__end != null) {
+                    const rep_free__icObj__support__end = infiniteCanvas.getRepresented(icObj__support__end.id).r_free();
+    
+                    //manage adhesion
+                    await infiniteCanvas.manageAdhesion(icObj__polyatomic, rep_free__icObj__support__end);  
+                  }
+    
+                  infiniteCanvas.adhesive__isAdhesiveKick = false;
+                }
+    
+              }
   
-              return out_p;
+              // drawingSession.icObj__adhesive__support = null;
   
+              return icObj__polyatomic;
             },
 
 
@@ -58765,8 +58724,8 @@
             },
 
 
-            manageDrawingSessionCreatedObjects_p: function(arr_icObj__created) {
-              logger.log("logZPixelRectFD", "manageDrawingSessionCreatedObjects_p__decorated", arr_icObj__created);
+            manageDrawingSessionCreatedObjects_p: async function(arr_icObj__created) {
+              logger.log("logZPixelRectFD", "zPixelRectFreeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", arr_icObj__created);
               var out_p;
   
               const drawingMode       = this;
@@ -58776,50 +58735,46 @@
               const drawingSession    = drawingMode.getCurrentDrawingSession();  
   
               // out_p = DecorationUtils.getWrappedObj(this).manageDrawingSessionCreatedObjects_p.call(drawingMode,arr_icObj__created)
-              out_p = DecorationUtils.getWrappedObj(this).manageDrawingSessionCreatedObjects_p(arr_icObj__created)
-              .then((icObj__polyatomic) => {
-  
-                const isAdhesive = drawingSession.config__session.isAdhesive;
+              const icObj__polyatomic = await DecorationUtils.getWrappedObj(this).manageDrawingSessionCreatedObjects_p(arr_icObj__created);
+              logger.log("logZPixelRectFD", "zPixelRectFreeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "icObj__polyatomic:", icObj__polyatomic);
 
-                logger.log("logZPixelRectFD", "manageDrawingSessionCreatedObjects_p__decorated", "isAdhesive:", isAdhesive);
-                if(isAdhesive) {
-      
-                  //adhesion at start of drawing
-                  if((arr_icObj__created.length > 0) && (drawingSession.icObj__adhesive__support != null)) {
-                    logger.log("logZPixelRectFD", "manageDrawingSessionCreatedObjects_p__decorated", "adhesion at start");
-  
-                    const icObj__support__start           = drawingSession.icObj__adhesive__support;
-                    const rep_free__icObj__support__start = infiniteCanvas.getRepresented(icObj__support__start.id).r_free(); //SHU: probably overkill
-      
-                    //manage adhesion
-                    infiniteCanvas.manageAdhesion(icObj__polyatomic, rep_free__icObj__support__start);  
-                  }
-      
-                  //adhesion at end of drawing
-                  if(infiniteCanvas.adhesive__isAdhesiveKick) {
-                    logger.log("logFD", "manageDrawingSessionCreatedObjects_p__decorated", "adhesion at end");
+              const isAdhesive = drawingSession.config__session.isAdhesive;
 
-                    const true_cursor = infiniteCanvas.getTrueCursor();
-                    const icObj__support__end = infiniteCanvas.getCandidateSupportUnderScreenPoint(true_cursor, icObj__polyatomic);
-                    if(icObj__support__end != null) {
-                      const rep_free__icObj__support__end = infiniteCanvas.getRepresented(icObj__support__end.id).r_free();
-      
-                      //manage adhesion
-                      infiniteCanvas.manageAdhesion(icObj__polyatomic, rep_free__icObj__support__end);  
-                    }
-      
-                    infiniteCanvas.adhesive__isAdhesiveKick = false;
-                  }
-      
+              logger.log("logZPixelRectFD", "zPixelRectFreeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "isAdhesive:", isAdhesive);
+              if(isAdhesive) {
+    
+                //adhesion at start of drawing
+                if((arr_icObj__created.length > 0) && (drawingSession.icObj__adhesive__support != null)) {
+                  logger.log("logZPixelRectFD", "zPixelRectFreeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "adhesion at start");
+
+                  const icObj__support__start           = drawingSession.icObj__adhesive__support;
+                  const rep_free__icObj__support__start = infiniteCanvas.getRepresented(icObj__support__start.id).r_free(); //SHU: probably overkill
+    
+                  //manage adhesion
+                  await infiniteCanvas.manageAdhesion(icObj__polyatomic, rep_free__icObj__support__start);  
                 }
-  
-                // drawingSession.icObj__adhesive__support = null;
+    
+                //adhesion at end of drawing
+                if(infiniteCanvas.adhesive__isAdhesiveKick) {
+                  logger.log("logZPixelRectFD", "zPixelRectFreeDrawing", "manageDrawingSessionCreatedObjects_p__decorated", "adhesion at end");
 
-                return icObj__polyatomic;
-              });
+                  const true_cursor = infiniteCanvas.getTrueCursor();
+                  const icObj__support__end = infiniteCanvas.getCandidateSupportUnderScreenPoint(true_cursor, icObj__polyatomic);
+                  if(icObj__support__end != null) {
+                    const rep_free__icObj__support__end = infiniteCanvas.getRepresented(icObj__support__end.id).r_free();
+    
+                    //manage adhesion
+                    await infiniteCanvas.manageAdhesion(icObj__polyatomic, rep_free__icObj__support__end);  
+                  }
+    
+                  infiniteCanvas.adhesive__isAdhesiveKick = false;
+                }
+    
+              }
   
-              return out_p;
+              // drawingSession.icObj__adhesive__support = null;
   
+              return icObj__polyatomic;
             },
 
           };
@@ -62387,8 +62342,6 @@
           function createClone_composite(icObj__composite) {
   
             const icObj__cloned = icObj__composite.deepClone();
-
-            // icObj__cloned.icTransform = icObj__composite.icTransform.slice(0);  //SHU: no more questions...
   
             //translate slightly
             {
@@ -62688,7 +62641,7 @@
 
           if (!fObj) {
             // throw new Error("fObj not found for icObj.id: " + icObj.id);
-            // logger.log("logFI", "fObj not found for icObj.id: ", icObj.id);
+            logger.log("logFI", "fObj not found for icObj.id: ", icObj.id);
           }
 
           return fObj;
@@ -66452,28 +66405,46 @@
           return file;
         }
 
-        static fileForFabricImage__indiv_p(infiniteCanvas, fObj__image, filename) {
+        static async fileForFabricImage__indiv_p(infiniteCanvas, fObj__image, filename) {
           logger.log("logSer", fObj__image, filename);
           var out_p;
 
           const fObj = fObj__image;
 
           //store fObj transform
-          const t__fObj__tmp = fObj.calcOwnMatrix();
+          // const t__fObj__tmp = fObj.calcOwnMatrix();
+          
+          //store fObj stuff
+          // const options__tmp = Object.assign({}, fObffj);
 
           //set transform corresponding to photo: t__identity
           const t__identity = fabric.iMatrix.slice(0);
 
-          fabric.util.applyTransformToObject(fObj, t__identity);
-          fObj.setCoords();
+          //prepare for photo
+          {
+            fabric.util.applyTransformToObject(fObj, t__identity);
+            fObj.setCoords();
+  
+            fObj.set({
+              strokeWidth: 0,
+              stroke:      "",
+              borderScaleFactor: 0,
+            });
+            fObj.setCoords();
+          }
+
 
           //take photo
           const options  = {};
           const canvasEl = fObj.toCanvasElement(options);
 
+          //restore stuff
+          // fObj.set(options__tmp);
+          // fObj.setCoords();
+
           //restore fObj transform
-          fabric.util.applyTransformToObject(fObj, t__fObj__tmp);
-          fObj.setCoords();
+          // fabric.util.applyTransformToObject(fObj, t__fObj__tmp);
+          // fObj.setCoords();
 
           out_p = FileIntegration.fileForCanvasEl__indiv_p(canvasEl, options);
 
@@ -67455,7 +67426,8 @@
 
 
 
-        static saveInfinishute_p(infiniteCanvas, infiniShute) {
+        static async saveInfinishute_p(infiniteCanvas, infiniShute) {
+          logger.log("logSer", "saveInfinishute_p", infiniShute);
 
           // const obj = {
           //   // zimages  : zimages,
@@ -67476,17 +67448,33 @@
           // FileIntegration.save_to_file__zipped(infiniShute);
 
           {
-            const arr_fObjImage = infiniShute.arr_fObjImage;
+            const arr_fObjImage = infiniShute.arr_fObjImage.slice(0);
             delete infiniShute.arr_fObjImage;
 
             const json__infiniShute = JSON.stringify(infiniShute);
 
-            const dict_image = Object.fromEntries(arr_fObjImage.map((fObj__image) => {
-              // const filename    = fObj__image.getFilename();
-              const filename    = "fObjImage_with_id__" + fObj__image.icObj.id + ".png";
-              const file__image = FileIntegration.fileForFabricImage__indiv_p(infiniteCanvas, fObj__image, filename);
-              return [filename, file__image];
-            }));
+            const dict_image = {};
+            for(var i=0; i<arr_fObjImage.length; i++) {
+
+              const fObj__image = arr_fObjImage[i];
+
+              // const icObj__image = fObj__image.icObj;
+
+              // icObj__image.pauseAllInnerUpdates();
+
+              {
+                const filename    = "fObjImage_with_id__" + fObj__image.icObj.id + ".png";
+                // const filename    = fObj__image.getFilename();
+  
+                const file__image = await FileIntegration.fileForFabricImage__indiv_p(infiniteCanvas, fObj__image, filename);
+                logger.log("logSer", "saveInfinishute_p", "file__image:", file__image);
+  
+                dict_image[filename] = file__image;
+              }
+
+              // icObj__image.resumeAllInnerUpdates();
+
+            }
 
             const obj__folder = {
               "infinishute.json": json__infiniShute,
@@ -70335,8 +70323,21 @@
                   const rep_free__icCamera = infiniteCanvas.getRepresented(id__icCamera__afterMigration).r_free();
                   await infiniteCanvas.swapToCamera(rep_free__icCamera, fabricIntegration);
                 } else {
-                  await infiniteCanvas.redrawCanvas_p(RedrawOccasion.infiniShuteLoaded);
+                  // await infiniteCanvas.redrawCanvas_p(RedrawOccasion.infiniShuteLoaded);
+
+                  // globalsSingleton.functionCallsQueue.add(() => {
+                  //   // const icCamera = infiniteCanvas.icCamera;
+                  //   // icCamera.updateWithTrueTransform(ICUtils.iMatrix9__bigNumber());
+
+                  //   infiniteCanvas.redrawCanvas_p(RedrawOccasion.infiniShuteLoaded);
+                  // });
+                  // setTimeout(() => globalsSingleton.functionCallsQueue.next(), 0);
+
+                  setTimeout(() => {
+                    infiniteCanvas.redrawCanvas_p(RedrawOccasion.infiniShuteLoaded);                
+                  }, 10);
                 }
+
 
               }
             }),
@@ -70897,6 +70898,9 @@
 
             "KeyV": new KeyUpTrigger("KeyV", KeyUpTrigger.defaultKeyUpFunc(["KeyV"]), () => {
               logger.log("logKB", 'KeyUpTrigger("KeyV")');
+
+              const infiniteCanvas = keyboardIntegration.infiniteCanvas;
+
               if (keyboardIntegration.infiniteCanvas.isIOPasting) {
                 //ioPaste
                 keyboardIntegration.infiniteCanvas.leaveIOPasting();
@@ -70904,6 +70908,7 @@
 
               {
                 const truePoint__cursor = infiniteCanvas.getTrueCursor();
+                const screenPoint__cursor = infiniteCanvas.cursor__screen;
 
                 if(keyboardIntegration.keyDownToggles.space.isActive) {
   
@@ -70912,24 +70917,75 @@
 
                     navigator.clipboard.read().then((arr_clipboardItem) => {
                       arr_clipboardItem.forEach((clipboardItem) => {
-                        clipboardItem.types.forEach((type) => {
+                        clipboardItem.types.forEach(async (type) => {
+                          logger.log("logPaste", "type:", type);   
     
                           if(type == 'image/png') {
     
-                            clipboardItem.getType(type).then((blob) => {
-                              logger.log("logPaste", "blob:", blob);   
+                            const blob = await clipboardItem.getType(type);
+                            logger.log("logPaste", "blob:", blob);   
                               
-                              const img_p = FileIntegration.getFileData_p(blob).then((imgSrc) => {
-                                return FileIntegration.imageFromImgSrc_p(imgSrc);
-                              });
-      
-                              img_p.then((img) => {
-                                const icImage = infiniteCanvas.createIcImage(truePoint__cursor.x, truePoint__cursor.y, img);
-                                infiniteCanvas.addIcObject(icImage);
-                              });
-      
-                            });
+                            const imgSrc = await FileIntegration.getFileData_p(blob);
+                            const img    = await FileIntegration.imageFromImgSrc_p(imgSrc);
+                            logger.log("logPaste", "img:", img);   
     
+
+                            const icImage = infiniteCanvas.createIcImage(truePoint__cursor.x, truePoint__cursor.y, img);
+                            logger.log("logPaste", "icImage:", icImage);   
+
+                            //set correct transform
+                            const screenSize = {
+                              width:  img.naturalWidth,
+                              height: img.naturalHeight,
+                            };
+                    
+                            // const screenPoint__cursor = infiniteCanvas.cursor__screen;
+                            const screenRect          = Object.assign({}, screenPoint__cursor, screenSize);
+                            logger.log("logPaste", "screenRect:", screenRect);   
+
+                            const dict_screenPoint    = ICUtils.createDict_parallelogram__withRect(ICUtils.bigNumberize__dict(screenRect));
+                    
+                            const dict_truePoint = infiniteCanvas.toTrueDict_parallelogram(dict_screenPoint);
+                            const t_ic = ICUtils.createTransform__unitSquareToParallelogram(dict_truePoint);
+
+                            icImage.setIcTransform(t_ic);
+
+
+                            const rep_free = await infiniteCanvas.addIcObject_p(icImage);
+                            await infiniteCanvas.redrawCanvas(RedrawOccasion.objectAdded);
+                          }
+
+                          else if(type == 'text/plain') {
+                            const blob = await clipboardItem.getType(type);
+                            logger.log("logPaste", "blob:", blob);
+
+                            const text = await FileIntegration.getFileText_p(blob);
+                            logger.log("logPaste", "text:", text);   
+
+
+                            const icText = infiniteCanvas.createIcText(truePoint__cursor.x, truePoint__cursor.y, text);
+
+
+                            const screenSize = {
+                              width:  500,
+                              height: 500,
+                            };
+                    
+                            // const screenPoint__cursor = infiniteCanvas.cursor__screen;
+                            const screenRect          = Object.assign({}, screenPoint__cursor, screenSize);
+                            logger.log("logPaste", "screenRect:", screenRect);   
+
+                            const dict_screenPoint    = ICUtils.createDict_parallelogram__withRect(ICUtils.bigNumberize__dict(screenRect));
+                    
+                            const dict_truePoint = infiniteCanvas.toTrueDict_parallelogram(dict_screenPoint);
+                            const t_ic = ICUtils.createTransform__unitSquareToParallelogram(dict_truePoint);
+
+                            icText.setIcTransform(t_ic);
+
+
+                            const rep_free = await infiniteCanvas.addIcObject_p(icText);
+                            await infiniteCanvas.redrawCanvas(RedrawOccasion.objectAdded);
+
                           }
     
                         });
@@ -72579,12 +72635,12 @@
             }
           }
 
-          await fabricIntegration.addFabricObjectWithIcObj_p(icObj_representation);
+          // await fabricIntegration.addFabricObjectWithIcObj_p(icObj_representation);
         });
 
-        infiniteCanvas.didAddPureObjectListeners.push((icObj) => {
-          fabricIntegration.addFabricObjectWithPureIcObj(icObj);
-        });
+        // infiniteCanvas.didAddPureObjectListeners.push((icObj) => {
+        //   fabricIntegration.addFabricObjectWithPureIcObj(icObj);
+        // });
         // infiniteCanvas.requestSyncWithIcObjListeners.push((icObj) => {
         //   fabricIntegration.syncWithIcObj(icObj);
         // });
