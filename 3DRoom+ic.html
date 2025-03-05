@@ -2339,6 +2339,12 @@
     logger.log("Intersects__decimal:", Intersects__decimal);
   </script> -->
 
+  <script src='lib/geom/flatten-js.umd.js'   type='text/javascript'></script>
+  <script>
+    //logger.log("window :", window);
+    const Flatten = window["@flatten-js/core"];
+    logger.log("Flatten :", Flatten);
+  </script>
 
 
 
@@ -3021,7 +3027,7 @@
         const ry          = icRect.ry ? icRect.ry : 0;
 
         const fill        = icRect.fill        ? icRect.fill        : "black";
-        const stroke      = icRect.stroke      ? icRect.stroke      : "";
+        const stroke      = icRect.stroke      ? icRect.stroke      : "transparent";
         const strokeWidth = icRect.strokeWidth ? icRect.strokeWidth : 0;
 
 
@@ -3040,6 +3046,7 @@
           'version="1.1" ',
           'width="',  width,  '" ',
           'height="', height, '" ',
+          'crossorigin="anonymous"',
           '> '
         ];
 
@@ -3070,6 +3077,10 @@
 
         const str__svgRect = arr_elements.join("");
         return str__svgRect;
+      }
+
+      static createString__svgPolygon(dict_polygon) {
+
       }
 
     }
@@ -3450,9 +3461,41 @@
 
   <script src='lib/decimal.min.js'  type='text/javascript'></script>
   <script>
-    //Decimal.set({ precision: 100, rounding: 1 });   //one of the key elements for infiniteCanvas
-                                                    //SHU: TODO: make it dynamic (precision grows with canvas depth)
-    Decimal.set({ precision: 20, rounding: 0 });
+    //Decimal.set({ precision: 100}); //one of the key elements for infiniteCanvas
+                                      //SHU: TODO: make it dynamic (precision grows with canvas depth)
+    Decimal.set({ precision: 20});
+
+
+    //override .toJSON()
+    Decimal.prototype.toJSON = function toJSON() {
+      return {
+          _type: 'Decimal',
+          _data: Object.assign({}, this),
+      };
+    };
+
+    Decimal.fromJSON = function fromJSON(value) {
+      logger.log("logDecimal", "fromJSON", value);
+      var outDecimal;
+        // if (
+        //   (typeof value === 'object' && value !== null)
+        //       && (value.hasOwnProperty('_type'))) {
+        //   switch (value._type) {
+        //     case 'Decimal':
+        //       {
+                outDecimal = Object.assign(new Decimal(0), value._data);
+        //       }
+        //       break;
+        //     default:
+        //       {
+        //         throw new Error("wrong input value");
+        //       }
+        //       break;
+        //   }
+        // }
+      return outDecimal;
+    };
+    
   </script>
   <script>
     //discovery
@@ -9937,6 +9980,16 @@
           await infiniteCanvas.initializeCamera_p(fabricIntegration);
         }
 
+        //initialize zPixelUtils
+        {
+          const icCamera = infiniteCanvas.icCamera;
+          const dict_truePoint__zPixelUnit = icCamera.getDict_truePoint__zPixelUnit();
+          const zPixelUtils__icCamera = new Geometry.zPixelUtils(dict_truePoint__zPixelUnit);
+  
+          infiniteCanvas.zPixelUtils = zPixelUtils__icCamera;
+        }
+
+
         return infiniteCanvas;
       }
 
@@ -10554,10 +10607,14 @@
       }
 
       getArr_icObj(repName = "official") {
-        return this.getArr_represented().map(represented => {
+        const arr_represented = this.getArr_represented();
+
+        const arr_rep = arr_represented.map(represented => {
           const rep = represented.getRepresentation(repName);
           return rep;
         });
+
+        return arr_rep;
       }
 
       getArr_icObj__containingTruePoint(repName = "official", truePoint) {
@@ -10951,6 +11008,67 @@
         // return this.getArr_icObj(repName).filter(func__isNoticeable).filter(func__isInside);
         return this.getArr_icObj(repName).filter(func__isInside).filter(func__isNoticeable);
       }
+
+
+
+
+
+
+      createArrPoint__intersection(dict_point__1, dict_point__2) {
+        var outArr;
+
+        function createArrArrXY(dict_point) {
+          return [
+            [dict_point.tl.x, dict_point.tl.y],
+            [dict_point.tr.x, dict_point.tr.y],
+            [dict_point.br.x, dict_point.br.y],
+            [dict_point.bl.x, dict_point.bl.y],
+
+            [dict_point.tl.x, dict_point.tl.y],
+          ];
+        }
+
+        const arr_arr_XY__1  = createArrArrXY(dict_point__1);
+        const polygon__1 = Flatten.polygon(arr_arr_XY__1);
+        // logger.log("logFlattenJS", "polygon__1:", polygon__1);
+
+        const arr_arr_XY__2  = createArrArrXY(dict_point__2);
+        const polygon__2 = Flatten.polygon(arr_arr_XY__2);
+        // logger.log("logFlattenJS", "polygon__2:", polygon__2);
+
+        const intersection = Flatten.BooleanOperations.intersect(polygon__1, polygon__2);
+        // logger.log("logFlattenJS", "intersection:", intersection);
+
+        // logger.log("logFlattenJS", "intersection.faces:",    intersection.faces);
+        // logger.log("logFlattenJS", "intersection.edges:",    intersection.edges);
+        // logger.log("logFlattenJS", "intersection.vertices:", intersection.vertices);
+
+        // const arr_arr_XY__intersection = intersection.vertices;
+
+        const face = [...intersection.faces][0];
+
+        const point__start = [...face.edges][0].shape.ps;
+
+        var arr_arr_XY__intersection = [...[...intersection.faces][0].edges].reduce((acc, edge) => {
+          const point__end = edge.shape.ps;
+          acc.push(point__end);
+          return acc;
+        }, [point__start]);
+
+        outArr = arr_arr_XY__intersection;
+
+        return outArr;
+      }
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -30938,6 +31056,21 @@
         infiniteCanvas.manageFreeDrawingXScroll(isBreakingBout, func_update);
       }
 
+      manageContextPicker() {
+
+        //get selected icObj
+        var icObj = infiniteCanvas.getSelectedIcObj();
+        if(!icObj) {
+          //get icObj under cursor
+          icObj = infiniteCanvas.getIcObj__underCursor("free");
+        }
+
+        //create zPixelUtils
+        const dict_truePoint__zPixelUnit = icObj.getDict_truePoint__zPixelUnit();
+        const zPixelUtils__icObj = new Geometry.zPixelUtils(dict_truePoint__zPixelUnit);
+
+        infiniteCanvas.zPixelUtils = zPixelUtils__icObj;
+      }
 
 
 
@@ -31032,11 +31165,7 @@
         // } else if(isSomethingSelected && mouseIntegration.leftMouseDown) {
         } else if(isSomethingHeld /*&& mouseIntegration.leftMouseDown*/) {
 
-          if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
-            infiniteCanvas.manageZPixelZScroll(arr_rep_free__held, func_update__zoom);
-          } else {
-            infiniteCanvas.manageZScroll(arr_rep_free__held, func_update__zoom);
-          }
+          infiniteCanvas.manageZScroll(arr_rep_free__held, func_update__zoom);
 
         } else {
           func_update__zoom();
@@ -31092,6 +31221,7 @@
         return dScale_when_held;
       }
 
+      /*
       manageZPixelZScroll(scale_iC__new, dOffset, arr_rep_free_selected, scaleAmount) {   //SHU: warfare
         logger.log("logZPixelZScroll", "manageZPixelZScroll", scale_iC__new, dOffset, arr_rep_free_selected, scaleAmount);
 
@@ -31191,7 +31321,7 @@
         }
 
       }
-
+      */
 
       manageFreeDrawingXScroll(isBreakingBout, func_update) {   //func_update should return dict_update for drawingModes
 
@@ -35197,9 +35327,9 @@
 
 
         //SHU: don't use the decomposed props instead of using the reduced prop: transform
-        const icTransform__string = json_icObject.icTransform;
-        const icTransform         = ICUtils.bigNumberize__array(icTransform__string);
-
+        // const icTransform__string = json_icObject.icTransform;
+        // const icTransform         = ICUtils.bigNumberize__array(icTransform__string);
+        const icTransform = json_icObject.icTransform.map((obj) => Decimal.fromJSON(obj));
 
         const zIndex            = json_icObject.zIndex;
 
@@ -35331,11 +35461,21 @@
             const strokeWidth = json_icObject.strokeWidth;
             icObj.strokeWidth = strokeWidth;
 
-            const rType       = json_icObject.rType;
+            const rType = json_icObject.rType;
             if(rType != null) {
-              if(rType == "zPixel") {
-                const zPixelCoords = json_icObject.zPixelCoords;
-                icObj.zPixelCoords = zPixelCoords;
+              switch(rType) {
+                case "zPixel":
+                  {
+                    const zPixelCoords = ICUtils.bigNumberize__dict(json_icObject.zPixelCoords);
+                    icObj.zPixelCoords = zPixelCoords;
+                  }
+                  break;
+                case "zPixelRect":
+                  {
+                    const zPixelRectCoords = ICUtils.bigNumberize__dict(json_icObject.zPixelRectCoords);
+                    icObj.zPixelRectCoords = zPixelRectCoords;
+                  }
+                  break;
               }
             }
 
@@ -35518,7 +35658,11 @@
         const icObj_serial = Object.assign({}, icObj);
 
         //SHU: don't use the decomposed props instead of using the reduced prop: transform
-        icObj_serial.icTransform = ICUtils.stringify__array(icObj_serial.icTransform);
+        // icObj_serial.icTransform = ICUtils.stringify__array(icObj_serial.icTransform);
+        // icObj_serial.icTransform = icObj_serial.icTransform.map((decimal) => decimal.toPrecision(20));
+        // icObj_serial.icTransform = icObj_serial.icTransform;
+
+        icObj_serial.icTransform = icObj_serial.icTransform.map((decimal) => decimal.toJSON());
 
 
         if(icObj.dict_engine != null) {
@@ -35555,6 +35699,28 @@
         // var icObj_serial_p = Promise.resolve(icObj_serial);
 
         switch (icObj.type) {
+
+          case "rect":
+            {
+              const rType = icObj.rType;
+              if(rType != null) {
+                switch(rType) {
+                  case "zPixel":
+                    {
+                      const zPixelCoords__string = ICUtils.stringify__dict(icObj.zPixelCoords);
+                      icObj_serial.zPixelCoords = zPixelCoords__string;
+                    }
+                    break;
+                  case "zPixelRect":
+                    {
+                      const zPixelRectCoords__string = ICUtils.stringify__dict(icObj.zPixelRectCoords);
+                      icObj_serial.zPixelRectCoords = zPixelRectCoords__string;
+                    }
+                    break;
+                }
+              }
+            }
+            break;
 
           // case "zPixel":
           //   {
@@ -42027,6 +42193,8 @@
 
           //conversion
 
+          //screen --> true
+
           this.getTransform__screenToTrue__for__t_ic__cam = function(t_ic__cam) {
             const t_screen__cam = this.screenTransform__camera();
             const t__inv_screen = ICUtils.invertTransform(t_screen__cam);
@@ -42060,31 +42228,6 @@
             return this.toTruePointFor__t_ic__cam(screenPoint, t_ic__cam);
           };
 
-          /*
-          this.toTrueRect = function(screenRect) {
-            const screenPoint__TL = {
-              x: screenRect.x,
-              y: screenRect.y,
-            };
-            const screenPoint__BR = {
-              x: screenRect.x + screenRect.width,
-              y: screenRect.y + screenRect.height,
-            };
-            
-            const truePoint__TL = this.toTruePoint(screenPoint__TL);
-            const truePoint__BR = this.toTruePoint(screenPoint__BR);
-
-            const trueRect = {
-              x:        truePoint__TL.x,
-              y:        truePoint__TL.y,
-              width:    math.subtract(truePoint__BR.x , truePoint__TL.x),
-              height:   math.subtract(truePoint__BR.y , truePoint__TL.y),
-            };
-
-            return trueRect;
-          };
-          */
-
           this.toTrueDict_parallelogram = function(dict_truePoint) {
             const t__screenToTrue = this.getTransform__screenToTrue();
             return ICUtils.transformDict_parallelogram(dict_truePoint, t__screenToTrue);
@@ -42106,25 +42249,7 @@
           };
 
 
-
-
-
-
-
-          this.screenPointToCamPoint = function(screenPoint) {
-            const t_screen__cam = this.screenTransform__camera();
-            const t__inv_screen = ICUtils.invertTransform(t_screen__cam);
-
-            const camPoint = ICUtils.transformPoint(screenPoint, t__inv_screen);
-            return camPoint;
-          };
-
-
-          
-
-
-
-
+          //true --> screen
 
           this.getTransform__trueToScreen__for__t_ic__cam = function(t_ic__cam) {
             const t__screenToTrue = this.getTransform__screenToTrue__for__t_ic__cam(t_ic__cam);
@@ -42158,31 +42283,6 @@
             return this.toScreenPointFor__t_ic__cam(truePoint, t_ic__cam);
           };
 
-          /*
-          this.toScreenRect = function(trueRect) {
-            const truePoint__TL = {
-              x: trueRect.x,
-              y: trueRect.y,
-            };
-            const truePoint__BR = {
-              x: math.add(trueRect.x , trueRect.width),
-              y: math.add(trueRect.y , trueRect.height),
-            };
-            
-            const screenPoint__TL = this.toScreenPoint(truePoint__TL);
-            const screenPoint__BR = this.toScreenPoint(truePoint__BR);
-
-            const screenRect = {
-              x:      screenPoint__TL.x,
-              y:      screenPoint__TL.y,
-              width:  (screenPoint__BR.x - screenPoint__TL.x),
-              height: (screenPoint__BR.y - screenPoint__TL.y),
-            };
-
-            return screenRect;
-          };
-          */
-
           this.toScreenDict_parallelogram = function(dict_screenPoint) {
             const t__trueToScreen = this.getTransform__trueToScreen();
             return ICUtils.transformDict_parallelogram(dict_screenPoint, t__trueToScreen);
@@ -42203,6 +42303,160 @@
           };
 
 
+
+          //screen --> cam
+
+          this.getTransform__screenToCam__for__t_ic__cam = function(t_ic__cam) {
+            return this.getTransform__screenToCam();
+          };
+
+          this.getTransform__screenToCam = function() {
+            const t__camToScreen = this.getTransform__camToScreen();
+            const t__screenToCam = ICUtils.invertTransform(t__camToScreen);
+            return t__screenToCam;
+          };
+
+          this.screenPointToCamPoint = function(screenPoint) {
+            const t__screenToCam = this.getTransform__screenToCam(); 
+
+            const camPoint = ICUtils.transformPoint(screenPoint, t__screenToCam);
+            return camPoint;
+          };
+
+          this.screenDict_parallelogram_toCamDict_parallelogram = function(dict_screenPoint) {
+            const t__screenToCam = this.getTransform__screenToCam(); 
+
+            return ICUtils.transformDict_parallelogram(dict_screenPoint, t__screenToCam);
+          };
+
+          //cam --> screen
+
+          this.getTransform__camToScreen__for__t_ic__cam = function(t_ic__cam) {
+            return this.getTransform__camToScreen();
+          };
+
+          this.getTransform__camToScreen = function() {
+            const t_screen__cam  = this.screenTransform__camera();
+            const t__camToScreen = t_screen__cam;
+            return t__camToScreen;
+          };
+
+          this.camPointToScreenPoint = function(camPoint) {
+            const t__camToScreen = this.getTransform__camToScreen(); 
+
+            const screenPoint = ICUtils.transformPoint(camPoint, t__camToScreen);
+            return screenPoint;
+          };
+
+          this.screenDict_parallelogram_toCamDict_parallelogram = function(dict_camPoint) {
+            const t__camToScreen = this.getTransform__camToScreen(); 
+
+            return ICUtils.transformDict_parallelogram(dict_camPoint, t__camToScreen);
+          };
+
+
+
+
+          //cam --> true
+
+          this.getTransform__camToTrue__for__t_ic__cam = function(t_ic__cam) {
+            const t__camToTrue = t_ic__cam;
+            return t__camToTrue;
+          };
+
+          this.getTransform__camToTrue = function() {
+            const icCamera = this.scopeObj.engineCarrier;
+
+            const t_ic__cam = icCamera.getIcTransform();
+
+            return this.getTransform__camToTrue__for__t_ic__cam(t_ic__cam);
+          };
+
+          this.camPointToTruePointFor__t_ic__cam = function(camPoint, t_ic__cam) {
+            const t__camToTrue = this.getTransform__camToTrue__for__t_ic__cam(t_ic__cam);
+
+            const truePoint  = ICUtils.transformPoint(camPoint__bigNumber, t__camToTrue);
+            return truePoint;
+          };
+
+          this.camPointToTruePoint = function(camPoint) {
+            const icCamera = this.scopeObj.engineCarrier;
+
+            const t_ic__cam = icCamera.getIcTransform();
+            return this.camPointToTruePointFor__t_ic__cam(camPoint, t_ic__cam);
+          };
+
+          this.camDict_parallelogram_toTrueDict_parallelogram = function(dict_camPoint) {
+            const t__camToTrue = this.getTransform__camToTrue();
+            return ICUtils.transformDict_parallelogram(dict_camPoint, t__camToTrue);
+          };
+
+          this.camTransformToTrueTransform = function(camTransform) {
+            const t__camToTrue = this.getTransform__camToTrue();
+            return ICUtils.multiplyTransformMatrices(t__camToTrue, camTransform);
+          };
+
+          this.transferCamToTrue = function(camTransform) {
+            const icCamera = this.scopeObj.engineCarrier;
+
+            const t__camToTrue = this.getTransform__camToTrue();
+ 
+            const t_ic = ICUtils.transferTransform(camTransform, t__camToTrue);
+  
+            return t_ic;
+          };
+
+
+
+          //true --> cam
+
+          this.getTransform__trueToCam__for__t_ic__cam = function(t_ic__cam) {
+            const t__camToTrue = this.getTransform__camToTrue__for__t_ic__cam(t_ic__cam);
+            const t__trueToCam = ICUtils.invertTransform(t__camToTrue);
+            return t__trueToCam;
+          };
+
+          this.getTransform__trueToCam = function() {
+            const icCamera = this.scopeObj.engineCarrier;
+
+            const t_ic__cam = icCamera.getIcTransform();
+
+            return this.getTransform__trueToCam__for__t_ic__cam(t_ic__cam);
+          };
+
+          this.truePointToCamPointFor__t_ic__cam = function(truePoint, t_ic__cam) {
+            const t__trueToCam = this.getTransform__trueToCam__for__t_ic__cam(t_ic__cam);
+
+            const camPoint  = ICUtils.transformPoint(truePoint, t__trueToCam);
+            return camPoint;
+          };
+
+          this.truePointToCamPoint = function(truePoint) {
+            const icCamera = this.scopeObj.engineCarrier;
+
+            const t_ic__cam = icCamera.getIcTransform();
+            return this.truePointToCamPointFor__t_ic__cam(truePoint, t_ic__cam);
+          };
+
+          this.trueDict_parallelogram_toCamDict_parallelogram = function(dict_truePoint) {
+            const t__trueToCam = this.getTransform__trueToCam();
+            return ICUtils.transformDict_parallelogram(dict_truePoint, t__trueToCam);
+          };
+
+          this.trueTransformToCamTransform = function(trueTransform) {
+            const t__trueToCam = this.getTransform__trueToCam();
+            return ICUtils.multiplyTransformMatrices(t__trueToCam, trueTransform);
+          };
+
+          this.transferCamToTrue = function(trueTransform) {
+            const icCamera = this.scopeObj.engineCarrier;
+
+            const t__trueToCam = this.getTransform__trueToCam();
+ 
+            const t_ic = ICUtils.transferTransform(trueTransform, t__trueToCam);
+  
+            return t_ic;
+          };
 
 
 
@@ -49230,9 +49484,105 @@
           const fabricIntegration = this;
           const fabricCanvas      = fabricIntegration.fabricCanvas;
 
-          // this.killAllOrphanFObjs();
+          const infiniteCanvas    = fabricIntegration.infiniteCanvas;
+          const icCamera          = infiniteCanvas.icCamera;
+          const cameraEngine      = icCamera.dict_engine["camera"].engine.awoken; 
 
-          this.updateFabricObjectsTransform(redrawOccasion);
+          // this.killAllOrphanFObjs();
+          // this.updateFabricObjectsTransform(redrawOccasion);
+
+          const arr_icObj = infiniteCanvas.getArr_icObj("free").filter((icObj) => (icObj != icCamera) );
+
+          {
+            const arr_fObj__old  = arr_icObj.map((icObj) => {
+              return fabricIntegration.getFObjForIcObj(icObj);
+            }); 
+            logger.log("logFI", "redrawCanvas", "arr_fObj__old:", arr_fObj__old);
+
+            arr_fObj__old.forEach((fObj__old) => {
+              fabricIntegration.removeFabricObject(fObj__old);
+            });
+          }
+
+          {
+            const dict_unitSquare__number = ICUtils.numberize__dict(ICUtils.createDict_parallelogram__unitSquare());
+  
+            const arr_fObj = arr_icObj.map((icObj) => {
+  
+              const dict_truePoint = icObj.getDict_truePoint();
+              logger.log("logFI", "redrawCanvas", {
+                id: icObj.id,
+                dict_truePoint: ICUtils.stringify__dict(dict_truePoint), 
+              });
+  
+              const dict_camPoint         = cameraEngine.trueDict_parallelogram_toCamDict_parallelogram(dict_truePoint);
+              const dict_camPoint__number = ICUtils.numberize__dict(dict_camPoint);
+              logger.log("logFI", "redrawCanvas", "dict_camPoint__number:", dict_camPoint__number);
+  
+              const arr_camPoint = infiniteCanvas.createArrPoint__intersection(dict_camPoint__number, dict_unitSquare__number);
+  
+              const arr_screenPoint = arr_camPoint.map((camPoint) => {
+                const camPoint__bigNumber    = ICUtils.bigNumberize__dict(camPoint);
+                const screenPoint__bigNumber = cameraEngine.camPointToScreenPoint(camPoint__bigNumber);
+                const screenPoint__number    = ICUtils.numberize__dict(screenPoint__bigNumber);
+                return screenPoint__number;
+              });
+              logger.log("logFI", "redrawCanvas", "arr_screenPoint:", arr_screenPoint);
+
+              // const fObj = fabricIntegration.createFabricPolygon_with__arr_screenPoint(arr_screenPoint);
+
+              const fObj = new fabric.Polygon(arr_screenPoint);
+              logger.log("logFI", "redrawCanvas", "fObj:", fObj);
+
+
+              fObj.set({
+                // fill: icObj.fill,
+                fill: ColorUtils.rgbaColorStringForColorAndSuperOpacity("black", 0.6),
+      
+                stroke: icObj.stroke,
+                strokeWidth: 0,
+
+                icObj: icObj,
+              });
+
+              return fObj;
+            });
+
+            function superbus(fObj) {
+
+              const icObj = fObj.icObj;
+              if(fabricIntegration.fObjForIcObj_dict[icObj.id] != null) {
+                throw new Error("fabricIntegration.fObjForIcObj_dict[icObj.id] != null");
+              }
+              fabricIntegration.fObjForIcObj_dict[icObj.id] = fObj;
+    
+              if(!fabricIntegration.fabric_objects.includes(fObj)) {
+                fabricIntegration.fabric_objects.push(fObj);
+              }
+    
+              if (fObj.isRecycled) {
+                // fabricIntegration.fabricCanvas.add(fObj);
+                delete fObj.isRecycled;
+              } else {
+                fabricIntegration.fabricCanvas.add(fObj);
+              }
+    
+              const zIndex_fObj__target = fabricIntegration.fObjZIndexForIcObj(fObj.icObj);
+              fObj.moveTo(zIndex_fObj__target);
+
+            }
+
+            arr_fObj.forEach((fObj) => {
+              superbus(fObj);
+              fObj.dirty = true;
+              fObj.setCoords();
+            });
+
+
+          }
+
+
+
 
           switch (redrawOccasion) {
 
@@ -49850,11 +50200,12 @@
         }
 
        standardRedraw(fObj) {
+          logger.log("logFI", "standardRedraw", fObj);
+          
           const fabricIntegration = this;
           const fabricCanvas      = fabricIntegration.fabricCanvas;
           const infiniteCanvas    = fabricIntegration.infiniteCanvas;
 
-          // logger.log("logFI", "standardRedraw", fObj);
           const icObj = fObj.icObj;
 
           //common
@@ -49867,14 +50218,15 @@
             const fObj__img = fObj;
             const icRect    = icObj;
 
-            //create new img.src with update
-            const str__svg      = SvgHelper.createString__svgRect(icRect);
-            const dataURL__utf8 = FileIntegration.dataURLForSVGString(str__svg);
+            // //create new img.src with update
+            // const str__svg      = SvgHelper.createString__svgRect(icRect);
+            // const dataURL__utf8 = FileIntegration.dataURLForSVGString(str__svg);
 
-            //set new img.src
-            fObj__img.setSrc(dataURL__utf8, () => {
-              fabricCanvas.requestRenderAll();
-            });
+            // //set new img.src
+            // fObj__img.setSrc(dataURL__utf8, () => {
+            //   fabricCanvas.requestRenderAll();
+            // });
+
           }
           
 
@@ -50036,11 +50388,13 @@
 
           //SHU: un peu abusé (pour mater le zPixelRect)
           //{
-          fObj.set({
-            strokeWidth: icObj.strokeWidth,
-            stroke:      icObj.stroke,
-          });
-          fObj.setCoords();
+          if(icObj.type == "rect" && icObj.rType == "zPixelRect") {
+            fObj.set({
+              strokeWidth: icObj.strokeWidth,
+              stroke:      icObj.stroke,
+            });
+            fObj.setCoords();
+          }
           //}
 
           fObj.set({
@@ -50688,8 +51042,8 @@
           return fObj;
         }
 
-        createFabricRectWithIcObj_p(icObj) {
-          console.log("createFabricRectWithIcObj_p", icObj);
+        async createFabricRectWithIcObj_p(icObj) {
+          logger.log("logZPixel", "createFabricRectWithIcObj_p", icObj);
 
           const infiniteCanvas = this.infiniteCanvas;
 
@@ -50700,65 +51054,46 @@
           const str__svg = SvgHelper.createString__svgRect(icRect);
           logger.log("logZPixel", "createFabricRectWithIcObj_p", "str__svg:", str__svg);
 
-          const dataURL__utf8 = FileIntegration.dataURLForSVGString(str__svg);
-          logger.log("logZPixel", "createFabricRectWithIcObj_p", "dataURL__utf8:", dataURL__utf8);
+          // const dataURL__utf8 = FileIntegration.dataURLForSVGString(str__svg);
+          // logger.log("logZPixel", "createFabricRectWithIcObj_p", "dataURL__utf8:", dataURL__utf8);
 
 
           const fObj_p = new Promise((resolve, reject) => {
 
-            // fabric.loadSVGFromString(str__svg, (arr_fObj) => {
-            //   if(arr_fObj.length == 1) {
-            //     const fObj__rect = arr_fObj.find(e => true);
-            //     resolve(fObj__rect);
-            //   } else {
-            //     const error = new Error("error when loading svg string: arr_fObj.length != 1" + ", str__svg:", str__svg);
-            //     reject(error);
-            //   }
-            // });
-
-            fabric.Image.fromURL(dataURL__utf8, function (img) {
-              logger.log("logZPixel", "createFabricRectWithIcObj_p", "img:", img);
-              resolve(img);
-            },
-            {
-              crossOrigin: 'Anonymous',
+            fabric.loadSVGFromString(str__svg, (arr_fObj) => {
+              if(arr_fObj.length == 1) {
+                const fObj__rect = arr_fObj.find(e => true);
+                fObj__rect.set({
+                  crossOrigin: 'Anonymous',
+                });
+                resolve(fObj__rect);
+              } else {
+                const error = new Error("error when loading svg string: arr_fObj.length != 1" + ", str__svg:", str__svg);
+                reject(error);
+              }
             });
 
+            // fabric.Image.fromURL(dataURL__utf8, function (fObj__img) {
+            //   logger.log("logZPixel", "createFabricRectWithIcObj_p", "fObj__img:", fObj__img);
+            //   resolve(fObj__img);
+            // },
+            // {
+            //   crossOrigin: 'Anonymous',
+            // });
+
           });
+
+          const fObj = await fObj_p;
+          logger.log("logZPixel", "createFabricRectWithIcObj_p", "fObj:", fObj);
 
           // return fObj_p;
 
           fObj_p.then((fObj) => {
   
             fObj.set({
-              width:  icObj.size.width,
-              height: icObj.size.height,
-  
-  
-              stroke:      icObj.stroke,
-              strokeWidth: icObj.strokeWidth,
-  
-              // fill: '#f55',
-              // fill: 'red',
-              fill: icObj.fill,
-  
-              // opacity: 0.7,
-
               icObj: icObj,
             });
-            // } else {
-  
-            // }
-  
-  
-            fObj.set({
-              rx: icObj.rx,
-              ry: icObj.ry,
-            });
 
-
-  
-            // console.log("----", "fObj", fObj);
   
             //event listeners
             if (icObj.canBeHeld) {
@@ -51772,6 +52107,8 @@
 
           return fObj;
         }
+
+
 
 
 
@@ -54793,26 +55130,47 @@
           const fabricIntegration = this;
           const infiniteCanvas    = fabricIntegration.infiniteCanvas;
           const icCamera          = infiniteCanvas.icCamera;
-          const cameraEngine      = icCamera.dict_engine["camera"].engine.awoken; 
+          const cameraEngine      = icCamera.dict_engine["camera"].engine.awoken;
           
-          // const t_ic = cameraEngine.getIcTransform(fObj);
+          if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
 
-          const isSkipGroup = false;  //this is important for active selection
-          const t_screen    = fObj.getScreenTransform(isSkipGroup);
+            const zPixelUtils = infiniteCanvas.zPixelUtils;
 
-          const t_ic        = cameraEngine.toTrueTransform(t_screen);
+            const isSkipGroup = false;  //this is important for active selection
+            const t_screen    = fObj.getScreenTransform(isSkipGroup);
+  
+            var t_ic = cameraEngine.toTrueTransform(t_screen);
 
-          const rep_free    = fObj.icObj;
+            const t_ic__camera = icCamera.getIcTransform();
+            const homeScale__icCamera = ICUtils.decompose(t_ic__camera).factScale;
+            const homeScale__manipulation = Decimal.div(homeScale__icCamera, Decimal.pow(new Decimal(2), new Decimal(4)));
 
-          // const listener    = fObj.fListener_inner;
-          //listen:off
-          // rep_free.offInnerUpdate(listener);
+            t_ic = zPixelUtils.zPixelateTransform__snapTL(t_ic, homeScale__manipulation);
+            
+            const rep_free    = fObj.icObj;
+            rep_free.setIcTransform(t_ic);
 
-          //update
-          rep_free.setIcTransform(t_ic);
+          } else {
 
-          //listen:on
-          // rep_free.onInnerUpdate(listener);
+            const isSkipGroup = false;  //this is important for active selection
+            const t_screen    = fObj.getScreenTransform(isSkipGroup);
+  
+            const t_ic        = cameraEngine.toTrueTransform(t_screen);
+  
+            const rep_free    = fObj.icObj;
+  
+            // const listener    = fObj.fListener_inner;
+            //listen:off
+            // rep_free.offInnerUpdate(listener);
+  
+            //update
+            rep_free.setIcTransform(t_ic);
+  
+            //listen:on
+            // rep_free.onInnerUpdate(listener);
+
+          }
+
         }
 
 
@@ -54844,54 +55202,35 @@
             const icObj    = fObj.icObj;
             const rep_free = icObj;
 
-            if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {  //zPixelMove
+            //mutate
+            switch (icObj.type) {
+              case "segment":
+                {
+                  const transform = options.transform;
 
-              const target = options.transform.target;
+                  // const offset__transform__screen1 = Geometry.createPoint(transform.offsetX, transform.offsetY);   //NOT WORKING
+                  // logger.log("offset__transform__screen1", offset__transform__screen1);
 
-              const screenPoint__target = {
-                x: target.left,
-                y: target.top,
-              };
-              const truePoint__target = infiniteCanvas.toTruePoint(screenPoint__target);
+                  const offset__transform__screen2 = Geometry.createPoint(options.target.left - fObj.position__target__original.x, options.target.top - fObj.position__target__original.y);
+                  logger.log("offset__transform__screen2", offset__transform__screen2);
 
-              const truePoint__zPixel = infiniteCanvas.compute_truePointTL__zPixelMove(truePoint__target);
+                  const offset__transform__ic = infiniteCanvas.toTruePoint(offset__transform__screen2);
 
-              //update .position
-              rep_free.position = truePoint__zPixel;
+                  const v = Geometry.vector_2d(infiniteCanvas.toTruePoint(Geometry.createPoint(0, 0)), offset__transform__ic);
 
-            } else {
+                  //update .point_start and .point_end
+                  rep_free.point_start = Geometry.translatedPoint(fObj.point_start__original, v);
+                  rep_free.point_end   = Geometry.translatedPoint(fObj.point_end__original, v);
 
-              //mutate
-              switch (icObj.type) {
-                case "segment":
-                  {
-                    const transform = options.transform;
-
-                    // const offset__transform__screen1 = Geometry.createPoint(transform.offsetX, transform.offsetY);   //NOT WORKING
-                    // logger.log("offset__transform__screen1", offset__transform__screen1);
-
-                    const offset__transform__screen2 = Geometry.createPoint(options.target.left - fObj.position__target__original.x, options.target.top - fObj.position__target__original.y);
-                    logger.log("offset__transform__screen2", offset__transform__screen2);
-
-                    const offset__transform__ic = infiniteCanvas.toTruePoint(offset__transform__screen2);
-
-                    const v = Geometry.vector_2d(infiniteCanvas.toTruePoint(Geometry.createPoint(0, 0)), offset__transform__ic);
-
-                    //update .point_start and .point_end
-                    rep_free.point_start = Geometry.translatedPoint(fObj.point_start__original, v);
-                    rep_free.point_end   = Geometry.translatedPoint(fObj.point_end__original, v);
-
-                  }
-                  break;
-                default:
-                  {
-                    const target = options.transform.target;
-                    const fObj   = target;
-                    fabricIntegration.updateIcObj_with__fObj(fObj);
-                  }
-                  break;
-              }
-
+                }
+                break;
+              default:
+                {
+                  const target = options.transform.target;
+                  const fObj   = target;
+                  fabricIntegration.updateIcObj_with__fObj(fObj);
+                }
+                break;
             }
 
           });
@@ -55637,8 +55976,9 @@
             // fObj.requestAnimationFrame = null;
             */
 
-            fObj.dispose();
+            // fObj.dispose();
           }
+          fObj.dispose();
 
 
           /*
@@ -55733,7 +56073,10 @@
           // }
           // else  //when panning while there is no activeSelection
           // {
-            arr_fObj__to_move = [...fabric_objects];
+            arr_fObj__to_move = [...fabric_objects].filter((fObj) => {
+              const isPath = (fObj.path != null);
+              return !isPath;
+            });
           // }
 
 
@@ -57236,7 +57579,9 @@
             },
 
             updateConfigWithFinishedSession: function(drawingSession__finished) {
-              const drawingMode       = this;
+              logger.log("logDrawingMode", "updateConfigWithFinishedSession", "drawingSession__finished:", drawingSession__finished);
+
+              const drawingMode = this;
               
               const config__session = drawingSession__finished.config__session;
 
@@ -58030,20 +58375,27 @@
               logger.log("logZPixelFD", "DrawingSession__zPixelFreeDrawing", "initializeConfiguration");
               DecorationUtils.getWrappedObj(this).initializeConfiguration();
 
-              //configure zPixelUtils
-              {
-                const drawingSession    = this;
-                const drawingMode       = drawingSession.drawingMode;
-                const fabricIntegration = drawingMode.fabricIntegration;
-                const infiniteCanvas    = fabricIntegration.infiniteCanvas;
-                const icCamera          = infiniteCanvas.icCamera;
-  
+              const drawingSession    = this;
+              const drawingMode       = drawingSession.drawingMode;
+              const fabricIntegration = drawingMode.fabricIntegration;
+              const infiniteCanvas    = fabricIntegration.infiniteCanvas;
+              const icCamera          = infiniteCanvas.icCamera;
+
+              const zPixelUtils__drawingMode = drawingMode.config__drawingMode.zPixelUtils;
+              if(zPixelUtils__drawingMode != null) {
+
+                drawingSession.config__session.zPixelUtils = zPixelUtils__drawingMode;
+
+              } else {
+
+                //configure zPixelUtils
                 const dict_truePoint__zPixelUnit = icCamera.getDict_truePoint__zPixelUnit();
                 logger.log("logZPixelFD", "DrawingSession__zPixelFreeDrawing", "dict_truePoint__zPixelUnit:", ICUtils.stringify__dict(dict_truePoint__zPixelUnit));
   
                 const zPixelUtils__session = new Geometry.zPixelUtils(dict_truePoint__zPixelUnit);
   
-                this.config__session.zPixelUtils = zPixelUtils__session;
+                drawingSession.config__session.zPixelUtils = zPixelUtils__session;
+
               }
 
             },
@@ -58652,20 +59004,27 @@
               logger.log("logZPixelRectFD", "DrawingSession__zPixelRectFreeDrawing", "initializeConfiguration");
               DecorationUtils.getWrappedObj(this).initializeConfiguration();
 
-              //configure zPixelUtils
-              {
-                const drawingSession    = this;
-                const drawingMode       = drawingSession.drawingMode;
-                const fabricIntegration = drawingMode.fabricIntegration;
-                const infiniteCanvas    = fabricIntegration.infiniteCanvas;
-                const icCamera          = infiniteCanvas.icCamera;
-  
+              const drawingSession    = this;
+              const drawingMode       = drawingSession.drawingMode;
+              const fabricIntegration = drawingMode.fabricIntegration;
+              const infiniteCanvas    = fabricIntegration.infiniteCanvas;
+              const icCamera          = infiniteCanvas.icCamera;
+
+              const zPixelUtils__drawingMode = drawingMode.config__drawingMode.zPixelUtils;
+              if(zPixelUtils__drawingMode != null) {
+
+                drawingSession.config__session.zPixelUtils = zPixelUtils__drawingMode;
+
+              } else {
+
+                //configure zPixelUtils
                 const dict_truePoint__zPixelUnit = icCamera.getDict_truePoint__zPixelUnit();
                 logger.log("logZPixelRectFD", "DrawingSession__zPixelRectFreeDrawing", "dict_truePoint__zPixelUnit:", ICUtils.stringify__dict(dict_truePoint__zPixelUnit));
   
                 const zPixelUtils__session = new Geometry.zPixelUtils(dict_truePoint__zPixelUnit);
   
-                this.config__session.zPixelUtils = zPixelUtils__session;
+                drawingSession.config__session.zPixelUtils = zPixelUtils__session;
+
               }
 
             },
@@ -63964,7 +64323,7 @@
 
           this.dict_truePoint__zPixelOrigin = zPixelUtils.createDict_truePoint__zPixelOrigin_with__zPixelUnit(dict_truePoint__zPixelUnit, zPixelCoords__zPixelUnit);
           logger.log("logZPixelUtils", "zPixelUtils::constructor", "this.dict_truePoint__zPixelOrigin:", ICUtils.stringify__dict(this.dict_truePoint__zPixelOrigin));
-          
+
           this.homeScale__zPixelOrigin      = zPixelUtils.createHomeScale__zPixelOrigin_with__zPixelUnit(dict_truePoint__zPixelUnit, zPixelCoords__zPixelUnit);
           logger.log("logZPixelUtils", "zPixelUtils::constructor", "this.homeScale__zPixelOrigin:", this.homeScale__zPixelOrigin.toPrecision(4).toString());
 
@@ -64085,12 +64444,16 @@
         }
 
         dict_truePoint_forTruePointAndHomeScale(truePoint, homeScale) {
+          logger.log("logZPixelUtils", "dict_truePoint_forTruePointAndHomeScale", {
+            truePoint: ICUtils.stringify__dict(truePoint), 
+            homeScale: homeScale.toString(),
+          });
 
           const zLevel = this.zLevelForHomeScale(homeScale);
-          // logger.log("logZPixel", "getZPixelFRect", "zLevel:", zLevel);
+          logger.log("logZPixelUtils", "dict_truePoint_forTruePointAndHomeScale", "zLevel:", zLevel.toString());
 
           const zPixelCoords = this.zPixelCoordsForTruePointAndZLevel(truePoint, zLevel);
-          // logger.log("logZPixel", "getZPixelFRect", "zPixelCoords:", zPixelCoords);
+          logger.log("logZPixelUtils", "dict_truePoint_forTruePointAndHomeScale", "zPixelCoords:", ICUtils.stringify__dict(zPixelCoords));
 
           const dict_truePoint = this.dict_truePoint_forZPixelCoords(zPixelCoords);
 
@@ -64203,6 +64566,46 @@
           };
 
           return outDict;
+
+        }
+
+
+
+
+        //zPixelate
+
+        zPixelateTransform__snapTL(t_ic__obj, homeScale__manipulation) {
+
+          const homeScale__obj      = ICUtils.decompose(t_ic__obj).factScale;
+
+          const dict_unitSquare     = ICUtils.createDict_parallelogram__unitSquare();
+          const dict_truePoint__obj = ICUtils.transformDict_parallelogram(dict_unitSquare, t_ic__obj);
+          const truePoint__TL__obj  = dict_truePoint__obj.tl;
+
+          // const dict_truePoint__zPixel = this.dict_truePoint_forTruePointAndHomeScale(truePoint__TL__obj, homeScale__obj);
+          const dict_truePoint__zPixel = this.dict_truePoint_forTruePointAndHomeScale(truePoint__TL__obj, homeScale__manipulation);
+          const truePoint__TL__zPixel  = dict_truePoint__zPixel.tl;
+
+
+          const t__translation = ICUtils.calcTranslateMatrix({
+            translateX: Decimal.sub( truePoint__TL__zPixel.x , truePoint__TL__obj.x ),
+            translateY: Decimal.sub( truePoint__TL__zPixel.y , truePoint__TL__obj.y ),
+          });
+
+          const t__zPixelated = ICUtils.multiplyTransformMatrices(t__translation, t_ic__obj);
+
+          return t__zPixelated;
+        }
+
+        zPixelateTransform__snapTL__and__align(trueTransform) {
+
+          
+
+        }
+
+        zPixelateTransform__refit(trueTransform) {
+
+
 
         }
 
@@ -69931,7 +70334,7 @@
               }
             }),
 
-            "KeyI": new KeyUpTrigger("KeyI", KeyUpTrigger.defaultKeyUpFunc(["KeyI"]), () => {
+            "KeyI": new KeyUpTrigger("KeyI", KeyUpTrigger.defaultKeyUpFunc(["KeyI"]), async () => {
               // if(infiniteCanvas.importMode == ImportMode.Image) {
 
               // }
@@ -70029,41 +70432,45 @@
                 if (keyboardIntegration.keyDownToggles.digit2.isActive) {
 
                   const infiniteCanvas = keyboardIntegration.infiniteCanvas;
-                  // infiniteCanvas.isIgnoreOnObjectAdded = true;
+
+                  const drawingMode__zPixelFreeDrawing = fabricIntegration.drawingMode__zPixelFreeDrawing;
+                  const drawingSession = drawingMode__zPixelFreeDrawing.getCurrentDrawingSession();
+                  const drawingBout    = drawingSession.getCurrentDrawingBout()
+
+                  const homeScale__bout = drawingBout.config__bout.homeScale;
+                  const zPixelUtils     = drawingBout.config__bout.zPixelUtils;
+
+                  await fabricIntegration.leaveDrawingMode_p();
+                  fabricIntegration.removeDrawingMode(fabricIntegration.drawingMode__zPixelFreeDrawing);
 
                   //get zPixelCoords of cursor
-                  const drawingMode__zPixelFreeDrawing = fabricIntegration.drawingMode__zPixelFreeDrawing;
-                  const zPixelUtils = drawingMode__zPixelFreeDrawing.session.config__session.zPixelUtils;
-
-                  const truePoint__cursor = infiniteCanvas.getTrueCursor();
-                  const zLevel__cursor = new Decimal(0);
-                  const zPixelCoords__cursor = zPixelUtils.zPixelCoordsForTruePointAndZLevel(truePoint__cursor, zLevel__cursor);
+                  const truePoint__cursor    = infiniteCanvas.getTrueCursor();
+                  const zPixelCoords__cursor = zPixelUtils.zPixelCoordsForTruePointAndHomeScale(truePoint__cursor, homeScale__bout);
                   logger.log("logImportImage", "zPixelCoords__cursor:", zPixelCoords__cursor);
                   
-                  FileIntegration.importImage_multiple_p()
-                  .then(arr_img => {
-                    arr_img.forEach(img => {
+                  const arr_img = await FileIntegration.importImage_multiple_p();
 
-                      //create zPixelRectCoords using img's size
-                      const zPixelRectCoords = Object.assign({}, zPixelCoords__cursor, {
-                        iwidth:  new Decimal(img.width),
-                        iheight: new Decimal(img.height),
-                      });
+                  for(var i=0; i<arr_img.length; i++) {
 
-                      const dict_truePoint = zPixelUtils.dict_truePoint_forZPixelRectCoords(zPixelRectCoords);
-                      
-                      const icZPixelImage = infiniteCanvas.createIcZPixelImage(dict_truePoint, img);
+                    const img = arr_img[i];
 
-                      infiniteCanvas.addIcObject_p(icZPixelImage);
-                      // .then(() => {
-                      //   setTimeout(() => {
-                      //     infiniteCanvas.isIgnoreOnObjectAdded = false;   //SHU: create a callback when fObj is added and ready
-                      //   }, 200);
-                      // });
-
+                    //create zPixelRectCoords using img's size
+                    const zPixelRectCoords = Object.assign({}, zPixelCoords__cursor, {
+                      iwidth:  new Decimal(img.width),
+                      iheight: new Decimal(img.height),
                     });
 
-                  });
+                    const dict_truePoint = zPixelUtils.dict_truePoint_forZPixelRectCoords(zPixelRectCoords);
+                    
+                    const icZPixelImage = infiniteCanvas.createIcZPixelImage(dict_truePoint, img);
+
+                    /*const rep_free =*/ await infiniteCanvas.addIcObject_p(icZPixelImage);
+                  }
+
+                  if(arr_img.length > 0) {
+                    infiniteCanvas.redrawCanvas(RedrawOccasion.objectAdded);
+                  }
+
 
                 } else {
 
@@ -71294,8 +71701,10 @@
 
             "Space": new KeyUpTrigger("Space", KeyUpTrigger.defaultKeyUpFunc(["Space"]), () => {
               const infiniteCanvas = keyboardIntegration.infiniteCanvas;
-
-              if(keyboardIntegration.keyDownToggles.digit2.isActive
+              
+              if(keyboardIntegration.keyDownToggles.shiftLeft.isActive) {
+                keyboardIntegration.infiniteCanvas.manageContextPicker(); 
+              } else if(keyboardIntegration.keyDownToggles.digit2.isActive
                  || keyboardIntegration.keyDownToggles.digit3.isActive
               ) {
                 keyboardIntegration.infiniteCanvas.manageDrawingModeContextPicker(); 
