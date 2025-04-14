@@ -8,9 +8,8 @@
 (Keep ² or ` key pressed (right above TAB) and click to draw)    
 https://mathgame.fr/3DRoom+ic.html    
        
-Advice: To be very comfortable and precise,       
-reverse left click and right click in your OS mouse settings,       
-so that _index finger scrolls mouse wheel_ while middlefinger is clicking      
+To be very comfortable and precise:       
+_index finger scrolls mouse wheel_ while middlefinger is clicking      
 
 ## About
 Infinite whiteboard with interactive elements.   
