@@ -8,7 +8,7 @@
 (Keep ² or ` key pressed (right above TAB) and click to draw)    
               
 newest version:              
-https://zpixeleditor.com              
+http://zpixeleditor.com              
               
 old version:              
 https://mathgame.fr/3DRoom+ic.html                  
