@@ -6,7 +6,12 @@
 
 ## Try it !
 (Keep ² or ` key pressed (right above TAB) and click to draw)    
-https://mathgame.fr/3DRoom+ic.html    
+              
+newest version:              
+https://zpixeleditor.com              
+              
+old version:              
+https://mathgame.fr/3DRoom+ic.html                  
        
 To be very comfortable and precise:       
 _index finger scrolls mouse wheel_ while middlefinger is clicking      
